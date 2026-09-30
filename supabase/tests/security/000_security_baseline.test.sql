@@ -118,20 +118,32 @@ select is(
     where schema = 'public' and has_function_privilege('authenticated', oid, 'execute')),
   array[
     'accept_organisation_invite(text)',
+    'add_agency_worker_note(uuid,text)',
     'assign_membership_role(uuid,text)',
+    'create_agency_facility(uuid,text,text,text,text,text,text,text,text,text,text,text,text)',
+    'create_facility_location(uuid,text,text,text,text,text)',
+    'create_facility_relationship(uuid)',
     'create_organisation(organisation_type,text,text)',
     'create_organisation_invite(uuid,text,text)',
     'list_organisation_invites(uuid)',
+    'list_partner_agency_relationships(uuid)',
     'my_capabilities(uuid)',
     'platform_create_organisation(organisation_type,text,text,text)',
+    'platform_link_agency_facility(uuid,uuid)',
     'platform_list_organisations()',
     'platform_set_organisation_status(uuid,organisation_status)',
     'platform_set_profile_status(uuid,profile_status)',
     'preview_organisation_invite(text)',
+    'record_organisation_invite_delivery(uuid,invite_delivery_status,text,text,text)',
     'resend_organisation_invite(uuid)',
     'revoke_membership_role(uuid,text)',
     'revoke_organisation_invite(uuid)',
-    'set_membership_status(uuid,membership_status)'
+    'set_agency_facility_status(uuid,facility_status)',
+    'set_agency_worker_status(uuid,worker_status)',
+    'set_facility_relationship_status(uuid,relationship_status)',
+    'set_membership_status(uuid,membership_status)',
+    'update_agency_facility(uuid,text,text,text,text,text,text,text,text,text,text,text,text)',
+    'update_agency_worker(uuid,text)'
   ],
   'authenticated can execute exactly the approved public RPCs'
 );
@@ -144,7 +156,9 @@ select is(
     'authz.current_aal()',
     'authz.current_profile_id()',
     'authz.has_capability(uuid,text)',
+    'authz.has_relationship_capability(uuid,text)',
     'authz.is_org_member(uuid)',
+    'authz.is_own_active_membership(uuid)',
     'authz.is_own_membership(uuid)',
     'authz.is_platform_admin()'
   ],

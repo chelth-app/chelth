@@ -32,11 +32,6 @@ select
   pg_temp.membership_of((select beta from orgs), (select bob from ids)) as bob;
 grant select on m to authenticated;
 
--- Convenience: call an RPC as a user.
-create function pg_temp.rpc(p_user uuid, p_aal text, p_sql text, variadic p_args text[])
-returns text language sql as $$
-  select pg_temp.scalar_as(p_user, p_aal, format(p_sql, variadic p_args))
-$$;
 
 -- ---------------------------------------------------------------------------
 -- Vocabulary integrity
@@ -49,7 +44,8 @@ select is((select count(*)::int from public.roles where is_owner_role),
   2, 'exactly one owner role per organisation type');
 select is(
   (select array_agg(key order by key) from public.capabilities where is_privileged),
-  array['audit.view', 'membership.invite', 'membership.manage', 'organisation.manage', 'role.assign'],
+  array['audit.view', 'facility.manage', 'membership.invite', 'membership.manage', 'organisation.manage',
+        'relationship.manage', 'role.assign', 'worker.manage', 'worker.notes.manage'],
   'administrative capabilities are privileged (AAL2)');
 
 -- ---------------------------------------------------------------------------
@@ -74,9 +70,9 @@ select is(pg_temp.rpc((select alice from ids), 'aal2', 'select authz.has_capabil
   'false', 'unknown capabilities are never granted');
 
 select is(pg_temp.count_as((select alice from ids), 'aal1', format('select * from public.my_capabilities(%L)', (select alpha from orgs))),
-  7, 'my_capabilities lists every held capability');
+  15, 'my_capabilities lists every held capability');
 select is(pg_temp.count_as((select alice from ids), 'aal1', format('select * from public.my_capabilities(%L) where not is_satisfied', (select alpha from orgs))),
-  5, 'my_capabilities flags privileged capabilities needing step-up at AAL1');
+  9, 'my_capabilities flags privileged capabilities needing step-up at AAL1');
 select is(pg_temp.count_as((select bob from ids), 'aal2', format('select * from public.my_capabilities(%L)', (select alpha from orgs))),
   0, 'my_capabilities is empty for non-members');
 

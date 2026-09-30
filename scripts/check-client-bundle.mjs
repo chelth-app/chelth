@@ -19,10 +19,12 @@ const SERVER_ONLY_NAMES = [
   "SENTRY_AUTH_TOKEN",
   "DATABASE_URL",
   "SENTRY_DSN",
+  "RESEND_API_KEY",
 ];
 const PATTERNS = [
   { name: "Supabase secret key", regex: /sb_secret_[A-Za-z0-9_-]{8,}/ },
   { name: "Private key block", regex: /-----BEGIN [A-Z ]*PRIVATE KEY-----/ },
+  { name: "Resend API key", regex: /\bre_[A-Za-z0-9]{8,}_[A-Za-z0-9]{16,}/ },
   {
     name: "Postgres connection string with password",
     regex: /postgres(ql)?:\/\/[^:\s"']+:[^@\s"']+@/,
@@ -30,6 +32,7 @@ const PATTERNS = [
 ];
 const SERVER_VALUES = [
   "SUPABASE_SERVICE_ROLE_KEY",
+  "RESEND_API_KEY",
   "SENTRY_AUTH_TOKEN",
   "DATABASE_URL",
   "SENTRY_DSN",

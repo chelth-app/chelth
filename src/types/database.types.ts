@@ -9,6 +9,279 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      agency_facilities: {
+        Row: {
+          address_line1: string | null
+          address_line2: string | null
+          agency_organisation_id: string
+          agency_organisation_type: Database["public"]["Enums"]["organisation_type"]
+          country_code: string | null
+          created_at: string
+          created_by_profile_id: string | null
+          email: string | null
+          external_reference: string | null
+          facility_type_key: string
+          id: string
+          linked_facility_organisation_id: string | null
+          linked_facility_organisation_type:
+            | Database["public"]["Enums"]["organisation_type"]
+            | null
+          locality: string | null
+          name: string
+          phone: string | null
+          postal_code: string | null
+          region: string | null
+          status: Database["public"]["Enums"]["facility_status"]
+          timezone: string
+          updated_at: string
+        }
+        Insert: {
+          address_line1?: string | null
+          address_line2?: string | null
+          agency_organisation_id: string
+          agency_organisation_type?: Database["public"]["Enums"]["organisation_type"]
+          country_code?: string | null
+          created_at?: string
+          created_by_profile_id?: string | null
+          email?: string | null
+          external_reference?: string | null
+          facility_type_key: string
+          id?: string
+          linked_facility_organisation_id?: string | null
+          linked_facility_organisation_type?:
+            | Database["public"]["Enums"]["organisation_type"]
+            | null
+          locality?: string | null
+          name: string
+          phone?: string | null
+          postal_code?: string | null
+          region?: string | null
+          status?: Database["public"]["Enums"]["facility_status"]
+          timezone: string
+          updated_at?: string
+        }
+        Update: {
+          address_line1?: string | null
+          address_line2?: string | null
+          agency_organisation_id?: string
+          agency_organisation_type?: Database["public"]["Enums"]["organisation_type"]
+          country_code?: string | null
+          created_at?: string
+          created_by_profile_id?: string | null
+          email?: string | null
+          external_reference?: string | null
+          facility_type_key?: string
+          id?: string
+          linked_facility_organisation_id?: string | null
+          linked_facility_organisation_type?:
+            | Database["public"]["Enums"]["organisation_type"]
+            | null
+          locality?: string | null
+          name?: string
+          phone?: string | null
+          postal_code?: string | null
+          region?: string | null
+          status?: Database["public"]["Enums"]["facility_status"]
+          timezone?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agency_facilities_agency_organisation_id_agency_organisati_fkey"
+            columns: ["agency_organisation_id", "agency_organisation_type"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id", "type"]
+          },
+          {
+            foreignKeyName: "agency_facilities_created_by_profile_id_fkey"
+            columns: ["created_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agency_facilities_facility_type_key_fkey"
+            columns: ["facility_type_key"]
+            isOneToOne: false
+            referencedRelation: "facility_types"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "agency_facilities_linked_facility_organisation_id_linked_f_fkey"
+            columns: [
+              "linked_facility_organisation_id",
+              "linked_facility_organisation_type",
+            ]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id", "type"]
+          },
+        ]
+      }
+      agency_facility_relationships: {
+        Row: {
+          agency_facility_id: string
+          agency_organisation_id: string
+          created_at: string
+          created_by_profile_id: string | null
+          ended_at: string | null
+          id: string
+          started_at: string | null
+          status: Database["public"]["Enums"]["relationship_status"]
+          status_changed_at: string
+          updated_at: string
+        }
+        Insert: {
+          agency_facility_id: string
+          agency_organisation_id: string
+          created_at?: string
+          created_by_profile_id?: string | null
+          ended_at?: string | null
+          id?: string
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["relationship_status"]
+          status_changed_at?: string
+          updated_at?: string
+        }
+        Update: {
+          agency_facility_id?: string
+          agency_organisation_id?: string
+          created_at?: string
+          created_by_profile_id?: string | null
+          ended_at?: string | null
+          id?: string
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["relationship_status"]
+          status_changed_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agency_facility_relationships_agency_facility_id_agency_or_fkey"
+            columns: ["agency_facility_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "agency_facilities"
+            referencedColumns: ["id", "agency_organisation_id"]
+          },
+          {
+            foreignKeyName: "agency_facility_relationships_created_by_profile_id_fkey"
+            columns: ["created_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agency_worker_notes: {
+        Row: {
+          agency_organisation_id: string
+          author_profile_id: string | null
+          body: string
+          created_at: string
+          id: string
+          worker_id: string
+        }
+        Insert: {
+          agency_organisation_id: string
+          author_profile_id?: string | null
+          body: string
+          created_at?: string
+          id?: string
+          worker_id: string
+        }
+        Update: {
+          agency_organisation_id?: string
+          author_profile_id?: string | null
+          body?: string
+          created_at?: string
+          id?: string
+          worker_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agency_worker_notes_author_profile_id_fkey"
+            columns: ["author_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agency_worker_notes_worker_id_agency_organisation_id_fkey"
+            columns: ["worker_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "agency_workers"
+            referencedColumns: ["id", "agency_organisation_id"]
+          },
+        ]
+      }
+      agency_workers: {
+        Row: {
+          agency_organisation_id: string
+          agency_organisation_type: Database["public"]["Enums"]["organisation_type"]
+          created_at: string
+          end_date: string | null
+          id: string
+          membership_id: string
+          profile_id: string
+          start_date: string | null
+          status: Database["public"]["Enums"]["worker_status"]
+          status_changed_at: string
+          updated_at: string
+          worker_reference: string | null
+        }
+        Insert: {
+          agency_organisation_id: string
+          agency_organisation_type?: Database["public"]["Enums"]["organisation_type"]
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          membership_id: string
+          profile_id: string
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["worker_status"]
+          status_changed_at?: string
+          updated_at?: string
+          worker_reference?: string | null
+        }
+        Update: {
+          agency_organisation_id?: string
+          agency_organisation_type?: Database["public"]["Enums"]["organisation_type"]
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          membership_id?: string
+          profile_id?: string
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["worker_status"]
+          status_changed_at?: string
+          updated_at?: string
+          worker_reference?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agency_workers_agency_organisation_id_agency_organisation__fkey"
+            columns: ["agency_organisation_id", "agency_organisation_type"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id", "type"]
+          },
+          {
+            foreignKeyName: "agency_workers_membership_id_agency_organisation_id_profil_fkey"
+            columns: ["membership_id", "agency_organisation_id", "profile_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id", "organisation_id", "profile_id"]
+          },
+          {
+            foreignKeyName: "agency_workers_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_events: {
         Row: {
           action: string
@@ -84,6 +357,83 @@ export type Database = {
           description?: string
           is_privileged?: boolean
           key?: string
+        }
+        Relationships: []
+      }
+      facility_locations: {
+        Row: {
+          address_line1: string | null
+          agency_facility_id: string
+          agency_organisation_id: string
+          created_at: string
+          id: string
+          locality: string | null
+          name: string
+          postal_code: string | null
+          status: Database["public"]["Enums"]["facility_location_status"]
+          timezone: string
+          updated_at: string
+        }
+        Insert: {
+          address_line1?: string | null
+          agency_facility_id: string
+          agency_organisation_id: string
+          created_at?: string
+          id?: string
+          locality?: string | null
+          name: string
+          postal_code?: string | null
+          status?: Database["public"]["Enums"]["facility_location_status"]
+          timezone: string
+          updated_at?: string
+        }
+        Update: {
+          address_line1?: string | null
+          agency_facility_id?: string
+          agency_organisation_id?: string
+          created_at?: string
+          id?: string
+          locality?: string | null
+          name?: string
+          postal_code?: string | null
+          status?: Database["public"]["Enums"]["facility_location_status"]
+          timezone?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "facility_locations_agency_facility_id_agency_organisation__fkey"
+            columns: ["agency_facility_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "agency_facilities"
+            referencedColumns: ["id", "agency_organisation_id"]
+          },
+        ]
+      }
+      facility_types: {
+        Row: {
+          created_at: string
+          description: string
+          is_active: boolean
+          key: string
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          is_active?: boolean
+          key: string
+          name: string
+          sort_order: number
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          is_active?: boolean
+          key?: string
+          name?: string
+          sort_order?: number
         }
         Relationships: []
       }
@@ -164,6 +514,11 @@ export type Database = {
           accepted_at: string | null
           accepted_by_profile_id: string | null
           created_at: string
+          delivery_attempted_at: string | null
+          delivery_error_code: string | null
+          delivery_message_id: string | null
+          delivery_provider: string | null
+          delivery_status: Database["public"]["Enums"]["invite_delivery_status"]
           email: string
           expires_at: string
           id: string
@@ -184,6 +539,11 @@ export type Database = {
           accepted_at?: string | null
           accepted_by_profile_id?: string | null
           created_at?: string
+          delivery_attempted_at?: string | null
+          delivery_error_code?: string | null
+          delivery_message_id?: string | null
+          delivery_provider?: string | null
+          delivery_status?: Database["public"]["Enums"]["invite_delivery_status"]
           email: string
           expires_at: string
           id?: string
@@ -204,6 +564,11 @@ export type Database = {
           accepted_at?: string | null
           accepted_by_profile_id?: string | null
           created_at?: string
+          delivery_attempted_at?: string | null
+          delivery_error_code?: string | null
+          delivery_message_id?: string | null
+          delivery_provider?: string | null
+          delivery_status?: Database["public"]["Enums"]["invite_delivery_status"]
           email?: string
           expires_at?: string
           id?: string
@@ -475,8 +840,45 @@ export type Database = {
           organisation_id: string
         }[]
       }
+      add_agency_worker_note: {
+        Args: { p_body: string; p_worker_id: string }
+        Returns: string
+      }
       assign_membership_role: {
         Args: { p_membership_id: string; p_role_key: string }
+        Returns: string
+      }
+      create_agency_facility: {
+        Args: {
+          p_address_line1?: string
+          p_address_line2?: string
+          p_agency_organisation_id: string
+          p_country_code?: string
+          p_email?: string
+          p_external_reference?: string
+          p_facility_type: string
+          p_locality?: string
+          p_name: string
+          p_phone?: string
+          p_postal_code?: string
+          p_region?: string
+          p_timezone: string
+        }
+        Returns: string
+      }
+      create_facility_location: {
+        Args: {
+          p_address_line1?: string
+          p_facility_id: string
+          p_locality?: string
+          p_name: string
+          p_postal_code?: string
+          p_timezone?: string
+        }
+        Returns: string
+      }
+      create_facility_relationship: {
+        Args: { p_facility_id: string }
         Returns: string
       }
       create_organisation: {
@@ -498,6 +900,7 @@ export type Database = {
       list_organisation_invites: {
         Args: { p_organisation_id: string }
         Returns: {
+          invite_delivery_status: Database["public"]["Enums"]["invite_delivery_status"]
           invite_expires_at: string
           invite_id: string
           invite_role_key: string
@@ -505,6 +908,16 @@ export type Database = {
           invite_status: Database["public"]["Enums"]["invite_status"]
           invited_at: string
           invitee_email: string
+        }[]
+      }
+      list_partner_agency_relationships: {
+        Args: { p_facility_organisation_id: string }
+        Returns: {
+          agency_name: string
+          agency_organisation_id: string
+          relationship_id: string
+          relationship_started_at: string
+          relationship_status: Database["public"]["Enums"]["relationship_status"]
         }[]
       }
       my_capabilities: {
@@ -528,6 +941,13 @@ export type Database = {
           invite_token: string
           organisation_id: string
         }[]
+      }
+      platform_link_agency_facility: {
+        Args: {
+          p_agency_facility_id: string
+          p_facility_organisation_id: string
+        }
+        Returns: undefined
       }
       platform_list_organisations: {
         Args: never
@@ -566,6 +986,16 @@ export type Database = {
           role_name: string
         }[]
       }
+      record_organisation_invite_delivery: {
+        Args: {
+          p_error_code?: string
+          p_invite_id: string
+          p_message_id?: string
+          p_provider: string
+          p_status: Database["public"]["Enums"]["invite_delivery_status"]
+        }
+        Returns: undefined
+      }
       resend_organisation_invite: {
         Args: { p_invite_id: string }
         Returns: {
@@ -582,6 +1012,27 @@ export type Database = {
         Args: { p_invite_id: string }
         Returns: undefined
       }
+      set_agency_facility_status: {
+        Args: {
+          p_facility_id: string
+          p_status: Database["public"]["Enums"]["facility_status"]
+        }
+        Returns: undefined
+      }
+      set_agency_worker_status: {
+        Args: {
+          p_status: Database["public"]["Enums"]["worker_status"]
+          p_worker_id: string
+        }
+        Returns: undefined
+      }
+      set_facility_relationship_status: {
+        Args: {
+          p_relationship_id: string
+          p_status: Database["public"]["Enums"]["relationship_status"]
+        }
+        Returns: undefined
+      }
       set_membership_status: {
         Args: {
           p_membership_id: string
@@ -589,13 +1040,45 @@ export type Database = {
         }
         Returns: undefined
       }
+      update_agency_facility: {
+        Args: {
+          p_address_line1?: string
+          p_address_line2?: string
+          p_country_code?: string
+          p_email?: string
+          p_external_reference?: string
+          p_facility_id: string
+          p_facility_type: string
+          p_locality?: string
+          p_name: string
+          p_phone?: string
+          p_postal_code?: string
+          p_region?: string
+          p_timezone: string
+        }
+        Returns: undefined
+      }
+      update_agency_worker: {
+        Args: { p_worker_id: string; p_worker_reference: string }
+        Returns: undefined
+      }
     }
     Enums: {
+      facility_location_status: "active" | "inactive"
+      facility_status: "active" | "inactive" | "archived"
+      invite_delivery_status: "not_attempted" | "sent" | "failed" | "skipped"
       invite_status: "pending" | "accepted" | "revoked"
       membership_status: "active" | "suspended" | "revoked"
       organisation_status: "active" | "suspended" | "archived"
       organisation_type: "agency" | "facility"
       profile_status: "active" | "suspended"
+      relationship_status: "pending" | "active" | "suspended" | "ended"
+      worker_status:
+        | "onboarding"
+        | "active"
+        | "inactive"
+        | "suspended"
+        | "terminated"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -723,12 +1206,22 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      facility_location_status: ["active", "inactive"],
+      facility_status: ["active", "inactive", "archived"],
+      invite_delivery_status: ["not_attempted", "sent", "failed", "skipped"],
       invite_status: ["pending", "accepted", "revoked"],
       membership_status: ["active", "suspended", "revoked"],
       organisation_status: ["active", "suspended", "archived"],
       organisation_type: ["agency", "facility"],
       profile_status: ["active", "suspended"],
+      relationship_status: ["pending", "active", "suspended", "ended"],
+      worker_status: [
+        "onboarding",
+        "active",
+        "inactive",
+        "suspended",
+        "terminated",
+      ],
     },
   },
 } as const
-

@@ -5,10 +5,11 @@ agencies, facilities and healthcare professionals to coordinate workers,
 credentials and compliance, staffing requests, shifts, attendance, timesheets,
 rates, invoicing and payroll exports.
 
-> Current stage: **P0-E3-S2 — identity, organisations & authorization.**
-> Multi-organisation memberships, capability-based roles, MFA-gated
-> administration, invitations and audit are in place. Healthcare workforce
-> domain modules arrive in later stages.
+> Current stage: **P0-E3-S3 — workforce, facility & relationship foundations.**
+> Agency worker records (one person, many agencies), client facilities with
+> locations, agency ↔ facility relationships with relationship-scoped sharing,
+> and configuration-gated transactional email. Credentials, shifts, time and
+> billing arrive in later stages.
 
 ---
 
@@ -43,6 +44,8 @@ mode.
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | public | Anon / publishable key **only**. A service-role or `sb_secret_` key is rejected.                                                                                 |
 | `LOG_LEVEL`                     | server | `debug` \| `info` \| `warn` \| `error` (default `info`).                                                                                                         |
 | `SENTRY_DSN`                    | server | Reserved; unused until error monitoring is approved.                                                                                                             |
+| `EMAIL_PROVIDER`                | server | `disabled` (default) \| `resend`. Disabled shows invitation links to the issuer instead of emailing.                                                             |
+| `RESEND_API_KEY`, `EMAIL_FROM`  | server | Required only with `EMAIL_PROVIDER=resend`. See docs/architecture/TRANSACTIONAL_EMAIL.md.                                                                        |
 
 Get local values with `supabase status`. For local builds against the local
 stack, set `NEXT_PUBLIC_APP_ENV=development` (or `test`) — a production-labelled
@@ -114,6 +117,8 @@ Read before contributing:
 - [Identity & organisation model](docs/architecture/IDENTITY_AND_ORGANISATION_MODEL.md)
 - [Authorization model](docs/architecture/AUTHORIZATION_MODEL.md)
 - [Identity threat model](docs/security/THREAT_MODEL_IDENTITY.md)
+- [Workforce](docs/architecture/WORKFORCE_DOMAIN_MODEL.md) · [Facilities](docs/architecture/FACILITY_DOMAIN_MODEL.md) · [Relationships](docs/architecture/AGENCY_FACILITY_RELATIONSHIPS.md)
+- [Cross-organisation sharing](docs/security/CROSS_ORG_DATA_SHARING.md) · [Transactional email](docs/architecture/TRANSACTIONAL_EMAIL.md) · [Document storage](docs/security/DOCUMENT_STORAGE_MODEL.md)
 - [Design system](docs/architecture/DESIGN_SYSTEM.md)
 
 ## Security principles

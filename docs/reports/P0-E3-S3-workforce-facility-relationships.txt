@@ -1,0 +1,418 @@
+================================================================================
+CHELTH — P0-E3-S3 — WORKFORCE, FACILITY & RELATIONSHIP DOMAIN FOUNDATIONS
+Completion report
+Date: 2026-09-30   Branch: p0-e3-s3-workforce-facilities (from d87d810, uncommitted)
+================================================================================
+
+1. EXECUTIVE SUMMARY
+--------------------------------------------------------------------------------
+Status: COMPLETE — every completion-gate criterion is met (section 23).
+
+Chelth's first healthcare-specific data layer is in place, built on the S2
+identity/authorization model without replacing it:
+
+  - Workers are PEOPLE with per-agency engagement records:
+    profile → agency membership → agency_workers. One person, many agencies,
+    no identity duplication; tenant ownership is structurally enforced by
+    composite FKs (safe even if RLS failed).
+  - Client facilities (agency_facilities + facility_locations with explicit
+    timezones) are distinct from facility ORGANISATIONS; a client record can
+    be linked once, explicitly and verifiably, to a real facility organisation
+    without duplicating history.
+  - Agency ↔ facility relationships are first-class, with a lifecycle, ready
+    for contracts/rates/VMS as attached child tables.
+  - Cross-organisation access has exactly one primitive,
+    authz.has_relationship_capability: specific relationship → specific
+    resource → explicit policy. Linked facilities see their relationship and
+    the agency's name — nothing else of the agency tenant.
+  - 8 least-privilege domain capabilities; healthcare workers hold none (self
+    access is an identity rule).
+  - Invitation email: provider abstraction (Resend adapter, disabled by
+    default), post-commit delivery with the outcome recorded on the invite.
+  - Document storage: design only; no bucket exists.
+
+Verification: 283 pgTAP assertions (99 new), 35 integration tests (12 new),
+42 E2E tests on desktop + mobile (4 new flows × 2 viewports; 2 intentional
+skips), 124 unit tests. All CI jobs reproduced locally with CI settings.
+No HIGH or CRITICAL finding remains open.
+
+Note: this branch also carries the uncommitted P0-E3-S2B recovery fix
+(listed separately in section 24) so it can be committed first.
+
+2. SCHEMA ADDED
+--------------------------------------------------------------------------------
+Enums: worker_status, facility_status, facility_location_status,
+relationship_status, invite_delivery_status.
+Tables:
+  agency_workers                 per-agency worker record (worker-visible columns only)
+  agency_worker_notes            internal notes (append-only, separate capability)
+  facility_types                 reference vocabulary (9 types)
+  agency_facilities              agency client facility records (+ optional link)
+  facility_locations             location level with explicit timezone
+  agency_facility_relationships  relationship lifecycle
+Columns added: organisation_invites.delivery_* (status, provider, message id,
+  error code, attempted_at).
+Constraint added: organisation_memberships unique (id, organisation_id, profile_id).
+Helpers: authz.is_own_active_membership, authz.has_relationship_capability;
+  authz.can_view_profile extended (worker.view path).
+Internal: enforce_immutable_columns, refuse_update_delete, ensure_worker_record,
+  validate_timezone, protect_facility_link, protect_ended_relationship,
+  require_valid_timezone, reset_invite_delivery_on_rotation.
+Public RPCs (all SECURITY DEFINER, search_path '', authenticated only):
+  set_agency_worker_status, update_agency_worker, add_agency_worker_note,
+  create_agency_facility, update_agency_facility, set_agency_facility_status,
+  create_facility_location, create_facility_relationship,
+  set_facility_relationship_status, platform_link_agency_facility,
+  list_partner_agency_relationships, record_organisation_invite_delivery;
+  list_organisation_invites recreated (adds delivery status).
+
+3. WORKER DOMAIN MODEL (docs/architecture/WORKFORCE_DOMAIN_MODEL.md)
+--------------------------------------------------------------------------------
+- Composite FK (membership_id, agency_organisation_id, profile_id) →
+  memberships; (agency_organisation_id, 'agency') → organisations. An Agency A
+  record cannot reference an Agency B membership, a different person, or a
+  facility organisation (tested as owner role).
+- Lifecycle: onboarding → active ⇄ inactive/suspended → terminated (terminal).
+  Activation sets start_date; termination sets end_date. Re-engagement creates
+  a new record; at most one non-terminated record per membership.
+- worker_reference: agency's own reference, unique per agency (case-insensitive).
+- Ownership columns immutable. No credentials, government identifiers or
+  employment type stored (deferred by design).
+
+4. FACILITY DOMAIN MODEL (docs/architecture/FACILITY_DOMAIN_MODEL.md)
+--------------------------------------------------------------------------------
+- agency_facilities: agency-owned (type-checked), name, facility type
+  (reference table), status active|inactive|archived, REQUIRED IANA timezone
+  (validated against Postgres' catalogue), business site phone/email,
+  address, ISO country code, agency reference (unique per agency).
+- linked_facility_organisation_id: NULL until linked; type-checked facility;
+  set once, never re-pointed (trigger); one record per facility org per agency.
+- facility_locations: bound to (facility, agency); explicit timezone (copied
+  from the facility when omitted); unique names per facility; composite keys
+  ready for departments and shifts. Departments designed, not created.
+- Facility types as reference data (labels, retirement, drift test);
+  lifecycle states as enums. Documented choice.
+
+5. AGENCY-FACILITY RELATIONSHIP MODEL
+   (docs/architecture/AGENCY_FACILITY_RELATIONSHIPS.md)
+--------------------------------------------------------------------------------
+- Relationship between the agency and its client record (optionally linked to
+  a facility organisation). Lifecycle pending → active ⇄ suspended → ended;
+  ended is immutable history; one open relationship per client record.
+- Future contracts, rate cards, staffing permissions, facility-managed access
+  and VMS attach as child tables keyed (relationship_id, agency_organisation_id).
+- Linking today: platform-verified RPC (AAL2, audited in both organisations).
+  Planned self-service: two-party consent link code (documented §5).
+  Never automatic; never by name/email matching.
+
+6. DOMAIN CAPABILITIES
+--------------------------------------------------------------------------------
+worker.view · worker.manage* · worker.notes.view · worker.notes.manage* ·
+facility.view · facility.manage* · relationship.view · relationship.manage*
+(* privileged: AAL2).
+  Agency Admin           all eight
+  Operations Manager     workers + notes + facilities; relationships view only
+  Recruiter              workers + notes; no client data
+  Scheduler              worker.view, facility.view, relationship.view
+  Credentialing Officer  worker.view (no notes)
+  Finance                facility.view, relationship.view (no workers)
+  Healthcare Worker      none (self-access rule)
+  Facility Admin/Sched.  relationship.view (effective only via linked relationships)
+  Facility Supervisor    none
+Deliberately not added: shift.*, credential.*, timesheet.*, invoice.*.
+
+7. WORKER SELF-ACCESS
+--------------------------------------------------------------------------------
+- RLS: a worker reads own agency_workers rows only while that membership is
+  live (authz.is_own_active_membership: active membership, active profile,
+  non-archived organisation).
+- Worker-visible: every column of agency_workers (by design all safe: status,
+  reference, dates). Agency-internal data lives in separate tables.
+- Worker may NOT: change status or reference (no capability; and nobody may
+  change their own record); see notes (including notes about themselves even
+  if they hold worker.notes.view); see other workers; see facilities.
+- UI: "My worker record" on the organisation page.
+
+8. RLS ARCHITECTURE
+--------------------------------------------------------------------------------
+  agency_workers            worker.view in the agency OR own live membership
+  agency_worker_notes       worker.notes.view AND not about oneself
+  agency_facilities         facility.view in the agency
+  facility_locations        facility.view in the agency
+  agency_facility_rel.      relationship.view in the agency OR
+                            has_relationship_capability(id, 'relationship.view')
+  facility_types            authenticated (reference)
+All tables: SELECT-only grants to authenticated; writes via RPCs only;
+nothing for anon; platform admins have no RLS path (tested).
+
+9. CROSS-ORG SHARING MODEL (docs/security/CROSS_ORG_DATA_SHARING.md)
+--------------------------------------------------------------------------------
+Rule: specific relationship → specific shareable resource → explicit policy.
+Primitive: authz.has_relationship_capability(relationship, capability) — true
+only for a non-ended relationship whose client record is explicitly linked to
+the caller's facility organisation AND the caller holds the capability there.
+Shared today: the relationship row; agency name/status/start via
+list_partner_agency_relationships(). Not shared: client records, locations,
+notes, workers, worker profiles, agency organisation row/members.
+Revocation is immediate (relationship ended, membership suspended/revoked,
+profile/organisation suspended). Future shares (shifts, assigned workers,
+timesheets, invoices, credential visibility) have documented templates.
+
+10. INTEGRITY CONSTRAINTS
+--------------------------------------------------------------------------------
+  worker ↔ membership ↔ agency ↔ person        composite FK (3 columns)
+  worker/facility owner is an agency           composite FK to (id, type) + CHECK
+  linked facility is a facility org            composite FK + CHECK + trigger (set once)
+  agency ≠ linked facility                     CHECK
+  location belongs to the same agency facility composite FK
+  relationship belongs to the same agency      composite FK
+  one open relationship per client record      partial unique index
+  one current worker record per membership     partial unique index
+  unique references / location names           partial/functional unique indexes
+  immutable ownership columns                  generic trigger (all domain tables)
+  ended relationships / notes immutable        triggers
+  valid IANA timezone                          trigger (+ RPC check)
+  terminated ⇒ end_date; end ≥ start           CHECK
+
+11. AUDIT CHANGES
+--------------------------------------------------------------------------------
+New actions: worker.created, worker.updated, worker.status_changed,
+worker.note_added, facility.created, facility.updated,
+facility.status_changed, facility.location_created, facility.linked,
+relationship.created, relationship.status_changed (mirrored in TS vocabulary
+with labels). Metadata: ids, status codes, changed-FIELD NAMES only — never
+note bodies, contact details or addresses (pgTAP-tested). Relationship status
+changes and linking are also recorded in the linked facility organisation.
+
+12. WORKER ONBOARDING FLOW
+--------------------------------------------------------------------------------
+A worker record is created by the database whenever a membership is granted
+agency.healthcare_worker (trigger), so every path obeys one rule:
+  B (built)  Workforce → Invite worker: invitation with the role FIXED
+             server-side; invitee signs up/verifies; acceptance grants the
+             role; record created (onboarding). E2E-tested end to end.
+  A (built)  Existing agency member: assign the Healthcare Worker role.
+  A′         Existing Chelth identity outside the agency: invitation (no
+             lookup/enumeration of other people).
+  C          Candidate → worker: deferred to recruiting.
+No auth users are ever created by the application.
+
+13. TRANSACTIONAL EMAIL ARCHITECTURE (docs/architecture/TRANSACTIONAL_EMAIL.md)
+--------------------------------------------------------------------------------
+Decision: post-commit delivery with recorded outcome (not an outbox).
+  commit invite+audit → send (raw token only in memory) → record
+  delivery_status/provider/message id/error code → UI shows "emailed", or the
+  link once if skipped/failed.
+Why not an outbox now: it would require storing the raw token (secret at
+rest) or a privileged cross-tenant worker. Outbox planned for secret-free
+notifications. Guarantees: no email for rolled-back invites; failures never
+silent (stored + shown + logged by code); resend rotates token and retries;
+provider idempotency key per rotation.
+Abstraction: src/lib/email (interface, disabled default, Resend adapter with
+timeout and error codes, never throws, never logs recipients/links/bodies);
+domain depends only on the interface. HTML escaping of all interpolations.
+Resend recipient is read from the database, never the form.
+Config: EMAIL_PROVIDER (disabled|resend), RESEND_API_KEY, EMAIL_FROM —
+validated; resend without both fails build/start; key covered by bundle scan.
+Operator steps remaining: Resend account + verified sending domain
+(SPF/DKIM/DMARC), sending-only key in Vercel, disable click/open tracking,
+Supabase custom SMTP when plan allows, minimal provider log retention.
+
+14. DOCUMENT STORAGE FOUNDATION (docs/security/DOCUMENT_STORAGE_MODEL.md)
+--------------------------------------------------------------------------------
+Design only; no bucket created (none needed yet; pgTAP asserts no public
+bucket). Specifies: private buckets; tenant-scoped non-PII paths;
+metadata-first versioned documents; storage policies calling authz helpers;
+signed upload/download URLs (≤ 60 s); MIME/magic-byte and size enforcement;
+malware scanning gate before use; audited access; retention/deletion rules;
+person-owned documents shared per agency by explicit share rows.
+
+15. UI ADDED
+--------------------------------------------------------------------------------
+Organisation-scoped routes (explicit context; 404 for non-members/no capability):
+  /app/organisations/[id]/workforce              worker list + invite worker
+  /app/organisations/[id]/workforce/[workerId]   record, status actions,
+                                                 reference, internal notes
+  /app/organisations/[id]/facilities             list + create client facility
+  /app/organisations/[id]/facilities/[facilityId] details, locations,
+                                                 relationship lifecycle, edit,
+                                                 status
+Organisation page: section links (per capability), "My worker record" for
+workers, "Agency relationships" for facility organisations. Step-up notices
+for privileged actions at AAL1. No metrics or fabricated data. Axe-clean on
+desktop and mobile. (Justified deviation: routes nested under the
+organisation instead of /app/workforce, keeping organisation context explicit.)
+
+16. SECURITY TESTS (pgTAP — 283 assertions, 9 files, all passing)
+--------------------------------------------------------------------------------
+070_workforce (47): A cross-agency reads · B cross-agency writes (+ unknown
+  ids = forbidden) · C worker sees own records only · D no self status change
+  (worker and admin-worker) · E scheduler cannot manage; AAL2 step-up · F
+  facility users see no workers/profiles · J suspended/revoked lose access ·
+  L notes: recruiter yes, scheduler/credentialing/worker no, never about
+  oneself, never in audit, append-only · M platform admin no access · N
+  ownership immutable · structural FKs · lifecycle, reference uniqueness,
+  re-engagement history · multi-agency person.
+080_facilities_relationships (52): K who may create (recruiter, scheduler,
+  finance, AAL1, facility org, other agency all refused) · validation
+  (timezone, type) · G cross-agency location/relationship references · H
+  facility/agency type constraints · updates audit field names only ·
+  relationship authority and lifecycle · linking (platform-only, facility
+  type, once, immutable) · I facility sees only its relationship and the
+  narrow projection; not client records, locations, agency org; unrelated
+  facility and non-privileged facility roles see nothing · ended relationship
+  stops sharing and is immutable · J suspended facility membership · M.
+000 baseline (updated): O/P explicit function allow-lists (27 public RPCs,
+  9 authz helpers), search_path pinned on every function, no internal
+  EXECUTE, SELECT-only table grants, no anon grants, no public buckets.
+S2 suites updated for new capability counts and the worker.created event.
+
+17. INTEGRATION TESTS (35, all passing; 12 new)
+--------------------------------------------------------------------------------
+Real sign-up/verification via Mailpit and real TOTP; no service-role key.
+New: invite → accept creates onboarding worker record; same person joins a
+second agency (two records, one profile); Agency A cannot read/change Agency
+B's worker; worker cannot change own status and sees no notes; agency
+activates worker, worker sees it; delivery status recorded only with invite
+authority; facility visible to owner agency only; platform-created facility
+organisation joined by its admin via invitation, linked by platform admin;
+linked facility sees exactly its relationship via projection and nothing of
+the agency tenant; ending the relationship ends sharing; membership
+suspension removes worker self-access. Drift test extended to facility types.
+
+18. E2E TESTS (42 passed, 2 intentional skips; 4 new runs)
+--------------------------------------------------------------------------------
+workforce-facilities.spec.ts (desktop + mobile):
+  - admin enables MFA via step-up → Workforce → invite worker (email disabled
+    → link shown once) → worker signs up/accepts → sees "My worker record"
+    (Onboarding), no Workforce link, /workforce is 404 → admin opens worker,
+    sets Active, adds internal note → worker sees Active, not the note.
+  - admin creates client facility (type, timezone, locality) → detail → adds
+    location → starts and activates relationship → list shows facility →
+    another tenant's user gets 404 on org, workforce, facilities and facility
+    routes. Axe checks on workforce, worker and facility pages.
+
+19. SECURITY FINDINGS
+--------------------------------------------------------------------------------
+Review scope (all required topics): worker identity duplication; cross-agency
+worker access; worker self-escalation; internal-note leakage; facility-client
+enumeration; facility-organisation linking abuse; cross-org IDOR;
+relationship-state bypass; revoked relationship access; status tampering;
+invitation token leakage via email; provider logging; public storage;
+service-role exposure. Each is covered by structural constraints and tests
+(sections 10, 16, 17). No HIGH or CRITICAL issue open.
+
+Findings fixed during the stage:
+  F1 (Medium) Resend of an invitation took the recipient from the form. A user
+     with invite authority could have sent a rotated link to an arbitrary
+     address. Fixed: the recipient and role are read from the database.
+  F2 (Low) Supabase CLI writes telemetry errors to stdout, which corrupted
+     generated types. Fixed: scripts/generate-db-types.mjs (also used by CI).
+  F3 (Low) The shared invite-link component was reachable only through a
+     server-only feature index. Moved to src/components/shared (boundary
+     preserved).
+
+Accepted residual risks (Low):
+  R1 A user with invite authority can record a false delivery status
+     (operational metadata only; no access effect).
+  R2 Revoking a worker's membership does not change their worker status.
+     Access ends immediately; operational status stays with the agency.
+  R3 Linking relies on platform-admin verification until two-party consent
+     is built (audited in both organisations).
+  R4 Email provider may retain message content per its retention policy
+     (operator: minimise retention, disable tracking).
+
+20. KNOWN LIMITATIONS
+--------------------------------------------------------------------------------
+- Email delivery is disabled until the operator configures Resend (links are
+  shown to issuers meanwhile). Supabase Auth emails still use the hosted
+  default sender.
+- No UI for platform linking (RPC + tests only).
+- Facility departments/units not created (designed).
+- No worker profile fields beyond reference/dates (discipline, employment
+  type, contact preferences arrive with later stages).
+- Facility locations cannot yet be edited or deactivated in the UI.
+
+21. DEFERRED ITEMS
+--------------------------------------------------------------------------------
+Credentials and document storage implementation · shifts, assignments,
+attendance, timesheets · rates, invoices, payroll · recruiting/candidate
+conversion · self-service two-party facility linking · facility departments ·
+relationship child tables (contracts, rate cards, permissions, VMS) ·
+notification outbox · platform admin UI · automatic worker-status handling on
+membership revocation.
+
+22. MIGRATION LIST (new in this stage; prior migrations untouched)
+--------------------------------------------------------------------------------
+  20260930100000_domain_capabilities.sql
+  20260930100100_agency_workers.sql
+  20260930100200_agency_facilities.sql
+  20260930100300_agency_facility_relationships.sql
+  20260930100400_workforce_facility_rpcs.sql
+  20260930100500_invite_email_delivery.sql
+Reference data (capabilities, role mappings, facility types) is migration-
+defined; seed.sql unchanged.
+
+23. BUILD VALIDATION
+--------------------------------------------------------------------------------
+  npm run format:check      PASS
+  npm run lint              PASS (0 warnings)
+  npm run typecheck         PASS
+  npm test                  PASS — 14 files, 124 tests
+  npm run build             PASS (CI placeholder env)
+  npm run check:bundle      PASS — 33 browser files, no secrets
+  npx playwright test       PASS — 42 passed, 2 skipped by design, 0 flaky (CI=1)
+  npm run check:migrations  PASS — 15 migrations
+  supabase db reset         PASS — all migrations from empty
+  supabase db lint          PASS — public, authz, internal
+  supabase test db          PASS — 9 files, 283 assertions
+  npm run test:integration  PASS — 5 files, 35 tests
+  npm run db:types          PASS — regenerated; identical on re-generation
+Domain leak scan: no shift/credential/timesheet/invoice/payroll/assignment
+objects. Storage buckets: 0. Secret scan: clean. Service-role usage: none.
+
+Completion gate:
+  [x] one person across multiple agencies      [x] worker ownership structurally tenant-safe
+  [x] agency facility/customer model           [x] agency↔facility relationship model
+  [x] future facility-organisation linking     [x] domain capabilities implemented
+  [x] worker self-access least privilege       [x] cross-org sharing explicit
+  [x] RLS blocks unrelated organisations       [x] integrity constraints block cross-org refs
+  [x] transactional email architecture         [x] no public document storage
+  [x] workforce/facility minimal UI            [x] adversarial pgTAP pass
+  [x] integration tests pass                   [x] E2E passes
+  [x] types regenerate cleanly                 [x] no shifts/credentials/timesheets/billing
+  [x] report saved
+
+24. GIT STATUS
+--------------------------------------------------------------------------------
+Branch p0-e3-s3-workforce-facilities, created from d87d810 (S2). Nothing
+staged, committed or pushed.
+P0-E3-S2B files (uncommitted; commit these first, separately):
+  src/app/auth/confirm/route.ts, tests/e2e/identity.spec.ts,
+  tests/unit/app/, tests/unit/supabase/,
+  docs/architecture/IDENTITY_AND_ORGANISATION_MODEL.md,
+  docs/security/THREAT_MODEL_IDENTITY.md,
+  docs/reports/P0-E3-S2B-password-recovery-hosted-fix.txt
+P0-E3-S3 files: everything else in `git status` — 6 migrations, 2 pgTAP files
++ helper/baseline updates, features workforce/ and facilities/, organisation
+feature changes (delivery, page context, sections), src/lib/domain,
+src/lib/email, shared components, 4 app route folders, integration/E2E/unit
+tests, 6 new docs + 5 updated, scripts/generate-db-types.mjs, env/CI/bundle
+updates, and this report.
+
+25. RECOMMENDED NEXT STAGE
+--------------------------------------------------------------------------------
+Before merging: commit S2B, then S3; open PR(s) and let CI run; apply
+migrations to staging (DATABASE_MIGRATION_POLICY §7); configure Resend
+(section 13) when the domain is ready.
+
+Next: P0-E4-S1 — Credentials & Compliance Foundations:
+  - implement DOCUMENT_STORAGE_MODEL (private buckets, metadata, signed URLs,
+    scanning gate, access audit);
+  - credential types (reference data by discipline/jurisdiction), person-owned
+    credentials shared to agencies by consent, verification workflow
+    (credential.view / credential.verify, AAL2), expiry tracking;
+  - compliance status per agency worker (derived, never hand-edited);
+  - facility-side credential visibility only through the relationship model.
+Shifts and assignments (P0-E5) follow once compliance status exists to gate them.
+================================================================================

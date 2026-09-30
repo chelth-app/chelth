@@ -145,3 +145,20 @@ begin
   perform set_config('request.jwt.claims', '', true);
 end;
 $$;
+
+-- Call SQL as a user with format() arguments, e.g.
+--   pg_temp.rpc(user, 'aal2', 'select public.fn(%L, %L)', a::text, b::text)
+create function pg_temp.rpc(p_user uuid, p_aal text, p_sql text, variadic p_args text[])
+returns text
+language sql
+as $$
+  select pg_temp.scalar_as(p_user, p_aal, format(p_sql, variadic p_args))
+$$;
+
+-- Owner-role fixture: a facility organisation (no creator membership).
+create function pg_temp.create_facility_org(p_name text, p_slug text)
+returns uuid
+language sql
+as $$
+  insert into public.organisations (type, name, slug) values ('facility', p_name, p_slug) returning id
+$$;

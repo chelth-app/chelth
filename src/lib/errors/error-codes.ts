@@ -94,6 +94,31 @@ export const ERROR_CODES = {
     message:
       "This invitation is invalid, has expired, has already been used, or was sent to a different email address.",
   },
+  WORKER_NOT_FOUND: {
+    kind: "not_found",
+    status: 404,
+    message: "That worker record could not be found.",
+  },
+  FACILITY_NOT_FOUND: {
+    kind: "not_found",
+    status: 404,
+    message: "That facility could not be found.",
+  },
+  RELATIONSHIP_NOT_FOUND: {
+    kind: "not_found",
+    status: 404,
+    message: "That relationship could not be found.",
+  },
+  INVALID_WORKER_STATE: {
+    kind: "conflict",
+    status: 409,
+    message: "This change is not allowed for the worker's current status.",
+  },
+  INVALID_RELATIONSHIP_STATE: {
+    kind: "conflict",
+    status: 409,
+    message: "This change is not allowed for the relationship's current status.",
+  },
   RATE_LIMITED: {
     kind: "rate_limited",
     status: 429,

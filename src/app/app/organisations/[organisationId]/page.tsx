@@ -20,27 +20,15 @@ import {
   revokeRoleAction,
   setMembershipStatusAction,
 } from "@/features/organisations";
+import { RelationshipStatusBadge, listPartnerRelationships } from "@/features/facilities";
+import { OrganisationSections, StepUpNotice } from "@/features/organisations";
+import { getMyWorkerRecord, WorkerStatusBadge } from "@/features/workforce";
 import { requireAuthIdentity } from "@/lib/auth/session";
 import { auditActionLabel, CAPABILITIES, capabilityState, type CapabilityGrant } from "@/lib/authz";
 
 export const metadata: Metadata = { title: "Organisation" };
 
 const dateTime = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" });
-
-function StepUpNotice({ organisationId }: { organisationId: string }) {
-  const next = encodeURIComponent(`/app/organisations/${organisationId}`);
-  return (
-    <p role="note" className="rounded-md bg-warning-soft p-3 text-sm text-warning-soft-foreground">
-      Administration requires verification with your authenticator app.{" "}
-      <Link
-        href={`/app/security/verify?next=${next}`}
-        className="font-medium underline underline-offset-4"
-      >
-        Verify now
-      </Link>
-    </p>
-  );
-}
 
 export default async function OrganisationPage({
   params,
@@ -80,6 +68,12 @@ export default async function OrganisationPage({
     members.map((member) => [member.profileId, member.displayName ?? "Member"]),
   );
   const me = members.find((member) => member.profileId === identity.userId);
+  const [myWorkerRecord, partnerRelationships] = await Promise.all([
+    organisation.type === "agency" ? getMyWorkerRecord(organisationId) : Promise.resolve(null),
+    organisation.type === "facility" && can(CAPABILITIES.RELATIONSHIP_VIEW) === "granted"
+      ? listPartnerRelationships(organisationId)
+      : Promise.resolve([]),
+  ]);
 
   return (
     <>
@@ -101,7 +95,48 @@ export default async function OrganisationPage({
         </div>
       </header>
 
-      {needsStepUp ? <StepUpNotice organisationId={organisationId} /> : null}
+      {needsStepUp ? <StepUpNotice returnTo={`/app/organisations/${organisationId}`} /> : null}
+
+      <OrganisationSections
+        organisationId={organisationId}
+        showWorkforce={can(CAPABILITIES.WORKER_VIEW) !== "not_held"}
+        showFacilities={can(CAPABILITIES.FACILITY_VIEW) !== "not_held"}
+      />
+
+      {myWorkerRecord ? (
+        <section aria-labelledby="my-worker-heading" className="flex flex-col gap-3">
+          <h2 id="my-worker-heading" className="text-lg font-semibold">
+            My worker record
+          </h2>
+          <dl className="grid max-w-md grid-cols-[auto_1fr] gap-x-6 gap-y-2 rounded-lg border border-border bg-surface p-4 text-sm">
+            <dt className="text-muted-foreground">Status</dt>
+            <dd>
+              <WorkerStatusBadge status={myWorkerRecord.status} />
+            </dd>
+            <dt className="text-muted-foreground">Start date</dt>
+            <dd>{myWorkerRecord.startDate ?? "Not started"}</dd>
+          </dl>
+        </section>
+      ) : null}
+
+      {partnerRelationships.length > 0 ? (
+        <section aria-labelledby="partners-heading" className="flex flex-col gap-3">
+          <h2 id="partners-heading" className="text-lg font-semibold">
+            Agency relationships
+          </h2>
+          <ul className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface text-sm">
+            {partnerRelationships.map((relationship) => (
+              <li
+                key={relationship.relationshipId}
+                className="flex flex-wrap items-center justify-between gap-2 p-3"
+              >
+                <span className="font-medium">{relationship.agencyName}</span>
+                <RelationshipStatusBadge status={relationship.status} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {can(CAPABILITIES.MEMBERSHIP_VIEW) === "granted" ? (
         <section aria-labelledby="members-heading" className="flex flex-col gap-3">
