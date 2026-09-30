@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+/*
+ * CHELTH design tokens.
+ * Documented in docs/architecture/DESIGN_SYSTEM.md. Components use the
+ * semantic tokens (primary, surface, muted-foreground…), not raw brand values,
+ * so the palette can evolve without touching components.
+ *
+ * All text/background pairings below meet WCAG 2.2 AA (4.5:1 normal text).
+ * Note: brand teal on mint is 3.94:1 — use `accent-soft-foreground` on mint.
+ */
+@theme {
+  /* Brand palette */
+  --color-brand-teal: #0f766e;
+  --color-brand-navy: #1e3a8a;
+  --color-brand-gray: #64748b;
+  --color-brand-mint: #b7e4d9;
+  --color-brand-offwhite: #f8fafc;
+
+  /* Semantic tokens */
+  --color-background: #f8fafc;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f1f5f9;
+  --color-foreground: #0f172a;
+  --color-muted-foreground: #475569;
+  --color-subtle-foreground: #64748b;
+  --color-border: #e2e8f0;
+  --color-input-border: #64748b; /* 4.76:1 — meets 3:1 non-text contrast */
+
+  --color-primary: #0f766e;
+  --color-primary-hover: #115e59;
+  --color-primary-foreground: #ffffff;
+
+  --color-secondary: #1e3a8a;
+  --color-secondary-hover: #172554;
+  --color-secondary-foreground: #ffffff;
+
+  --color-accent-soft: #b7e4d9;
+  --color-accent-soft-foreground: #134e4a;
+
+  --color-danger: #b91c1c;
+  --color-danger-hover: #991b1b;
+  --color-danger-foreground: #ffffff;
+  --color-danger-soft: #fee2e2;
+  --color-danger-soft-foreground: #991b1b;
+
+  --color-warning-soft: #fef3c7;
+  --color-warning-soft-foreground: #92400e;
+
+  --color-success-soft: #dcfce7;
+  --color-success-soft-foreground: #166534;
+
+  --color-info-soft: #dbeafe;
+  --color-info-soft-foreground: #1e3a8a;
+
+  --color-focus-ring: #1e3a8a;
+
+  /* Typography */
+  --font-sans:
+    "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  /* Radii */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+  }
+
+  /* Visible focus for keyboard users everywhere, never removed without replacement. */
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-focus-ring;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}

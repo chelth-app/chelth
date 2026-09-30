@@ -1,0 +1,102 @@
+# Chelth CI — verifies quality. Deployment is handled by the Vercel Git
+# integration; this workflow never deploys and holds no production secrets.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Non-secret placeholders: CI builds must pass environment validation, but
+  # never talk to a hosted Supabase project. NEXT_PUBLIC_APP_ENV=test keeps
+  # production-only URL rules from rejecting the local placeholder URL.
+  NEXT_PUBLIC_APP_ENV: test
+  NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:55321
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key-not-a-secret
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  quality:
+    name: Lint, typecheck, unit tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Format
+        run: npm run format:check
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test
+      - name: Build
+        run: npm run build
+      - name: Client bundle secret scan
+        run: npm run check:bundle
+
+  e2e:
+    name: Playwright smoke (production build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  database:
+    name: Migrations and database security tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+      - name: Migration discipline
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            node scripts/check-migrations.mjs --base "origin/${{ github.base_ref }}"
+          else
+            node scripts/check-migrations.mjs
+          fi
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.0
+      - name: Start local Supabase (applies every migration from an empty database)
+        run: supabase start -x analytics,vector,studio,imgproxy,edge-runtime,functions,inbucket,realtime,meta
+      - name: Lint database schema
+        run: supabase db lint --level warning --fail-on warning
+      - name: pgTAP security tests
+        run: supabase test db
+      - name: Generated types are up to date
+        run: |
+          supabase gen types typescript --local --schema public > /tmp/database.types.ts
+          diff -u src/types/database.types.ts /tmp/database.types.ts
