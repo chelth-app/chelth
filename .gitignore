@@ -4,17 +4,20 @@ node_modules/
 # Next.js
 .next/
 out/
+next-env.d.ts
 
 # Build output
 dist/
 build/
 
-# Environment files
+# Environment files — never commit real values. Only .env.example is tracked.
 .env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*.local
+.env.development
+.env.production
+.env.test
+!.env.example
 
 # Vercel
 .vercel/
@@ -22,8 +25,17 @@ build/
 # Supabase local files
 supabase/.temp/
 supabase/.branches/
+supabase/.env
+
+# Test artifacts
+coverage/
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/
 
 # Logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -39,9 +51,6 @@ Thumbs.db
 
 # TypeScript
 *.tsbuildinfo
-
-# Coverage
-coverage/
 
 # Temporary files
 *.tmp

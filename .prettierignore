@@ -1,0 +1,14 @@
+node_modules
+.next
+out
+coverage
+playwright-report
+test-results
+blob-report
+package-lock.json
+next-env.d.ts
+supabase/.temp
+supabase/.branches
+*.sql
+docs/reports/*.txt
+src/types/database.types.ts

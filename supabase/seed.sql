@@ -1,0 +1,7 @@
+-- Local development seed data ONLY.
+--
+-- This file runs after migrations on `supabase db reset` (local only).
+-- It must NEVER contain grants, RLS policies, functions, triggers or schema
+-- changes: those belong in supabase/migrations/ so production is reproducible.
+--
+-- No seed data exists yet: domain tables arrive in later stages.
