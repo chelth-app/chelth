@@ -82,10 +82,16 @@ describe("invitation → membership → role lifecycle", () => {
 
     const caps = await invitee.client.rpc("my_capabilities", { p_organisation_id: organisationId });
     expect(caps.data?.map((row) => row.capability_key).sort()).toEqual([
+      "assignment.manage",
+      "assignment.view",
+      "compliance.view",
       "facility.view",
       "membership.view",
       "organisation.view",
       "relationship.view",
+      "shift.create",
+      "shift.manage",
+      "shift.view",
       "worker.view",
     ]);
   });

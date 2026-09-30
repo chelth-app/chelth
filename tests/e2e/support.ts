@@ -58,3 +58,20 @@ export async function enrolAuthenticator(page: Page): Promise<string> {
   await page.getByRole("button", { name: "Confirm and enable" }).click();
   return secret;
 }
+
+/** Admin with a new agency and an AAL2 session (via the real step-up path). Returns the org path. */
+export async function adminWithVerifiedAgency(
+  page: Page,
+  agencyName: string,
+  email = uniqueEmail("e2e-admin"),
+): Promise<string> {
+  await signUpAndConfirm(page, "Ada Admin", email);
+  await createAgency(page, agencyName);
+  const organisationPath = new URL(page.url()).pathname;
+  await page.getByRole("link", { name: "Verify now" }).click();
+  await page.getByRole("link", { name: "Set one up" }).click();
+  await enrolAuthenticator(page);
+  // Enrolment + AAL2 refresh can be slow when the suite runs fully parallel.
+  await expect(page).toHaveURL(new RegExp(`${organisationPath}$`), { timeout: 20_000 });
+  return organisationPath;
+}

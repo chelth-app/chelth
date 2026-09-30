@@ -5,10 +5,10 @@ agencies, facilities and healthcare professionals to coordinate workers,
 credentials and compliance, staffing requests, shifts, attendance, timesheets,
 rates, invoicing and payroll exports.
 
-> Current stage: **P0-E3-S3 — workforce, facility & relationship foundations.**
-> Agency worker records (one person, many agencies), client facilities with
-> locations, agency ↔ facility relationships with relationship-scoped sharing,
-> and configuration-gated transactional email. Credentials, shifts, time and
+> Current stage: **P0-E4-S1 — credentials & compliance foundations.**
+> Person-owned credentials with explicit agency sharing, private versioned
+> documents behind a scan gate, per-agency verification, baseline and facility
+> requirements, and a derived, explainable compliance engine. Shifts, time and
 > billing arrive in later stages.
 
 ---
@@ -64,6 +64,7 @@ npm run db:test      # pgTAP security tests
 npm run db:lint      # schema lint
 npm run db:types     # regenerate src/types/database.types.ts
 npm run db:env       # print local URL / anon key / Mailpit URL (never service-role)
+npm run dev:scan-documents   # LOCAL ONLY: act as the malware scanner for pending uploads
 npm run db:stop
 ```
 

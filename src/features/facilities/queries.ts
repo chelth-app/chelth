@@ -167,3 +167,27 @@ export async function listPartnerRelationships(
 export function listTimezones(): string[] {
   return Intl.supportedValuesOf("timeZone");
 }
+
+export type ActiveRelationship = {
+  relationshipId: string;
+  facilityId: string;
+  facilityName: string;
+};
+
+/** The agency's ACTIVE facility relationships (names need facility.view via RLS). */
+export async function listActiveRelationships(
+  organisationId: string,
+): Promise<ActiveRelationship[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("agency_facility_relationships")
+    .select("id, agency_facility_id, facility:agency_facilities(name)")
+    .eq("agency_organisation_id", organisationId)
+    .eq("status", "active");
+  if (error) throw error;
+  return data.map((row) => ({
+    relationshipId: row.id,
+    facilityId: row.agency_facility_id,
+    facilityName: row.facility?.name ?? "Facility",
+  }));
+}

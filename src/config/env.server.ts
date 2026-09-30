@@ -6,7 +6,7 @@
  */
 import "server-only";
 
-import { parseServerEnv, type ServerEnv } from "./env.schema";
+import { parseServerEnv, type ServerEnv } from "./env.server.schema";
 
 export const serverEnv: ServerEnv = parseServerEnv({
   LOG_LEVEL: process.env.LOG_LEVEL,

@@ -1,8 +1,9 @@
 # Document Storage Model (design)
 
-Status: P0-E3-S3 — **design only**. No bucket is created in this stage:
-nothing yet needs one, and an unused bucket is attack surface. The pgTAP
-baseline continues to assert that no public bucket exists.
+Status: designed in P0-E3-S3; **implemented for credentials in P0-E4-S1**
+(bucket `credential-documents`) — see
+[CREDENTIAL_DOCUMENT_SECURITY.md](CREDENTIAL_DOCUMENT_SECURITY.md). The pgTAP
+baseline asserts that no public bucket exists.
 
 This model governs credential documents (P0-E4+) and any other sensitive
 worker or facility document.

@@ -97,3 +97,12 @@ Facility organisation members never read `agency_facilities` or
 `/app/organisations/[id]/facilities` (list + create) and
 `/app/organisations/[id]/facilities/[facilityId]` (details, locations,
 relationship, edit, status).
+
+## 8. Credential requirements (P0-E4-S1)
+
+Facilities may add credential requirements to the agency baseline (e.g.
+orientation, TB screening, longer minimum validity) —
+[FACILITY_CREDENTIAL_REQUIREMENTS.md](FACILITY_CREDENTIAL_REQUIREMENTS.md).
+Facility-specific credentials (orientation) are verified by the agency **for
+that facility**. A linked facility organisation sees only readiness for
+workers explicitly shared under an active relationship.

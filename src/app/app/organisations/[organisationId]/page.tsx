@@ -21,7 +21,9 @@ import {
   setMembershipStatusAction,
 } from "@/features/organisations";
 import { RelationshipStatusBadge, listPartnerRelationships } from "@/features/facilities";
+import { listSharedWorkerCompliance, ReadinessBadge } from "@/features/compliance";
 import { OrganisationSections, StepUpNotice } from "@/features/organisations";
+import { COMPLIANCE_REASON_LABELS } from "@/lib/domain/credentials";
 import { getMyWorkerRecord, WorkerStatusBadge } from "@/features/workforce";
 import { requireAuthIdentity } from "@/lib/auth/session";
 import { auditActionLabel, CAPABILITIES, capabilityState, type CapabilityGrant } from "@/lib/authz";
@@ -74,6 +76,18 @@ export default async function OrganisationPage({
       ? listPartnerRelationships(organisationId)
       : Promise.resolve([]),
   ]);
+  // Facility side: the narrow, audited compliance projection per active relationship.
+  const sharedCompliance =
+    organisation.type === "facility" && can(CAPABILITIES.CREDENTIAL_VIEW) === "granted"
+      ? await Promise.all(
+          partnerRelationships
+            .filter((relationship) => relationship.status === "active")
+            .map(async (relationship) => ({
+              relationship,
+              workers: await listSharedWorkerCompliance(relationship.relationshipId),
+            })),
+        )
+      : [];
 
   return (
     <>
@@ -101,6 +115,13 @@ export default async function OrganisationPage({
         organisationId={organisationId}
         showWorkforce={can(CAPABILITIES.WORKER_VIEW) !== "not_held"}
         showFacilities={can(CAPABILITIES.FACILITY_VIEW) !== "not_held"}
+        showCompliance={can(CAPABILITIES.CREDENTIAL_REQUIREMENTS_VIEW) !== "not_held"}
+        showMyCredentials={myWorkerRecord !== null && myWorkerRecord.status !== "terminated"}
+        showShifts={organisation.type === "agency" && can(CAPABILITIES.SHIFT_VIEW) !== "not_held"}
+        showMyShifts={myWorkerRecord !== null}
+        showStaffingRequests={
+          organisation.type === "facility" && can(CAPABILITIES.SHIFT_VIEW) !== "not_held"
+        }
       />
 
       {myWorkerRecord ? (
@@ -135,6 +156,35 @@ export default async function OrganisationPage({
               </li>
             ))}
           </ul>
+          {sharedCompliance.map(({ relationship, workers }) => (
+            <div key={relationship.relationshipId} className="flex flex-col gap-2">
+              <h3 className="font-medium">Workers shared by {relationship.agencyName}</h3>
+              {workers.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No workers shared yet.</p>
+              ) : (
+                <ul className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface text-sm">
+                  {workers.map((sharedWorker) => (
+                    <li key={sharedWorker.workerId} className="flex flex-col gap-2 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-medium">{sharedWorker.workerName ?? "Worker"}</span>
+                        <ReadinessBadge status={sharedWorker.readiness} />
+                      </div>
+                      <ul className="flex flex-col gap-1 text-muted-foreground">
+                        {sharedWorker.items.map((item, index) => (
+                          <li key={`${item.credentialTypeName}-${index}`}>
+                            {item.credentialTypeName}: {COMPLIANCE_REASON_LABELS[item.reason]}
+                            {item.effectiveExpiryDate
+                              ? ` (valid to ${item.effectiveExpiryDate})`
+                              : ""}
+                          </li>
+                        ))}
+                      </ul>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ))}
         </section>
       ) : null}
 

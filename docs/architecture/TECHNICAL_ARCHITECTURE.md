@@ -187,6 +187,20 @@ The identity and authorization design is specified in
 - Routes are organisation-scoped: `/app/organisations/[id]/workforce…`,
   `/app/organisations/[id]/facilities…` (explicit context, 404 for non-members).
 
+### Credentials & compliance (P0-E4-S1)
+
+- Person-owned credentials with immutable versions, explicit agency shares and
+  append-only per-agency verification
+  ([CREDENTIAL_DOMAIN_MODEL.md](CREDENTIAL_DOMAIN_MODEL.md),
+  [../security/CREDENTIAL_SHARING_MODEL.md](../security/CREDENTIAL_SHARING_MODEL.md)).
+- Private Storage bucket with signed upload/download URLs, server-side content
+  checks and a scan trust gate
+  ([../security/CREDENTIAL_DOCUMENT_SECURITY.md](../security/CREDENTIAL_DOCUMENT_SECURITY.md)).
+- Requirements: agency baseline + facility add-ons
+  ([FACILITY_CREDENTIAL_REQUIREMENTS.md](FACILITY_CREDENTIAL_REQUIREMENTS.md)).
+- Derived, explainable eligibility with reason codes
+  ([COMPLIANCE_ENGINE.md](COMPLIANCE_ENGINE.md)).
+
 1. **Identity** — Supabase Auth; server code trusts only validated sessions.
 2. **Authorization** — database-enforced (RLS + RPC checks), mirrored by
    server checks for good UX. UI hiding is never authorization.
@@ -198,6 +212,24 @@ The identity and authorization design is specified in
    `'unsafe-inline'` in production), anti-framing, restrictive
    Permissions-Policy.
 6. **Data minimisation in telemetry** — redacting structured logger.
+
+### Shift requests & assignments (P0-E5-S1)
+
+- One `shifts` entity (agency shifts and facility requests), stored lifecycle
+  draft/submitted/open/cancelled/completed, derived fill
+  ([SHIFT_DOMAIN_MODEL.md](SHIFT_DOMAIN_MODEL.md)); canonical UTC instants +
+  location timezone ([SHIFT_TIME_MODEL.md](SHIFT_TIME_MODEL.md)).
+- Assignments with explicit worker acceptance, structural capacity/duplicate/
+  cross-agency overlap guarantees ([ASSIGNMENT_DOMAIN_MODEL.md](ASSIGNMENT_DOMAIN_MODEL.md)).
+- One eligibility decision function calling the compliance engine for the
+  shift's facility, discipline and local dates; append-only decision records
+  ([ASSIGNMENT_ELIGIBILITY.md](ASSIGNMENT_ELIGIBILITY.md)).
+- Facility and worker access only through narrow projections
+  ([../security/SHIFT_CROSS_ORG_ACCESS.md](../security/SHIFT_CROSS_ORG_ACCESS.md)).
+- Notification hooks: `internal.notification_outbox` (transactional outbox; delivery later).
+- UI: `/shifts`, `/shifts/[shiftId]` (agency), `/my-shifts` (worker),
+  `/staffing-requests`, `/staffing-requests/[shiftId]` (facility); feature
+  module `src/features/shifts`, vocabulary `src/lib/domain/shifts.ts`.
 
 ### Content Security Policy
 

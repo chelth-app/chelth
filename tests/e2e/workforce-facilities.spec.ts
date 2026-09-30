@@ -1,20 +1,16 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 
-import { createAgency, enrolAuthenticator, signUpAndConfirm, uniqueEmail } from "./support";
+import {
+  adminWithVerifiedAgency as adminWithVerifiedAgencyShared,
+  signUpAndConfirm,
+  uniqueEmail,
+} from "./support";
 
 const A11Y_TAGS = ["wcag2a", "wcag2aa", "wcag22aa"];
 
-/** Admin with a new agency and an AAL2 session (via the real step-up path). */
 async function adminWithVerifiedAgency(page: Page, agencyName: string): Promise<string> {
-  await signUpAndConfirm(page, "Ada Admin", uniqueEmail("e2e-s3-admin"));
-  await createAgency(page, agencyName);
-  const organisationUrl = new URL(page.url()).pathname;
-  await page.getByRole("link", { name: "Verify now" }).click();
-  await page.getByRole("link", { name: "Set one up" }).click();
-  await enrolAuthenticator(page);
-  await expect(page).toHaveURL(new RegExp(`${organisationUrl}$`));
-  return organisationUrl;
+  return adminWithVerifiedAgencyShared(page, agencyName, uniqueEmail("e2e-s3-admin"));
 }
 
 async function expectNoA11yViolations(page: Page) {

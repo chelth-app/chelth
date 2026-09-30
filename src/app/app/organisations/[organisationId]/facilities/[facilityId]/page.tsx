@@ -23,6 +23,8 @@ import {
   requireCapabilityOrNotFound,
   StepUpNotice,
 } from "@/features/organisations";
+import { listRequirements, RequirementForm, RequirementsTable } from "@/features/compliance";
+import { listCredentialTypes, listDisciplines, listJurisdictions } from "@/features/credentials";
 import { CAPABILITIES } from "@/lib/authz";
 import {
   FACILITY_STATUS_LABELS,
@@ -48,12 +50,26 @@ export default async function FacilityPage({
   const facility = await getFacility(organisationId, facilityId.data);
   if (!facility) notFound();
 
-  const [locations, relationships, facilityTypes] = await Promise.all([
+  const canViewRequirements = can(CAPABILITIES.CREDENTIAL_REQUIREMENTS_VIEW) === "granted";
+  const canManageRequirements = can(CAPABILITIES.CREDENTIAL_REQUIREMENTS_MANAGE) === "granted";
+  const [
+    locations,
+    relationships,
+    facilityTypes,
+    requirements,
+    credentialTypes,
+    disciplines,
+    jurisdictions,
+  ] = await Promise.all([
     listLocations(facility.id),
     can(CAPABILITIES.RELATIONSHIP_VIEW) === "granted"
       ? listRelationships(facility.id)
       : Promise.resolve([]),
     listFacilityTypes(),
+    canViewRequirements ? listRequirements(organisationId, facility.id) : Promise.resolve([]),
+    canViewRequirements ? listCredentialTypes() : Promise.resolve([]),
+    canViewRequirements ? listDisciplines() : Promise.resolve([]),
+    canManageRequirements ? listJurisdictions() : Promise.resolve([]),
   ]);
   const canManageFacility =
     can(CAPABILITIES.FACILITY_MANAGE) === "granted" && facility.status !== "archived";
@@ -143,6 +159,39 @@ export default async function FacilityPage({
           />
         ) : null}
       </section>
+
+      {canViewRequirements ? (
+        <section aria-labelledby="requirements-heading" className="flex flex-col gap-3">
+          <h2 id="requirements-heading" className="text-lg font-semibold">
+            Credential requirements
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Added to the agency baseline for work at {facility.name}.
+          </p>
+          <RequirementsTable
+            organisationId={organisationId}
+            facilityId={facility.id}
+            requirements={requirements}
+            typeNames={new Map(credentialTypes.map((type) => [type.key, type.name]))}
+            disciplineNames={
+              new Map(disciplines.map((discipline) => [discipline.key, discipline.name]))
+            }
+            canManage={canManageRequirements}
+            label={`${facility.name} credential requirements`}
+          />
+          {canManageRequirements && facility.status !== "archived" ? (
+            <RequirementForm
+              organisationId={organisationId}
+              facilityId={facility.id}
+              credentialTypes={credentialTypes}
+              disciplines={disciplines}
+              jurisdictions={jurisdictions.filter(
+                (jurisdiction) => jurisdiction.level === "subdivision",
+              )}
+            />
+          ) : null}
+        </section>
+      ) : null}
 
       {can(CAPABILITIES.RELATIONSHIP_VIEW) === "granted" ? (
         <section aria-labelledby="relationship-heading" className="flex flex-col gap-3">

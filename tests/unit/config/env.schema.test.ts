@@ -4,9 +4,9 @@ import {
   EnvValidationError,
   isPrivilegedSupabaseKey,
   parsePublicEnv,
-  parseServerEnv,
   resolveAppEnvironment,
 } from "@/config/env.schema";
+import { parseServerEnv } from "@/config/env.server.schema";
 
 function fakeJwt(payload: Record<string, unknown>): string {
   const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");

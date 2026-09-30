@@ -1,0 +1,754 @@
+CHELTH — P0-E5-S1 SHIFT REQUESTS & ASSIGNMENT FOUNDATIONS
+Stage report · 2026-09-30 · branch p0-e5-s1-shifts-assignments (uncommitted)
+
+======================================================================
+1. EXECUTIVE SUMMARY
+======================================================================
+Chelth now has its first operational staffing layer:
+  - agency-created shifts and facility staffing requests (one entity);
+  - worker assignments with explicit acceptance;
+  - a single server-side eligibility decision that answers "can this exact
+    person be assigned to this exact facility for this exact shift date
+    without violating compliance, tenancy, capacity or schedule
+    constraints?".
+
+The decision:
+  - calls the P0-E4-S1 compliance engine, scoped to the shift's facility and
+    discipline, on every local calendar date the shift touches;
+  - requires readiness = ready;
+  - blocks the same PERSON from overlapping active assignments across all
+    agencies, without revealing the other agency;
+  - holds headcount under concurrency (row lock + trigger + tests);
+  - records every allowed or refused attempt in an append-only decision
+    table.
+
+Facilities and workers see only narrow projections. Every item of the
+completion gate is met. There are no unresolved HIGH or CRITICAL findings.
+
+Validation results:
+  - pgTAP: 618 assertions (190 new).
+  - Integration: 57 tests (13 new).
+  - E2E: 60 runs across desktop and mobile (10 new).
+  - Unit: 152 tests (24 new).
+
+======================================================================
+2. SCHEMA ADDED
+======================================================================
+Tables:
+  - public.shifts
+  - public.shift_internal_notes
+  - public.shift_assignments
+  - public.assignment_eligibility_decisions
+  - internal.notification_outbox
+
+Enums:
+  - shift_status, shift_source
+  - shift_cancellation_reason
+  - assignment_status, assignment_cancellation_reason
+  - assignment_block_reason, assignment_decision_outcome
+  - internal.notification_event
+
+Constraints and keys added to existing tables:
+  - agency_facility_relationships: unique (id, agency_organisation_id,
+    agency_facility_id).
+  - agency_workers: unique (id, agency_organisation_id, profile_id).
+
+Extension: btree_gist (in the extensions schema), used by the per-person
+exclusion constraint.
+
+Capabilities: shift.view, shift.create, shift.manage, shift.request,
+assignment.view, assignment.manage.
+
+Public RPCs (18):
+  - create_shift, submit_facility_shift_request, open_shift, update_shift
+  - cancel_shift, complete_shift, add_shift_internal_note
+  - list_agency_shifts
+  - assign_worker_to_shift, accept_shift_assignment,
+    decline_shift_assignment, cancel_shift_assignment
+  - list_shift_candidates, list_assignment_readiness
+  - list_facility_request_options, list_facility_shifts,
+    list_facility_shift_assignments
+  - list_my_shift_assignments
+
+authz helper: authz.is_own_active_worker.
+
+internal functions:
+  - Time and context: local_to_instant, shift_period, shift_local_dates,
+    agency_shift, require_shift_location, require_discipline,
+    require_active_relationship, active_membership_id, clean_text.
+  - Assignment: assignment_eligibility, profile_schedule_lock,
+    own_assignment, scan_assignment_readiness, enqueue_notification.
+  - Triggers: enforce_shift_transition, check_shift_context,
+    enforce_assignment_transition, enforce_assignment_capacity.
+  - Compliance engine: evaluate_compliance, now with a 4-argument
+    discipline-scoped form.
+
+======================================================================
+3. SHIFT DOMAIN MODEL
+======================================================================
+There is one entity, `shifts`: work an agency fulfils for a client facility.
+A facility request is a shift with source = facility that starts as
+`submitted`. Because there is no second table, a request and its shift
+cannot drift apart.
+
+Each shift belongs structurally to the agency, the agency's client facility
+record, that facility's relationship, and one of that facility's locations.
+All of these are composite foreign keys, so they hold even for the database
+owner.
+
+Other fields:
+  - Discipline: a foreign key to the disciplines reference data.
+  - Headcount: a column (1–100) on one row. Four CNAs means one shift with
+    up to four active assignments. The upper bound is a sanity check.
+  - No rates or payroll fields.
+
+Documentation: docs/architecture/SHIFT_DOMAIN_MODEL.md.
+
+======================================================================
+4. SHIFT TIME MODEL
+======================================================================
+Storage:
+  - start_at and end_at are timestamptz (canonical UTC).
+  - timezone is the location's IANA zone. A trigger checks it matches the
+    location.
+
+Input and conversion:
+  - Commands take wall-clock date and times in the location timezone. The
+    server converts them.
+  - An end time at or before the start time means the shift is overnight.
+  - Equal start and end times mean a 24-hour shift.
+  - A local time that doesn't exist (the DST gap) is rejected.
+  - An ambiguous local time resolves to the standard-time instant.
+
+Constraints:
+  - end_at > start_at.
+  - Elapsed duration is at most 25 hours: a 24-hour wall-clock shift across
+    a DST fall-back. This is the only cap, and it is documented.
+
+Compliance dating: the engine is evaluated on every local date the shift
+touches.
+
+Display always uses the shift's timezone, e.g. "7:00 PM – 7:00 AM (+1 day) EDT".
+
+Documentation: docs/architecture/SHIFT_TIME_MODEL.md.
+
+======================================================================
+5. SHIFT LIFECYCLE
+======================================================================
+Stored states are business-authoritative only:
+  - draft → open → completed (completion only after end_at);
+  - submitted → open;
+  - draft, submitted or open → cancelled, with a controlled reason:
+    facility_cancelled, staffing_no_longer_needed, entered_in_error,
+    relationship_suspended or other.
+
+Unfilled, partially filled and filled are DERIVED from active assignments vs
+headcount. They are never stored.
+
+Enforcement by trigger:
+  - Terminal rows are immutable (CHS09).
+  - Only legal transitions are allowed.
+  - Location, discipline and times are fixed once a shift is open.
+  - Headcount can never drop below the number of active assignments.
+
+Cancelling a shift cancels its active assignments with reason
+shift_cancelled and notifies the affected workers.
+
+======================================================================
+6. FACILITY REQUEST MODEL
+======================================================================
+Submitting a request:
+  - A linked facility user with shift.request submits through ONE explicit
+    ACTIVE relationship (authz.has_relationship_capability).
+  - The location must belong to that relationship's facility.
+  - A facility-sourced row's creator must be a member of the LINKED facility
+    organisation. A trigger enforces this, and the pgTAP test runs as DB
+    owner.
+
+The agency keeps control: a request stays `submitted` until the agency opens
+it. The UI button is "Accept and open request".
+
+Withdrawal: the facility may withdraw only its own request, only while it is
+still submitted, and only with reason facility_cancelled. Editing is not
+supported in this stage; the facility withdraws and resubmits.
+
+Audit: submission is recorded in both organisations. A
+facility_request_submitted hook is sent to the agency, and a
+facility_request_opened hook is sent to the facility.
+
+======================================================================
+7. ASSIGNMENT DOMAIN MODEL
+======================================================================
+`shift_assignments` holds agency_worker_id, profile_id and a copy of the
+shift period. Composite foreign keys guarantee that:
+  - the worker belongs to the shift's agency;
+  - the profile is that worker's person;
+  - the copied period equals the shift's period;
+  - the actor is a member of the same agency.
+
+`period` is a generated column: tstzrange [start, end).
+
+There are no attendance or timesheet fields.
+
+Documentation: docs/architecture/ASSIGNMENT_DOMAIN_MODEL.md.
+
+======================================================================
+8. ASSIGNMENT LIFECYCLE
+======================================================================
+Transitions:
+  - assigned → accepted | declined | cancelled
+  - accepted → cancelled
+
+Active means assigned or accepted. Active assignments consume headcount and
+block the person's time. Declined and cancelled are terminal and consume
+neither. A trigger enforces the transitions (CHA09).
+
+Worker actions:
+  - The worker explicitly accepts or declines their OWN assignment
+    (authz.is_own_active_worker).
+  - Acceptance re-checks eligibility live, and requires an open shift that
+    has not ended under an active relationship.
+
+Cancellation reasons are controlled: shift_cancelled is set only by the
+system; the others are worker_unavailable, compliance_change,
+entered_in_error, relationship_suspended and other.
+
+======================================================================
+9. COMPLIANCE GATE
+======================================================================
+internal.assignment_eligibility calls
+internal.evaluate_compliance(worker, shift facility, date, shift discipline)
+for every local shift date. The P0-E4-S1 engine is the only rule source; no
+credential logic is duplicated. The engine covers:
+  - agency baseline and facility requirements;
+  - sharing, and verification by THIS agency;
+  - document trust (clean documents only);
+  - expiry on the date, minimum validity and jurisdiction.
+
+The engine gained a discipline scope. The 3-argument form now delegates to
+the 4-argument form, so there is still one implementation.
+
+The gate also checks:
+  - the worker record and membership are active (WORKER_NOT_ACTIVE);
+  - the worker holds the discipline (DISCIPLINE_MISMATCH);
+  - capacity (SHIFT_FULL);
+  - duplicates (ASSIGNMENT_ALREADY_EXISTS);
+  - person-level schedule (WORKER_SCHEDULE_CONFLICT).
+
+Policy: the worker must be READY. action_required (for example
+EXPIRING_SOON on the shift date) BLOCKS assignment. The justification is in
+ASSIGNMENT_ELIGIBILITY.md: it is the agency's own warning rule, tunable per
+requirement.
+
+Refusals return structured codes, compliance reasons, and plain-language
+findings. Compliance detail is shown only to callers with compliance.view.
+
+======================================================================
+10. COMPLIANCE DECISION / AUDIT MODEL
+======================================================================
+`assignment_eligibility_decisions` is append-only; UPDATE and DELETE are
+refused even for the owner. It stores one row per attempt, allowed or
+refused:
+  - outcome and block reasons;
+  - readiness;
+  - compliance reason codes and findings (scope, credential type, reason,
+    severity, evaluation date, effective expiry);
+  - evaluation dates and engine_version (compliance-engine.p0-e5-s1);
+  - actor membership, sequence and timestamp.
+
+It never stores credential numbers, documents, or anything about another
+agency. It proves a decision at a point in time and never replaces live
+evaluation.
+
+Refusals are RETURNED, not raised, so the decision and audit event commit.
+Reading decisions requires assignment.view AND compliance.view; this was
+hardened during the security review.
+
+Audit events:
+  - Shifts: shift.created, submitted, opened, updated (field names only),
+    cancelled, completed, internal_note_added,
+    assignments_viewed_by_facility.
+  - Assignments: assignment.created, accepted, declined, cancelled,
+    rejected_by_compliance, rejected_by_conflict, rejected_by_capacity.
+
+======================================================================
+11. SCHEDULE CONFLICT MODEL
+======================================================================
+Two assignments conflict when both are active and their half-open intervals
+[start, end) overlap. Back-to-back shifts (08:00–12:00 and 12:00–16:00) are
+allowed; a one-minute overlap conflicts (both tested).
+
+Enforcement has three layers:
+  - The RPC checks for conflicts under a per-person advisory lock.
+  - A structural backstop: EXCLUDE USING gist (profile_id WITH =, period
+    WITH &&) WHERE active. It holds for every writer, including the table
+    owner.
+  - Acceptance re-checks.
+
+======================================================================
+12. MULTI-AGENCY CONFLICT MODEL
+======================================================================
+Conflicts resolve to the PERSON (profile_id), not the agency worker record.
+One person working for Agency A and Agency B cannot hold overlapping active
+assignments.
+
+Privacy:
+  - Agency B receives only WORKER_SCHEDULE_CONFLICT ("Worker has a
+    scheduling conflict").
+  - The result, the decision row and the audit metadata contain no Agency A
+    id, facility, time or shift id. This is tested in pgTAP (N) and in
+    integration.
+  - Agency B still cannot read Agency A's assignments.
+
+======================================================================
+13. HEADCOUNT CONCURRENCY MODEL
+======================================================================
+assign_worker_to_shift takes two locks in a fixed order, which prevents
+deadlocks:
+  1. SELECT … FOR UPDATE on the shift row, which serialises capacity per
+     shift;
+  2. pg_advisory_xact_lock(hash('chelth.schedule:' || profile)), which
+     serialises schedule checks per person.
+
+Backstops:
+  - The capacity trigger re-locks the shift and counts (CHS16).
+  - A unique partial index enforces one active assignment per
+    (shift, worker).
+  - The exclusion constraint also prevents duplicate assignments.
+
+Headcount reductions are serialised on the same row lock.
+
+Integration tests:
+  - Two schedulers racing for the last slot: exactly one is allowed and the
+    other gets SHIFT_FULL.
+  - A duplicate race: one is allowed and the other gets
+    ASSIGNMENT_ALREADY_EXISTS.
+
+======================================================================
+14. FACILITY PROJECTION
+======================================================================
+Facilities have no RLS path to shifts, assignments, decisions or notes. They
+read only projections.
+
+list_facility_shifts (facility shift.view, non-ended relationship, drafts
+excluded):
+  - time, timezone, location, discipline;
+  - headcount, active and accepted counts, derived fill state;
+  - status, source, instructions, reference, cancellation reason;
+  - relationship status and agency name.
+
+list_facility_shift_assignments ("who is coming", audited):
+  - assignment id, display name, discipline, assignment state, readiness
+    indicator.
+  - No email, phone, address, credentials, reasons, notes or other agency
+    relationships.
+
+list_facility_request_options: the active locations of one relationship.
+
+Documentation: docs/security/SHIFT_CROSS_ORG_ACCESS.md.
+
+======================================================================
+15. WORKER PROJECTION
+======================================================================
+list_my_shift_assignments returns only the caller's own assignments at one
+agency, and only while the membership is active. Fields: facility name,
+location, discipline, times, timezone, assignment and shift state,
+cancellation reason, and can_respond.
+
+Instructions are shown only while the assignment is active. Internal notes,
+headcount and other workers are never shown.
+
+Workers can also read their own shift_assignments rows directly through RLS.
+
+======================================================================
+16. DOMAIN CAPABILITIES
+======================================================================
+The new capabilities are not privileged (no AAL2). This is justified: they
+are high-frequency operational actions, and every assignment is
+independently gated.
+
+Role mappings:
+
+  Role                                          Capabilities
+  --------------------------------------------  -----------------------------
+  agency.admin, operations_manager, scheduler   shift.view, shift.create,
+                                                shift.manage, assignment.view,
+                                                assignment.manage
+  agency.recruiter, credentialing_officer,      none
+  finance
+  agency.healthcare_worker                      none (identity rule)
+  facility.admin, facility.scheduler            shift.view, shift.request
+                                                (relationship-scoped)
+  facility.supervisor                           shift.view
+
+Pinned tests updated:
+  - 030: the admin now holds 26 capabilities; 12 are privileged
+    (unchanged).
+  - Integration: the scheduler's capability list.
+  - Vocabulary drift: the capability list.
+
+======================================================================
+17. RLS ARCHITECTURE
+======================================================================
+  Table                               Who can read
+  ----------------------------------  ------------------------------------------
+  shifts, shift_internal_notes        agency shift.view
+  shift_assignments                   agency assignment.view, OR the worker's
+                                      own rows (is_own_active_worker)
+  assignment_eligibility_decisions    agency assignment.view AND compliance.view
+  notification_outbox                 no API access (internal schema)
+
+Cross-organisation access happens only through relationship-scoped SECURITY
+DEFINER projections; there are no bare-membership policies. Platform admins
+get nothing, tested (T).
+
+All writes go through RPCs, and authenticated has SELECT only; the baseline
+test pins this. There is no anon access.
+
+======================================================================
+18. STRUCTURAL INTEGRITY
+======================================================================
+Composite foreign keys:
+  - shift → agency_facilities (id, agency)
+  - shift → relationships (id, agency, facility)
+  - shift → locations (id, facility)
+  - shift creator → memberships (id, organisation)
+  - assignment → shifts (id, agency, start, end)
+  - assignment → agency_workers (id, agency, profile)
+  - assignment actor → memberships
+  - decision → shift, worker, assignment and actor, each with the agency
+
+Triggers:
+  - Facility-request creator must belong to the linked facility.
+  - Shift timezone equals the location's timezone.
+  - Lifecycle transitions and capacity.
+  - Ownership and identity columns are immutable.
+
+Exclusion constraint: one person, no overlapping active assignments.
+
+Every one of these was tested as the DB owner (pgTAP U, M, O, P).
+
+======================================================================
+19. AUDIT CHANGES
+======================================================================
+New audit actions (all mirrored in src/lib/authz/vocabulary.ts with labels):
+  - shift.created, submitted, opened, updated, cancelled, completed,
+    internal_note_added, assignments_viewed_by_facility
+  - assignment.created, accepted, declined, cancelled,
+    rejected_by_compliance, rejected_by_conflict, rejected_by_capacity
+
+Metadata carries only ids, codes and changed field names. Tests confirm that:
+  - note text never appears in audit metadata;
+  - conflict metadata holds only the caller agency's own ids.
+
+======================================================================
+20. NOTIFICATION HOOKS
+======================================================================
+internal.notification_outbox is a transactional outbox with no API access.
+Events: worker_assigned, assignment_cancelled, assignment_declined,
+facility_request_submitted, facility_request_opened, shift_cancelled,
+assignment_non_compliant.
+
+internal.scan_assignment_readiness(within) enqueues one pending
+assignment_non_compliant row per affected upcoming assignment; a unique
+partial index prevents duplicates.
+
+Delivery (email or push) and scheduling (pg_cron or an Edge Function) are
+deferred.
+
+======================================================================
+21. UI ADDED
+======================================================================
+Agency /app/organisations/[id]/shifts:
+  - Filters: status, facility, from/to dates.
+  - The list shows derived fill badges and a "Relationship not active"
+    flag.
+  - Create form: facility and location, discipline, local date and times,
+    headcount, reference, instructions, and "open now".
+
+Agency /app/organisations/[id]/shifts/[shiftId]:
+  - Details and fill progress.
+  - Open or "Accept and open request"; mark completed.
+  - Assigned workers with live readiness, a "No longer eligible" flag with
+    reasons, and a remove-with-reason action.
+  - Eligible workers (default view) with an Assign button.
+  - "Unavailable workers" disclosure with plain-language reasons and a "Try
+    to assign" button (the server decides and records the refusal).
+  - Decision history; edit headcount, instructions and reference;
+    cancellation with a reason; internal notes.
+
+Worker /app/organisations/[id]/my-shifts: own assignments with Accept and
+Decline.
+
+Facility /app/organisations/[id]/staffing-requests (+ /[shiftId]):
+  - Submit a request per agency relationship and location.
+  - Own requests and shifts with fill progress.
+  - "Who is coming" projection; withdraw a submitted request.
+
+The organisation page shows section links (Shifts, Staffing requests, My
+shifts) per capability.
+
+Supporting code:
+  - Feature module: src/features/shifts.
+  - Vocabulary: src/lib/domain/shifts.ts.
+  - 12 new structured error codes mapped from SQLSTATEs CHS04–CHS16,
+    CHA04 and CHA09.
+
+Accessibility: axe checks pass on the shift, my-shifts and staffing-request
+pages.
+
+======================================================================
+22. SECURITY TESTS
+======================================================================
+New pgTAP files:
+
+  110_shifts (83 assertions):
+    A, B, C, D, capability mapping, lifecycle, relationship state,
+    cancellation, internal notes, U, X, W, and the time model (UTC,
+    timezone, overnight, DST fall-back and spring-forward, DST gap, 24-hour
+    shift, local dates).
+
+  120_assignments (77 assertions):
+    E, F, G, H, I, J, K, L, M, N, O, P, Q, R, the action_required policy,
+    decisions append-only, re-evaluation, acceptance re-check, the outbox,
+    cancellation and cascade, candidates (no ranking), decision visibility,
+    and U.
+
+  130_shift_projections (30 assertions):
+    C, S (exact projection fields), the assigned-worker projection and its
+    audit, the worker projection, ended-relationship visibility, T, V
+    (SECURITY DEFINER search_path for all stage functions), and W.
+
+Updated: 000_security_baseline allow-lists (65 public RPCs, 15 authz
+helpers) and 030_roles_capabilities.
+
+Total: 15 files, 618 assertions, all passing.
+
+======================================================================
+23. INTEGRATION TESTS
+======================================================================
+tests/integration/shifts-assignments.test.ts has 13 tests against the real
+local Supabase, using real sign-up and verification:
+  - an agency creates an open shift, with derived fill state;
+  - a ready worker is assigned and the decision is recorded;
+  - a non-compliant worker is refused with reasons;
+  - a credential expiring before a future shift is refused, even though the
+    worker is ready today;
+  - a worker accepts their own assignment; another worker can't see or
+    decline it;
+  - the final slot can't be overfilled under CONCURRENCY;
+  - a concurrent duplicate is refused;
+  - a worker declines, and a re-accept gets CHA09;
+  - the same person at another agency is refused for an overlap, with a
+    generic result and no leak, while back-to-back is allowed;
+  - a facility submits through its relationship, is refused outside it, and
+    the agency opens and fills the request;
+  - the facility sees only its projection and a narrow worker projection,
+    with no table access;
+  - cancelling a shift cancels its assignments and prevents further
+    assignment;
+  - another agency can't read or act.
+
+Suite total: 57 tests, all passing.
+
+======================================================================
+24. E2E TESTS
+======================================================================
+tests/e2e/shifts-assignments.spec.ts runs on desktop and mobile Chromium.
+The world is set up through the public API (tests/e2e/staffing-fixture.ts);
+the flows are driven through the UI.
+  - Flow 1: create a shift → eligible workers → assign → "Partially filled ·
+    1 of 2" (axe).
+  - Flow 4: an ineligible worker → structured refusal plus "Facility
+    orientation (facility requirement): Missing" → decision history.
+  - Flow 2: a worker sees only their own assignment and accepts it (axe);
+    the agency shift URL returns 404; another worker sees none.
+  - Flow 3: a facility submits an overnight request (axe) → the agency
+    accepts, opens and fills it → the facility sees "Filled · 1 of 1" and
+    "Who is coming" with no contact data.
+  - Flow 5: another agency and the facility get 404 on agency shift and
+    facility request routes.
+
+Suite total: 60 runs, all passing with --workers=4.
+
+At the default 8 local workers, 2–4 PRE-EXISTING specs flaked
+intermittently, each time a different one, because server actions were slow
+under load. Steps taken:
+  - The shared step-up helper's URL assertion now allows 20s instead of 5s.
+  - The new spec uses generous post-action timeouts.
+  - CI runs with fewer workers and one retry.
+
+======================================================================
+25. DATE/TIME TESTS
+======================================================================
+  Case                                   Covered by
+  -------------------------------------  --------------------------------------
+  Overnight shift                        pgTAP 110, E2E Flow 3 display, unit
+  UTC conversion                         pgTAP 110: 07:00 New York → 12:00Z
+  Facility timezone                      pgTAP 110 (Chicago vs New York),
+                                         unit (local dates)
+  DST boundary                           pgTAP 110 (fall-back 13h,
+                                         spring-forward 11h, DST gap rejected),
+                                         unit
+  Back-to-back non-overlap               pgTAP 120, integration (cross-agency)
+  One-minute overlap                     pgTAP 120
+  Credential expiring before a future    pgTAP 120 (I), integration
+  shift
+  Midnight end belongs to one local date pgTAP 110, unit
+
+======================================================================
+26. SECURITY FINDINGS
+======================================================================
+Reviewed areas, each with its disposition:
+  - Cross-tenant shift IDOR: SHIFT_NOT_FOUND for missing or invisible
+    shifts; the organisation is always derived from the record. Tested (A,
+    B).
+  - Facility relationship bypass: only has_relationship_capability, with
+    ACTIVE required for requests and no table path. Tested (C, D).
+  - Worker self-assignment: workers can't see shifts, and an agency member
+    can't assign their own record. Tested (F).
+  - Compliance gate bypass: there is no insert grant; the RPC is the only
+    path; the capacity trigger and the constraints hold for the owner.
+    Tested (H–K, X).
+  - Discipline mismatch: gated, and the engine is discipline-scoped. Tested
+    (J).
+  - Date and expiry evaluation: every local shift date is evaluated; the
+    DST gap is rejected. Tested (I, time tests).
+  - Multi-agency conflicts: an exclusion constraint on the person. Tested
+    (M).
+  - Privacy leak through conflict messages: a generic code only; nothing in
+    the result, decision or audit. Tested (N).
+  - Concurrent overfill: row lock plus trigger. Tested in integration.
+  - Duplicate assignment: unique index plus exclusion. Tested (P).
+  - Acceptance spoofing: ASSIGNMENT_NOT_FOUND for anyone but the owner.
+    Tested (G).
+  - Cancelled-shift mutation: terminal rows are immutable. Tested.
+  - Internal-note leakage: separate table, agency-only RLS, never in
+    projections or audit. Tested.
+  - Assigned-worker overexposure: exact field list, audited reads. Tested
+    (S).
+  - Platform-admin overreach: no RLS or projection path. Tested (T).
+  - Service-role exposure: none used; the bundle scan is clean.
+
+MEDIUM, fixed: decision rows contain compliance findings but were readable
+with assignment.view alone. RLS now requires compliance.view as well.
+
+LOW, accepted:
+  - The facility's readiness indicator is an aggregate, which the assignment
+    justifies.
+  - The candidate conflict flag reveals the same single bit as a refusal.
+
+There are no unresolved HIGH or CRITICAL findings.
+
+======================================================================
+27. KNOWN LIMITATIONS
+======================================================================
+  - Candidate evaluation runs the engine per worker; this is fine for
+    agencies of normal size. A set-based variant is needed for very large
+    rosters.
+  - list_agency_shifts and list_facility_shifts are capped at 500 rows, with
+    no pagination.
+  - The UI "Save details" action re-sends the stored wall-clock times. For a
+    shift starting in the ambiguous DST fall-back hour, an edit would be
+    refused once the shift is open (CH409) rather than silently shifting it.
+  - Facilities can't edit a submitted request; they withdraw and resubmit.
+  - No scheduler consumes the outbox or runs scan_assignment_readiness yet.
+  - Past-dated shifts can't be created; retroactive entry is a timesheet
+    concern.
+  - The untracked tests/e2e/credentials-compliance-ci-check.spec.ts, which I
+    did not create, near-duplicates credentials-compliance.spec.ts and runs
+    those flows twice. I left it in place for the owner to decide.
+
+======================================================================
+28. DEFERRED ITEMS
+======================================================================
+Not built, by design:
+  - clock in/out, geofencing, GPS, attendance
+  - timesheets, payroll, invoicing, bill and pay rates, overtime
+  - recurring templates, marketplace or broadcast
+  - matching, ranking or AI
+  - SMS, notification centre and delivery
+  - recruiting
+
+Also deferred:
+  - scheduled re-evaluation;
+  - position-level (per-slot) requirements;
+  - location, department or role-scoped credential requirements;
+  - facility request editing;
+  - an offer/broadcast flow built on the assigned → accepted lifecycle.
+
+======================================================================
+29. MIGRATION LIST
+======================================================================
+New:
+  20260930120000_shift_vocabulary_and_engine_scope.sql
+  20260930120100_shifts.sql
+  20260930120200_shift_assignments.sql
+  20260930120300_shift_rpcs.sql
+  20260930120400_assignment_rpcs.sql
+  20260930120500_shift_projections.sql
+
+No merged migration was edited. The engine change is a new-migration
+redefinition (create or replace). There are 26 migrations in total, and
+check-migrations passes.
+
+======================================================================
+30. BUILD VALIDATION
+======================================================================
+  Check                        Result
+  ---------------------------  ------------------------------------------------
+  npm run format:check         PASS
+  npm run lint                 PASS (0 warnings)
+  npm run typecheck            PASS
+  npm test                     PASS (152)
+  npm run build                PASS
+  npm run check:bundle         PASS (42 browser files, no secrets)
+  npx playwright test          PASS (60/60 with --workers=4); intermittent
+                               load flakes in pre-existing specs at 8 workers
+                               (see §24)
+  npm run check:migrations     PASS (26)
+  supabase db reset            PASS
+  supabase db lint             PASS (public, authz, internal: no errors)
+  supabase test db             PASS (15 files, 618 assertions)
+  npm run test:integration     PASS (57)
+  npm run db:types             PASS (regenerated; --stdout shows no drift)
+
+======================================================================
+31. GIT STATUS
+======================================================================
+Branch: p0-e5-s1-shifts-assignments, created from the P0-E4-S1 branch head
+(ae40712). Nothing is committed or pushed; commit on request.
+
+Modified:
+  - 5 docs
+  - Organisation page and sections
+  - Authz vocabulary, error codes and mapping
+  - Database types
+  - pgTAP tests 000 and 030
+  - E2E support
+  - Integration test for invitations and roles
+
+New:
+  - 6 migrations
+  - pgTAP tests 110, 120, 130 and _shift_fixture
+  - src/features/shifts and src/lib/domain/shifts.ts
+  - 5 routes
+  - 5 docs
+  - Tests: integration, E2E and fixture, 2 unit files
+
+Untracked, not mine: tests/e2e/credentials-compliance-ci-check.spec.ts.
+
+======================================================================
+32. RECOMMENDED NEXT STAGE
+======================================================================
+P0-E5-S2 — Assignment operations and notifications:
+  - consume the notification outbox (transactional email, with no
+    sensitive payloads);
+  - schedule scan_assignment_readiness;
+  - add a relationship-suspension workflow that bulk-cancels or flags
+    upcoming shifts;
+  - add shift offers or broadcasts built on the assigned → accepted
+    lifecycle;
+  - add a set-based candidate evaluation and paginated shift lists.
+
+After that: time and attendance (clock in/out), then timesheets.
