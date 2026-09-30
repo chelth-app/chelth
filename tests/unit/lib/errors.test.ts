@@ -111,3 +111,19 @@ describe("normalizeError — identity & authorization codes", () => {
     expect(normalizeError(input).code).toBe(expected);
   });
 });
+
+describe("normalizeError — workforce & facility codes", () => {
+  it.each([
+    [{ code: "CHW09", message: "worker status change not allowed" }, "INVALID_WORKER_STATE"],
+    [
+      { code: "CHR09", message: "relationship status change not allowed" },
+      "INVALID_RELATIONSHIP_STATE",
+    ],
+    [{ code: "CHF09", message: "archived facilities are read-only" }, "INVALID_STATE_TRANSITION"],
+    [{ code: "CHF04", message: "facility not found" }, "FACILITY_NOT_FOUND"],
+    [{ code: "CHW04", message: "worker not found" }, "WORKER_NOT_FOUND"],
+    [{ code: "CHR04", message: "relationship not found" }, "RELATIONSHIP_NOT_FOUND"],
+  ])("maps %o to %s", (input, expected) => {
+    expect(normalizeError(input).code).toBe(expected);
+  });
+});

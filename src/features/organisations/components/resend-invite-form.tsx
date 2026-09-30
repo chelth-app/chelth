@@ -6,7 +6,7 @@ import { FormAlert } from "@/components/forms/form-alert";
 import { SubmitButton } from "@/components/forms/submit-button";
 
 import { resendInviteAction } from "../actions";
-import { IssuedInviteLink } from "./issued-invite-link";
+import { IssuedInviteLink } from "@/components/shared/issued-invite-link";
 
 export function ResendInviteForm({
   organisationId,

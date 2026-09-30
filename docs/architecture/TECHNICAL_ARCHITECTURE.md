@@ -167,6 +167,26 @@ The identity and authorization design is specified in
 - Correlation: the server client forwards `x-chelth-request-id` (per request);
   audit events record it.
 
+### Healthcare domain foundations (P0-E3-S3)
+
+- Workers: `profile → membership → agency_workers` (per agency); created by
+  the database when the healthcare-worker role is granted
+  ([WORKFORCE_DOMAIN_MODEL.md](WORKFORCE_DOMAIN_MODEL.md)).
+- Facilities: agency client records (`agency_facilities`, `facility_locations`)
+  distinct from facility organisations; explicit verified linking
+  ([FACILITY_DOMAIN_MODEL.md](FACILITY_DOMAIN_MODEL.md)).
+- Relationships: `agency_facility_relationships` with lifecycle; future
+  commercial terms attach here
+  ([AGENCY_FACILITY_RELATIONSHIPS.md](AGENCY_FACILITY_RELATIONSHIPS.md)).
+- Cross-org sharing: relationship-scoped only
+  ([../security/CROSS_ORG_DATA_SHARING.md](../security/CROSS_ORG_DATA_SHARING.md)).
+- Email: provider abstraction (Resend adapter, disabled by default),
+  post-commit delivery with recorded outcome
+  ([TRANSACTIONAL_EMAIL.md](TRANSACTIONAL_EMAIL.md)).
+- Documents: design only ([../security/DOCUMENT_STORAGE_MODEL.md](../security/DOCUMENT_STORAGE_MODEL.md)).
+- Routes are organisation-scoped: `/app/organisations/[id]/workforce…`,
+  `/app/organisations/[id]/facilities…` (explicit context, 404 for non-members).
+
 1. **Identity** — Supabase Auth; server code trusts only validated sessions.
 2. **Authorization** — database-enforced (RLS + RPC checks), mirrored by
    server checks for good UX. UI hiding is never authorization.

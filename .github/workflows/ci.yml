@@ -84,7 +84,7 @@ jobs:
         run: supabase test db
       - name: Generated types are up to date
         run: |
-          supabase gen types typescript --local --schema public > /tmp/database.types.ts
+          node scripts/generate-db-types.mjs --stdout > /tmp/database.types.ts
           diff -u src/types/database.types.ts /tmp/database.types.ts
       - name: Export local stack environment
         run: node scripts/local-supabase-env.mjs >> "$GITHUB_ENV"

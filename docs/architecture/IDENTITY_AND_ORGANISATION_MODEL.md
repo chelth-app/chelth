@@ -160,16 +160,23 @@ User journey:
 
 ## 8. Authentication flows (Supabase Auth)
 
-| Flow                      | Route                                             | Notes                                                                       |
-| ------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------- |
-| Sign up                   | `/sign-up`                                        | Identity only. Uniform "check your email" response (no account enumeration) |
-| Email verification        | `/auth/confirm?token_hash&type=email`             | Server-side `verifyOtp`; then `/app`                                        |
-| Sign in                   | `/sign-in`                                        | Uniform invalid-credentials error; unverified email is told to verify       |
-| Password reset request    | `/forgot-password`                                | Uniform response for known/unknown emails                                   |
-| Password reset completion | `/auth/confirm?type=recovery` → `/reset-password` | Requires the recovery session                                               |
-| Sign out                  | POST action                                       | Local scope; never a GET link                                               |
-| MFA enrolment             | `/app/security`                                   | TOTP (QR + setup key)                                                       |
-| MFA step-up               | `/app/security/verify`                            | Raises session to AAL2                                                      |
+| Flow                      | Route                                             | Notes                                                                                      |
+| ------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Sign up                   | `/sign-up`                                        | Identity only. Uniform "check your email" response (no account enumeration)                |
+| Email verification        | `/auth/confirm?token_hash&type=email`             | Server-side `verifyOtp`; then `/app`                                                       |
+| Sign in                   | `/sign-in`                                        | Uniform invalid-credentials error; unverified email is told to verify                      |
+| Password reset request    | `/forgot-password`                                | Uniform response for known/unknown emails                                                  |
+| Password reset completion | `/auth/confirm?type=recovery` → `/reset-password` | Requires the recovery session; recovery ALWAYS lands on `/reset-password` (`next` ignored) |
+| Sign out                  | POST action                                       | Local scope; never a GET link                                                              |
+| MFA enrolment             | `/app/security`                                   | TOTP (QR + setup key)                                                                      |
+| MFA step-up               | `/app/security/verify`                            | Raises session to AAL2                                                                     |
+
+**Hosted templates must link to `/auth/confirm` with `token_hash`.** Supabase's
+default templates (`{{ .ConfirmationURL }}`) send users to GoTrue `/verify`,
+which redirects to the Site URL root with a PKCE `code` that Chelth does not
+exchange — the user lands on the landing page (see
+`docs/reports/P0-E3-S2B-password-recovery-hosted-fix.txt`).
+`tests/unit/supabase/email-templates.test.ts` pins the expected links.
 
 Email links use the `token_hash` flow. Templates live in
 `supabase/templates/` and are referenced from `supabase/config.toml`.

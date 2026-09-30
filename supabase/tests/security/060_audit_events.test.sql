@@ -27,8 +27,8 @@ select pg_temp.query_as((select alice from ids), 'aal2',
 
 select is(
   (select array_agg(action order by action) from public.audit_events where organisation_id = (select alpha from orgs)),
-  array['invite.created', 'membership.created', 'organisation.created', 'role.assigned'],
-  'organisation creation and invitation are audited');
+  array['invite.created', 'membership.created', 'organisation.created', 'role.assigned', 'worker.created'],
+  'organisation creation, worker onboarding and invitation are audited');
 select is(
   (select actor_membership_id from public.audit_events
     where organisation_id = (select alpha from orgs) and action = 'invite.created'),
@@ -50,7 +50,7 @@ select is(
 -- Visibility
 select is(pg_temp.count_as((select alice from ids), 'aal2',
     format('select id from public.audit_events where organisation_id = %L', (select alpha from orgs))),
-  4, 'audit.view at AAL2 shows the organisation history');
+  5, 'audit.view at AAL2 shows the organisation history');
 select is(pg_temp.count_as((select alice from ids), 'aal2',
     format('select id from public.audit_events where organisation_id = %L', (select beta from orgs))),
   0, 'audit history never leaks across organisations');

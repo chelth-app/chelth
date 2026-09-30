@@ -34,16 +34,24 @@ reference rows by migration and mirrored in `src/lib/authz/vocabulary.ts`
 | `membership.manage`   |         ✔         | Suspend, reinstate, revoke memberships                  |
 | `role.assign`         |         ✔         | Assign and revoke roles                                 |
 | `audit.view`          |         ✔         | Read the organisation audit history                     |
+| `worker.view`         |                   | View agency worker records (P0-E3-S3)                   |
+| `worker.manage`       |         ✔         | Change worker status and reference                      |
+| `worker.notes.view`   |                   | Read internal notes about workers                       |
+| `worker.notes.manage` |         ✔         | Add internal notes about workers                        |
+| `facility.view`       |                   | View client facilities and locations                    |
+| `facility.manage`     |         ✔         | Create/update client facilities and locations           |
+| `relationship.view`   |                   | View agency–facility relationships                      |
+| `relationship.manage` |         ✔         | Create relationships and change their status            |
 
 Self-service identity actions (edit own name, enrol MFA, redeem an invitation
 addressed to you) are **identity-scoped**, not organisation capabilities, so
 there is no `identity.manage_self` row: they are authorised by being the
 identity (`auth.uid()`), enforced by RLS/column grants and RPC checks.
 
-Reserved namespaces for later stages (not created yet): `worker.*`,
-`credential.*`, `shift.*`, `assignment.*`, `timesheet.*`, `rate.*`,
-`invoice.*`, `payroll.*`, `relationship.*`. Each stage adds only the
-capabilities it implements, in its own migration, with role mappings.
+Reserved namespaces for later stages (not created yet): `credential.*`,
+`shift.*`, `assignment.*`, `timesheet.*`, `rate.*`, `invoice.*`,
+`payroll.*`. Each stage adds only the capabilities it implements, in its own
+migration, with role mappings.
 
 ## 3. Roles
 
@@ -51,18 +59,22 @@ Roles are bundles of capabilities bound to one organisation type (the key
 prefix equals the type; enforced by a check constraint). Exactly one owner
 role per type is granted to an organisation's creator.
 
-| Role                   | Type     | Capabilities                                                 |
-| ---------------------- | -------- | ------------------------------------------------------------ |
-| Agency Admin (owner)   | agency   | all seven                                                    |
-| Operations Manager     | agency   | view, membership.view/invite/manage, role.assign, audit.view |
-| Recruiter              | agency   | organisation.view, membership.view, membership.invite        |
-| Scheduler              | agency   | organisation.view, membership.view                           |
-| Credentialing Officer  | agency   | organisation.view, membership.view                           |
-| Finance                | agency   | organisation.view, membership.view                           |
-| Healthcare Worker      | agency   | organisation.view                                            |
-| Facility Admin (owner) | facility | all seven                                                    |
-| Facility Scheduler     | facility | organisation.view, membership.view                           |
-| Facility Supervisor    | facility | organisation.view, membership.view                           |
+| Role                   | Type     | Identity-stage capabilities (S2)                                          | Domain capabilities (S3)                                                              |
+| ---------------------- | -------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Agency Admin (owner)   | agency   | all seven                                                                 | all eight                                                                             |
+| Operations Manager     | agency   | organisation.view, membership.view/invite/manage, role.assign, audit.view | worker.view/manage, worker.notes.view/manage, facility.view/manage, relationship.view |
+| Recruiter              | agency   | organisation.view, membership.view, membership.invite                     | worker.view/manage, worker.notes.view/manage                                          |
+| Scheduler              | agency   | organisation.view, membership.view                                        | worker.view, facility.view, relationship.view                                         |
+| Credentialing Officer  | agency   | organisation.view, membership.view                                        | worker.view                                                                           |
+| Finance                | agency   | organisation.view, membership.view                                        | facility.view, relationship.view                                                      |
+| Healthcare Worker      | agency   | organisation.view                                                         | none (self-access is an identity rule, §6)                                            |
+| Facility Admin (owner) | facility | all seven                                                                 | relationship.view (effective only via linked relationships)                           |
+| Facility Scheduler     | facility | organisation.view, membership.view                                        | relationship.view                                                                     |
+| Facility Supervisor    | facility | organisation.view, membership.view                                        | none                                                                                  |
+
+Least-privilege notes: `relationship.manage` (commercial state) is owner-only;
+recruiters do not see client data; finance does not see workers; credentialing
+officers do not see internal notes (credentials arrive later).
 
 Healthcare roles differ mainly in _future_ domain capabilities; today they
 share the identity-stage capabilities above. Platform Admin is **not** a role
@@ -108,22 +120,36 @@ type, EXECUTE revoked from PUBLIC. pgTAP enforces an explicit allow-list of
 every function executable by `authenticated`; adding a function without
 updating the list fails CI.
 
+Added in P0-E3-S3:
+
+| Helper                                                 | Returns                                                                                                                                                                                                                                     |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `authz.is_own_active_membership(membership)`           | the membership is the caller's AND live (active membership, active profile, non-archived org) — worker self-access                                                                                                                          |
+| `authz.has_relationship_capability(relationship, key)` | relationship not ended, client record explicitly linked to a facility org, caller holds `key` in THAT facility org — the only cross-organisation primitive ([../security/CROSS_ORG_DATA_SHARING.md](../security/CROSS_ORG_DATA_SHARING.md)) |
+
+`authz.can_view_profile` also admits `worker.view` holders for that agency's workers.
+
 Deliberately absent: any `has_role()` helper (would invite role-name checks),
 and any unscoped "my organisation"/"my staff" helper.
 
 ## 6. RLS strategy
 
-| Table                                        | SELECT policy                                        | Writes                                                 |
-| -------------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------ |
-| `profiles`                                   | `can_view_profile(id)`                               | UPDATE own `display_name` only (column grant + policy) |
-| `organisations`                              | `is_org_member(id)`                                  | RPC only                                               |
-| `organisation_memberships`                   | own row, or `has_capability(org, 'membership.view')` | RPC only                                               |
-| `membership_roles`                           | own membership, or `membership.view` in that org     | RPC only                                               |
-| `roles`, `capabilities`, `role_capabilities` | any authenticated (reference data)                   | migrations only                                        |
-| `organisation_invites`                       | **no grant at all** (token hash)                     | RPC only; listing via `list_organisation_invites`      |
-| `platform_admins`                            | own grant rows only                                  | operator procedure only                                |
-| `audit_events`                               | own actions, or `audit.view` (AAL2) in that org      | `internal.record_audit_event` only                     |
-| `internal.rate_limit_counters`               | none                                                 | internal only                                          |
+| Table                                        | SELECT policy                                                                                | Writes                                                 |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `profiles`                                   | `can_view_profile(id)`                                                                       | UPDATE own `display_name` only (column grant + policy) |
+| `organisations`                              | `is_org_member(id)`                                                                          | RPC only                                               |
+| `organisation_memberships`                   | own row, or `has_capability(org, 'membership.view')`                                         | RPC only                                               |
+| `membership_roles`                           | own membership, or `membership.view` in that org                                             | RPC only                                               |
+| `roles`, `capabilities`, `role_capabilities` | any authenticated (reference data)                                                           | migrations only                                        |
+| `organisation_invites`                       | **no grant at all** (token hash)                                                             | RPC only; listing via `list_organisation_invites`      |
+| `platform_admins`                            | own grant rows only                                                                          | operator procedure only                                |
+| `agency_workers`                             | `worker.view` in the agency, or own record while membership is live                          | RPC only                                               |
+| `agency_worker_notes`                        | `worker.notes.view`, never notes about oneself                                               | RPC only (append-only)                                 |
+| `agency_facilities`, `facility_locations`    | `facility.view` in the agency                                                                | RPC only                                               |
+| `agency_facility_relationships`              | `relationship.view` in the agency, or `has_relationship_capability(id, 'relationship.view')` | RPC only                                               |
+| `facility_types`                             | any authenticated (reference)                                                                | migrations only                                        |
+| `audit_events`                               | own actions, or `audit.view` (AAL2) in that org                                              | `internal.record_audit_event` only                     |
+| `internal.rate_limit_counters`               | none                                                                                         | internal only                                          |
 
 Future tenant tables follow the same template:
 `using (authz.has_capability(organisation_id, '<domain>.view'))`, with writes
@@ -221,13 +247,15 @@ hid the button, or use a privileged key.
 
 ## 12. Error codes
 
-| SQLSTATE       | App code                   | Meaning                                                             |
-| -------------- | -------------------------- | ------------------------------------------------------------------- |
-| `CH400`        | `VALIDATION_FAILED`        | invalid input for the operation                                     |
-| `CH401`        | `AUTH_REQUIRED`            | no active identity                                                  |
-| `CH402`        | `MFA_REQUIRED`             | capability held, but session is not AAL2                            |
-| `CH403`        | `FORBIDDEN`                | not permitted (also used for unknown targets — no existence oracle) |
-| `CH404`        | `NOT_FOUND`                | target missing after authorization succeeded                        |
-| `CH409`        | `INVALID_STATE_TRANSITION` | lifecycle rule violated                                             |
-| `CH429`        | `RATE_LIMITED`             | throttled                                                           |
-| (empty result) | `INVITE_INVALID`           | invitation cannot be redeemed (uniform)                             |
+| SQLSTATE                    | App code                                                                           | Meaning                                                             |
+| --------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `CH400`                     | `VALIDATION_FAILED`                                                                | invalid input for the operation                                     |
+| `CH401`                     | `AUTH_REQUIRED`                                                                    | no active identity                                                  |
+| `CH402`                     | `MFA_REQUIRED`                                                                     | capability held, but session is not AAL2                            |
+| `CH403`                     | `FORBIDDEN`                                                                        | not permitted (also used for unknown targets — no existence oracle) |
+| `CH404`                     | `NOT_FOUND`                                                                        | target missing after authorization succeeded                        |
+| `CH409`                     | `INVALID_STATE_TRANSITION`                                                         | lifecycle rule violated                                             |
+| `CHW09` / `CHR09` / `CHF09` | `INVALID_WORKER_STATE` / `INVALID_RELATIONSHIP_STATE` / `INVALID_STATE_TRANSITION` | domain lifecycle rule violated                                      |
+| `CHW04` / `CHF04` / `CHR04` | `WORKER_NOT_FOUND` / `FACILITY_NOT_FOUND` / `RELATIONSHIP_NOT_FOUND`               | target missing after authorization                                  |
+| `CH429`                     | `RATE_LIMITED`                                                                     | throttled                                                           |
+| (empty result)              | `INVITE_INVALID`                                                                   | invitation cannot be redeemed (uniform)                             |

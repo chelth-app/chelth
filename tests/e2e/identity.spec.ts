@@ -11,6 +11,7 @@ import {
   signUpAndConfirm,
   uniqueEmail,
 } from "./support";
+import { waitForEmailLink } from "../support/mailpit";
 
 const A11Y_TAGS = ["wcag2a", "wcag2aa", "wcag22aa"];
 
@@ -95,6 +96,56 @@ test.describe("authentication", () => {
     await expect(page.getByRole("alert").filter({ hasText: "incorrect" })).toBeVisible();
     await signIn(page, email, newPassword);
     await expect(page).toHaveURL(/\/app$/);
+  });
+
+  test("hosted-style recovery link without `next` still opens the reset form", async ({ page }) => {
+    const email = uniqueEmail("e2e-hosted-reset");
+    await signUpAndConfirm(page, "Hal Hosted", email);
+    await page.getByRole("button", { name: "Sign out" }).click();
+
+    const requestedAt = new Date(Date.now() - 1000);
+    await page.goto("/forgot-password");
+    await page.getByLabel("Email address").fill(email);
+    await page.getByRole("button", { name: "Send reset link" }).click();
+    await expect(page.getByRole("status")).toContainText("If an account exists");
+
+    // Simulate a hosted template that dropped `&next=/reset-password`.
+    const link = await waitForEmailLink(email, "Reset your CHELTH password", {
+      after: requestedAt,
+    });
+    link.searchParams.delete("next");
+    expect(link.searchParams.get("type")).toBe("recovery");
+    await page.goto(`${link.pathname}${link.search}`);
+
+    await expect(page).toHaveURL(/\/reset-password$/);
+    const newPassword = "Hosted-Style-Passw0rd-7";
+    await page.getByRole("textbox", { name: "New password", exact: true }).fill(newPassword);
+    await page.getByLabel("Confirm new password").fill(newPassword);
+    await page.getByRole("button", { name: "Update password" }).click();
+    await expect(page.getByRole("status")).toContainText("Your password has been updated");
+  });
+
+  test("a used recovery link cannot open the reset form again", async ({ page }) => {
+    const email = uniqueEmail("e2e-reset-replay");
+    await signUpAndConfirm(page, "Rory Replay", email);
+    await page.getByRole("button", { name: "Sign out" }).click();
+
+    const requestedAt = new Date(Date.now() - 1000);
+    await page.goto("/forgot-password");
+    await page.getByLabel("Email address").fill(email);
+    await page.getByRole("button", { name: "Send reset link" }).click();
+    await expect(page.getByRole("status")).toContainText("If an account exists");
+    const link = await waitForEmailLink(email, "Reset your CHELTH password", {
+      after: requestedAt,
+    });
+
+    await page.goto(`${link.pathname}${link.search}`);
+    await expect(page).toHaveURL(/\/reset-password$/);
+    // Drop the recovery session: a replayed token must not create a new one.
+    await page.context().clearCookies();
+
+    await page.goto(`${link.pathname}${link.search}`);
+    await expect(page).toHaveURL(/\/auth\/error$/);
   });
 
   test("reset page without a recovery session explains the link is needed", async ({ page }) => {

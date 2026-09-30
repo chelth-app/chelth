@@ -98,10 +98,14 @@ describe("organisations, capabilities and AAL2", () => {
       .sort();
     expect(unsatisfied).toEqual([
       "audit.view",
+      "facility.manage",
       "membership.invite",
       "membership.manage",
       "organisation.manage",
+      "relationship.manage",
       "role.assign",
+      "worker.manage",
+      "worker.notes.manage",
     ]);
 
     const attempt = await alice.client.rpc("create_organisation_invite", {

@@ -18,6 +18,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import type { IssuedInviteView } from "@/components/shared/issued-invite-link";
 import { type ActionState, runAction } from "@/lib/actions/run-action";
 import { requireAuthIdentity } from "@/lib/auth/session";
 import { AppError } from "@/lib/errors";
@@ -29,6 +30,7 @@ import {
   readPendingInviteToken,
   writeActiveOrganisationPreference,
 } from "./context";
+import { type InvitationDelivery, deliverInvitation } from "./invitation-delivery";
 import { getOrganisation } from "./queries";
 import {
   createOrganisationSchema,
@@ -108,7 +110,76 @@ export async function selectOrganisationAction(formData: FormData): Promise<void
 // Invitations (issuer side)
 // -----------------------------------------------------------------------------
 
-export type IssuedInvite = { email: string | null; inviteUrl: string; expiresAt: string };
+/**
+ * Outcome of issuing (or re-issuing) an invitation. The link is returned ONLY
+ * when it was not emailed, so the issuer can share it; after a successful
+ * send it is never exposed again.
+ */
+export type IssuedInvite = IssuedInviteView & { delivery: InvitationDelivery };
+
+async function namesFor(organisationId: string, roleKey: string) {
+  const supabase = await createSupabaseServerClient();
+  const [organisation, role] = await Promise.all([
+    getOrganisation(organisationId),
+    supabase.from("roles").select("name").eq("key", roleKey).maybeSingle(),
+  ]);
+  return { organisationName: organisation?.name ?? "CHELTH", roleName: role.data?.name ?? roleKey };
+}
+
+async function deliverIssuedInvite(input: {
+  organisationId: string;
+  inviteId: string;
+  email: string;
+  roleKey: string;
+  token: string;
+  expiresAt: string;
+}): Promise<IssuedInvite> {
+  const inviteUrl = `${await requestOrigin()}/invite/${input.token}`;
+  const delivery = await deliverInvitation({
+    inviteId: input.inviteId,
+    email: input.email,
+    inviteUrl,
+    expiresAt: input.expiresAt,
+    ...(await namesFor(input.organisationId, input.roleKey)),
+  });
+  return {
+    email: input.email,
+    expiresAt: input.expiresAt,
+    delivery,
+    inviteUrl: delivery === "sent" ? null : inviteUrl,
+  };
+}
+
+/**
+ * Creates an invitation (RPC: authorises, applies the capability ceiling,
+ * audits) and then delivers it post-commit. Shared by member and worker
+ * invitations; exported through the feature index.
+ */
+export async function issueInvitation(input: {
+  organisationId: string;
+  email: string;
+  roleKey: string;
+}): Promise<IssuedInvite> {
+  await requireAuthIdentity();
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("create_organisation_invite", {
+    p_organisation_id: input.organisationId,
+    p_email: input.email,
+    p_role_key: input.roleKey,
+  });
+  if (error) throw error;
+  const issued = data[0];
+  if (!issued) throw new AppError("INTERNAL", { internalMessage: "Invite RPC returned no row" });
+  revalidatePath(organisationPath(input.organisationId));
+  return deliverIssuedInvite({
+    organisationId: input.organisationId,
+    inviteId: issued.invite_id,
+    email: input.email,
+    roleKey: input.roleKey,
+    token: issued.invite_token,
+    expiresAt: issued.invite_expires_at,
+  });
+}
 
 export async function inviteMemberAction(
   _state: ActionState<IssuedInvite>,
@@ -116,23 +187,7 @@ export async function inviteMemberAction(
 ): Promise<ActionState<IssuedInvite>> {
   return runAction("organisations.invite", async () => {
     const input = parseInput(inviteMemberSchema, formDataToObject(formData));
-    await requireAuthIdentity();
-    const supabase = await createSupabaseServerClient();
-    const { data, error } = await supabase.rpc("create_organisation_invite", {
-      p_organisation_id: input.organisationId,
-      p_email: input.email,
-      p_role_key: input.roleKey,
-    });
-    if (error) throw error;
-    const issued = data[0];
-    if (!issued) throw new AppError("INTERNAL", { internalMessage: "Invite RPC returned no row" });
-    revalidatePath(organisationPath(input.organisationId));
-    // The raw token is returned once, shown once to the issuer, never stored or logged.
-    return {
-      email: input.email,
-      inviteUrl: `${await requestOrigin()}/invite/${issued.invite_token}`,
-      expiresAt: issued.invite_expires_at,
-    };
+    return issueInvitation(input);
   });
 }
 
@@ -144,6 +199,14 @@ export async function resendInviteAction(
     const input = parseInput(inviteIdSchema, formDataToObject(formData));
     await requireAuthIdentity();
     const supabase = await createSupabaseServerClient();
+    // Recipient and role come from the database, never from the form.
+    const { data: invites, error: listError } = await supabase.rpc("list_organisation_invites", {
+      p_organisation_id: input.organisationId,
+    });
+    if (listError) throw listError;
+    const invite = invites.find((row) => row.invite_id === input.inviteId);
+    if (!invite) throw new AppError("NOT_FOUND", { internalMessage: "Invite not in organisation" });
+
     const { data, error } = await supabase.rpc("resend_organisation_invite", {
       p_invite_id: input.inviteId,
     });
@@ -151,11 +214,14 @@ export async function resendInviteAction(
     const issued = data[0];
     if (!issued) throw new AppError("INTERNAL", { internalMessage: "Resend RPC returned no row" });
     revalidatePath(organisationPath(input.organisationId));
-    return {
-      email: null,
-      inviteUrl: `${await requestOrigin()}/invite/${issued.invite_token}`,
+    return deliverIssuedInvite({
+      organisationId: input.organisationId,
+      inviteId: input.inviteId,
+      email: invite.invitee_email,
+      roleKey: invite.invite_role_key,
+      token: issued.invite_token,
       expiresAt: issued.invite_expires_at,
-    };
+    });
   });
 }
 

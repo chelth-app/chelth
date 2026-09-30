@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 
 import { inviteMemberAction } from "../actions";
-import { IssuedInviteLink } from "./issued-invite-link";
+import { IssuedInviteLink } from "@/components/shared/issued-invite-link";
 
 type InviteMemberFormProps = {
   organisationId: string;

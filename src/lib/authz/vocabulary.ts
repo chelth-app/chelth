@@ -28,6 +28,14 @@ export const CAPABILITIES = {
   MEMBERSHIP_MANAGE: "membership.manage",
   ROLE_ASSIGN: "role.assign",
   AUDIT_VIEW: "audit.view",
+  WORKER_VIEW: "worker.view",
+  WORKER_MANAGE: "worker.manage",
+  WORKER_NOTES_VIEW: "worker.notes.view",
+  WORKER_NOTES_MANAGE: "worker.notes.manage",
+  FACILITY_VIEW: "facility.view",
+  FACILITY_MANAGE: "facility.manage",
+  RELATIONSHIP_VIEW: "relationship.view",
+  RELATIONSHIP_MANAGE: "relationship.manage",
 } as const;
 
 export type CapabilityKey = (typeof CAPABILITIES)[keyof typeof CAPABILITIES];
@@ -77,6 +85,17 @@ export const AUDIT_ACTIONS = {
   PLATFORM_ADMIN_GRANTED: "platform.admin_granted",
   PLATFORM_ADMIN_REVOKED: "platform.admin_revoked",
   PLATFORM_ORGANISATIONS_LISTED: "platform.organisations_listed",
+  WORKER_CREATED: "worker.created",
+  WORKER_UPDATED: "worker.updated",
+  WORKER_STATUS_CHANGED: "worker.status_changed",
+  WORKER_NOTE_ADDED: "worker.note_added",
+  FACILITY_CREATED: "facility.created",
+  FACILITY_UPDATED: "facility.updated",
+  FACILITY_STATUS_CHANGED: "facility.status_changed",
+  FACILITY_LOCATION_CREATED: "facility.location_created",
+  FACILITY_LINKED: "facility.linked",
+  RELATIONSHIP_CREATED: "relationship.created",
+  RELATIONSHIP_STATUS_CHANGED: "relationship.status_changed",
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
@@ -98,6 +117,17 @@ const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   "platform.admin_granted": "Platform admin granted",
   "platform.admin_revoked": "Platform admin revoked",
   "platform.organisations_listed": "Platform organisation list viewed",
+  "worker.created": "Worker record created",
+  "worker.updated": "Worker record updated",
+  "worker.status_changed": "Worker status changed",
+  "worker.note_added": "Internal note added",
+  "facility.created": "Client facility created",
+  "facility.updated": "Client facility updated",
+  "facility.status_changed": "Client facility status changed",
+  "facility.location_created": "Facility location added",
+  "facility.linked": "Facility linked to organisation",
+  "relationship.created": "Relationship created",
+  "relationship.status_changed": "Relationship status changed",
 };
 
 export function auditActionLabel(action: string): string {

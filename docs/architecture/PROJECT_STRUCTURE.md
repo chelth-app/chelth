@@ -35,12 +35,16 @@
 │   ├── constants/                # app-wide constants (name, descriptor)
 │   ├── features/                 # business domains — see features/README.md
 │   │   ├── identity/             # sign-in/up, verification, reset, sign-out, MFA, profile
-│   │   └── organisations/        # organisations, memberships, roles, invitations, org context
+│   │   ├── organisations/        # organisations, memberships, roles, invitations (+ email delivery), org context
+│   │   ├── workforce/            # agency worker records, status, notes, worker invitations
+│   │   └── facilities/           # client facilities, locations, agency ↔ facility relationships
 │   ├── hooks/                    # shared client hooks
 │   ├── lib/
 │   │   ├── actions/              # runAction(): the Server Action error contract
 │   │   ├── auth/                 # identity helpers (who) — no roles/permissions
 │   │   ├── authz/                # capability/role/audit vocabulary (typed; drift-tested)
+│   │   ├── domain/               # worker/facility/relationship vocabularies + transitions
+│   │   ├── email/                # provider-neutral email (disabled default, Resend adapter)
 │   │   ├── errors/               # AppError, codes, normalisation, ActionResult
 │   │   ├── logging/              # redacting structured logger
 │   │   ├── security/             # CSP, nonce, headers, safe redirects

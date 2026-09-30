@@ -8,3 +8,4 @@ export * from "./label";
 export * from "./loading-state";
 export * from "./spinner";
 export * from "./select";
+export * from "./textarea";
