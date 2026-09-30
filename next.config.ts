@@ -57,6 +57,10 @@ export default function nextConfig(phase: string): NextConfig {
       // Resolved value is inlined so client and server always agree.
       NEXT_PUBLIC_APP_ENV: appEnv,
     },
+    async rewrites() {
+      // Browsers request /favicon.ico directly; serve the canonical file (no duplicate copy).
+      return [{ source: "/favicon.ico", destination: "/brand/chelth/favicon.ico" }];
+    },
     async headers() {
       return [{ source: "/:path*", headers: buildSecurityHeaders({ isDevelopment }) }];
     },

@@ -8,7 +8,11 @@ import {
   type AssignmentStatus,
   type FillState,
   isFillState,
+  type AssignmentIssueSeverity,
+  type AssignmentIssueType,
   type ShiftCancellationReason,
+  type ShiftOfferCloseReason,
+  type ShiftOfferStatus,
   type ShiftSource,
   type ShiftStatus,
 } from "@/lib/domain/shifts";
@@ -16,6 +20,7 @@ import type { RelationshipStatus, WorkerStatus } from "@/lib/domain/vocabulary";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Constants, type Json } from "@/types/database.types";
 
+import { encodeCursor, type ShiftCursor } from "./cursor";
 import type { ShiftFilters } from "./schemas";
 
 /* All reads run as the signed-in user; RLS and the projections decide visibility. */
@@ -554,6 +559,319 @@ export async function listMyShiftAssignments(organisationId: string): Promise<My
     shiftStatus: row.shift_status,
     instructions: row.instructions,
     cancellationReason: row.cancellation_reason,
+    canRespond: row.can_respond,
+  }));
+}
+
+// -----------------------------------------------------------------------------
+// P0-E5-S2: pagination, offers, issues, operations
+// -----------------------------------------------------------------------------
+export type Page<T> = { items: T[]; nextCursor: string | null };
+
+export async function listAgencyShiftsPage(
+  organisationId: string,
+  filters: ShiftFilters,
+  cursor: ShiftCursor | null,
+  pageSize = 25,
+): Promise<Page<AgencyShiftSummary & { openIssueCount: number }>> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("list_agency_shifts_page", {
+    p_organisation_id: organisationId,
+    p_limit: pageSize + 1,
+    ...(filters.status ? { p_status: filters.status } : {}),
+    ...(filters.facilityId ? { p_agency_facility_id: filters.facilityId } : {}),
+    ...(filters.from ? { p_from: filters.from } : {}),
+    ...(filters.to ? { p_to: filters.to } : {}),
+    ...(cursor ? { p_after_start_at: cursor.startAt, p_after_id: cursor.id } : {}),
+  });
+  if (error) throw error;
+  const rows = data.map((row) => ({
+    id: row.shift_id,
+    facilityId: row.agency_facility_id,
+    facilityName: row.facility_name,
+    locationName: row.location_name,
+    disciplineKey: row.discipline_key,
+    disciplineName: row.discipline_name,
+    startAt: row.start_at,
+    endAt: row.end_at,
+    timezone: row.timezone,
+    requestedHeadcount: row.requested_headcount,
+    activeCount: row.active_count,
+    acceptedCount: row.accepted_count,
+    fillState: fillState(row.fill_state),
+    status: row.status,
+    source: row.source,
+    relationshipStatus: row.relationship_status,
+    externalReference: row.external_reference,
+    openIssueCount: row.open_issue_count,
+  }));
+  const items = rows.slice(0, pageSize);
+  const last = items.at(-1);
+  return {
+    items,
+    nextCursor:
+      rows.length > pageSize && last ? encodeCursor({ startAt: last.startAt, id: last.id }) : null,
+  };
+}
+
+export async function listFacilityShiftsPage(
+  facilityOrganisationId: string,
+  cursor: ShiftCursor | null,
+  pageSize = 25,
+): Promise<Page<FacilityShift>> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("list_facility_shifts_page", {
+    p_facility_organisation_id: facilityOrganisationId,
+    p_limit: pageSize + 1,
+    ...(cursor ? { p_before_start_at: cursor.startAt, p_before_id: cursor.id } : {}),
+  });
+  if (error) throw error;
+  const rows = data.map((row): FacilityShift => ({
+    id: row.shift_id,
+    relationshipId: row.relationship_id,
+    agencyName: row.agency_name,
+    locationName: row.location_name,
+    disciplineName: row.discipline_name,
+    startAt: row.start_at,
+    endAt: row.end_at,
+    timezone: row.timezone,
+    requestedHeadcount: row.requested_headcount,
+    activeCount: row.active_count,
+    acceptedCount: row.accepted_count,
+    fillState: fillState(row.fill_state),
+    status: row.status,
+    source: row.source,
+    instructions: row.instructions,
+    externalReference: row.external_reference,
+    cancellationReason: row.cancellation_reason,
+    relationshipStatus: row.relationship_status,
+  }));
+  const items = rows.slice(0, pageSize);
+  const last = items.at(-1);
+  return {
+    items,
+    nextCursor:
+      rows.length > pageSize && last ? encodeCursor({ startAt: last.startAt, id: last.id }) : null,
+  };
+}
+
+export type CandidateRow = ShiftCandidate & { hasLiveOffer: boolean; evaluated: boolean };
+
+/** Pre-filtered, canonically evaluated candidates (alphabetical; no ranking). */
+export async function listShiftCandidatesPage(
+  shiftId: string,
+  includeUnavailable: boolean,
+  limit = 100,
+): Promise<CandidateRow[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("list_shift_candidates_page", {
+    p_shift_id: shiftId,
+    p_include_unavailable: includeUnavailable,
+    p_limit: limit,
+  });
+  if (error) throw error;
+  return data.map((row) => ({
+    workerId: row.agency_worker_id,
+    displayName: row.display_name,
+    workerStatus: row.worker_status,
+    assignable: row.assignable,
+    primaryReason: row.primary_reason,
+    blockReasons: row.block_reasons,
+    // null readiness = structurally blocked; the engine was not needed.
+    readiness: row.readiness ?? "not_eligible",
+    evaluated: row.readiness !== null,
+    findings: parseFindings(row.compliance_findings),
+    hasLiveOffer: row.has_live_offer,
+  }));
+}
+
+export type ShiftOfferRow = {
+  id: string;
+  workerId: string;
+  workerName: string;
+  status: ShiftOfferStatus;
+  offeredAt: string;
+  expiresAt: string;
+  respondedAt: string | null;
+  closeReason: ShiftOfferCloseReason | null;
+};
+
+export async function listShiftOffers(shiftId: string): Promise<ShiftOfferRow[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("shift_offers")
+    .select("id, agency_worker_id, status, offered_at, expires_at, responded_at, close_reason")
+    .eq("shift_id", shiftId)
+    .order("offered_at", { ascending: false })
+    .limit(200);
+  if (error) throw error;
+  const names = await workerNames(data.map((row) => row.agency_worker_id));
+  return data.map((row) => ({
+    id: row.id,
+    workerId: row.agency_worker_id,
+    workerName: names.get(row.agency_worker_id) ?? "Worker",
+    status: row.status,
+    offeredAt: row.offered_at,
+    expiresAt: row.expires_at,
+    respondedAt: row.responded_at,
+    closeReason: row.close_reason,
+  }));
+}
+
+async function workerNames(workerIds: string[]): Promise<Map<string, string>> {
+  const unique = [...new Set(workerIds)];
+  const names = new Map<string, string>();
+  if (unique.length === 0) return names;
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("agency_workers")
+    .select("id, profile:profiles(display_name)")
+    .in("id", unique);
+  if (error) throw error;
+  for (const worker of data) names.set(worker.id, worker.profile?.display_name ?? "Worker");
+  return names;
+}
+
+export type AssignmentIssueRow = {
+  id: string;
+  assignmentId: string;
+  shiftId: string;
+  issueType: AssignmentIssueType;
+  severity: AssignmentIssueSeverity;
+  blockReasons: AssignmentBlockReason[];
+  complianceReasons: ComplianceReason[];
+  openedAt: string;
+  lastEvaluatedAt: string;
+  workerName: string | null;
+  assignmentStatus: AssignmentStatus;
+  facilityName: string;
+  startAt: string;
+  endAt: string;
+  timezone: string;
+};
+
+export async function listAssignmentIssues(
+  organisationId: string,
+  shiftId?: string,
+): Promise<AssignmentIssueRow[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("list_assignment_issues", {
+    p_organisation_id: organisationId,
+    ...(shiftId ? { p_shift_id: shiftId } : {}),
+  });
+  if (error) throw error;
+  return data.map((row) => ({
+    id: row.issue_id,
+    assignmentId: row.assignment_id,
+    shiftId: row.shift_id,
+    issueType: row.issue_type,
+    severity: row.severity,
+    blockReasons: row.block_reasons,
+    complianceReasons: row.compliance_reasons,
+    openedAt: row.opened_at,
+    lastEvaluatedAt: row.last_evaluated_at,
+    workerName: row.worker_name,
+    assignmentStatus: row.assignment_status,
+    facilityName: row.facility_name,
+    startAt: row.start_at,
+    endAt: row.end_at,
+    timezone: row.timezone,
+  }));
+}
+
+export type AffectedShift = {
+  id: string;
+  facilityName: string;
+  relationshipStatus: RelationshipStatus;
+  status: ShiftStatus;
+  startAt: string;
+  endAt: string;
+  timezone: string;
+  activeCount: number;
+};
+
+export async function listRelationshipAffectedShifts(
+  organisationId: string,
+): Promise<AffectedShift[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("list_relationship_affected_shifts", {
+    p_organisation_id: organisationId,
+  });
+  if (error) throw error;
+  return data.map((row) => ({
+    id: row.shift_id,
+    facilityName: row.facility_name,
+    relationshipStatus: row.relationship_status,
+    status: row.status,
+    startAt: row.start_at,
+    endAt: row.end_at,
+    timezone: row.timezone,
+    activeCount: row.active_count,
+  }));
+}
+
+export type DeliveryProblem = {
+  id: string;
+  event: string;
+  state: string;
+  attempts: number;
+  lastErrorCode: string | null;
+  recipientName: string | null;
+  shiftId: string | null;
+  createdAt: string;
+  nextAttemptAt: string;
+};
+
+/** Failed or retrying notifications of this organisation (no addresses). */
+export async function listDeliveryProblems(organisationId: string): Promise<DeliveryProblem[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("list_notification_deliveries", {
+    p_organisation_id: organisationId,
+    p_problems_only: true,
+  });
+  if (error) throw error;
+  return data.map((row) => ({
+    id: row.notification_id,
+    event: row.event,
+    state: row.state,
+    attempts: row.attempts,
+    lastErrorCode: row.last_error_code,
+    recipientName: row.recipient_name,
+    shiftId: row.shift_id,
+    createdAt: row.created_at,
+    nextAttemptAt: row.next_attempt_at,
+  }));
+}
+
+export type MyShiftOffer = {
+  id: string;
+  facilityName: string;
+  locationName: string;
+  disciplineName: string;
+  startAt: string;
+  endAt: string;
+  timezone: string;
+  status: ShiftOfferStatus;
+  expiresAt: string;
+  canRespond: boolean;
+};
+
+export async function listMyShiftOffers(organisationId: string): Promise<MyShiftOffer[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("list_my_shift_offers", {
+    p_organisation_id: organisationId,
+  });
+  if (error) throw error;
+  return data.map((row) => ({
+    id: row.offer_id,
+    facilityName: row.facility_name,
+    locationName: row.location_name,
+    disciplineName: row.discipline_name,
+    startAt: row.start_at,
+    endAt: row.end_at,
+    timezone: row.timezone,
+    status: row.status,
+    expiresAt: row.expires_at,
     canRespond: row.can_respond,
   }));
 }

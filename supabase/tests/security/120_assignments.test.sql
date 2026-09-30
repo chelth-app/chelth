@@ -200,7 +200,8 @@ select throws_ok(pg_temp.as_sql((select wendy from ids), format('select public.d
   'CHA09', null, 'an accepted assignment cannot be declined');
 select lives_ok(pg_temp.as_sql((select walt from ids), format('select public.decline_shift_assignment(%L)', (select (v ->> 'assignment_id')::uuid from r where k = 'walt_r_ok'))),
   'a worker declines their own assignment');
-select is((select count(*)::int from internal.notification_outbox where event = 'assignment_declined'), 1, 'assignment_declined hook enqueued');
+select is((select count(distinct recipient_profile_id)::int from internal.notification_outbox where event = 'assignment_declined'),
+  2, 'assignment_declined is queued once for each agency user with assignment.manage (admin, scheduler)');
 select throws_ok(pg_temp.as_sql((select walt from ids), format('select public.accept_shift_assignment(%L)', (select (v ->> 'assignment_id')::uuid from r where k = 'walt_r_ok'))),
   'CHA09', null, 'a declined assignment is not actionable');
 
@@ -217,9 +218,10 @@ select is(pg_temp.query_as((select sam from ids), 'aal1', format(
 select throws_ok(pg_temp.as_sql((select wendy from ids), format('select public.accept_shift_assignment(%L)', (select (v ->> 'assignment_id')::uuid from r where k = 'wendy_b2b'))),
   'CHS14', null, 'acceptance re-checks eligibility live');
 select ok(internal.scan_assignment_readiness() >= 1, 'the readiness scan hook finds affected upcoming assignments');
-select is((select count(*)::int from internal.notification_outbox where event = 'assignment_non_compliant'
-             and subject_id = (select (v ->> 'assignment_id')::uuid from r where k = 'wendy_b2b')),
-  1, 'assignment_non_compliant is enqueued once per assignment');
+select is((select count(*)::int - count(distinct recipient_profile_id)::int from internal.notification_outbox
+            where event = 'assignment_non_compliant'
+              and subject_id = (select (v ->> 'assignment_id')::uuid from r where k = 'wendy_b2b')),
+  0, 'assignment_non_compliant is enqueued once per assignment and recipient');
 select throws_ok(pg_temp.as_sql((select rita from ids), format('select * from public.list_assignment_readiness(%L)', (select alpha from orgs))),
   'CH403', null, 'readiness re-evaluation requires assignment.view');
 

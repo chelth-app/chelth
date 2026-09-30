@@ -201,9 +201,20 @@ export type StaffingWorld = {
   nina: Person; // missing Mercy's facility requirement
   facilityAdmin: Person;
   betaAdmin: Person;
+  /** API client of the agency owner (AAL2) for arranging state outside the UI under test. */
+  admin: Person;
+  facilityId: string;
+  relationshipId: string;
+  /** Extra ready workers (BLS + Mercy orientation), by key. */
+  extra: Record<string, Person & { workerId: string }>;
 };
 
-export async function createStaffingWorld(tag: string): Promise<StaffingWorld> {
+export type ExtraWorker = { key: string; name: string; blsExpiryDays: number };
+
+export async function createStaffingWorld(
+  tag: string,
+  extraWorkers: ExtraWorker[] = [],
+): Promise<StaffingWorld> {
   assertLocal();
   const agencyName = `Shift Agency ${tag}`;
   const facilityOrgName = `Mercy Health ${tag}`;
@@ -278,6 +289,21 @@ export async function createStaffingWorld(tag: string): Promise<StaffingWorld> {
   await verifiedCredential(wendy, admin.client, agencyId, "facility_orientation", null, facilityId);
   await verifiedCredential(nina, admin.client, agencyId, "bls_certification", isoDay(400));
 
+  const extra: StaffingWorld["extra"] = {};
+  for (const spec of extraWorkers) {
+    const who = await person(`e2e-${spec.key}`, spec.name);
+    const workerId = await activeCnaWorker(admin.client, agencyId, who);
+    await verifiedCredential(
+      who,
+      admin.client,
+      agencyId,
+      "bls_certification",
+      isoDay(spec.blsExpiryDays),
+    );
+    await verifiedCredential(who, admin.client, agencyId, "facility_orientation", null, facilityId);
+    extra[spec.key] = { ...who, workerId };
+  }
+
   const facilityAdminEmail = uniqueEmail("e2e-facility-admin");
   const created = await must(
     operator.client.rpc("platform_create_organisation", {
@@ -312,5 +338,9 @@ export async function createStaffingWorld(tag: string): Promise<StaffingWorld> {
     nina,
     facilityAdmin,
     betaAdmin,
+    admin,
+    facilityId,
+    relationshipId,
+    extra,
   };
 }

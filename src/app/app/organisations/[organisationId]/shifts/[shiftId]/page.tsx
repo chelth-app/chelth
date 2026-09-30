@@ -4,12 +4,19 @@ import { notFound } from "next/navigation";
 
 import { InlineActionForm } from "@/components/forms/inline-action-form";
 import { Badge } from "@/components/ui/badge";
+import {
+  AttendanceStateBadge,
+  CorrectionReviewForms,
+  listAgencyAttendance,
+  listPendingCorrections,
+} from "@/features/attendance";
 import { ReadinessBadge } from "@/features/compliance";
 import { loadOrganisationPage, requireCapabilityOrNotFound } from "@/features/organisations";
 import {
   AssignmentStatusBadge,
   AssignWorkerButton,
   CancelAssignmentForm,
+  cancelOfferAction,
   CancelShiftForm,
   completeShiftAction,
   explainBlockReasons,
@@ -18,10 +25,15 @@ import {
   listAssignmentReadiness,
   listCredentialTypeNames,
   listShiftAssignments,
-  listShiftCandidates,
+  listAssignmentIssues,
+  listShiftCandidatesPage,
   listShiftDecisions,
   listShiftNotes,
+  listShiftOffers,
+  OfferShiftForm,
+  OfferStatusBadge,
   openShiftAction,
+  recheckReadinessAction,
   ShiftDetailsForm,
   shiftIdSchema,
   ShiftNoteForm,
@@ -29,14 +41,24 @@ import {
 } from "@/features/shifts";
 import { CAPABILITIES } from "@/lib/authz";
 import {
+  ATTENDANCE_EXCEPTION_LABELS,
+  CORRECTION_REASON_LABELS,
+  formatLocalClockTime,
+  GEOFENCE_RESULT_LABELS,
+} from "@/lib/domain/attendance";
+import {
   ASSIGNMENT_BLOCK_REASON_LABELS,
   ASSIGNMENT_CANCELLATION_REASON_LABELS,
+  ASSIGNMENT_ISSUE_SEVERITY_LABELS,
+  ASSIGNMENT_ISSUE_TYPE_LABELS,
   deriveFillState,
   formatShiftDate,
   formatShiftTimeRange,
   hasEnded,
+  hasStarted,
   isActiveAssignment,
   SHIFT_CANCELLATION_REASON_LABELS,
+  SHIFT_OFFER_CLOSE_REASON_LABELS,
   SHIFT_SOURCE_LABELS,
 } from "@/lib/domain/shifts";
 
@@ -66,19 +88,55 @@ export default async function ShiftPage({
   const isOpen = shift.status === "open" && !ended;
   const relationshipActive = shift.relationshipStatus === "active";
 
-  const [assignments, readiness, candidates, decisions, notes, typeNames] = await Promise.all([
+  const canStaff = canAssign && isOpen && relationshipActive;
+  const canOffer = canStaff && !hasStarted(shift);
+  const [
+    assignments,
+    readiness,
+    eligible,
+    allCandidates,
+    offers,
+    issues,
+    decisions,
+    notes,
+    typeNames,
+  ] = await Promise.all([
     canViewAssignments ? listShiftAssignments(shift.id) : Promise.resolve([]),
     canSeeReadiness ? listAssignmentReadiness(organisationId, shift.id) : Promise.resolve([]),
-    canAssign && isOpen && relationshipActive ? listShiftCandidates(shift.id) : Promise.resolve([]),
+    canStaff ? listShiftCandidatesPage(shift.id, false) : Promise.resolve([]),
+    canStaff ? listShiftCandidatesPage(shift.id, true) : Promise.resolve([]),
+    canViewAssignments ? listShiftOffers(shift.id) : Promise.resolve([]),
+    canSeeReadiness ? listAssignmentIssues(organisationId, shift.id) : Promise.resolve([]),
     canViewAssignments ? listShiftDecisions(shift.id) : Promise.resolve([]),
     listShiftNotes(shift.id),
     listCredentialTypeNames(),
   ]);
+  const canViewAttendance = can(CAPABILITIES.ATTENDANCE_VIEW) === "granted";
+  const attendance = canViewAttendance
+    ? await listAgencyAttendance(organisationId, { shiftId: shift.id })
+    : [];
+  const attendanceCorrections =
+    canViewAttendance && attendance.length > 0
+      ? await listPendingCorrections(
+          organisationId,
+          attendance.map((row) => row.assignmentId),
+        )
+      : [];
+  const attendanceByAssignment = new Map(attendance.map((row) => [row.assignmentId, row]));
+  const canReviewAttendance = can(CAPABILITIES.ATTENDANCE_REVIEW) === "granted";
+  const candidates = allCandidates;
+  const issuesByAssignment = new Map<string, typeof issues>();
+  for (const issue of issues) {
+    issuesByAssignment.set(issue.assignmentId, [
+      ...(issuesByAssignment.get(issue.assignmentId) ?? []),
+      issue,
+    ]);
+  }
   const readinessById = new Map(readiness.map((row) => [row.assignmentId, row]));
   const active = assignments.filter((assignment) => isActiveAssignment(assignment.status));
   const history = assignments.filter((assignment) => !isActiveAssignment(assignment.status));
-  const eligible = candidates.filter((candidate) => candidate.assignable);
   const unavailable = candidates.filter((candidate) => !candidate.assignable);
+  const offerable = eligible.filter((candidate) => !candidate.hasLiveOffer);
   const workerName = new Map(
     assignments.map((assignment) => [assignment.workerId, assignment.workerName]),
   );
@@ -171,6 +229,15 @@ export default async function ShiftPage({
           <h2 id="assignments-heading" className="text-lg font-semibold">
             Assigned workers
           </h2>
+          {canAssign && active.length > 0 ? (
+            <div>
+              <InlineActionForm
+                action={recheckReadinessAction}
+                fields={{ organisationId, shiftId: shift.id }}
+                label="Re-check readiness"
+              />
+            </div>
+          ) : null}
           {active.length === 0 ? (
             <p className="text-sm text-muted-foreground">No one is assigned yet.</p>
           ) : (
@@ -192,6 +259,15 @@ export default async function ShiftPage({
                           <Badge tone="danger">No longer eligible</Badge>
                         )
                       ) : null}
+                      {(issuesByAssignment.get(assignment.id) ?? []).map((issue) => (
+                        <Badge
+                          key={issue.id}
+                          tone={issue.severity === "urgent" ? "danger" : "warning"}
+                        >
+                          {ASSIGNMENT_ISSUE_SEVERITY_LABELS[issue.severity]}:{" "}
+                          {ASSIGNMENT_ISSUE_TYPE_LABELS[issue.issueType]}
+                        </Badge>
+                      ))}
                     </div>
                     {live && !live.eligible ? (
                       <ul className="list-disc pl-5 text-sm text-danger">
@@ -236,7 +312,7 @@ export default async function ShiftPage({
         </section>
       ) : null}
 
-      {canAssign && isOpen && relationshipActive ? (
+      {canStaff ? (
         <section aria-labelledby="assign-heading" className="flex flex-col gap-3">
           <h2 id="assign-heading" className="text-lg font-semibold">
             Assign a worker
@@ -305,6 +381,177 @@ export default async function ShiftPage({
               </ul>
             </details>
           ) : null}
+        </section>
+      ) : null}
+
+      {canViewAttendance && attendance.length > 0 ? (
+        <section aria-labelledby="attendance-heading" className="flex flex-col gap-3">
+          <h2 id="attendance-heading" className="text-lg font-semibold">
+            Attendance
+          </h2>
+          <div
+            role="region"
+            aria-label="Attendance for this shift"
+            tabIndex={0}
+            className="overflow-x-auto rounded-lg border border-border bg-surface"
+          >
+            <table className="w-full min-w-[640px] text-left text-sm">
+              <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
+                <tr>
+                  <th scope="col" className="px-3 py-2 font-medium">
+                    Worker
+                  </th>
+                  <th scope="col" className="px-3 py-2 font-medium">
+                    Status
+                  </th>
+                  <th scope="col" className="px-3 py-2 font-medium">
+                    Clock in
+                  </th>
+                  <th scope="col" className="px-3 py-2 font-medium">
+                    Clock out
+                  </th>
+                  <th scope="col" className="px-3 py-2 font-medium">
+                    Exceptions
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {attendance.map((row) => (
+                  <tr
+                    key={row.assignmentId}
+                    className="border-b border-border align-top last:border-0"
+                  >
+                    <td className="px-3 py-2 font-medium">{row.workerName ?? "Worker"}</td>
+                    <td className="px-3 py-2">
+                      <AttendanceStateBadge
+                        clockState={row.clockState}
+                        needsReview={row.needsReview}
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      {formatLocalClockTime(row.clockInAt, row.timezone)}
+                      {row.clockInLocation && row.clockInLocation !== "not_required" ? (
+                        <div className="text-xs text-muted-foreground">
+                          {GEOFENCE_RESULT_LABELS[row.clockInLocation]}
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-2">
+                      {formatLocalClockTime(row.clockOutAt, row.timezone)}
+                      {row.clockOutLocation && row.clockOutLocation !== "not_required" ? (
+                        <div className="text-xs text-muted-foreground">
+                          {GEOFENCE_RESULT_LABELS[row.clockOutLocation]}
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex flex-wrap gap-1">
+                        {row.openExceptionTypes.map((type) => (
+                          <Badge key={type} tone="warning">
+                            {ATTENDANCE_EXCEPTION_LABELS[type]}
+                          </Badge>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {attendanceCorrections.length > 0 ? (
+            <ul aria-label="Attendance corrections for this shift" className="flex flex-col gap-3">
+              {attendanceCorrections.map((correction) => {
+                const row = attendanceByAssignment.get(correction.assignmentId);
+                const worker = row?.workerName ?? "Worker";
+                return (
+                  <li
+                    key={correction.id}
+                    className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3 text-sm"
+                  >
+                    <p>
+                      <span className="font-medium">{worker}</span> asks to set the{" "}
+                      {correction.eventType === "clock_in" ? "clock-in" : "clock-out"} time to{" "}
+                      {formatLocalClockTime(correction.requestedTime, shift.timezone)} ·{" "}
+                      {CORRECTION_REASON_LABELS[correction.reason]}
+                    </p>
+                    {canReviewAttendance ? (
+                      <CorrectionReviewForms
+                        organisationId={organisationId}
+                        correctionId={correction.id}
+                        workerName={worker}
+                      />
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
+        </section>
+      ) : null}
+
+      {canOffer ? (
+        <section aria-labelledby="offer-heading" className="flex flex-col gap-3">
+          <h2 id="offer-heading" className="text-lg font-semibold">
+            Offer shift
+          </h2>
+          <p className="max-w-2xl text-sm text-muted-foreground">
+            Ask eligible workers to take this shift. Offers do not hold a place: the first workers
+            to accept (and still pass every check) are assigned, and the remaining offers close when
+            the shift is full.
+          </p>
+          {offerable.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No eligible workers without an open offer.
+            </p>
+          ) : (
+            <OfferShiftForm
+              organisationId={organisationId}
+              shiftId={shift.id}
+              candidates={offerable.map((candidate) => ({
+                workerId: candidate.workerId,
+                name: candidate.displayName ?? "Worker",
+              }))}
+            />
+          )}
+        </section>
+      ) : null}
+
+      {canViewAssignments && offers.length > 0 ? (
+        <section aria-labelledby="offers-heading" className="flex flex-col gap-3">
+          <h2 id="offers-heading" className="text-lg font-semibold">
+            Offers
+          </h2>
+          <ul aria-label="Offers" className="flex flex-col gap-2">
+            {offers.map((offer) => (
+              <li
+                key={offer.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface p-3 text-sm"
+              >
+                <span className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium">{offer.workerName}</span>
+                  <OfferStatusBadge status={offer.status} />
+                  {offer.closeReason ? (
+                    <span className="text-muted-foreground">
+                      {SHIFT_OFFER_CLOSE_REASON_LABELS[offer.closeReason]}
+                    </span>
+                  ) : null}
+                  {offer.status === "offered" ? (
+                    <span className="text-muted-foreground">
+                      until {dateTime.format(new Date(offer.expiresAt))}
+                    </span>
+                  ) : null}
+                </span>
+                {offer.status === "offered" && can(CAPABILITIES.ASSIGNMENT_MANAGE) === "granted" ? (
+                  <InlineActionForm
+                    action={cancelOfferAction}
+                    fields={{ organisationId, shiftId: shift.id, offerId: offer.id }}
+                    label="Withdraw"
+                    accessibleLabel={`Withdraw offer to ${offer.workerName}`}
+                  />
+                ) : null}
+              </li>
+            ))}
+          </ul>
         </section>
       ) : null}
 

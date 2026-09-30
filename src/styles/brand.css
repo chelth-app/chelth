@@ -1,0 +1,98 @@
+:root {
+  --chelth-teal: #126B67;
+  --chelth-teal-dark: #0D514F;
+  --chelth-navy: #193348;
+
+  --chelth-ink: #17272D;
+  --chelth-slate: #657780;
+
+  --chelth-mint: #B8DDD5;
+  --chelth-mint-mist: #E8F3F0;
+
+  --chelth-cloud: #F3F6F5;
+  --chelth-off-white: #FAFBFA;
+  --chelth-white: #FFFFFF;
+
+  --chelth-border: #DDE5E3;
+  --chelth-border-strong: #C9D4D1;
+
+  --chelth-success: #28826F;
+  --chelth-warning: #B57A31;
+  --chelth-critical: #B34D4D;
+  --chelth-info: #527B96;
+
+  --chelth-font-display: "Manrope", sans-serif;
+  --chelth-font-ui: "Inter", sans-serif;
+
+  --chelth-radius-sm: 6px;
+  --chelth-radius-md: 8px;
+  --chelth-radius-lg: 12px;
+  --chelth-radius-marketing: 16px;
+
+  --chelth-shadow-default: 0 4px 16px rgba(21, 45, 49, 0.06);
+  --chelth-shadow-elevated: 0 8px 24px rgba(21, 45, 49, 0.08);
+
+  --chelth-control-height: 44px;
+}
+
+body {
+  background: var(--chelth-off-white);
+  color: var(--chelth-ink);
+  font-family: var(--chelth-font-ui);
+}
+
+h1,
+h2,
+h3,
+h4,
+.marketing-heading {
+  color: var(--chelth-navy);
+  font-family: var(--chelth-font-display);
+}
+
+.chelth-button-primary {
+  min-height: var(--chelth-control-height);
+  padding: 0 18px;
+  border: 0;
+  border-radius: var(--chelth-radius-md);
+  background: var(--chelth-teal);
+  color: var(--chelth-white);
+  font-family: var(--chelth-font-ui);
+  font-weight: 600;
+}
+
+.chelth-button-primary:hover {
+  background: var(--chelth-teal-dark);
+}
+
+.chelth-button-secondary {
+  min-height: var(--chelth-control-height);
+  padding: 0 18px;
+  border: 1px solid var(--chelth-border);
+  border-radius: var(--chelth-radius-md);
+  background: var(--chelth-white);
+  color: var(--chelth-navy);
+  font-family: var(--chelth-font-ui);
+  font-weight: 600;
+}
+
+.chelth-card {
+  background: var(--chelth-white);
+  border: 1px solid var(--chelth-border);
+  border-radius: var(--chelth-radius-lg);
+  box-shadow: var(--chelth-shadow-default);
+}
+
+.chelth-brand-surface {
+  background: var(--chelth-navy);
+  color: var(--chelth-white);
+}
+
+.chelth-soft-surface {
+  background: var(--chelth-cloud);
+}
+
+.chelth-selected {
+  background: var(--chelth-mint-mist);
+  color: var(--chelth-navy);
+}

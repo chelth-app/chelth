@@ -84,6 +84,7 @@ describe("invitation → membership → role lifecycle", () => {
     expect(caps.data?.map((row) => row.capability_key).sort()).toEqual([
       "assignment.manage",
       "assignment.view",
+      "attendance.view",
       "compliance.view",
       "facility.view",
       "membership.view",

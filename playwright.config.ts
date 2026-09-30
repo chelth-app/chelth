@@ -11,6 +11,9 @@ const baseURL = `http://localhost:${PORT}`;
 export default defineConfig({
   testDir: "tests/e2e",
   fullyParallel: true,
+  // Every flow signs up real users through local Auth + Mailpit; more parallel
+  // workers than this overloads the local stack and causes timing flakes.
+  workers: process.env.CI ? undefined : 4,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",

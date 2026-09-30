@@ -231,6 +231,40 @@ The identity and authorization design is specified in
   `/staffing-requests`, `/staffing-requests/[shiftId]` (facility); feature
   module `src/features/shifts`, vocabulary `src/lib/domain/shifts.ts`.
 
+### Assignment operations & notifications (P0-E5-S2)
+
+- Reliable notification delivery: per-recipient outbox, SKIP LOCKED claims
+  with leases, bounded retries, provider idempotency, consumed by
+  `POST /api/internal/notifications/dispatch` (bearer secret) through a
+  least-privilege database role — no service-role key
+  ([NOTIFICATION_DELIVERY.md](NOTIFICATION_DELIVERY.md)).
+- Migration-driven schedules (pg_cron): readiness scan hourly, offer expiry
+  every 5 min, dispatch kick every minute via pg_net (URL/secret in Vault).
+- Shift offers ([SHIFT_OFFER_MODEL.md](SHIFT_OFFER_MODEL.md)), readiness
+  monitoring ([ASSIGNMENT_READINESS_MONITORING.md](ASSIGNMENT_READINESS_MONITORING.md)),
+  relationship suspension operations
+  ([RELATIONSHIP_SUSPENSION_OPERATIONS.md](RELATIONSHIP_SUSPENSION_OPERATIONS.md)).
+- Keyset pagination for shift lists; pre-filtered candidate evaluation.
+- UI: offers on the shift page and `/my-shifts`; `/operations` attention
+  surface. Code: `src/lib/notifications`, `src/features/shifts`.
+
+### Time & attendance (P0-E6-S1)
+
+- Attendance per accepted assignment: append-only events with server time,
+  a projection rebuilt from events, exceptions, and corrections that append
+  corrected events ([ATTENDANCE_DOMAIN_MODEL.md](ATTENDANCE_DOMAIN_MODEL.md),
+  [ATTENDANCE_EVENT_MODEL.md](ATTENDANCE_EVENT_MODEL.md),
+  [ATTENDANCE_CORRECTIONS.md](ATTENDANCE_CORRECTIONS.md)).
+- Optional per-location geofence validated in the database (haversine); one
+  location reading per clock action, never tracking
+  ([GEOFENCE_MODEL.md](GEOFENCE_MODEL.md),
+  [../security/ATTENDANCE_LOCATION_PRIVACY.md](../security/ATTENDANCE_LOCATION_PRIVACY.md)).
+- pg_cron `chelth-attendance-scan` every 15 min detects missed clocks
+  idempotently.
+- UI: agency `/attendance`, attendance on shift detail and facility request
+  detail, clock in/out on `/my-shifts` (mobile-first). Code:
+  `src/features/attendance`, vocabulary `src/lib/domain/attendance.ts`.
+
 ### Content Security Policy
 
 `src/proxy.ts` generates a 128-bit nonce per request and sets:

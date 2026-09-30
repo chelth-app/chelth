@@ -179,6 +179,97 @@ export const ERROR_CODES = {
     status: 409,
     message: "This assignment can no longer be changed.",
   },
+  OFFER_NOT_FOUND: {
+    kind: "not_found",
+    status: 404,
+    message: "That shift offer could not be found.",
+  },
+  OFFER_NOT_ACTIONABLE: {
+    kind: "conflict",
+    status: 409,
+    message: "This offer is no longer open.",
+  },
+  OFFER_EXPIRED: {
+    kind: "conflict",
+    status: 409,
+    message: "This offer has expired.",
+  },
+  ATTENDANCE_NOT_FOUND: {
+    kind: "not_found",
+    status: 404,
+    message: "That attendance record could not be found.",
+  },
+  ASSIGNMENT_NOT_ACCEPTED: {
+    kind: "conflict",
+    status: 409,
+    message: "Accept the assignment before clocking in.",
+  },
+  SHIFT_CANCELLED: {
+    kind: "conflict",
+    status: 409,
+    message: "This shift has been cancelled.",
+  },
+  TOO_EARLY_TO_CLOCK_IN: {
+    kind: "conflict",
+    status: 409,
+    message: "It is too early to clock in for this shift.",
+  },
+  TOO_LATE_TO_CLOCK_IN: {
+    kind: "conflict",
+    status: 409,
+    message: "This shift has ended. Request a correction if you worked it.",
+  },
+  ALREADY_CLOCKED_IN: {
+    kind: "conflict",
+    status: 409,
+    message: "You are already clocked in.",
+  },
+  NOT_CLOCKED_IN: {
+    kind: "conflict",
+    status: 409,
+    message: "You are not clocked in for this shift.",
+  },
+  ALREADY_CLOCKED_OUT: {
+    kind: "conflict",
+    status: 409,
+    message: "You have already clocked out.",
+  },
+  GEOFENCE_REQUIRED: {
+    kind: "validation",
+    status: 400,
+    message: "This site needs your location to record attendance.",
+  },
+  LOCATION_UNAVAILABLE: {
+    kind: "validation",
+    status: 400,
+    message: "Your location could not be determined. Check location permissions and try again.",
+  },
+  LOCATION_ACCURACY_TOO_LOW: {
+    kind: "validation",
+    status: 400,
+    message: "Your location is not accurate enough. Move to an open area and try again.",
+  },
+  OUTSIDE_GEOFENCE: {
+    kind: "conflict",
+    status: 409,
+    message:
+      "You appear to be outside the site area. Your agency has been told; contact them if you are on site.",
+  },
+  CORRECTION_NOT_ALLOWED: {
+    kind: "conflict",
+    status: 409,
+    message: "This correction cannot be requested.",
+  },
+  CORRECTION_ALREADY_REVIEWED: {
+    kind: "conflict",
+    status: 409,
+    message: "This correction has already been reviewed.",
+  },
+  CLOCK_OUT_WINDOW_CLOSED: {
+    kind: "conflict",
+    status: 409,
+    message: "The clock-out window has closed. Request a correction instead.",
+  },
   RATE_LIMITED: {
     kind: "rate_limited",
     status: 429,

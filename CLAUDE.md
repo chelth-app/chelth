@@ -1,1 +1,2 @@
 @AGENTS.md
+@docs/brand/CLAUDE-CHELTH-BRAND-RULES.md

@@ -1,0 +1,785 @@
+CHELTH — P0-E5-S2 ASSIGNMENT OPERATIONS & NOTIFICATIONS
+Stage report · 2026-09-30 · branch p0-e5-s2-assignment-operations (uncommitted)
+
+======================================================================
+1. EXECUTIVE SUMMARY
+======================================================================
+Chelth now works when nobody is watching the dashboard.
+
+  - Notification delivery. Domain events are queued per recipient in the
+    same transaction as the change that caused them. A dispatcher route
+    delivers them through the provider-neutral email layer (Resend in
+    production). Delivery properties:
+      * two dispatchers can never send the same row (claims use
+        FOR UPDATE SKIP LOCKED plus a lease and a claim token);
+      * retries are bounded (1 min, 5 min, 30 min, 2 h, then failed);
+      * every row has a stable provider idempotency key;
+      * nothing sensitive is stored or audited.
+    The dispatcher uses a database role that can execute exactly two
+    functions. No service-role key is involved.
+  - Readiness monitoring. Upcoming assignments are re-evaluated hourly, and
+    on demand, by the canonical eligibility function. Assignments that
+    become ineligible open auditable "issues" and notify agency operations
+    once. Workers cannot accept an ineligible assignment. Nothing is
+    silently cancelled.
+  - Relationship changes. Suspending or ending a relationship applies its
+    operational effects in one transaction:
+      * new work is blocked immediately;
+      * upcoming work is flagged, and live offers are cancelled;
+      * ending also cancels not-yet-started shifts.
+    History is kept, and the audit records counts only.
+  - Shift offers. Agencies can broadcast a shift to chosen eligible
+    workers. Acceptance re-runs the full live gate (compliance, schedule,
+    capacity). Offers never overfill a shift: once headcount fills, the
+    remaining offers close. Facilities see no offer activity.
+  - Scale. Shift lists use keyset pagination. Candidate evaluation
+    pre-filters structurally impossible workers with set-based SQL and runs
+    the compliance engine only for the rest.
+  - UI. Offers on the shift page and on /my-shifts; a "Needs attention"
+    badge and a "Re-check readiness" button; a new /operations page.
+
+Validation:
+  - pgTAP: 756 assertions (138 new).
+  - Integration: 68 tests (11 new).
+  - E2E: 66 runs across desktop and mobile (10 new).
+  - Unit: 166 tests (14 new).
+
+There are no unresolved HIGH or CRITICAL findings.
+
+======================================================================
+2. NOTIFICATION ARCHITECTURE
+======================================================================
+End-to-end flow:
+
+  domain RPC
+    → internal.enqueue_notification (same transaction)
+    → per-recipient outbox row (ids and codes only)
+    → pg_cron kick every minute
+    → pg_net POST /api/internal/notifications/dispatch (Bearer secret)
+    → claim (the address and template data are resolved at this point)
+    → renderNotification
+    → EmailSender (Resend)
+    → complete.
+
+Separation of concerns:
+  - Domain code depends only on the event, the recipient identity and the
+    template data.
+  - Only getEmailSender() knows about Resend.
+  - SMS, push or in-app delivery would be new senders; they are not built.
+
+Recipient policy (the narrowest safe default):
+
+  Recipient            Who exactly
+  -------------------  ---------------------------------------------------
+  worker               the one worker concerned
+  agency operations    active members holding assignment.manage (at most
+                       25), excluding the actor
+  facility             active members of the LINKED facility holding
+                       shift.request
+
+All current events are required operational notifications.
+Document: docs/architecture/NOTIFICATION_DELIVERY.md.
+
+======================================================================
+3. OUTBOX CONSUMER
+======================================================================
+Route: POST /api/internal/notifications/dispatch (Node runtime, no-store).
+
+Guards:
+  - It requires a bearer secret, compared in constant time over SHA-256
+    digests.
+  - With configuration missing it returns 503 not_configured.
+  - With the email provider disabled it returns email_disabled and claims
+    nothing, so rows wait until a provider is configured.
+
+Database access: NOTIFICATION_WORKER_DATABASE_URL, a login role inside
+chelth_notification_worker. That role may EXECUTE only
+internal.claim_notifications and internal.complete_notification. It has no
+table privileges and cannot bypass RLS. pgTAP pins this.
+
+Batching: batches are bounded (default 25, maximum 100), with a 120 s lease.
+
+Dispatcher code: src/lib/notifications/dispatcher.ts. It has pure
+orchestration with an injected store and sender, and logs ids and codes
+only.
+
+Triggering: migration-scheduled pg_cron job chelth-notification-kick. It
+calls pg_net only when rows are due, and only when the Vault URL and secret
+exist; otherwise it is a no-op. The documented alternative is Vercel Cron
+(Pro).
+
+======================================================================
+4. DELIVERY STATE MODEL
+======================================================================
+internal.notification_state has five values:
+
+  State        Meaning
+  -----------  ----------------------------------------------------------
+  pending      queued
+  processing   claimed, with a claim_token and a claimed_until lease
+  sent         delivered; records sent_at and provider_message_id
+  retry        due again at next_attempt_at
+  failed       final, with a safe last_error_code
+
+Constraints: sent ⇔ sent_at, and processing requires a token and a lease.
+
+Claiming:
+  - It uses SELECT … FOR UPDATE SKIP LOCKED inside the claim function.
+  - A second claim in flight gets nothing.
+  - An expired lease makes the row reclaimable and counts as an attempt.
+  - A completion carrying a stale token is ignored (stale_claim).
+
+At claim time, a row is failed with a code instead of being sent when:
+  - the recipient is no longer an active, confirmed member of the audience
+    organisation (recipient_unavailable);
+  - the subject is gone or belongs to the wrong tenant (subject_unavailable);
+  - it is past deliver_until (expired_before_delivery).
+
+Rows left over from P0-E5-S1 were organisation-level and had no recipient.
+They were closed as legacy_undelivered, not sent late.
+
+======================================================================
+5. RETRY / IDEMPOTENCY MODEL
+======================================================================
+Retries:
+  - Backoff: 1 min, 5 min, 30 min, 2 h. The 5th failed attempt is final.
+    These values are configurable in internal.operations_settings.
+  - Permanent failures: provider_rejected (for example an invalid
+    recipient) and template_invalid.
+  - Temporary failures: unavailable, unreachable, rate-limited and auth.
+    Auth is treated as temporary because it is fixed by correcting
+    configuration.
+
+Idempotency:
+  - Key: chelth-notification-<outbox id>, stable across retries.
+  - A send that succeeded but wasn't recorded is de-duplicated by Resend
+    within its 24 h window. The whole retry schedule (under 3 h) fits
+    inside it.
+  - A unique index allows one open row per (event, subject, recipient).
+
+Guarantee: at least one delivery attempt per row, de-duplicated by the
+provider key. Limits (documented): a provider that ignores keys, or a
+resend after 24 h, could duplicate.
+
+======================================================================
+6. EMAIL TEMPLATES
+======================================================================
+src/lib/notifications/templates.ts covers all ten events:
+  - worker_assigned, assignment_cancelled, shift_cancelled (worker or
+    facility), shift_offered;
+  - assignment_declined → agency, facility_request_submitted → agency,
+    facility_request_opened → facility;
+  - assignment_non_compliant → agency;
+  - relationship_suspended / relationship_ended → agency.
+
+Format and branding:
+  - HTML: 600 px table layout, the CHELTH banner (public/email), a
+    heading, short paragraphs, a details table, one call-to-action and a
+    required-notification footer.
+  - Accessibility: lang attribute, alt text, readable sizes.
+  - Every email also has a plain-text alternative.
+
+Content:
+  - Includes: agency, facility, location, discipline, local date and time
+    with timezone, and a canonical APP_BASE_URL route.
+  - Never includes: credential or compliance detail, notes, other workers,
+    ids in visible text, tokens or signed URLs.
+  - No one-click action links: workers respond in the authenticated app.
+
+Safety: every value is escaped (unit-tested). Subject values can't contain
+control characters because database checks forbid them.
+
+======================================================================
+7. ASSIGNMENT NOTIFICATION FLOW
+======================================================================
+Worker-facing:
+  - Direct assignment → worker_assigned to the worker (deliver until the
+    shift ends).
+  - The agency cancels an assignment → assignment_cancelled.
+  - The agency cancels a shift → shift_cancelled to each active worker.
+  - Ending a relationship cancels not-yet-started shifts →
+    shift_cancelled.
+
+Agency-facing:
+  - A worker declines → assignment_declined to agency operations.
+  - An offer is made → shift_offered to that worker (deliver until the
+    offer expires).
+
+Not emailed (visible in the UI instead): offer declines, offer
+acceptances, and a worker accepting an assignment.
+
+======================================================================
+8. FACILITY REQUEST NOTIFICATION FLOW
+======================================================================
+  - A facility submits a request → facility_request_submitted to the
+    agency's assignment.manage users.
+  - The agency opens it → facility_request_opened to the linked facility's
+    shift.request users. The link points to the facility's own route.
+  - A facility request is cancelled by the agency → shift_cancelled to the
+    facility.
+
+Tenant isolation: delivery rows belong to the recipient's organisation.
+The template refuses a facility audience that isn't the shift's linked
+facility.
+
+======================================================================
+9. ASSIGNMENT READINESS MONITORING
+======================================================================
+internal.run_assignment_readiness_scan:
+  - Runs hourly through pg_cron (chelth-readiness-scan).
+  - Horizon: from settings (default 14 days, configurable from 1 h to 60
+    days).
+  - Covers active assignments on open shifts that haven't ended and start
+    within the horizon, plus any assignment with an open issue.
+  - Bounded, idempotent, and recorded in internal.scheduled_job_runs.
+
+Manual re-check: public.recheck_shift_readiness (audited).
+
+Policy:
+  - READY → no action.
+  - Not ready and not yet accepted → an issue, a notification to agency
+    operations, and the worker cannot accept.
+  - Not ready and already accepted → the assignment is kept and flagged
+    URGENT.
+  - Assignments are never auto-cancelled.
+
+Document: docs/architecture/ASSIGNMENT_READINESS_MONITORING.md.
+
+======================================================================
+10. ASSIGNMENT ISSUE MODEL
+======================================================================
+public.assignment_issues holds:
+  - issue_type: not_eligible or relationship_not_active;
+  - severity: attention, or urgent when the assignment is accepted or
+    starts within 48 h;
+  - block codes and compliance codes (reason codes only);
+  - detected_by, opened_at, last_evaluated_at, resolved_at and resolution.
+
+Rules:
+  - At most one open issue per assignment and type.
+  - Resolved issues are immutable, and nothing is deleted.
+  - Composite foreign keys tie the issue to its tenant, and a trigger
+    checks that the assignment belongs to the shift.
+
+Audit: assignment.issue_opened and assignment.issue_resolved.
+
+======================================================================
+11. RELATIONSHIP SUSPENSION WORKFLOW
+======================================================================
+set_facility_relationship_status is redefined to run as ONE transaction.
+
+On suspension:
+  - New work is blocked (CHS10).
+  - Live offers are cancelled.
+  - Upcoming active assignments are flagged.
+  - Affected shifts are listed on /operations.
+  - Agency operations are notified.
+
+On ending: the same, plus not-yet-started shifts are cancelled (reason
+relationship_ended). Their assignments are cancelled and the workers
+notified. Shifts already in progress are kept and flagged.
+
+On reactivation: relationship issues are resolved.
+
+Audit: relationship.status_changed (both organisations) and
+relationship.operations_applied (counts only).
+
+Concurrency: the status change locks the relationship FOR UPDATE; every
+work-creating path takes a FOR SHARE lock first. So new work either commits
+before the suspension (and is flagged by it) or is refused.
+
+Document: docs/architecture/RELATIONSHIP_SUSPENSION_OPERATIONS.md.
+
+======================================================================
+12. SHIFT OFFER MODEL
+======================================================================
+public.shift_offers moves from offered to one of: accepted, declined,
+expired, or cancelled (reason shift_filled, shift_cancelled, shift_closed,
+withdrawn, relationship_not_active or assigned_directly).
+
+Creating offers: offer_shift_to_workers.
+  - Offers go to 1–50 workers.
+  - Expiry: 15 minutes to 7 days, capped at the shift start.
+  - Allowed only for an open shift that hasn't started and isn't full,
+    under an active relationship.
+  - A foreign worker id rejects the whole batch.
+  - Workers who aren't eligible, or who already hold an offer, are skipped
+    with a reason.
+
+Rules:
+  - Offers reserve no headcount.
+  - One live offer per worker and shift.
+  - No ranking: candidates are alphabetical.
+
+Capabilities: offers reuse assignment.manage; no new capability was added.
+
+Document: docs/architecture/SHIFT_OFFER_MODEL.md.
+
+======================================================================
+13. OFFER ACCEPTANCE / CONCURRENCY
+======================================================================
+Acceptance order:
+  1. Share lock on the relationship.
+  2. Lock the shift row.
+  3. Lock the offer: CHO09 if it isn't open, CHO10 if it has expired
+     (checked server-side, deterministic even before the expiry job
+     runs).
+  4. Run internal.perform_assignment. This is the same core that direct
+     assignment uses (direct assignment was refactored onto it). It
+     re-runs compliance, schedule and capacity and records a decision with
+     the worker as actor.
+  5. Create the assignment only if everything passes. It is created as
+     accepted and attributed to the scheduler who made the offer.
+
+When the shift fills, the remaining live offers close as shift_filled.
+
+A lock-order review found a potential deadlock between relationship changes
+and assignment and opening. It was fixed with a single global order:
+relationship → shift → person → offer. open_shift and
+accept_shift_assignment were redefined to follow it.
+
+Tests:
+  - Integration: two workers race for the last slot; exactly one wins and
+    the other offer closes.
+  - pgTAP I: a live offer on a full shift is refused SHIFT_FULL and closed.
+
+======================================================================
+14. CANDIDATE EVALUATION IMPROVEMENTS
+======================================================================
+list_shift_candidates_page:
+  - Pre-filter (set-based SQL): excludes workers who are inactive (worker
+    or membership), lack the discipline, are already assigned, or have an
+    overlapping assignment.
+  - Only the remaining workers are evaluated by the canonical
+    internal.assignment_eligibility. No compliance rule is re-implemented
+    and nothing is cached.
+  - Ordering: alphabetical keyset (name, id), with bounded scanning.
+  - The default view shows only assignable workers. The "unavailable" view
+    shows structurally blocked workers with their code and readiness "not
+    evaluated".
+  - No ranking.
+
+======================================================================
+15. PAGINATION
+======================================================================
+list_agency_shifts_page:
+  - Keyset on (start_at, id) ascending.
+  - Filters: status, facility, local date range.
+  - Page size up to 100 (101 fetched to detect a next page).
+
+list_facility_shifts_page: keyset descending.
+
+There is no OFFSET. The UI uses an opaque base64url cursor ("Next page",
+"Older requests"). Tampered cursors fall back to the first page, and a half
+cursor is rejected (CH400).
+
+======================================================================
+16. RLS ARCHITECTURE
+======================================================================
+  Object                          Who can read
+  ------------------------------  ---------------------------------------
+  shift_offers                    agency assignment.view, OR the worker's
+                                  own offers. Facilities, other agencies
+                                  and platform admins: nothing.
+  assignment_issues               agency assignment.view AND
+                                  compliance.view, only.
+  internal.notification_outbox,   no API access at all
+  operations_settings,
+  scheduled_job_runs
+
+All writes go through RPCs, and authenticated keeps SELECT only (the
+baseline test pins this). There is no anon access.
+
+The delivery-status projection shows only deliveries to the caller's own
+organisation, without addresses.
+
+======================================================================
+17. STRUCTURAL INTEGRITY
+======================================================================
+Offers — composite foreign keys ensure that:
+  - the offer belongs to the shift's agency;
+  - the worker is in the same agency;
+  - the person matches the worker (profile);
+  - the actor is a member of the agency;
+  - an accepted offer points to an assignment in the same agency.
+Other offer rules:
+  - one live offer per worker and shift (unique index);
+  - expiry after offering;
+  - ownership columns and expiry are immutable;
+  - terminal states are immutable.
+
+Issues: tied to the assignment and agency by composite foreign key; the
+assignment must belong to the stated shift (trigger).
+
+Outbox: audience organisation is required; recipient is required (legacy
+rows excepted).
+
+Every one of these was tested as the database owner.
+
+======================================================================
+18. AUDIT CHANGES
+======================================================================
+New audit actions:
+  - shift.offer_created, offer_accepted, offer_declined, offer_expired,
+    offer_cancelled
+  - assignment.issue_opened, issue_resolved, readiness_rechecked
+  - relationship.operations_applied
+  - notification.failed
+
+assignment.created gains `via` (direct or offer). An offer acceptance also
+records assignment.accepted.
+
+Deliberately not audited: notification.sent. Successful sends are recorded
+on the outbox row, to keep audit volume proportional.
+
+Audit metadata carries only ids, codes and counts. pgTAP asserts that no
+audit metadata anywhere contains an email address.
+
+All new actions are mirrored in src/lib/authz/vocabulary.ts.
+
+======================================================================
+19. UI ADDED
+======================================================================
+Shift page (agency):
+  - "Offer shift": checkboxes for eligible workers without a live offer,
+    an expiry choice and "Send offers".
+  - An Offers list with statuses, close reasons and a Withdraw action.
+  - A "Needs attention" badge per assignment and a "Re-check readiness"
+    button.
+  - Candidates now come from the paged, pre-filtered query.
+
+Shift list (agency):
+  - Keyset pagination and a "Needs attention (n)" badge.
+
+/my-shifts (worker):
+  - An Offers section with Accept / Decline. Acceptance failures show the
+    reasons.
+
+/operations (agency, new, capability-gated):
+  - Assignments needing attention (urgent first).
+  - Upcoming work under inactive relationships.
+  - Notifications not delivered (safe labels, no addresses).
+
+/staffing-requests (facility):
+  - Keyset pagination. No offer activity is ever shown.
+
+Organisation page: an Operations link.
+
+Accessibility: axe checks are clean on the shift, my-shifts and operations
+pages.
+
+======================================================================
+20. SECURITY TESTS
+======================================================================
+New pgTAP files:
+
+  140_notification_delivery (41 assertions):
+    - recipient fan-out and policy;
+    - O: no client access; the dispatcher role is least privilege;
+    - address and template resolved at claim; canonical links;
+    - P: duplicate claims prevented;
+    - Q: claim tokens and leases, stale completion ignored;
+    - retry and backoff; bounded attempts; permanent failure;
+    - R: unsafe provider text is stored as unknown_error;
+    - failures audited with codes only;
+    - recipient-unavailable and expired rows are never sent;
+    - S: no address in any audit metadata;
+    - the status projection is tenant-scoped;
+    - cron jobs are scheduled.
+
+  150_offers (47 assertions):
+    - A–K, T, W, X;
+    - broadcast skip reasons; batch rejection on a foreign id;
+    - acceptance attribution and an accepted assignment;
+    - withdrawal; expiry-job idempotency; shift cancellation closes
+      offers;
+    - structure.
+
+  160_issues_and_relationships (50 assertions):
+    - issues open once, are idempotent, notify once, and resolve;
+    - an ineligible assignment can't be accepted and is preserved;
+    - manual re-check;
+    - L: tenancy and tampering;
+    - pagination and cursors; candidate pre-filter;
+    - M: suspension blocks every new-work path;
+    - N: suspension flags work, cancels offers, audits counts, and
+      notifies operations; reactivation resolves;
+    - ending cancels not-yet-started work and notifies workers.
+
+Updated:
+  - 000_security_baseline: the public RPC allow-list now has 77 entries.
+  - 120_assignments: fan-out means one row per operations user.
+
+Total: 18 files, 756 assertions, all passing.
+
+Covered elsewhere:
+  - U and V: the baseline test (pinned search_path for every SECURITY
+    DEFINER function; no anon access).
+  - T: 150 and 160.
+  - Q (true parallel claims): integration.
+  - J (concurrent acceptance): integration.
+
+======================================================================
+21. INTEGRATION TESTS
+======================================================================
+tests/integration/notifications-operations.test.ts has 11 tests against the
+real local stack. It uses a local login role (created by the test, the
+local equivalent of the operator step) and a deterministic fake provider;
+no real email is sent.
+  - an assignment creates exactly one outbox event;
+  - two parallel dispatchers claim a row exactly once; delivery records the
+    provider id;
+  - a temporary failure retries; a permanent failure stops; the status
+    projection shows it with no addresses;
+  - shift cancellation notifies the worker;
+  - facility request events route to agency operations and to the
+    facility, and are delivered to the facility address;
+  - the readiness scan opens an issue exactly once, notifies twice (admin
+    and scheduler), resolves when readiness returns, and a repeated scan is
+    a no-op;
+  - offers: a race for the last slot produces one assignment and the other
+    offer closes; the facility sees no offers;
+  - a decline is refused on re-accept (CHO09); an expired offer is refused
+    (CHO10);
+  - suspension blocks assignment (CHS10), flags work, lists affected
+    shifts; reactivation resolves;
+  - cross-tenant: offers, issues and delivery status are denied to another
+    agency;
+  - the TypeScript notification vocabulary matches the database enum.
+
+Shared helpers were extracted to tests/integration/support/staffing.ts, and
+the P0-E5-S1 test now uses them.
+
+Suite total: 68 tests, all passing.
+
+======================================================================
+22. E2E TESTS
+======================================================================
+tests/e2e/assignment-operations.spec.ts runs on desktop and mobile
+Chromium. The world is set up through the public API; the flows are driven
+through the UI.
+  - Flow 1: create a shift → offer it to two eligible workers (axe) → a
+    worker sees and accepts it (axe) → the assignment appears as Accepted;
+    the other offer shows "Shift filled"; "Filled · 1 of 1".
+  - Flow 2: a worker declines an offer → the agency sees Declined.
+  - Flow 3: the agency's BLS validity rule changes, so the assigned worker
+    no longer qualifies → Re-check → "Needs attention: No longer eligible"
+    with the reason → listed on /operations (axe) → the worker's Accept is
+    refused with an explanation.
+  - Flow 5: another agency, a worker and the facility get 404 on
+    /operations and the shift page; the worker has no offers; the facility
+    page shows no offer activity.
+  - Flow 4: suspension → "Relationship not active", no Offer or Assign
+    sections, offer RPC refused CHS10, and affected shifts and relationship
+    issues on /operations.
+
+Suite total: 66 runs, all passing.
+
+Local workers are now capped at 4 in playwright.config.ts. Every flow signs
+up real users through local Auth and Mailpit, and 8 workers overloaded the
+local stack in P0-E5-S1. CI keeps its default.
+
+======================================================================
+23. SECURITY FINDINGS
+======================================================================
+Reviewed areas, each with its disposition:
+  - Notification cross-tenant leakage: the audience organisation is
+    checked; the address comes from active membership; the template
+    verifies the subject's tenant. Tested.
+  - Recipient leakage: no addresses stored or audited; projections show
+    names only within the tenant. Tested.
+  - Template injection: every value escaped; no control characters possible
+    in subjects. Tested.
+  - Raw token leakage: no tokens, signed URLs or one-click links.
+  - Duplicate delivery: SKIP LOCKED, lease, token, idempotency key.
+    Tested.
+  - Provider retry abuse: bounded retries, then failed. Tested.
+  - Concurrent outbox processing: exclusive claims. Tested.
+  - Offer IDOR and acceptance spoofing: CHO04. Tested.
+  - Stale eligibility on acceptance: the full gate is re-run. Tested.
+  - Concurrent acceptance or overfill: row lock plus trigger. Tested.
+  - Relationship suspension race: share/update locks; deadlock order fixed.
+  - Issue tampering: no write grants; delete refused.
+  - Facility visibility creep: no offer or issue path. Tested.
+  - Service-role exposure: none used; the bundle scan is clean.
+
+FIXED during the stage:
+  - MEDIUM: a column-name shadowing bug made the batch tenancy check in
+    offer_shift_to_workers ineffective. A foreign id raised a generic
+    CH404 later instead of rejecting the batch. Fixed and tested.
+  - MEDIUM: a potential deadlock between relationship changes and
+    assignment, opening and acceptance, from inconsistent lock order.
+    Fixed with the global order.
+  - LOW: accepting an offer produced an `assigned` assignment that needed a
+    second acceptance. It is now `accepted`.
+
+ACCEPTED risks:
+  - MEDIUM (bounded by secret handling): anyone holding the dispatcher
+    database credential could claim due notifications. That exposes
+    recipient addresses and shift display data across tenants, and allows
+    suppressing delivery. Mitigations:
+      * the credential is server-only and never NEXT_PUBLIC (bundle scan);
+      * the role can only claim and complete;
+      * the password is per environment and rotatable.
+  - LOW: the email banner PNG is 1.6 MB. That hurts deliverability and
+    load time; see Known Limitations.
+
+There are no HIGH or CRITICAL findings.
+
+======================================================================
+24. KNOWN LIMITATIONS
+======================================================================
+  - Delivery needs the operator configuration in §28. Until it is done,
+    rows accumulate as pending; nothing is lost and nothing is sent late
+    beyond deliver_until.
+  - Resend's idempotency window is 24 h. A manual replay after that could
+    duplicate.
+  - No notification preferences: all events are required.
+  - Recipients cap at 25 operations users per event.
+  - Readiness is re-evaluated hourly, not the moment a credential changes.
+    A worker's acceptance always re-checks live.
+  - The candidate scan is bounded at 2000 workers per request.
+  - The dispatcher processes a batch sequentially; the default is 25 per
+    minute. Raise the batch size or cadence for volume.
+  - public/email/chelth-email-banner.png is 1.6 MB. Recommend a compressed
+    version under ~150 KB before production sends.
+  - format:check reports two untracked files that I did not create:
+    public/brand/chelth/BRAND-ASSETS.md and src/styles/brand.css. They are
+    in-progress brand work, left untouched; `npx prettier --write` on them
+    will clear the check. Every tracked and stage file passes.
+
+======================================================================
+25. DEFERRED ITEMS
+======================================================================
+Not built, by design:
+  - clock in/out, geofencing, GPS, attendance
+  - timesheets, invoicing, payroll, pay and bill rates, overtime
+  - recruiting, AI ranking
+  - SMS, push and in-app channels (only the sender abstraction exists)
+
+Also deferred:
+  - a notification preference centre;
+  - digests and reminders;
+  - an in-app notification inbox;
+  - event-triggered (not scheduled) readiness evaluation;
+  - a scheduled purge and retention of sent outbox rows;
+  - a full messaging dashboard.
+
+======================================================================
+26. MIGRATION LIST
+======================================================================
+New:
+  20260930130000_operations_vocabulary.sql
+  20260930130100_offers_and_issues.sql
+  20260930130200_notification_delivery.sql
+  20260930130300_assignment_operations.sql
+  20260930130400_pagination_and_candidates.sql
+  20260930130500_scheduled_operations.sql
+
+No merged migration was edited. Redefinitions (create or replace) in new
+migrations:
+  - assign_worker_to_shift, open_shift, accept_shift_assignment;
+  - set_facility_relationship_status;
+  - internal.require_active_relationship;
+  - internal.scan_assignment_readiness.
+
+There are 32 migrations in total, and check-migrations passes.
+
+======================================================================
+27. BUILD VALIDATION
+======================================================================
+  Check                        Result
+  ---------------------------  ------------------------------------------------
+  npm run format:check         FAIL only on 2 untracked user files (§24);
+                               every tracked and stage file passes
+  npm run lint                 PASS
+  npm run typecheck            PASS
+  npm test                     PASS (166)
+  npm run build                PASS
+  npm run check:bundle         PASS (42 browser files, no secrets)
+  npx playwright test          PASS (66/66)
+  npm run check:migrations     PASS (32)
+  supabase db reset            PASS
+  supabase db lint             PASS (no errors)
+  supabase test db             PASS (18 files, 756 assertions)
+  npm run test:integration     PASS (68)
+  npm run db:types             PASS (no drift)
+
+Local-stack note: after `supabase db reset`, local Auth sometimes fails to
+load its email templates (Kong returns 404), so sign-up emails don't
+arrive. `supabase stop && supabase start` for this project fixes it; I did
+this before the integration and E2E runs.
+
+======================================================================
+28. HOSTED CONFIGURATION REQUIRED
+======================================================================
+None of this can be done from the repository. Secrets are never committed.
+
+1. Supabase:
+   - Confirm pg_cron and pg_net are enabled; the migration creates
+     pg_cron.
+   - In the SQL editor, once, create the dispatcher login role (the
+     password is a secret):
+       create role chelth_notifier login password '<generated>'
+         in role chelth_notification_worker;
+2. Supabase Vault: add chelth_notification_dispatch_url
+   (https://<app>/api/internal/notifications/dispatch) and
+   chelth_notification_dispatch_secret (at least 32 random characters).
+3. Vercel (server-only, set per environment):
+   - APP_BASE_URL (https);
+   - NOTIFICATION_DISPATCH_SECRET (the same value as in Vault);
+   - NOTIFICATION_WORKER_DATABASE_URL (pooler URL for chelth_notifier);
+   - existing: EMAIL_PROVIDER=resend, RESEND_API_KEY, EMAIL_FROM.
+4. Resend: open and click tracking must stay disabled (already required
+   by TRANSACTIONAL_EMAIL.md).
+5. Smoke test, manual and separate from CI:
+   - assign a test worker in a staging agency;
+   - within a minute, check the outbox row is sent and the email
+     arrives;
+   - check that /operations shows nothing undelivered.
+
+======================================================================
+29. GIT STATUS
+======================================================================
+Branch: p0-e5-s2-assignment-operations, created from main at 65406eb (after
+the P0-E5-S1 merge). Nothing is committed or pushed; commit on request.
+
+Modified:
+  - Docs: 7 existing files.
+  - Shift pages, the organisation page and its sections.
+  - Env schema and loader; .env.example.
+  - Feature module: shifts (actions, queries, schemas, badges, index).
+  - Vocabularies and error codes; database types.
+  - package.json and lockfile: postgres moved from devDependencies to
+    dependencies, for the dispatcher.
+  - playwright.config.ts (local worker cap).
+  - pgTAP 000 and 120; the E2E fixture; the P0-E5-S1 integration test
+    (shared helpers).
+
+New:
+  - 6 migrations.
+  - pgTAP 140, 150, 160.
+  - src/lib/notifications (vocabulary, templates, dispatcher, store, auth).
+  - The dispatch route and the /operations page.
+  - Offer components and the cursor helper.
+  - 4 docs.
+  - Tests: integration, support, E2E and unit.
+
+Untracked, not mine, left untouched: public/brand/, src/styles/,
+docs/brand/.
+
+======================================================================
+30. RECOMMENDED NEXT STAGE
+======================================================================
+P0-E6-S1 — Time & attendance foundations (clock in/out for accepted
+assignments), built on today's assignment and readiness model:
+  - Check-in eligibility re-uses the live gate.
+  - Attendance records are append-only.
+  - Geofencing stays optional and privacy-reviewed.
+
+Before that, the operational hardening items:
+  - complete the hosted notification configuration and smoke test (§28);
+  - compress the email banner;
+  - add an outbox retention purge job;
+  - add notification preferences once optional notifications (reminders,
+    digests) are introduced.

@@ -16,7 +16,9 @@ test.describe("foundation smoke", () => {
     const response = await page.goto("/");
     expect(response?.status()).toBe(200);
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-    await expect(page.getByText("CHELTH", { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("img", { name: "Chelth — Healthcare Workforce Operations" }),
+    ).toBeVisible();
     await page.waitForLoadState("networkidle");
     expect(problems).toEqual([]);
   });
@@ -103,5 +105,66 @@ test.describe("accessibility baseline", () => {
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
     await expect(opener).toBeFocused();
+  });
+});
+
+test.describe("brand identity wiring", () => {
+  const ICONS = [
+    "/brand/chelth/favicon.ico",
+    "/brand/chelth/favicon-16x16.png",
+    "/brand/chelth/favicon-32x32.png",
+    "/brand/chelth/apple-touch-icon.png",
+    "/brand/chelth/icon-192x192.png",
+    "/brand/chelth/icon-512x512.png",
+    "/brand/chelth/icon-maskable-192x192.png",
+    "/brand/chelth/icon-maskable-512x512.png",
+    "/brand/chelth/logo-primary.svg",
+    "/brand/chelth/logo-mark.svg",
+    "/brand/chelth/logo-reverse.svg",
+    "/brand/chelth/logo-monochrome.svg",
+  ];
+
+  test("every canonical logo and icon is served", async ({ request }) => {
+    for (const path of ICONS) {
+      const response = await request.get(path);
+      expect(response.status(), path).toBe(200);
+      expect(response.headers()["content-type"], path).toMatch(/^image\//);
+    }
+    const favicon = await request.get("/favicon.ico");
+    expect(favicon.status()).toBe(200);
+    expect(favicon.headers()["content-type"]).toMatch(/^image\//);
+  });
+
+  test("the document head and web manifest reference only canonical icons", async ({
+    page,
+    request,
+  }) => {
+    await page.goto("/");
+    const links = await page
+      .locator(
+        'head link[rel="icon"], head link[rel="apple-touch-icon"], head link[rel="manifest"]',
+      )
+      .evaluateAll((elements) =>
+        elements.map((element) => `${element.getAttribute("rel")} ${element.getAttribute("href")}`),
+      );
+    expect(links).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/^icon \/brand\/chelth\/favicon\.ico/),
+        expect.stringMatching(/^icon \/brand\/chelth\/favicon-16x16\.png/),
+        expect.stringMatching(/^icon \/brand\/chelth\/favicon-32x32\.png/),
+        expect.stringMatching(/^apple-touch-icon \/brand\/chelth\/apple-touch-icon\.png/),
+        expect.stringMatching(/^manifest \/manifest\.webmanifest/),
+      ]),
+    );
+    const manifest = await (await request.get("/manifest.webmanifest")).json();
+    expect(manifest.short_name).toBe("Chelth");
+    expect(
+      manifest.icons.map((icon: { src: string; purpose: string }) => `${icon.purpose} ${icon.src}`),
+    ).toEqual([
+      "any /brand/chelth/icon-192x192.png",
+      "any /brand/chelth/icon-512x512.png",
+      "maskable /brand/chelth/icon-maskable-192x192.png",
+      "maskable /brand/chelth/icon-maskable-512x512.png",
+    ]);
   });
 });

@@ -81,3 +81,18 @@ A conflict is reported as `WORKER_SCHEDULE_CONFLICT` / "Worker has a
 scheduling conflict" only. Neither the result, the decision row nor the audit
 metadata carries the other agency, facility, times or ids (pgTAP N,
 integration). The candidate list's conflict flag reveals the same single bit.
+
+## 7. Continuous evaluation (P0-E5-S2)
+
+The same function now also drives:
+
+- **offer acceptance** — the full gate is re-run at acceptance, not at offer
+  time ([SHIFT_OFFER_MODEL.md](SHIFT_OFFER_MODEL.md));
+- **readiness monitoring** — hourly scan + manual re-check open/resolve
+  assignment issues ([ASSIGNMENT_READINESS_MONITORING.md](ASSIGNMENT_READINESS_MONITORING.md));
+- **candidate lists at scale** — `list_shift_candidates_page` pre-filters
+  structurally impossible workers (inactive worker/membership, missing
+  discipline, already assigned, overlapping assignment) with set-based SQL and
+  evaluates only the survivors with this function. Structurally blocked rows
+  carry their code with readiness "not evaluated"; nothing is cached;
+  alphabetical keyset order; no ranking.

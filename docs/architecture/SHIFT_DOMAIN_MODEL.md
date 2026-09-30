@@ -97,3 +97,39 @@ decline.
 All SECURITY DEFINER, `search_path = ''`, organisation derived from the
 referenced record, audited (`shift.created/submitted/opened/updated/cancelled/
 completed/internal_note_added`). No direct table writes.
+
+## 9. Operations (P0-E5-S2)
+
+- **Offers** fill shifts by invitation: [SHIFT_OFFER_MODEL.md](SHIFT_OFFER_MODEL.md).
+  Cancelling/completing a shift or reducing headcount to the active count
+  closes live offers (trigger).
+- **Relationship state** is now applied operationally in one transaction:
+  suspension flags upcoming work and cancels live offers; ending cancels
+  not-yet-started shifts with reason `relationship_ended`
+  ([RELATIONSHIP_SUSPENSION_OPERATIONS.md](RELATIONSHIP_SUSPENSION_OPERATIONS.md)).
+  `relationship_ended` is system-set, not a manual cancellation reason.
+- **Pagination**: `list_agency_shifts_page` (keyset on `(start_at, id)`
+  ascending, filters: status, facility, local date range, page ≤ 100) and
+  `list_facility_shifts_page` (descending). No OFFSET; the UI passes an opaque
+  base64url cursor. The P0-E5-S1 500-row lists remain only for compatibility.
+- **Notifications**: facility request submitted/opened and shift cancellation
+  are delivered by email ([NOTIFICATION_DELIVERY.md](NOTIFICATION_DELIVERY.md)).
+- `open_shift` now takes the relationship share lock before the shift lock.
+
+## 10. Attendance (P0-E6-S1)
+
+- Attendance is recorded per accepted assignment, never on the shift itself
+  ([ATTENDANCE_DOMAIN_MODEL.md](ATTENDANCE_DOMAIN_MODEL.md)). Shift times
+  (`start_at`/`end_at`, facility timezone) drive the clock-in window, late and
+  early thresholds and missed-clock detection.
+- `shifts` gains a unique key `(id, agency_organisation_id, agency_facility_id,
+facility_location_id)` so attendance rows bind to the shift's facility and
+  location by composite FK.
+- A cancelled shift refuses clock-in (`CHT06`); a shift that is not open
+  refuses with `CHS09`. Cancelling a shift auto-resolves its missed-clock
+  exceptions on the next scan (`assignment_closed`).
+- Facility locations may carry an optional geofence
+  ([GEOFENCE_MODEL.md](GEOFENCE_MODEL.md)).
+- Agency shift detail shows the attendance table and pending corrections; the
+  facility request page shows "Attendance for this request" once the shift
+  has started (narrow projection, no coordinates).

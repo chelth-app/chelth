@@ -39,8 +39,38 @@ export const serverEnvSchema = z
     EMAIL_PROVIDER: z.enum(EMAIL_PROVIDERS).default("disabled"),
     RESEND_API_KEY: z.string().trim().min(20, "RESEND_API_KEY looks truncated").optional(),
     EMAIL_FROM: emailFromSchema.optional(),
+    // Notification delivery (docs/architecture/NOTIFICATION_DELIVERY.md). All
+    // optional: without them the dispatch route reports "not configured".
+    /** Canonical application origin for links in background emails (no request origin exists). */
+    APP_BASE_URL: z
+      .url({ protocol: /^https?$/ })
+      .transform((value) => value.replace(/\/+$/, ""))
+      .optional(),
+    /** Bearer secret the scheduler presents to the dispatch route. */
+    NOTIFICATION_DISPATCH_SECRET: z
+      .string()
+      .trim()
+      .min(32, "NOTIFICATION_DISPATCH_SECRET must be at least 32 characters")
+      .optional(),
+    /** Connection for a LOGIN role in chelth_notification_worker (claim/complete only). */
+    NOTIFICATION_WORKER_DATABASE_URL: z
+      .string()
+      .trim()
+      .regex(/^postgres(ql)?:\/\//, "NOTIFICATION_WORKER_DATABASE_URL must be a postgres:// URL")
+      .optional(),
   })
   .superRefine((env, ctx) => {
+    if (env.APP_BASE_URL && env.NOTIFICATION_WORKER_DATABASE_URL) {
+      const host = new URL(env.APP_BASE_URL).hostname;
+      const local = host === "localhost" || host === "127.0.0.1";
+      if (!local && !env.APP_BASE_URL.startsWith("https://")) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["APP_BASE_URL"],
+          message: "APP_BASE_URL must use https outside local development.",
+        });
+      }
+    }
     if (env.EMAIL_PROVIDER !== "resend") return;
     if (!env.RESEND_API_KEY) {
       ctx.addIssue({

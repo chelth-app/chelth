@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { MAIN_CONTENT_ID } from "@/components/layout/skip-link";
-import { BrandMark } from "@/components/shared/brand-mark";
+import { BrandLogo } from "@/components/shared/brand-logo";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
 type AuthCardProps = {
@@ -21,7 +21,7 @@ export function AuthCard({ title, description, children, footer }: AuthCardProps
     >
       <div className="flex w-full max-w-md flex-col gap-6">
         <Link href="/" className="w-fit rounded-sm">
-          <BrandMark />
+          <BrandLogo height={48} priority />
         </Link>
         <Card>
           <CardHeader>

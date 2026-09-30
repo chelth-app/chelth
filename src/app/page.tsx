@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { PageContainer } from "@/components/layout/page-container";
 import { MAIN_CONTENT_ID } from "@/components/layout/skip-link";
-import { BrandMark } from "@/components/shared/brand-mark";
+import { BrandLogo } from "@/components/shared/brand-logo";
 
 /**
  * Foundation landing page. Intentionally minimal: product surfaces (agency,
@@ -12,7 +12,7 @@ export default function HomePage() {
   return (
     <main id={MAIN_CONTENT_ID} className="flex min-h-dvh items-center">
       <PageContainer className="flex flex-col gap-6 py-16">
-        <BrandMark />
+        <BrandLogo priority />
         <h1 className="max-w-2xl text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
           Reliable workforce operations for healthcare staffing.
         </h1>

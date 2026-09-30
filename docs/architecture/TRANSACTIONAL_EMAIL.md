@@ -1,6 +1,8 @@
 # Transactional Email
 
-Status: P0-E3-S3.
+Status: P0-E3-S3; operational notifications added in P0-E5-S2 — see
+[NOTIFICATION_DELIVERY.md](NOTIFICATION_DELIVERY.md) (outbox + dispatcher for
+non-interactive, secret-free notifications, as anticipated in §2).
 
 ## 1. Two email channels
 

@@ -1,0 +1,759 @@
+CHELTH — P0-E6-S1 TIME & ATTENDANCE FOUNDATIONS
+Stage report · 2026-09-30 · branch p0-e6-s1-time-attendance (uncommitted)
+
+======================================================================
+1. EXECUTIVE SUMMARY
+======================================================================
+Chelth now records when an accepted worker actually started and finished a
+shift. The record is operationally trustworthy, and it is not surveillance.
+
+  - Server-authoritative time. Every device clock event takes the
+    database clock (now()). The client never sends an event time, and a
+    check constraint enforces occurred_at = recorded_at.
+  - Append-only history. Events and location evidence can never be
+    updated, deleted or truncated. The attendance summary is a projection
+    rebuilt from events by a single writer.
+  - Clock-in eligibility is tied to the accepted assignment. Clock-in
+    re-runs the canonical eligibility gate (compliance, activity) and
+    applies configurable timing rules.
+  - Clock-out is never blocked by location, assignment status or
+    relationship state: a worker can always record leaving.
+  - Optional geofence per facility location, validated in the database
+    (haversine). Policies: block, or allow and flag for review. There is
+    exactly one location reading per explicit clock action, with an
+    explanation shown BEFORE the browser prompt. There is no tracking.
+  - Raw coordinates live in one restricted, append-only table:
+      * readable only with attendance.location.view (AAL2);
+      * every read is audited;
+      * never in audit metadata, notifications, facility views or worker
+        history.
+  - Exceptions:
+      * late and early clock events;
+      * missed clocks, detected by an idempotent 15-minute scan;
+      * outside the site area, imprecise or unavailable location;
+      * not eligible at clock-in;
+      * correction requested.
+    Each exception notifies attendance.review holders once.
+  - Corrections. A worker requests a correction; a reviewer approves or
+    rejects it. Approval appends a corrected_* event and the original event
+    stays. Nobody can review their own attendance.
+  - Surfaces:
+      * agency /attendance page;
+      * attendance on the agency shift detail;
+      * a narrow facility view ("Attendance for this request": no
+        coordinates, no exception detail);
+      * mobile-first clock in/out on /my-shifts.
+  - Validation: all 13 checks pass.
+      * pgTAP: 865 assertions in 20 files, including all 25 required cases
+        (A–Y);
+      * integration: 76 tests;
+      * unit: 190 tests;
+      * E2E: 82 passed, 2 skipped. The skips are existing desktop-only
+        keyboard tests.
+  - Security: no open HIGH or CRITICAL finding.
+
+Not built, as instructed: payroll, invoicing, rates, overtime, exports,
+billing, timesheet approval, continuous or background GPS, route tracking,
+live maps, biometrics, facial recognition.
+
+======================================================================
+2. ATTENDANCE SCHEMA
+======================================================================
+Migration 20260930140100_attendance_tables.sql:
+
+  agency_attendance_settings
+    One row per agency, with timing rules in bounded integer columns. No
+    row means the documented defaults apply. Readable with attendance.view.
+  location_geofences
+    One row per facility location:
+      * enabled flag;
+      * site latitude and longitude;
+      * radius: 50–2000 m;
+      * max accuracy: 10–500 m, default 100;
+      * outside policy.
+    Readable with agency facility.view.
+  assignment_attendance
+    One row per assignment, created lazily. It is a projection:
+      * clock_state;
+      * clock_in_at and clock_out_at (effective times);
+      * open_exception_count.
+    Checks tie the state to the times. The row carries the full assignment
+    identity and the full shift and location identity.
+  attendance_events
+    Append-only source of truth, with sequence and segment columns.
+  attendance_location_evidence
+    Append-only coordinates, accuracy, distance, radius, device-captured-at
+    and result. Restricted to attendance.location.view.
+  attendance_exceptions
+    Type, severity, detected_by, status and resolution. At most one open
+    row per (attendance, type). Never deleted.
+  attendance_corrections
+    Requested type, time, reason, optional note (≤ 500 characters) and
+    review fields. At most one pending row per (attendance, type). Never
+    deleted.
+
+Migration 20260930140000_attendance_vocabulary.sql:
+  - 4 capabilities with role mappings.
+  - 11 enums.
+  - 7 notification events.
+  - Two unique keys that the new composite FKs target:
+      * shift_assignments (id, agency, shift, worker, profile);
+      * shifts (id, agency, facility, location).
+
+======================================================================
+3. EVENT MODEL
+======================================================================
+Event types: clock_in, clock_out, corrected_clock_in, corrected_clock_out.
+
+Fields:
+  - occurred_at: when the event happened;
+  - recorded_at: database time of the write;
+  - source: worker_device or approved_correction;
+  - geofence_result: a result code, never coordinates;
+  - actor_profile_id;
+  - correction_id: required exactly when the source is
+    approved_correction;
+  - segment: always 1 for now; reserved for split shifts.
+
+Constraints:
+  - device events must have occurred_at = recorded_at;
+  - approved_correction ⇔ corrected_* ⇔ correction_id is present;
+  - unique indexes allow one clock_in and one clock_out per segment;
+  - UPDATE, DELETE and TRUNCATE are refused by triggers for every role,
+    including the owner.
+
+Effective time is the latest corrected_* event, otherwise the device
+event. See docs/architecture/ATTENDANCE_EVENT_MODEL.md.
+
+======================================================================
+4. ATTENDANCE STATE MODEL
+======================================================================
+Stored states: not_started → clocked_in → clocked_out. Corrected events
+can also establish either time.
+
+Displayed state adds "Needs review" whenever open exceptions exist
+(deriveAttendanceState). Labels: Not started, Clocked in, Completed,
+Needs review.
+
+internal.refresh_attendance is the only writer of the projection. It runs
+after every command, review and scan change.
+
+======================================================================
+5. CLOCK-IN ELIGIBILITY
+======================================================================
+Checks run in this order:
+
+  1. Own assignment. Uses a live membership (is_own_active_worker).
+     Locks: relationship FOR SHARE, then assignment FOR UPDATE.
+  2. Shift state:
+       - shift cancelled: CHT06;
+       - shift not open: CHS09;
+       - assignment not accepted: CHT05.
+  3. Relationship is active: CHS10.
+  4. Timing window: CHT07 before the window, CHT08 at or after the end.
+  5. Clock state: CHT09 if already clocked in, CHT11 if already clocked
+     out.
+  6. Geofence with a blocking policy:
+       - no location: CHT12;
+       - accuracy too low: CHT14.
+  7. Canonical eligibility gate (internal.assignment_eligibility), then a
+     blocking geofence with an outside result. A refusal here COMMITS:
+       - outcome 'refused' with WORKER_NOT_ELIGIBLE, WORKER_NOT_ACTIVE or
+         OUTSIDE_GEOFENCE;
+       - an urgent exception;
+       - one agency notification;
+       - an audit event.
+     The server action maps the refusal to a safe AppError.
+
+======================================================================
+6. TIMING RULES
+======================================================================
+Rules are set per agency with set_agency_attendance_settings. This needs
+attendance.manage_settings (AAL2) and is audited.
+
+  Rule                       Default   Bounds
+  early clock-in window        30 min    0–240
+  late clock-in threshold       5 min    0–120
+  early clock-out threshold    15 min    0–240
+  late clock-out threshold     30 min    0–240
+  missed clock-in grace        15 min    5–240
+  missed clock-out grace       60 min    15–720
+  clock-out cut-off           240 min    60–1440
+                                         (must be ≥ missed clock-out grace)
+
+  - All comparisons use now() against the shift's UTC start_at and end_at.
+  - Display always uses the shift's own timezone.
+  - The UI shows the configured values in a "Timing rules" form.
+
+======================================================================
+7. CLOCK-OUT
+======================================================================
+Requires clocked_in: CHT10 if not clocked in, CHT11 if already clocked
+out.
+
+  - After end + cut-off: CHT18, and the worker requests a correction
+    instead.
+  - Never blocked by location, assignment status or relationship state.
+  - Location problems and early or late timing become exceptions.
+  - Resolves missed_clock_out.
+
+======================================================================
+8. GEOFENCE MODEL
+======================================================================
+  - Optional, per facility location. Configured on the agency facility
+    page with set_location_geofence (attendance.manage_settings, AAL2).
+  - Composite FKs bind a geofence to (location, facility, agency).
+  - Policies:
+      * block: outside refuses clock-in;
+      * allow_with_review: record the event plus an exception.
+  - See docs/architecture/GEOFENCE_MODEL.md.
+
+======================================================================
+9. LOCATION PRIVACY
+======================================================================
+  - One getCurrentPosition call per clock action. No watchPosition, no
+    polling, no background location, no maps.
+  - The explanation region ("… uses your location only for this attendance
+    action and does not track you") is shown before the browser prompt,
+    with "Share location and clock in" and "Not now".
+  - Coordinates are stored only when the location's geofence is enabled.
+  - Raw coordinates are available only through
+    list_attendance_location_evidence (attendance.location.view, AAL2), and
+    each read is audited.
+  - Everyone else sees result labels only.
+  - Coordinates never appear in audit metadata (tested), emails, or the
+    facility or worker projections.
+  - See docs/security/ATTENDANCE_LOCATION_PRIVACY.md.
+
+======================================================================
+10. GEOFENCE VALIDATION
+======================================================================
+internal.check_geofence does all validation server-side:
+
+  1. no enabled geofence: not_required, and the input is ignored;
+  2. invalid input: CH400. This covers a missing half of a coordinate
+     pair, out-of-range values, and accuracy below 0 or above 100 km;
+  3. no coordinates: unavailable;
+  4. haversine distance with R = 6 371 008.8 m;
+  5. accuracy missing or above the maximum: low_accuracy;
+  6. distance ≤ radius: inside; otherwise outside.
+
+The client never declares a result. The evidence row stores the distance
+and radius used.
+
+Tested edges:
+  - 199.5 m is inside and 200.5 m is outside a 200 m fence;
+  - a 1000 m meridian distance is exact to 1 cm;
+  - accuracy worse than configured is low_accuracy even at the site;
+  - geofences are location-scoped.
+
+======================================================================
+11. ATTENDANCE EXCEPTIONS
+======================================================================
+Types (10):
+  - late_clock_in, early_clock_out, late_clock_out;
+  - missed_clock_in, missed_clock_out;
+  - outside_geofence, poor_location_accuracy, location_unavailable;
+  - assignment_not_ready;
+  - manual_correction_requested.
+
+Statuses: open → under_review → resolved | dismissed. Resolved and
+dismissed are terminal, enforced by a trigger.
+
+Resolutions:
+  - system: clocked_in, clocked_out, correction_approved,
+    correction_rejected, assignment_closed;
+  - reviewer: acknowledged, not_applicable.
+
+Rules:
+  - At most one open row per type, so detection and notification are
+    idempotent.
+  - Exceptions cannot be deleted.
+  - review_attendance_exception needs attendance.review and refuses the
+    reviewer's own attendance (CH403).
+
+======================================================================
+12. MISSED CLOCK DETECTION
+======================================================================
+internal.run_attendance_scan() runs as pg_cron job chelth-attendance-scan
+every 15 minutes. Each run is recorded in internal.scheduled_job_runs.
+
+  - missed_clock_in: an accepted assignment on an open or completed shift,
+    past start + grace, with no effective clock-in. Urgent; notifies the
+    agency.
+  - missed_clock_out: clocked in, past end + grace. Urgent; notifies the
+    agency AND the worker.
+  - Auto-resolution when the facts change:
+      * clocked or corrected;
+      * assignment not accepted;
+      * shift cancelled.
+  - Lookback is 7 days; each pass handles at most 5000 rows.
+  - Rerunning is a no-op (tested: U).
+
+======================================================================
+13. CORRECTION WORKFLOW
+======================================================================
+Request: request_attendance_correction (the worker, own accepted
+assignment).
+
+  - Times are entered in the shift's local time and converted DST-safely.
+  - Validity:
+      * the time must be in the past and within the shift ± 12 h;
+      * clock-out must be after clock-in;
+      * clock-in must be before a recorded clock-out.
+  - One pending request per type. Rate limit: 20 per person per day.
+  - Opens manual_correction_requested and notifies reviewers.
+  - Audit records type and reason only: no note text, no times.
+
+Review: review_attendance_correction (attendance.review).
+
+  - Refuses the requester, and the worker whose attendance it is (CH403).
+  - Pending requests only (CHT17). The resolution must match the decision.
+  - Approval re-checks ordering, then appends a corrected_* event and
+    resolves the related exceptions.
+  - Rejection appends nothing.
+  - The worker is notified of the outcome, and the review is audited.
+
+Terminal states are enforced by a trigger. See
+docs/architecture/ATTENDANCE_CORRECTIONS.md.
+
+======================================================================
+14. FACILITY PROJECTION
+======================================================================
+list_facility_shift_attendance(shift):
+
+  - Scope: the relationship (has_relationship_capability, attendance.view);
+    draft shifts are hidden with CHS04.
+  - Returns:
+      * worker display name;
+      * state;
+      * clock-in and clock-out times;
+      * clock-in and clock-out location RESULT;
+      * has_open_exception.
+  - No coordinates, exception types, corrections, notes or evidence.
+  - Each view is audited (attendance.viewed_by_facility).
+  - Facilities have no RLS path to any attendance table (tested: J, K).
+  - UI: "Attendance for this request" on the staffing-request detail page,
+    shown once the shift has started.
+
+======================================================================
+15. WORKER PROJECTION
+======================================================================
+list_my_attendance(org):
+
+  - Scope: own assignments with a live membership, from 7 days back to
+    2 days ahead.
+  - Returns:
+      * state and times;
+      * location_required;
+      * earliest_clock_in_at;
+      * can_clock_in and can_clock_out;
+      * own exceptions (type, status, resolution);
+      * own corrections.
+  - No coordinates, even the worker's own.
+  - Worker RLS: own attendance, events, exceptions and corrections only.
+
+UI on /my-shifts:
+  - large clock buttons;
+  - local times with the timezone abbreviation;
+  - "Attendance notes";
+  - "My correction requests";
+  - a correction form in a disclosure.
+
+======================================================================
+16. AGENCY OPERATIONS UI
+======================================================================
+  - /app/organisations/[id]/attendance (attendance.view):
+      * a dense table of scheduled workers, needs-attention first, filtered
+        by local date (range ≤ 7 days);
+      * pending corrections with approve and reject;
+      * open exceptions with acknowledge and dismiss;
+      * a "Timing rules" form (attendance.manage_settings).
+  - Agency shift detail: an attendance table and pending corrections for
+    that shift.
+  - Facility detail (agency): a geofence form per location.
+  - Organisation overview: an "Attendance" link when showAttendance is set.
+  - Brand: tokens only, tables for dense data, no decorative effects. The
+    Shift Mark and brand assets are untouched.
+
+======================================================================
+17. CAPABILITIES
+======================================================================
+  attendance.view             admin, ops manager, scheduler; facility
+                              admin/scheduler/supervisor (relationship-only)
+  attendance.review           admin, ops manager
+  attendance.manage_settings  admin — privileged (AAL2)
+  attendance.location.view    admin — privileged (AAL2)
+
+  - Recruiter, credentialing officer, finance and healthcare worker get
+    none; worker access is an identity rule.
+  - Totals: admin now holds 30 capabilities, and 14 capabilities are
+    privileged (pgTAP 030).
+
+======================================================================
+18. RLS ARCHITECTURE
+======================================================================
+  - Every table: RLS enabled; authenticated holds SELECT only; no anon
+    grants.
+  - Reads:
+      * attendance tables, events, exceptions and corrections:
+        attendance.view in the agency, OR the own live worker;
+      * evidence: attendance.location.view only;
+      * geofences: facility.view;
+      * settings: attendance.view.
+  - Writes go only through SECURITY DEFINER RPCs with search_path pinned
+    (tested: W).
+  - Facilities use audited definer projections only.
+  - The public function allow-list now has 88 entries (pgTAP 000).
+
+======================================================================
+19. STRUCTURAL INTEGRITY
+======================================================================
+  - assignment_attendance has composite FKs to:
+      * shift_assignments (id, agency, shift, worker, profile);
+      * shifts (id, agency, facility, location).
+    The ownership columns are immutable (trigger).
+  - Every child table has FKs on (attendance_id, assignment_id) and
+    (attendance_id, agency_organisation_id).
+  - Evidence has an FK on (event_id, attendance_id).
+  - Reviewer and membership FKs are on (membership, organisation).
+  - Events have an FK on (correction_id, attendance_id).
+  - Geofences have FKs on (location, facility) and (facility, agency).
+  - Checks: the state/time invariants; clock_out ≥ clock_in; source
+    ⇔ type ⇔ correction; evidence result ⇔ coordinates; exception and
+    correction status ⇔ review fields.
+  - Guards: append-only and no-delete triggers; TRUNCATE guards on events,
+    evidence, exceptions and corrections.
+
+======================================================================
+20. NOTIFICATIONS
+======================================================================
+Seven events:
+
+  Event                       Recipients
+  attendance_clock_in_late    agency reviewers
+  attendance_clock_in_blocked agency reviewers
+  attendance_missed_clock_in  agency reviewers
+  attendance_missed_clock_out agency reviewers + the worker
+  correction_requested        agency reviewers
+  correction_approved         the worker
+  correction_rejected         the worker
+
+(The last three are named attendance_correction_*.)
+
+  - Agency fan-out for attendance_* events goes to attendance.review
+    holders (enqueue_notification redefined).
+  - Each exception notifies at most once.
+  - Templates carry no coordinates, distances, refusal reasons or
+    credential detail (unit-tested). Worker emails explain how to request a
+    correction.
+  - Facilities receive no attendance email.
+
+======================================================================
+21. AUDIT CHANGES
+======================================================================
+14 actions, each labelled in src/lib/authz/vocabulary.ts:
+
+  - attendance.clocked_in, clocked_out, clock_in_refused;
+  - location_checked, location_viewed;
+  - exception_opened, exception_resolved, exception_reviewed;
+  - correction_requested, correction_approved, correction_rejected;
+  - settings_updated, geofence_updated;
+  - viewed_by_facility.
+
+Metadata carries ids, event types and result, refusal and reason codes
+only. It never carries coordinates, correction notes, requested times or
+geofence coordinates (tested).
+
+======================================================================
+22. SECURITY TESTS
+======================================================================
+pgTAP 170_attendance (57 assertions) and 180_attendance_review (52), plus
+updates to 000, 030 and 140. Full suite: 20 files, 865 assertions, PASS.
+
+  A  Worker A cannot see Worker B attendance ................... 170
+  B  Worker cannot clock another's assignment .................. 170
+  C  Unaccepted assignment refused (CHT05) ..................... 170
+  D  Cancelled shift refuses clock-in (CHT06) .................. 170
+  E  Too-early clock-in refused (CHT07) ........................ 170
+  F  Duplicate clock-in refused (CHT09) ........................ 170
+  G  Clock-out without clock-in (CHT10) ........................ 170
+  H  Duplicate clock-out (CHT11) ............................... 170
+  I  Agency A cannot read Agency B attendance .................. 180
+  J  Facility sees only a relationship-scoped projection ....... 180
+  K  Facility gets no raw coordinates .......................... 180
+  L  Scheduler gets no raw coordinates; AAL2 required; audited . 180
+  M  Client cannot forge a timestamp ........................... 170
+     (server time; check constraint)
+  N  Client cannot forge a geofence result ..................... 170
+     (server-computed distance)
+  O  Outside policy enforced server-side (block and review) .... 170
+  P  A correction request never overwrites history ............. 180
+  Q  No self-approval (CH403) .................................. 180
+  R  A reviewer from another agency cannot approve ............. 180
+  S  Approval appends a corrected event; the original remains .. 180
+  T  Events and evidence immutable (update, delete, truncate) .. 170
+  U  Missed-clock scan idempotent .............................. 180
+  V  Platform admin has no tenant path ......................... 180
+  W  Pinned search_path on every function ...................... 000
+  X  No anon access ...................................... 000 / 180
+  Y  Direct writes refused (as authenticated) .................. 170
+
+Also covered:
+  - clock-in eligibility refusal (committed exception);
+  - late, early and cut-off rules;
+  - notification audience;
+  - settings and geofence capability plus AAL2;
+  - worker note kept out of audit;
+  - absurd accuracy rejected;
+  - overnight window.
+
+======================================================================
+23. INTEGRATION TESTS
+======================================================================
+tests/integration/attendance.test.ts runs 8 tests against real local
+Supabase:
+
+  1. An accepted worker clocks in inside the window; the server time is
+     recorded.
+  2. A duplicate clock-in fails; clock-out succeeds; another worker sees
+     nothing.
+  3. Outside the geofence follows the configured policy (review, then
+     block).
+  4. A late clock-in creates an exception that reviewers can see.
+  5. The missed clock-in scan creates the exception exactly once.
+  6. Correction requested and reviewed: the summary reflects it while the
+     original event remains.
+  7. The facility gets a narrow projection with location results and no
+     coordinates.
+  8. Another agency cannot read attendance.
+
+Two existing tests were updated for the new capabilities
+(identity-and-organisations, invitations-and-roles). Full suite: 9 files,
+76 tests, PASS.
+
+======================================================================
+24. E2E TESTS
+======================================================================
+tests/e2e/attendance.spec.ts runs on desktop and mobile: 12 tests, PASS.
+
+  Flow 1  Worker clocks in and out from My Shifts:
+          Not started → Clocked in → Completed. Includes an axe check.
+  Flow 2  Late clock-in: the worker sees "Late clock-in", and the agency
+          table shows Needs review. Includes an axe check.
+  Flow 3  Blocking geofence:
+            - the explanation is shown before the location read;
+            - outside the area is refused with an alert;
+            - inside the area clocks in.
+  Flow 4  Correction: the worker requests it, the admin approves it, and
+          the worker sees Approved and Clocked in.
+  Flow 5  The facility sees "Inside site area", and no coordinate or
+          latitude/longitude text appears anywhere in <main>.
+  Flow 6  The other agency, the facility and a worker all get 404 on
+          /attendance.
+
+Full Playwright suite: 82 passed, 2 skipped. The skips are existing
+desktop-only keyboard tests on mobile.
+
+======================================================================
+25. TIME/GEO TESTS
+======================================================================
+Time:
+  - normal shift: Flow 1, integration 1, pgTAP;
+  - overnight 22:00→06:00: earliest clock-in 21:30 local, end on the next
+    local date, not clockable yet (pgTAP);
+  - DST:
+      * a spring-forward gap time is rejected;
+      * the fall-back hour resolves to the later instant, as in the
+        database;
+      * winter and summer offsets;
+      (unit tests);
+  - late clock-in, 20 min after start: late_clock_in (pgTAP, E2E 2);
+  - early clock-in: allowed within 30 min; before that CHT07;
+  - early clock-out: early_clock_out;
+  - post-shift clock-out: late_clock_out after 30 min, CHT18 after 4 h;
+  - server time: occurred_at = recorded_at = now(). A forged time is
+    refused by a check constraint (M);
+  - facility local display: formatLocalClockTime uses the shift's timezone
+    ("7:03 AM EST"). The same wall time maps to a different instant in
+    Chicago.
+
+Geo:
+  - boundary: 199.5 m inside, 200.5 m outside;
+  - haversine exactness;
+  - accuracy threshold;
+  - missing location under both policies;
+  - invalid coordinates and accuracy rejected;
+  - location scope;
+  - evidence stores the server-computed distance and radius.
+
+======================================================================
+26. SECURITY FINDINGS
+======================================================================
+Reviewed:
+  - cross-tenant IDOR on every RPC and table;
+  - facility relationship bypass;
+  - clocking another worker's assignment;
+  - forged time and forged geofence;
+  - coordinate leakage (audit, email, facility, worker, logs);
+  - self-approval;
+  - cross-agency review;
+  - history tampering;
+  - duplicate events under concurrency (row locks plus unique indexes);
+  - platform-admin overreach;
+  - anon access;
+  - service-role exposure (bundle scan OK; no service role used);
+  - client-side authorization (none relied on).
+
+  ID  Sev     Status    Finding
+  F1  LOW     FIXED     An accuracy value above the evidence bound (100 km)
+                        surfaced as a raw constraint error. check_geofence
+                        now rejects it as CH400 (pgTAP).
+  F2  LOW     FIXED     Append-only attendance tables had UPDATE and DELETE
+                        guards but no TRUNCATE guard. Only the owner could
+                        truncate, since authenticated has no privilege.
+                        Statement-level guards were added on 4 tables
+                        (pgTAP).
+  F3  LOW     FIXED     A network failure during a clock action could reach
+                        the error boundary. The clock control now shows
+                        "Not recorded" and never fakes success.
+  F4  LOW     FIXED     Correction-time conversion accepted impossible
+                        dates and times. Range and round-trip validation
+                        added (unit tests).
+  F5  MEDIUM  DEFERRED  No retention or deletion schedule for location
+                        evidence. This must be decided per jurisdiction
+                        before production use of geofencing. Mitigations:
+                        collection is minimal, access is AAL2-restricted
+                        and audited.
+  F6  LOW     OPEN      Refused clock-in attempts are not rate-limited.
+                        Each writes an audit row. Scope: an authenticated
+                        worker on their own assignment only; exceptions
+                        and notifications are deduplicated.
+  F7  LOW     OPEN      Each facility view writes an audit row, so audit
+                        volume grows with page views.
+  I1  INFO    ACCEPTED  Browser geolocation can be spoofed. Results are
+                        treated as signals for review, not proof, and the
+                        wording is "appear to be outside" (documented).
+  I2  INFO    BY DESIGN A clocked-in worker can still clock out after the
+                        assignment is cancelled or the relationship is
+                        suspended.
+
+No open CRITICAL or HIGH finding. The completion gate is met.
+
+======================================================================
+27. KNOWN LIMITATIONS
+======================================================================
+  - One work segment per assignment. No breaks or split shifts (the
+    schema reserves a segment column).
+  - A reviewer cannot enter an alternative time: approval is "as
+    requested", or reject and the worker re-requests.
+  - Exception review is acknowledge or dismiss only; there are no
+    reviewer notes.
+  - The agency table covers ≤ 7 days, capped at 500 rows. The scan is
+    bounded to 5000 rows per pass with a 7-day lookback.
+  - The worker projection spans −7 d to +2 d.
+  - No UI yet for viewing raw evidence (the RPC exists: AAL2, audited).
+  - Correction notes are free text: they are shown to reviewers and kept
+    out of audit.
+  - Geofences are circles only; no polygons, no indoor accuracy
+    handling.
+  - Offline clocking is not supported: nothing is recorded without the
+    server.
+
+======================================================================
+28. DEFERRED ITEMS
+======================================================================
+  - Location evidence retention and purge job, with legal hold (F5).
+  - Rate limit for refused clock-in attempts (F6); audit sampling for
+    facility views (F7).
+  - Raw evidence viewer UI with a step-up prompt.
+  - Breaks and multiple segments; reviewer-adjusted correction times.
+  - Timesheets built on effective times, then payroll and invoicing
+    (later stages, explicitly out of scope).
+  - Attendance reminders (pre-shift nudges) behind notification
+    preferences.
+  - Offline-safe PWA clocking with signed server receipts.
+
+======================================================================
+29. MIGRATION LIST
+======================================================================
+New migrations (not previously merged, so they may still change):
+  20260930140000_attendance_vocabulary.sql
+  20260930140100_attendance_tables.sql
+  20260930140200_attendance_rpcs.sql
+
+  - No merged migration was edited.
+  - Total: 35 migration files (check:migrations OK).
+  - Scheduled job added: chelth-attendance-scan (*/15 * * * *).
+
+======================================================================
+30. BUILD VALIDATION
+======================================================================
+Final state: the database was reset and the stack restarted after the
+last migration change.
+
+  npm run format:check        PASS
+  npm run lint                PASS
+  npm run typecheck           PASS
+  npm test                    PASS (19 files, 190 tests)
+  npm run build               PASS
+  npm run check:bundle        PASS (49 browser files, no secrets)
+  npx playwright test         PASS (82 passed, 2 skipped by design)
+  npm run check:migrations    PASS (35 files)
+  supabase db reset           PASS
+  supabase db lint            PASS (no schema errors)
+  supabase test db            PASS (20 files, 865 assertions)
+  npm run test:integration    PASS (9 files, 76 tests)
+  npm run db:types            PASS (no drift after regeneration)
+
+======================================================================
+31. GIT STATUS
+======================================================================
+Branch: p0-e6-s1-time-attendance. Nothing committed and nothing pushed.
+
+Modified:
+  - Docs (6): SHIFT_DOMAIN_MODEL, ASSIGNMENT_DOMAIN_MODEL,
+    NOTIFICATION_DELIVERY, AUTHORIZATION_MODEL, TECHNICAL_ARCHITECTURE,
+    SECURITY_INVARIANTS (invariants 40–44 added).
+  - Pages: my-shifts, shifts/[shiftId], staffing-requests/[shiftId],
+    facilities/[facilityId], organisation overview and its sections.
+  - Vocabularies: authz, notifications (vocabulary and templates), error
+    codes and normalisation; database types.
+  - Tests: pgTAP 000 and 030; integration identity-and-organisations and
+    invitations-and-roles.
+
+New:
+  - 3 migrations.
+  - src/features/attendance, src/lib/domain/attendance.ts, the
+    /attendance route.
+  - Docs (5): ATTENDANCE_DOMAIN_MODEL, ATTENDANCE_EVENT_MODEL,
+    GEOFENCE_MODEL, ATTENDANCE_CORRECTIONS,
+    security/ATTENDANCE_LOCATION_PRIVACY.
+  - Tests: pgTAP 170, 180 and _attendance_helpers; integration, E2E and
+    unit attendance tests.
+  - This report.
+
+Note: pgTAP 140_notification_delivery, 150_offers and
+160_issues_and_relationships (from P0-E5-S2) were never committed; commit
+fbf5175 did not include them. They are still untracked and should be
+committed with this stage. 140 was updated here for the new cron job.
+
+======================================================================
+32. RECOMMENDED NEXT STAGE
+======================================================================
+P0-E6-S2: Timesheets and attendance review hardening, built on effective
+attendance times:
+  - timesheet periods derived from approved attendance (read-only
+    projection);
+  - agency approval, then facility sign-off;
+  - breaks and segments;
+  - reviewer-adjusted times with a reason;
+  - raw evidence viewer with AAL2 step-up.
+
+Close before or with it:
+  - F5: location evidence retention and purge job;
+  - F6: rate limit for refused clock-in attempts;
+  - commit the untracked S5-2 pgTAP files.
+
+Rates, payroll and invoicing remain later stages, consuming only approved
+timesheets.

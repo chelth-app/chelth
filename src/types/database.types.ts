@@ -9,6 +9,63 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      agency_attendance_settings: {
+        Row: {
+          agency_organisation_id: string
+          agency_organisation_type: Database["public"]["Enums"]["organisation_type"]
+          clock_out_cutoff_minutes: number
+          early_clock_in_minutes: number
+          early_clock_out_minutes: number
+          late_clock_in_minutes: number
+          late_clock_out_minutes: number
+          missed_clock_in_minutes: number
+          missed_clock_out_minutes: number
+          updated_at: string
+          updated_by_profile_id: string | null
+        }
+        Insert: {
+          agency_organisation_id: string
+          agency_organisation_type?: Database["public"]["Enums"]["organisation_type"]
+          clock_out_cutoff_minutes?: number
+          early_clock_in_minutes?: number
+          early_clock_out_minutes?: number
+          late_clock_in_minutes?: number
+          late_clock_out_minutes?: number
+          missed_clock_in_minutes?: number
+          missed_clock_out_minutes?: number
+          updated_at?: string
+          updated_by_profile_id?: string | null
+        }
+        Update: {
+          agency_organisation_id?: string
+          agency_organisation_type?: Database["public"]["Enums"]["organisation_type"]
+          clock_out_cutoff_minutes?: number
+          early_clock_in_minutes?: number
+          early_clock_out_minutes?: number
+          late_clock_in_minutes?: number
+          late_clock_out_minutes?: number
+          missed_clock_in_minutes?: number
+          missed_clock_out_minutes?: number
+          updated_at?: string
+          updated_by_profile_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agency_attendance_settings_agency_organisation_id_agency_o_fkey"
+            columns: ["agency_organisation_id", "agency_organisation_type"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id", "type"]
+          },
+          {
+            foreignKeyName: "agency_attendance_settings_updated_by_profile_id_fkey"
+            columns: ["updated_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agency_facilities: {
         Row: {
           address_line1: string | null
@@ -328,6 +385,94 @@ export type Database = {
           },
         ]
       }
+      assignment_attendance: {
+        Row: {
+          agency_facility_id: string
+          agency_organisation_id: string
+          agency_worker_id: string
+          assignment_id: string
+          clock_in_at: string | null
+          clock_out_at: string | null
+          clock_state: Database["public"]["Enums"]["attendance_clock_state"]
+          created_at: string
+          facility_location_id: string
+          id: string
+          open_exception_count: number
+          profile_id: string
+          shift_id: string
+          updated_at: string
+        }
+        Insert: {
+          agency_facility_id: string
+          agency_organisation_id: string
+          agency_worker_id: string
+          assignment_id: string
+          clock_in_at?: string | null
+          clock_out_at?: string | null
+          clock_state?: Database["public"]["Enums"]["attendance_clock_state"]
+          created_at?: string
+          facility_location_id: string
+          id?: string
+          open_exception_count?: number
+          profile_id: string
+          shift_id: string
+          updated_at?: string
+        }
+        Update: {
+          agency_facility_id?: string
+          agency_organisation_id?: string
+          agency_worker_id?: string
+          assignment_id?: string
+          clock_in_at?: string | null
+          clock_out_at?: string | null
+          clock_state?: Database["public"]["Enums"]["attendance_clock_state"]
+          created_at?: string
+          facility_location_id?: string
+          id?: string
+          open_exception_count?: number
+          profile_id?: string
+          shift_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assignment_attendance_assignment_id_agency_organisation_id_fkey"
+            columns: [
+              "assignment_id",
+              "agency_organisation_id",
+              "shift_id",
+              "agency_worker_id",
+              "profile_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "shift_assignments"
+            referencedColumns: [
+              "id",
+              "agency_organisation_id",
+              "shift_id",
+              "agency_worker_id",
+              "profile_id",
+            ]
+          },
+          {
+            foreignKeyName: "assignment_attendance_shift_id_agency_organisation_id_agen_fkey"
+            columns: [
+              "shift_id",
+              "agency_organisation_id",
+              "agency_facility_id",
+              "facility_location_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "shifts"
+            referencedColumns: [
+              "id",
+              "agency_organisation_id",
+              "agency_facility_id",
+              "facility_location_id",
+            ]
+          },
+        ]
+      }
       assignment_eligibility_decisions: {
         Row: {
           actor_membership_id: string
@@ -408,6 +553,374 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "shifts"
             referencedColumns: ["id", "agency_organisation_id"]
+          },
+        ]
+      }
+      assignment_issues: {
+        Row: {
+          agency_organisation_id: string
+          assignment_id: string
+          block_reasons: Database["public"]["Enums"]["assignment_block_reason"][]
+          compliance_reasons: Database["public"]["Enums"]["compliance_reason"][]
+          detected_by: Database["public"]["Enums"]["assignment_issue_source"]
+          id: string
+          issue_type: Database["public"]["Enums"]["assignment_issue_type"]
+          last_evaluated_at: string
+          opened_at: string
+          resolution:
+            | Database["public"]["Enums"]["assignment_issue_resolution"]
+            | null
+          resolved_at: string | null
+          severity: Database["public"]["Enums"]["assignment_issue_severity"]
+          shift_id: string
+          status: Database["public"]["Enums"]["assignment_issue_status"]
+        }
+        Insert: {
+          agency_organisation_id: string
+          assignment_id: string
+          block_reasons?: Database["public"]["Enums"]["assignment_block_reason"][]
+          compliance_reasons?: Database["public"]["Enums"]["compliance_reason"][]
+          detected_by: Database["public"]["Enums"]["assignment_issue_source"]
+          id?: string
+          issue_type: Database["public"]["Enums"]["assignment_issue_type"]
+          last_evaluated_at?: string
+          opened_at?: string
+          resolution?:
+            | Database["public"]["Enums"]["assignment_issue_resolution"]
+            | null
+          resolved_at?: string | null
+          severity: Database["public"]["Enums"]["assignment_issue_severity"]
+          shift_id: string
+          status?: Database["public"]["Enums"]["assignment_issue_status"]
+        }
+        Update: {
+          agency_organisation_id?: string
+          assignment_id?: string
+          block_reasons?: Database["public"]["Enums"]["assignment_block_reason"][]
+          compliance_reasons?: Database["public"]["Enums"]["compliance_reason"][]
+          detected_by?: Database["public"]["Enums"]["assignment_issue_source"]
+          id?: string
+          issue_type?: Database["public"]["Enums"]["assignment_issue_type"]
+          last_evaluated_at?: string
+          opened_at?: string
+          resolution?:
+            | Database["public"]["Enums"]["assignment_issue_resolution"]
+            | null
+          resolved_at?: string | null
+          severity?: Database["public"]["Enums"]["assignment_issue_severity"]
+          shift_id?: string
+          status?: Database["public"]["Enums"]["assignment_issue_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assignment_issues_assignment_id_agency_organisation_id_fkey"
+            columns: ["assignment_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "shift_assignments"
+            referencedColumns: ["id", "agency_organisation_id"]
+          },
+          {
+            foreignKeyName: "assignment_issues_shift_id_agency_organisation_id_fkey"
+            columns: ["shift_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "shifts"
+            referencedColumns: ["id", "agency_organisation_id"]
+          },
+        ]
+      }
+      attendance_corrections: {
+        Row: {
+          agency_organisation_id: string
+          assignment_id: string
+          attendance_id: string
+          id: string
+          reason: Database["public"]["Enums"]["attendance_correction_reason"]
+          requested_at: string
+          requested_by_profile_id: string
+          requested_event_type: Database["public"]["Enums"]["attendance_event_type"]
+          requested_time: string
+          resolution:
+            | Database["public"]["Enums"]["attendance_correction_resolution"]
+            | null
+          reviewed_at: string | null
+          reviewed_by_membership_id: string | null
+          status: Database["public"]["Enums"]["attendance_correction_status"]
+          worker_note: string | null
+        }
+        Insert: {
+          agency_organisation_id: string
+          assignment_id: string
+          attendance_id: string
+          id?: string
+          reason: Database["public"]["Enums"]["attendance_correction_reason"]
+          requested_at?: string
+          requested_by_profile_id: string
+          requested_event_type: Database["public"]["Enums"]["attendance_event_type"]
+          requested_time: string
+          resolution?:
+            | Database["public"]["Enums"]["attendance_correction_resolution"]
+            | null
+          reviewed_at?: string | null
+          reviewed_by_membership_id?: string | null
+          status?: Database["public"]["Enums"]["attendance_correction_status"]
+          worker_note?: string | null
+        }
+        Update: {
+          agency_organisation_id?: string
+          assignment_id?: string
+          attendance_id?: string
+          id?: string
+          reason?: Database["public"]["Enums"]["attendance_correction_reason"]
+          requested_at?: string
+          requested_by_profile_id?: string
+          requested_event_type?: Database["public"]["Enums"]["attendance_event_type"]
+          requested_time?: string
+          resolution?:
+            | Database["public"]["Enums"]["attendance_correction_resolution"]
+            | null
+          reviewed_at?: string | null
+          reviewed_by_membership_id?: string | null
+          status?: Database["public"]["Enums"]["attendance_correction_status"]
+          worker_note?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_corrections_attendance_id_agency_organisation_i_fkey"
+            columns: ["attendance_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "assignment_attendance"
+            referencedColumns: ["id", "agency_organisation_id"]
+          },
+          {
+            foreignKeyName: "attendance_corrections_attendance_id_assignment_id_fkey"
+            columns: ["attendance_id", "assignment_id"]
+            isOneToOne: false
+            referencedRelation: "assignment_attendance"
+            referencedColumns: ["id", "assignment_id"]
+          },
+          {
+            foreignKeyName: "attendance_corrections_requested_by_profile_id_fkey"
+            columns: ["requested_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_corrections_reviewed_by_membership_id_agency_or_fkey"
+            columns: ["reviewed_by_membership_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id", "organisation_id"]
+          },
+        ]
+      }
+      attendance_events: {
+        Row: {
+          actor_profile_id: string | null
+          agency_organisation_id: string
+          assignment_id: string
+          attendance_id: string
+          correction_id: string | null
+          event_type: Database["public"]["Enums"]["attendance_event_type"]
+          geofence_result: Database["public"]["Enums"]["geofence_result"]
+          id: string
+          occurred_at: string
+          recorded_at: string
+          segment: number
+          sequence: number
+          source: Database["public"]["Enums"]["attendance_event_source"]
+        }
+        Insert: {
+          actor_profile_id?: string | null
+          agency_organisation_id: string
+          assignment_id: string
+          attendance_id: string
+          correction_id?: string | null
+          event_type: Database["public"]["Enums"]["attendance_event_type"]
+          geofence_result?: Database["public"]["Enums"]["geofence_result"]
+          id?: string
+          occurred_at: string
+          recorded_at?: string
+          segment?: number
+          sequence?: never
+          source: Database["public"]["Enums"]["attendance_event_source"]
+        }
+        Update: {
+          actor_profile_id?: string | null
+          agency_organisation_id?: string
+          assignment_id?: string
+          attendance_id?: string
+          correction_id?: string | null
+          event_type?: Database["public"]["Enums"]["attendance_event_type"]
+          geofence_result?: Database["public"]["Enums"]["geofence_result"]
+          id?: string
+          occurred_at?: string
+          recorded_at?: string
+          segment?: number
+          sequence?: never
+          source?: Database["public"]["Enums"]["attendance_event_source"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_events_actor_profile_id_fkey"
+            columns: ["actor_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_events_attendance_id_agency_organisation_id_fkey"
+            columns: ["attendance_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "assignment_attendance"
+            referencedColumns: ["id", "agency_organisation_id"]
+          },
+          {
+            foreignKeyName: "attendance_events_attendance_id_assignment_id_fkey"
+            columns: ["attendance_id", "assignment_id"]
+            isOneToOne: false
+            referencedRelation: "assignment_attendance"
+            referencedColumns: ["id", "assignment_id"]
+          },
+          {
+            foreignKeyName: "attendance_events_correction_fk"
+            columns: ["correction_id", "attendance_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_corrections"
+            referencedColumns: ["id", "attendance_id"]
+          },
+        ]
+      }
+      attendance_exceptions: {
+        Row: {
+          agency_organisation_id: string
+          assignment_id: string
+          attendance_id: string
+          detected_by: Database["public"]["Enums"]["attendance_exception_source"]
+          exception_type: Database["public"]["Enums"]["attendance_exception_type"]
+          id: string
+          opened_at: string
+          resolution:
+            | Database["public"]["Enums"]["attendance_exception_resolution"]
+            | null
+          resolved_at: string | null
+          reviewer_membership_id: string | null
+          severity: Database["public"]["Enums"]["assignment_issue_severity"]
+          status: Database["public"]["Enums"]["attendance_exception_status"]
+        }
+        Insert: {
+          agency_organisation_id: string
+          assignment_id: string
+          attendance_id: string
+          detected_by: Database["public"]["Enums"]["attendance_exception_source"]
+          exception_type: Database["public"]["Enums"]["attendance_exception_type"]
+          id?: string
+          opened_at?: string
+          resolution?:
+            | Database["public"]["Enums"]["attendance_exception_resolution"]
+            | null
+          resolved_at?: string | null
+          reviewer_membership_id?: string | null
+          severity: Database["public"]["Enums"]["assignment_issue_severity"]
+          status?: Database["public"]["Enums"]["attendance_exception_status"]
+        }
+        Update: {
+          agency_organisation_id?: string
+          assignment_id?: string
+          attendance_id?: string
+          detected_by?: Database["public"]["Enums"]["attendance_exception_source"]
+          exception_type?: Database["public"]["Enums"]["attendance_exception_type"]
+          id?: string
+          opened_at?: string
+          resolution?:
+            | Database["public"]["Enums"]["attendance_exception_resolution"]
+            | null
+          resolved_at?: string | null
+          reviewer_membership_id?: string | null
+          severity?: Database["public"]["Enums"]["assignment_issue_severity"]
+          status?: Database["public"]["Enums"]["attendance_exception_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_exceptions_attendance_id_agency_organisation_id_fkey"
+            columns: ["attendance_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "assignment_attendance"
+            referencedColumns: ["id", "agency_organisation_id"]
+          },
+          {
+            foreignKeyName: "attendance_exceptions_attendance_id_assignment_id_fkey"
+            columns: ["attendance_id", "assignment_id"]
+            isOneToOne: false
+            referencedRelation: "assignment_attendance"
+            referencedColumns: ["id", "assignment_id"]
+          },
+          {
+            foreignKeyName: "attendance_exceptions_reviewer_membership_id_agency_organi_fkey"
+            columns: ["reviewer_membership_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id", "organisation_id"]
+          },
+        ]
+      }
+      attendance_location_evidence: {
+        Row: {
+          accuracy_meters: number | null
+          agency_organisation_id: string
+          attendance_id: string
+          device_captured_at: string | null
+          distance_meters: number | null
+          event_id: string
+          id: string
+          latitude: number | null
+          longitude: number | null
+          radius_meters: number
+          recorded_at: string
+          result: Database["public"]["Enums"]["geofence_result"]
+        }
+        Insert: {
+          accuracy_meters?: number | null
+          agency_organisation_id: string
+          attendance_id: string
+          device_captured_at?: string | null
+          distance_meters?: number | null
+          event_id: string
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          radius_meters: number
+          recorded_at?: string
+          result: Database["public"]["Enums"]["geofence_result"]
+        }
+        Update: {
+          accuracy_meters?: number | null
+          agency_organisation_id?: string
+          attendance_id?: string
+          device_captured_at?: string | null
+          distance_meters?: number | null
+          event_id?: string
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          radius_meters?: number
+          recorded_at?: string
+          result?: Database["public"]["Enums"]["geofence_result"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_location_evidence_attendance_id_agency_organisa_fkey"
+            columns: ["attendance_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "assignment_attendance"
+            referencedColumns: ["id", "agency_organisation_id"]
+          },
+          {
+            foreignKeyName: "attendance_location_evidence_event_id_attendance_id_fkey"
+            columns: ["event_id", "attendance_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_events"
+            referencedColumns: ["id", "attendance_id"]
           },
         ]
       }
@@ -1088,6 +1601,73 @@ export type Database = {
           },
         ]
       }
+      location_geofences: {
+        Row: {
+          agency_facility_id: string
+          agency_organisation_id: string
+          created_at: string
+          enabled: boolean
+          facility_location_id: string
+          latitude: number
+          longitude: number
+          max_accuracy_meters: number
+          outside_policy: Database["public"]["Enums"]["geofence_outside_policy"]
+          radius_meters: number
+          updated_at: string
+          updated_by_profile_id: string | null
+        }
+        Insert: {
+          agency_facility_id: string
+          agency_organisation_id: string
+          created_at?: string
+          enabled?: boolean
+          facility_location_id: string
+          latitude: number
+          longitude: number
+          max_accuracy_meters?: number
+          outside_policy?: Database["public"]["Enums"]["geofence_outside_policy"]
+          radius_meters: number
+          updated_at?: string
+          updated_by_profile_id?: string | null
+        }
+        Update: {
+          agency_facility_id?: string
+          agency_organisation_id?: string
+          created_at?: string
+          enabled?: boolean
+          facility_location_id?: string
+          latitude?: number
+          longitude?: number
+          max_accuracy_meters?: number
+          outside_policy?: Database["public"]["Enums"]["geofence_outside_policy"]
+          radius_meters?: number
+          updated_at?: string
+          updated_by_profile_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "location_geofences_agency_facility_id_agency_organisation__fkey"
+            columns: ["agency_facility_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "agency_facilities"
+            referencedColumns: ["id", "agency_organisation_id"]
+          },
+          {
+            foreignKeyName: "location_geofences_facility_location_id_agency_facility_id_fkey"
+            columns: ["facility_location_id", "agency_facility_id"]
+            isOneToOne: false
+            referencedRelation: "facility_locations"
+            referencedColumns: ["id", "agency_facility_id"]
+          },
+          {
+            foreignKeyName: "location_geofences_updated_by_profile_id_fkey"
+            columns: ["updated_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       membership_roles: {
         Row: {
           granted_at: string
@@ -1691,6 +2271,99 @@ export type Database = {
           },
         ]
       }
+      shift_offers: {
+        Row: {
+          agency_organisation_id: string
+          agency_worker_id: string
+          assignment_id: string | null
+          close_reason:
+            | Database["public"]["Enums"]["shift_offer_close_reason"]
+            | null
+          closed_at: string | null
+          created_at: string
+          created_by_membership_id: string
+          expires_at: string
+          id: string
+          offered_at: string
+          profile_id: string
+          responded_at: string | null
+          shift_id: string
+          status: Database["public"]["Enums"]["shift_offer_status"]
+          updated_at: string
+        }
+        Insert: {
+          agency_organisation_id: string
+          agency_worker_id: string
+          assignment_id?: string | null
+          close_reason?:
+            | Database["public"]["Enums"]["shift_offer_close_reason"]
+            | null
+          closed_at?: string | null
+          created_at?: string
+          created_by_membership_id: string
+          expires_at: string
+          id?: string
+          offered_at?: string
+          profile_id: string
+          responded_at?: string | null
+          shift_id: string
+          status?: Database["public"]["Enums"]["shift_offer_status"]
+          updated_at?: string
+        }
+        Update: {
+          agency_organisation_id?: string
+          agency_worker_id?: string
+          assignment_id?: string | null
+          close_reason?:
+            | Database["public"]["Enums"]["shift_offer_close_reason"]
+            | null
+          closed_at?: string | null
+          created_at?: string
+          created_by_membership_id?: string
+          expires_at?: string
+          id?: string
+          offered_at?: string
+          profile_id?: string
+          responded_at?: string | null
+          shift_id?: string
+          status?: Database["public"]["Enums"]["shift_offer_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shift_offers_agency_worker_id_agency_organisation_id_profi_fkey"
+            columns: [
+              "agency_worker_id",
+              "agency_organisation_id",
+              "profile_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "agency_workers"
+            referencedColumns: ["id", "agency_organisation_id", "profile_id"]
+          },
+          {
+            foreignKeyName: "shift_offers_assignment_id_agency_organisation_id_fkey"
+            columns: ["assignment_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "shift_assignments"
+            referencedColumns: ["id", "agency_organisation_id"]
+          },
+          {
+            foreignKeyName: "shift_offers_created_by_membership_id_agency_organisation__fkey"
+            columns: ["created_by_membership_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id", "organisation_id"]
+          },
+          {
+            foreignKeyName: "shift_offers_shift_id_agency_organisation_id_fkey"
+            columns: ["shift_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "shifts"
+            referencedColumns: ["id", "agency_organisation_id"]
+          },
+        ]
+      }
       shifts: {
         Row: {
           agency_facility_id: string
@@ -1875,6 +2548,17 @@ export type Database = {
         Args: { p_assignment_id: string }
         Returns: undefined
       }
+      accept_shift_offer: {
+        Args: { p_offer_id: string }
+        Returns: {
+          assignment_id: string
+          block_reasons: Database["public"]["Enums"]["assignment_block_reason"][]
+          compliance_findings: Json
+          compliance_reasons: Database["public"]["Enums"]["compliance_reason"][]
+          outcome: Database["public"]["Enums"]["assignment_decision_outcome"]
+          primary_reason: Database["public"]["Enums"]["assignment_block_reason"]
+        }[]
+      }
       add_agency_worker_note: {
         Args: { p_body: string; p_worker_id: string }
         Returns: string
@@ -1929,6 +2613,42 @@ export type Database = {
           p_reason: Database["public"]["Enums"]["assignment_cancellation_reason"]
         }
         Returns: undefined
+      }
+      cancel_shift_offer: { Args: { p_offer_id: string }; Returns: undefined }
+      clock_in_assignment: {
+        Args: {
+          p_accuracy_meters?: number
+          p_assignment_id: string
+          p_device_captured_at?: string
+          p_latitude?: number
+          p_longitude?: number
+        }
+        Returns: {
+          attendance_id: string
+          exception_codes: string[]
+          geofence_result: Database["public"]["Enums"]["geofence_result"]
+          outcome: string
+          recorded_at: string
+          refusal_code: string
+          timezone: string
+        }[]
+      }
+      clock_out_assignment: {
+        Args: {
+          p_accuracy_meters?: number
+          p_assignment_id: string
+          p_device_captured_at?: string
+          p_latitude?: number
+          p_longitude?: number
+        }
+        Returns: {
+          attendance_id: string
+          exception_codes: string[]
+          geofence_result: Database["public"]["Enums"]["geofence_result"]
+          outcome: string
+          recorded_at: string
+          timezone: string
+        }[]
       }
       complete_credential_document_upload: {
         Args: {
@@ -2042,6 +2762,7 @@ export type Database = {
         Args: { p_assignment_id: string }
         Returns: undefined
       }
+      decline_shift_offer: { Args: { p_offer_id: string }; Returns: undefined }
       evaluate_worker_compliance: {
         Args: {
           p_agency_facility_id?: string
@@ -2057,6 +2778,34 @@ export type Database = {
           requirement_id: string
           requirement_scope: string
           severity: Database["public"]["Enums"]["compliance_severity"]
+        }[]
+      }
+      list_agency_attendance: {
+        Args: {
+          p_from?: string
+          p_organisation_id: string
+          p_shift_id?: string
+          p_to?: string
+        }
+        Returns: {
+          assignment_id: string
+          assignment_status: Database["public"]["Enums"]["assignment_status"]
+          attendance_id: string
+          clock_in_at: string
+          clock_in_location: Database["public"]["Enums"]["geofence_result"]
+          clock_out_at: string
+          clock_out_location: Database["public"]["Enums"]["geofence_result"]
+          clock_state: Database["public"]["Enums"]["attendance_clock_state"]
+          end_at: string
+          facility_name: string
+          location_name: string
+          needs_review: boolean
+          open_exception_types: string[]
+          pending_corrections: number
+          shift_id: string
+          start_at: string
+          timezone: string
+          worker_name: string
         }[]
       }
       list_agency_shifts: {
@@ -2087,6 +2836,38 @@ export type Database = {
           timezone: string
         }[]
       }
+      list_agency_shifts_page: {
+        Args: {
+          p_after_id?: string
+          p_after_start_at?: string
+          p_agency_facility_id?: string
+          p_from?: string
+          p_limit?: number
+          p_organisation_id: string
+          p_status?: Database["public"]["Enums"]["shift_status"]
+          p_to?: string
+        }
+        Returns: {
+          accepted_count: number
+          active_count: number
+          agency_facility_id: string
+          discipline_key: string
+          discipline_name: string
+          end_at: string
+          external_reference: string
+          facility_name: string
+          fill_state: string
+          location_name: string
+          open_issue_count: number
+          relationship_status: Database["public"]["Enums"]["relationship_status"]
+          requested_headcount: number
+          shift_id: string
+          source: Database["public"]["Enums"]["shift_source"]
+          start_at: string
+          status: Database["public"]["Enums"]["shift_status"]
+          timezone: string
+        }[]
+      }
       list_agency_worker_credentials: {
         Args: { p_agency_worker_id: string }
         Returns: {
@@ -2101,6 +2882,27 @@ export type Database = {
           latest_version_number: number
           latest_version_status: Database["public"]["Enums"]["credential_version_status"]
           shared_at: string
+        }[]
+      }
+      list_assignment_issues: {
+        Args: { p_organisation_id: string; p_shift_id?: string }
+        Returns: {
+          assignment_id: string
+          assignment_status: Database["public"]["Enums"]["assignment_status"]
+          block_reasons: Database["public"]["Enums"]["assignment_block_reason"][]
+          compliance_reasons: Database["public"]["Enums"]["compliance_reason"][]
+          detected_by: Database["public"]["Enums"]["assignment_issue_source"]
+          end_at: string
+          facility_name: string
+          issue_id: string
+          issue_type: Database["public"]["Enums"]["assignment_issue_type"]
+          last_evaluated_at: string
+          opened_at: string
+          severity: Database["public"]["Enums"]["assignment_issue_severity"]
+          shift_id: string
+          start_at: string
+          timezone: string
+          worker_name: string
         }[]
       }
       list_assignment_readiness: {
@@ -2127,6 +2929,20 @@ export type Database = {
           timezone: string
         }[]
       }
+      list_attendance_location_evidence: {
+        Args: { p_attendance_id: string }
+        Returns: {
+          accuracy_meters: number
+          device_captured_at: string
+          distance_meters: number
+          event_type: Database["public"]["Enums"]["attendance_event_type"]
+          latitude: number
+          longitude: number
+          radius_meters: number
+          recorded_at: string
+          result: Database["public"]["Enums"]["geofence_result"]
+        }[]
+      }
       list_facility_request_options: {
         Args: { p_relationship_id: string }
         Returns: {
@@ -2142,6 +2958,19 @@ export type Database = {
           discipline_name: string
           readiness: Database["public"]["Enums"]["readiness_status"]
           status: Database["public"]["Enums"]["assignment_status"]
+          worker_display_name: string
+        }[]
+      }
+      list_facility_shift_attendance: {
+        Args: { p_shift_id: string }
+        Returns: {
+          assignment_id: string
+          clock_in_at: string
+          clock_in_location: Database["public"]["Enums"]["geofence_result"]
+          clock_out_at: string
+          clock_out_location: Database["public"]["Enums"]["geofence_result"]
+          clock_state: Database["public"]["Enums"]["attendance_clock_state"]
+          has_open_exception: boolean
           worker_display_name: string
         }[]
       }
@@ -2169,6 +2998,58 @@ export type Database = {
           timezone: string
         }[]
       }
+      list_facility_shifts_page: {
+        Args: {
+          p_before_id?: string
+          p_before_start_at?: string
+          p_facility_organisation_id: string
+          p_limit?: number
+        }
+        Returns: {
+          accepted_count: number
+          active_count: number
+          agency_name: string
+          cancellation_reason: Database["public"]["Enums"]["shift_cancellation_reason"]
+          discipline_key: string
+          discipline_name: string
+          end_at: string
+          external_reference: string
+          fill_state: string
+          instructions: string
+          location_name: string
+          relationship_id: string
+          relationship_status: Database["public"]["Enums"]["relationship_status"]
+          requested_headcount: number
+          shift_id: string
+          source: Database["public"]["Enums"]["shift_source"]
+          start_at: string
+          status: Database["public"]["Enums"]["shift_status"]
+          timezone: string
+        }[]
+      }
+      list_my_attendance: {
+        Args: { p_organisation_id: string }
+        Returns: {
+          assignment_id: string
+          attendance_id: string
+          can_clock_in: boolean
+          can_clock_out: boolean
+          clock_in_at: string
+          clock_out_at: string
+          clock_state: Database["public"]["Enums"]["attendance_clock_state"]
+          corrections: Json
+          earliest_clock_in_at: string
+          end_at: string
+          exceptions: Json
+          facility_name: string
+          location_name: string
+          location_required: boolean
+          shift_id: string
+          shift_status: Database["public"]["Enums"]["shift_status"]
+          start_at: string
+          timezone: string
+        }[]
+      }
       list_my_shift_assignments: {
         Args: { p_organisation_id: string }
         Returns: {
@@ -2187,6 +3068,40 @@ export type Database = {
           start_at: string
           status: Database["public"]["Enums"]["assignment_status"]
           timezone: string
+        }[]
+      }
+      list_my_shift_offers: {
+        Args: { p_organisation_id: string }
+        Returns: {
+          can_respond: boolean
+          discipline_name: string
+          end_at: string
+          expires_at: string
+          facility_name: string
+          location_name: string
+          offer_id: string
+          start_at: string
+          status: Database["public"]["Enums"]["shift_offer_status"]
+          timezone: string
+        }[]
+      }
+      list_notification_deliveries: {
+        Args: {
+          p_limit?: number
+          p_organisation_id: string
+          p_problems_only?: boolean
+        }
+        Returns: {
+          attempts: number
+          created_at: string
+          event: string
+          last_error_code: string
+          next_attempt_at: string
+          notification_id: string
+          recipient_name: string
+          sent_at: string
+          shift_id: string
+          state: string
         }[]
       }
       list_organisation_invites: {
@@ -2210,6 +3125,19 @@ export type Database = {
           relationship_id: string
           relationship_started_at: string
           relationship_status: Database["public"]["Enums"]["relationship_status"]
+        }[]
+      }
+      list_relationship_affected_shifts: {
+        Args: { p_organisation_id: string }
+        Returns: {
+          active_count: number
+          end_at: string
+          facility_name: string
+          relationship_status: Database["public"]["Enums"]["relationship_status"]
+          shift_id: string
+          start_at: string
+          status: Database["public"]["Enums"]["shift_status"]
+          timezone: string
         }[]
       }
       list_shared_worker_compliance: {
@@ -2238,12 +3166,46 @@ export type Database = {
           worker_status: Database["public"]["Enums"]["worker_status"]
         }[]
       }
+      list_shift_candidates_page: {
+        Args: {
+          p_after_id?: string
+          p_after_name?: string
+          p_include_unavailable?: boolean
+          p_limit?: number
+          p_shift_id: string
+        }
+        Returns: {
+          agency_worker_id: string
+          assignable: boolean
+          block_reasons: Database["public"]["Enums"]["assignment_block_reason"][]
+          compliance_findings: Json
+          compliance_reasons: Database["public"]["Enums"]["compliance_reason"][]
+          display_name: string
+          has_live_offer: boolean
+          primary_reason: Database["public"]["Enums"]["assignment_block_reason"]
+          readiness: Database["public"]["Enums"]["readiness_status"]
+          worker_status: Database["public"]["Enums"]["worker_status"]
+        }[]
+      }
       my_capabilities: {
         Args: { p_organisation_id: string }
         Returns: {
           capability_key: string
           is_privileged: boolean
           is_satisfied: boolean
+        }[]
+      }
+      offer_shift_to_workers: {
+        Args: {
+          p_agency_worker_ids: string[]
+          p_expires_in_minutes?: number
+          p_shift_id: string
+        }
+        Returns: {
+          agency_worker_id: string
+          offer_id: string
+          outcome: string
+          reason: string
         }[]
       }
       open_shift: { Args: { p_shift_id: string }; Returns: undefined }
@@ -2305,6 +3267,14 @@ export type Database = {
           role_name: string
         }[]
       }
+      recheck_shift_readiness: {
+        Args: { p_shift_id: string }
+        Returns: {
+          checked: number
+          opened: number
+          resolved: number
+        }[]
+      }
       record_credential_verification: {
         Args: {
           p_agency_facility_id?: string
@@ -2325,6 +3295,16 @@ export type Database = {
         }
         Returns: undefined
       }
+      request_attendance_correction: {
+        Args: {
+          p_assignment_id: string
+          p_event_type: Database["public"]["Enums"]["attendance_event_type"]
+          p_note?: string
+          p_reason: Database["public"]["Enums"]["attendance_correction_reason"]
+          p_requested_time: string
+        }
+        Returns: string
+      }
       resend_organisation_invite: {
         Args: { p_invite_id: string }
         Returns: {
@@ -2332,6 +3312,22 @@ export type Database = {
           invite_id: string
           invite_token: string
         }[]
+      }
+      review_attendance_correction: {
+        Args: {
+          p_approve: boolean
+          p_correction_id: string
+          p_resolution: Database["public"]["Enums"]["attendance_correction_resolution"]
+        }
+        Returns: undefined
+      }
+      review_attendance_exception: {
+        Args: {
+          p_exception_id: string
+          p_resolution?: Database["public"]["Enums"]["attendance_exception_resolution"]
+          p_status: Database["public"]["Enums"]["attendance_exception_status"]
+        }
+        Returns: undefined
       }
       revoke_credential_share: {
         Args: { p_share_id: string }
@@ -2347,6 +3343,19 @@ export type Database = {
       }
       revoke_worker_compliance_share: {
         Args: { p_share_id: string }
+        Returns: undefined
+      }
+      set_agency_attendance_settings: {
+        Args: {
+          p_clock_out_cutoff_minutes: number
+          p_early_clock_in_minutes: number
+          p_early_clock_out_minutes: number
+          p_late_clock_in_minutes: number
+          p_late_clock_out_minutes: number
+          p_missed_clock_in_minutes: number
+          p_missed_clock_out_minutes: number
+          p_organisation_id: string
+        }
         Returns: undefined
       }
       set_agency_facility_status: {
@@ -2375,6 +3384,18 @@ export type Database = {
         Args: {
           p_relationship_id: string
           p_status: Database["public"]["Enums"]["relationship_status"]
+        }
+        Returns: undefined
+      }
+      set_location_geofence: {
+        Args: {
+          p_enabled: boolean
+          p_facility_location_id: string
+          p_latitude: number
+          p_longitude: number
+          p_max_accuracy_meters: number
+          p_outside_policy: Database["public"]["Enums"]["geofence_outside_policy"]
+          p_radius_meters: number
         }
         Returns: undefined
       }
@@ -2494,7 +3515,66 @@ export type Database = {
         | "relationship_suspended"
         | "other"
       assignment_decision_outcome: "allowed" | "refused"
+      assignment_issue_resolution:
+        | "eligible_again"
+        | "relationship_restored"
+        | "assignment_closed"
+        | "shift_closed"
+      assignment_issue_severity: "attention" | "urgent"
+      assignment_issue_source:
+        | "scheduled_scan"
+        | "manual_recheck"
+        | "relationship_change"
+      assignment_issue_status: "open" | "resolved"
+      assignment_issue_type: "not_eligible" | "relationship_not_active"
       assignment_status: "assigned" | "accepted" | "declined" | "cancelled"
+      attendance_clock_state: "not_started" | "clocked_in" | "clocked_out"
+      attendance_correction_reason:
+        | "forgot_to_clock"
+        | "device_or_app_problem"
+        | "location_problem"
+        | "recorded_wrong_time"
+        | "other"
+      attendance_correction_resolution:
+        | "approved_as_requested"
+        | "rejected_time_not_supported"
+        | "rejected_duplicate"
+        | "rejected_other"
+      attendance_correction_status: "pending" | "approved" | "rejected"
+      attendance_event_source: "worker_device" | "approved_correction"
+      attendance_event_type:
+        | "clock_in"
+        | "clock_out"
+        | "corrected_clock_in"
+        | "corrected_clock_out"
+      attendance_exception_resolution:
+        | "acknowledged"
+        | "correction_approved"
+        | "correction_rejected"
+        | "clocked_in"
+        | "clocked_out"
+        | "assignment_closed"
+        | "not_applicable"
+      attendance_exception_source:
+        | "clock_action"
+        | "scheduled_scan"
+        | "correction"
+      attendance_exception_status:
+        | "open"
+        | "under_review"
+        | "resolved"
+        | "dismissed"
+      attendance_exception_type:
+        | "late_clock_in"
+        | "early_clock_out"
+        | "late_clock_out"
+        | "missed_clock_in"
+        | "missed_clock_out"
+        | "outside_geofence"
+        | "poor_location_accuracy"
+        | "location_unavailable"
+        | "assignment_not_ready"
+        | "manual_correction_requested"
       compliance_reason:
         | "MET"
         | "EXPIRING_SOON"
@@ -2533,6 +3613,13 @@ export type Database = {
         | "quarantined"
       facility_location_status: "active" | "inactive"
       facility_status: "active" | "inactive" | "archived"
+      geofence_outside_policy: "block" | "allow_with_review"
+      geofence_result:
+        | "not_required"
+        | "inside"
+        | "outside"
+        | "low_accuracy"
+        | "unavailable"
       invite_delivery_status: "not_attempted" | "sent" | "failed" | "skipped"
       invite_status: "pending" | "accepted" | "revoked"
       jurisdiction_level: "country" | "subdivision"
@@ -2549,6 +3636,20 @@ export type Database = {
         | "entered_in_error"
         | "relationship_suspended"
         | "other"
+        | "relationship_ended"
+      shift_offer_close_reason:
+        | "shift_filled"
+        | "shift_cancelled"
+        | "shift_closed"
+        | "withdrawn"
+        | "relationship_not_active"
+        | "assigned_directly"
+      shift_offer_status:
+        | "offered"
+        | "accepted"
+        | "declined"
+        | "expired"
+        | "cancelled"
       shift_source: "agency" | "facility"
       shift_status: "draft" | "submitted" | "open" | "cancelled" | "completed"
       verification_outcome: "under_review" | "verified" | "rejected"
@@ -2710,7 +3811,75 @@ export const Constants = {
         "other",
       ],
       assignment_decision_outcome: ["allowed", "refused"],
+      assignment_issue_resolution: [
+        "eligible_again",
+        "relationship_restored",
+        "assignment_closed",
+        "shift_closed",
+      ],
+      assignment_issue_severity: ["attention", "urgent"],
+      assignment_issue_source: [
+        "scheduled_scan",
+        "manual_recheck",
+        "relationship_change",
+      ],
+      assignment_issue_status: ["open", "resolved"],
+      assignment_issue_type: ["not_eligible", "relationship_not_active"],
       assignment_status: ["assigned", "accepted", "declined", "cancelled"],
+      attendance_clock_state: ["not_started", "clocked_in", "clocked_out"],
+      attendance_correction_reason: [
+        "forgot_to_clock",
+        "device_or_app_problem",
+        "location_problem",
+        "recorded_wrong_time",
+        "other",
+      ],
+      attendance_correction_resolution: [
+        "approved_as_requested",
+        "rejected_time_not_supported",
+        "rejected_duplicate",
+        "rejected_other",
+      ],
+      attendance_correction_status: ["pending", "approved", "rejected"],
+      attendance_event_source: ["worker_device", "approved_correction"],
+      attendance_event_type: [
+        "clock_in",
+        "clock_out",
+        "corrected_clock_in",
+        "corrected_clock_out",
+      ],
+      attendance_exception_resolution: [
+        "acknowledged",
+        "correction_approved",
+        "correction_rejected",
+        "clocked_in",
+        "clocked_out",
+        "assignment_closed",
+        "not_applicable",
+      ],
+      attendance_exception_source: [
+        "clock_action",
+        "scheduled_scan",
+        "correction",
+      ],
+      attendance_exception_status: [
+        "open",
+        "under_review",
+        "resolved",
+        "dismissed",
+      ],
+      attendance_exception_type: [
+        "late_clock_in",
+        "early_clock_out",
+        "late_clock_out",
+        "missed_clock_in",
+        "missed_clock_out",
+        "outside_geofence",
+        "poor_location_accuracy",
+        "location_unavailable",
+        "assignment_not_ready",
+        "manual_correction_requested",
+      ],
       compliance_reason: [
         "MET",
         "EXPIRING_SOON",
@@ -2752,6 +3921,14 @@ export const Constants = {
       ],
       facility_location_status: ["active", "inactive"],
       facility_status: ["active", "inactive", "archived"],
+      geofence_outside_policy: ["block", "allow_with_review"],
+      geofence_result: [
+        "not_required",
+        "inside",
+        "outside",
+        "low_accuracy",
+        "unavailable",
+      ],
       invite_delivery_status: ["not_attempted", "sent", "failed", "skipped"],
       invite_status: ["pending", "accepted", "revoked"],
       jurisdiction_level: ["country", "subdivision"],
@@ -2768,6 +3945,22 @@ export const Constants = {
         "entered_in_error",
         "relationship_suspended",
         "other",
+        "relationship_ended",
+      ],
+      shift_offer_close_reason: [
+        "shift_filled",
+        "shift_cancelled",
+        "shift_closed",
+        "withdrawn",
+        "relationship_not_active",
+        "assigned_directly",
+      ],
+      shift_offer_status: [
+        "offered",
+        "accepted",
+        "declined",
+        "expired",
+        "cancelled",
       ],
       shift_source: ["agency", "facility"],
       shift_status: ["draft", "submitted", "open", "cancelled", "completed"],

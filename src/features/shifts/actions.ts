@@ -18,12 +18,15 @@ import { formDataToObject, parseInput } from "@/lib/validation";
 import { explainBlockReasons } from "./explain";
 import { listCredentialTypeNames, parseFindings } from "./queries";
 import {
+  agencyOfferActionSchema,
   assignmentActionSchema,
   assignWorkerSchema,
   cancelAssignmentSchema,
   cancelShiftSchema,
   createShiftSchema,
   facilityRequestSchema,
+  offerActionSchema,
+  offerShiftSchema,
   shiftActionSchema,
   shiftNoteSchema,
   updateShiftDetailsSchema,
@@ -334,6 +337,109 @@ export async function withdrawFacilityRequestAction(
     });
     if (error) throw error;
     revalidatePath(requestsPath(input.organisationId, input.shiftId));
+    return null;
+  });
+}
+
+// -----------------------------------------------------------------------------
+// Offers (P0-E5-S2)
+// -----------------------------------------------------------------------------
+export type OfferSummary = { offered: number; skipped: number };
+
+export async function offerShiftAction(
+  _state: ActionState<OfferSummary>,
+  formData: FormData,
+): Promise<ActionState<OfferSummary>> {
+  return runAction("shifts.offer", async () => {
+    const input = parseInput(offerShiftSchema, {
+      ...formDataToObject(formData),
+      workerIds: formData.getAll("workerId").map(String),
+    });
+    await requireAuthIdentity();
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase.rpc("offer_shift_to_workers", {
+      p_shift_id: input.shiftId,
+      p_agency_worker_ids: input.workerIds,
+      p_expires_in_minutes: input.expiresInMinutes,
+    });
+    if (error) throw error;
+    revalidatePath(shiftPath(input.organisationId, input.shiftId));
+    const offered = data.filter((row) => row.outcome === "offered").length;
+    return { offered, skipped: data.length - offered };
+  });
+}
+
+export async function cancelOfferAction(
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction("shifts.cancelOffer", async () => {
+    const input = parseInput(agencyOfferActionSchema, formDataToObject(formData));
+    await requireAuthIdentity();
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.rpc("cancel_shift_offer", { p_offer_id: input.offerId });
+    if (error) throw error;
+    revalidatePath(shiftPath(input.organisationId, input.shiftId));
+    return null;
+  });
+}
+
+/** The worker accepts: the server re-runs the full assignment gate. */
+export async function acceptOfferAction(
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction("shifts.acceptOffer", async () => {
+    const input = parseInput(offerActionSchema, formDataToObject(formData));
+    await requireAuthIdentity();
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase.rpc("accept_shift_offer", { p_offer_id: input.offerId });
+    if (error) throw error;
+    revalidatePath(`/app/organisations/${input.organisationId}/my-shifts`);
+    const decision = data[0];
+    if (decision?.outcome === "refused" && decision.primary_reason) {
+      const typeNames = await listCredentialTypeNames();
+      throw new AppError(ASSIGNMENT_BLOCK_ERROR[decision.primary_reason], {
+        internalMessage: `offer acceptance refused: ${decision.block_reasons.join(",")}`,
+        fieldErrors: {
+          reasons: explainBlockReasons(
+            decision.block_reasons,
+            parseFindings(decision.compliance_findings),
+            typeNames,
+          ),
+        },
+      });
+    }
+    return null;
+  });
+}
+
+export async function declineOfferAction(
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction("shifts.declineOffer", async () => {
+    const input = parseInput(offerActionSchema, formDataToObject(formData));
+    await requireAuthIdentity();
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.rpc("decline_shift_offer", { p_offer_id: input.offerId });
+    if (error) throw error;
+    revalidatePath(`/app/organisations/${input.organisationId}/my-shifts`);
+    return null;
+  });
+}
+
+export async function recheckReadinessAction(
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction("shifts.recheckReadiness", async () => {
+    const input = parseInput(shiftActionSchema, formDataToObject(formData));
+    await requireAuthIdentity();
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.rpc("recheck_shift_readiness", { p_shift_id: input.shiftId });
+    if (error) throw error;
+    revalidatePath(shiftPath(input.organisationId, input.shiftId));
     return null;
   });
 }

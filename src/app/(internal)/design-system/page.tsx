@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { PageContainer } from "@/components/layout/page-container";
 import { MAIN_CONTENT_ID } from "@/components/layout/skip-link";
-import { BrandMark } from "@/components/shared/brand-mark";
+import { BrandLogo } from "@/components/shared/brand-logo";
 import {
   Badge,
   Button,
@@ -34,7 +34,7 @@ export default function DesignSystemPage() {
     <main id={MAIN_CONTENT_ID} className="py-10">
       <PageContainer className="flex flex-col gap-10">
         <header className="flex flex-col gap-2">
-          <BrandMark />
+          <BrandLogo />
           <h1 className="text-2xl font-semibold">Design system foundation</h1>
           <p className="text-sm text-muted-foreground">
             Internal reference. Not available in production.

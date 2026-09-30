@@ -23,6 +23,7 @@ import {
   requireCapabilityOrNotFound,
   StepUpNotice,
 } from "@/features/organisations";
+import { GeofenceForm, listLocationGeofences } from "@/features/attendance";
 import { listRequirements, RequirementForm, RequirementsTable } from "@/features/compliance";
 import { listCredentialTypes, listDisciplines, listJurisdictions } from "@/features/credentials";
 import { CAPABILITIES } from "@/lib/authz";
@@ -74,6 +75,8 @@ export default async function FacilityPage({
   const canManageFacility =
     can(CAPABILITIES.FACILITY_MANAGE) === "granted" && facility.status !== "archived";
   const canManageRelationship = can(CAPABILITIES.RELATIONSHIP_MANAGE) === "granted";
+  const canManageGeofences = can(CAPABILITIES.ATTENDANCE_MANAGE_SETTINGS) === "granted";
+  const geofences = canManageGeofences ? await listLocationGeofences(facility.id) : [];
   const openRelationship = relationships.find((relationship) => relationship.status !== "ended");
   const typeName =
     facilityTypes.find((type) => type.key === facility.facilityTypeKey)?.name ??
@@ -159,6 +162,30 @@ export default async function FacilityPage({
           />
         ) : null}
       </section>
+
+      {canManageGeofences && locations.length > 0 ? (
+        <section aria-labelledby="geofence-heading" className="flex flex-col gap-4">
+          <h2 id="geofence-heading" className="text-lg font-semibold">
+            Attendance location checks
+          </h2>
+          <p className="max-w-2xl text-sm text-muted-foreground">
+            Optional. When enabled for a location, workers share their location once when they clock
+            in or out there. Chelth never tracks workers between clock actions.
+          </p>
+          {locations.map((location) => (
+            <div key={location.id} className="flex flex-col gap-2">
+              <h3 className="text-base font-semibold">{location.name}</h3>
+              <GeofenceForm
+                organisationId={organisationId}
+                facilityId={facility.id}
+                locationId={location.id}
+                locationName={location.name}
+                current={geofences.find((geofence) => geofence.locationId === location.id) ?? null}
+              />
+            </div>
+          ))}
+        </section>
+      ) : null}
 
       {canViewRequirements ? (
         <section aria-labelledby="requirements-heading" className="flex flex-col gap-3">
