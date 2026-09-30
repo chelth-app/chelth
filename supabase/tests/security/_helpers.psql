@@ -1,0 +1,147 @@
+-- =============================================================================
+-- Shared pgTAP helpers (included with \ir from each test file; not a test).
+--
+-- Assertions always run as the owner role. User actions run INSIDE the helper
+-- functions below, which switch role + JWT claims, execute dynamic SQL, and
+-- switch back. (API roles cannot execute helper or pgTAP functions because
+-- the security baseline revokes EXECUTE from PUBLIC by default.)
+--
+-- If a user action raises, the role switch is undone together with the
+-- failed statement (GUC changes are transactional), so throws_ok() is safe.
+-- =============================================================================
+
+create extension if not exists pgtap with schema extensions;
+
+-- Create an auth user (the profile trigger fires). Returns the user id.
+create function pg_temp.create_user(p_email text, p_confirmed boolean default true)
+returns uuid
+language plpgsql
+as $$
+declare
+  v_id uuid := gen_random_uuid();
+begin
+  insert into auth.users (
+    id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
+    raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+  ) values (
+    v_id, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
+    p_email, '', case when p_confirmed then now() end,
+    '{"provider":"email","providers":["email"]}'::jsonb,
+    jsonb_build_object('display_name', split_part(p_email, '@', 1)),
+    now(), now()
+  );
+  return v_id;
+end;
+$$;
+
+-- Switch to a user (p_user NULL = anonymous). Called while still the owner role.
+create function pg_temp.become(p_user uuid, p_aal text)
+returns void
+language plpgsql
+as $$
+begin
+  if p_user is null then
+    perform set_config('request.jwt.claims', '{"role":"anon"}', true);
+    perform set_config('role', 'anon', true);
+  else
+    perform set_config(
+      'request.jwt.claims',
+      json_build_object('sub', p_user, 'role', 'authenticated', 'aal', p_aal)::text,
+      true
+    );
+    perform set_config('role', 'authenticated', true);
+  end if;
+end;
+$$;
+
+-- Run a query as a user; return all rows as a jsonb array.
+create function pg_temp.query_as(p_user uuid, p_aal text, p_sql text)
+returns jsonb
+language plpgsql
+as $$
+declare
+  v_result jsonb;
+begin
+  perform pg_temp.become(p_user, p_aal);
+  execute format('select coalesce(jsonb_agg(to_jsonb(q)), ''[]''::jsonb) from (%s) q', p_sql)
+    into v_result;
+  execute 'reset role';
+  perform set_config('request.jwt.claims', '', true);
+  return v_result;
+end;
+$$;
+
+-- Run a statement as a user; return the first column of the first row as text.
+create function pg_temp.scalar_as(p_user uuid, p_aal text, p_sql text)
+returns text
+language plpgsql
+as $$
+declare
+  v_result text;
+begin
+  perform pg_temp.become(p_user, p_aal);
+  execute p_sql into v_result;
+  execute 'reset role';
+  perform set_config('request.jwt.claims', '', true);
+  return v_result;
+end;
+$$;
+
+-- Row count of a query as a user.
+create function pg_temp.count_as(p_user uuid, p_aal text, p_sql text)
+returns integer
+language sql
+as $$
+  select jsonb_array_length(pg_temp.query_as(p_user, p_aal, p_sql))
+$$;
+
+-- Owner-role fixture: an organisation with its creator as owner (via the real RPC).
+create function pg_temp.create_org_as(p_user uuid, p_name text, p_slug text)
+returns uuid
+language sql
+as $$
+  select pg_temp.scalar_as(
+    p_user, 'aal1',
+    format('select public.create_organisation(%L, %L, %L)', 'agency', p_name, p_slug)
+  )::uuid
+$$;
+
+-- Owner-role fixture: add a member with a role directly (bypasses RPC rules;
+-- used only to arrange state, never to test authorization).
+create function pg_temp.add_member(p_org uuid, p_user uuid, p_role text)
+returns uuid
+language plpgsql
+as $$
+declare
+  v_membership uuid;
+begin
+  insert into public.organisation_memberships (organisation_id, profile_id)
+  values (p_org, p_user)
+  returning id into v_membership;
+
+  insert into public.membership_roles (organisation_id, organisation_type, membership_id, role_key)
+  select p_org, o.type, v_membership, p_role from public.organisations o where o.id = p_org;
+
+  return v_membership;
+end;
+$$;
+
+create function pg_temp.membership_of(p_org uuid, p_user uuid)
+returns uuid
+language sql
+as $$
+  select id from public.organisation_memberships where organisation_id = p_org and profile_id = p_user
+$$;
+
+-- Run a statement (no result expected) as a user.
+create function pg_temp.exec_as(p_user uuid, p_aal text, p_sql text)
+returns void
+language plpgsql
+as $$
+begin
+  perform pg_temp.become(p_user, p_aal);
+  execute p_sql;
+  execute 'reset role';
+  perform set_config('request.jwt.claims', '', true);
+end;
+$$;

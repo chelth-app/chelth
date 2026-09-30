@@ -1,7 +1,9 @@
 # Feature modules
 
-Business domains live here, one folder per bounded context. None exist yet —
-the first (identity & organisations) arrives in P0-E3-S2.
+Business domains live here, one folder per bounded context. Current
+features: `identity` (authentication, MFA, profile) and `organisations`
+(organisations, memberships, roles, invitations). Authorization follows
+docs/architecture/AUTHORIZATION_MODEL.md.
 
 ```
 src/features/<feature>/

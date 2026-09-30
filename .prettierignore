@@ -12,3 +12,4 @@ supabase/.branches
 *.sql
 docs/reports/*.txt
 src/types/database.types.ts
+supabase/templates

@@ -8,13 +8,12 @@ export function Label({ required = false, className, children, ...props }: Label
   return (
     <label className={cn("text-sm font-medium text-foreground", className)} {...props}>
       {children}
+      {/* Visual marker only: the control's native `required` attribute is what
+          assistive technology announces, so the label text stays clean. */}
       {required ? (
-        <>
-          <span aria-hidden="true" className="ml-0.5 text-danger">
-            *
-          </span>
-          <span className="sr-only"> (required)</span>
-        </>
+        <span aria-hidden="true" className="ml-0.5 text-danger">
+          *
+        </span>
       ) : null}
     </label>
   );

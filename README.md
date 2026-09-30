@@ -5,8 +5,10 @@ agencies, facilities and healthcare professionals to coordinate workers,
 credentials and compliance, staffing requests, shifts, attendance, timesheets,
 rates, invoicing and payroll exports.
 
-> Current stage: **P0-E3-S1 — technical foundation.** No business domain is
-> implemented yet. Identity and organisation membership arrive in P0-E3-S2.
+> Current stage: **P0-E3-S2 — identity, organisations & authorization.**
+> Multi-organisation memberships, capability-based roles, MFA-gated
+> administration, invitations and audit are in place. Healthcare workforce
+> domain modules arrive in later stages.
 
 ---
 
@@ -58,6 +60,7 @@ npm run db:reset     # rebuild database from migrations (do this, never hand-fix
 npm run db:test      # pgTAP security tests
 npm run db:lint      # schema lint
 npm run db:types     # regenerate src/types/database.types.ts
+npm run db:env       # print local URL / anon key / Mailpit URL (never service-role)
 npm run db:stop
 ```
 
@@ -73,7 +76,7 @@ npm test                  # unit tests (Vitest)
 npm run test:coverage
 npm run test:e2e:install  # once: Playwright Chromium
 npm run build && npm run test:e2e   # E2E against the production build
-npm run test:integration  # local Supabase only (from P0-E3-S2)
+npm run test:integration  # real flows against LOCAL Supabase + Mailpit
 npm run db:test           # database security tests
 ```
 
@@ -99,6 +102,8 @@ npm run verify   # format check, lint, typecheck, unit tests, build, bundle secr
   and Edge Functions later.
 - **Feature modules** in `src/features/<domain>`; routes stay thin.
 - **Strict CSP** with per-request nonces — no `'unsafe-inline'` in production.
+- **Identity → memberships → roles → capabilities**, evaluated by the database
+  per organisation; privileged capabilities require MFA (AAL2).
 
 Read before contributing:
 
@@ -106,6 +111,9 @@ Read before contributing:
 - [Project structure](docs/architecture/PROJECT_STRUCTURE.md)
 - [Database migration policy](docs/architecture/DATABASE_MIGRATION_POLICY.md)
 - [Security invariants](docs/security/SECURITY_INVARIANTS.md)
+- [Identity & organisation model](docs/architecture/IDENTITY_AND_ORGANISATION_MODEL.md)
+- [Authorization model](docs/architecture/AUTHORIZATION_MODEL.md)
+- [Identity threat model](docs/security/THREAT_MODEL_IDENTITY.md)
 - [Design system](docs/architecture/DESIGN_SYSTEM.md)
 
 ## Security principles

@@ -1,6 +1,7 @@
 # Technical Architecture
 
-Status: P0-E3-S1 (foundation). This document describes the architecture the
+Status: P0-E3-S1 (foundation), updated for P0-E3-S2 (identity, organisations
+& authorization). This document describes the architecture the
 platform is built on and the rules later stages must follow. Domain design
 (identity, organisations, workforce, shifts, time, finance) is out of scope
 here and is recorded in its own documents as each stage is approved.
@@ -144,6 +145,27 @@ privileged operation is ever required.
 ## 6. Security model
 
 Summarised; the normative list is `docs/security/SECURITY_INVARIANTS.md`.
+The identity and authorization design is specified in
+[IDENTITY_AND_ORGANISATION_MODEL.md](IDENTITY_AND_ORGANISATION_MODEL.md),
+[AUTHORIZATION_MODEL.md](AUTHORIZATION_MODEL.md) and
+[../security/THREAT_MODEL_IDENTITY.md](../security/THREAT_MODEL_IDENTITY.md).
+
+### Identity & authorization at a glance (P0-E3-S2)
+
+- `profiles` (identity) → `organisation_memberships` (one per organisation)
+  → `membership_roles` → `roles` → `capabilities`. No global or active role.
+- Authorization primitive: `authz.has_capability(organisation_id, key)`,
+  used by RLS and RPCs; privileged capabilities require an AAL2 session.
+- Private schemas: `authz` (policy helpers; EXECUTE for `authenticated`, not
+  exposed via the Data API) and `internal` (triggers, audit writer, rate
+  limiter, operator procedures; no API access).
+- All writes to identity/organisation tables are `SECURITY DEFINER` RPCs that
+  authorise, enforce the capability ceiling, mutate and audit in one
+  transaction. Errors use SQLSTATE class `CH` (`CH402` = MFA step-up).
+- Platform admins are not tenant members, get no RLS access to tenant rows,
+  and act only through narrow audited RPCs.
+- Correlation: the server client forwards `x-chelth-request-id` (per request);
+  audit events record it.
 
 1. **Identity** — Supabase Auth; server code trusts only validated sessions.
 2. **Authorization** — database-enforced (RLS + RPC checks), mirrored by
@@ -194,14 +216,14 @@ the nonce (read via `headers().get(NONCE_HEADER)`), and justified in review.
 
 ## 8. Testing strategy
 
-| Layer                                        | Tool                              | Location            | Runs                                                             |
-| -------------------------------------------- | --------------------------------- | ------------------- | ---------------------------------------------------------------- |
-| Unit (pure logic, components)                | Vitest, Testing Library, jsdom    | `tests/unit`        | every PR                                                         |
-| Database security invariants & RLS           | pgTAP                             | `supabase/tests`    | every PR                                                         |
-| Integration (API-level, local Supabase only) | Vitest                            | `tests/integration` | from P0-E3-S2                                                    |
-| E2E smoke, headers/CSP, accessibility        | Playwright + axe                  | `tests/e2e`         | every PR, against a production build, desktop + mobile viewports |
-| Bundle secret scan                           | `scripts/check-client-bundle.mjs` | —                   | every PR                                                         |
-| Migration discipline                         | `scripts/check-migrations.mjs`    | —                   | every PR                                                         |
+| Layer                                        | Tool                                                        | Location            | Runs                                                             |
+| -------------------------------------------- | ----------------------------------------------------------- | ------------------- | ---------------------------------------------------------------- |
+| Unit (pure logic, components)                | Vitest, Testing Library, jsdom                              | `tests/unit`        | every PR                                                         |
+| Database security invariants & RLS           | pgTAP                                                       | `supabase/tests`    | every PR                                                         |
+| Integration (API-level, local Supabase only) | Vitest + Mailpit (real sign-up/verify, no service-role key) | `tests/integration` | every PR                                                         |
+| E2E smoke, headers/CSP, accessibility        | Playwright + axe                                            | `tests/e2e`         | every PR, against a production build, desktop + mobile viewports |
+| Bundle secret scan                           | `scripts/check-client-bundle.mjs`                           | —                   | every PR                                                         |
+| Migration discipline                         | `scripts/check-migrations.mjs`                              | —                   | every PR                                                         |
 
 Principles: test behaviour at the lowest layer that proves it; RLS is tested
 in the database, not inferred from UI; every tenant-aware table has
@@ -212,9 +234,11 @@ cross-tenant tests; integration tests refuse to run against non-local hosts.
 ```
 feature branch ──PR──► GitHub Actions CI
                         ├─ quality: format, lint, typecheck, unit, build, bundle scan
-                        ├─ e2e: Playwright against production build
-                        └─ database: migration checks, migrations from empty,
-                                     db lint, pgTAP, generated-types drift
+                        ├─ database: migration checks, local Supabase from empty,
+                        │            db lint, pgTAP, generated-types drift,
+                        │            integration tests
+                        └─ e2e: local Supabase + production build, Playwright
+                                (auth flows via Mailpit, TOTP, axe)
                  ──merge──► main ──► Vercel Git integration deploys (production)
                  PRs      ──────────► Vercel preview deployments
 Database migrations ──► applied by an operator per DATABASE_MIGRATION_POLICY §7

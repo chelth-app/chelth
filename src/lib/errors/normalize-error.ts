@@ -20,10 +20,30 @@ const SQLSTATE_TO_CODE: Readonly<Record<string, ErrorCode>> = {
   "40001": "CONFLICT", // serialization_failure
   CH400: "VALIDATION_FAILED",
   CH401: "AUTH_REQUIRED",
+  CH402: "MFA_REQUIRED", // privileged capability held, session is not AAL2
   CH403: "FORBIDDEN",
   CH404: "NOT_FOUND",
   CH409: "INVALID_STATE_TRANSITION",
+  CH410: "INVITE_INVALID",
   CH429: "RATE_LIMITED",
+};
+
+/** Supabase Auth error codes (AuthError.code). */
+const AUTH_TO_CODE: Readonly<Record<string, ErrorCode>> = {
+  invalid_credentials: "AUTH_INVALID_CREDENTIALS",
+  email_not_confirmed: "AUTH_EMAIL_NOT_VERIFIED",
+  session_not_found: "AUTH_SESSION_EXPIRED",
+  session_expired: "AUTH_SESSION_EXPIRED",
+  refresh_token_not_found: "AUTH_SESSION_EXPIRED",
+  otp_expired: "AUTH_LINK_INVALID",
+  mfa_verification_failed: "MFA_CODE_INVALID",
+  mfa_challenge_expired: "MFA_CODE_INVALID",
+  insufficient_aal: "MFA_REQUIRED",
+  weak_password: "VALIDATION_FAILED",
+  same_password: "VALIDATION_FAILED",
+  over_request_rate_limit: "RATE_LIMITED",
+  over_email_send_rate_limit: "RATE_LIMITED",
+  reauthentication_needed: "AUTH_SESSION_EXPIRED",
 };
 
 /** PostgREST-specific codes. */
@@ -74,7 +94,9 @@ export function normalizeError(error: unknown): AppError {
   const status = readNumber(error, "status");
 
   const mapped =
-    (code !== undefined ? (SQLSTATE_TO_CODE[code] ?? POSTGREST_TO_CODE[code]) : undefined) ??
+    (code !== undefined
+      ? (SQLSTATE_TO_CODE[code] ?? POSTGREST_TO_CODE[code] ?? AUTH_TO_CODE[code])
+      : undefined) ??
     codeFromStatus(status) ??
     "INTERNAL";
 

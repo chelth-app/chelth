@@ -1,5 +1,9 @@
 # Chelth CI — verifies quality. Deployment is handled by the Vercel Git
 # integration; this workflow never deploys and holds no production secrets.
+#
+# Supabase-backed jobs run a LOCAL, ephemeral stack inside the runner. Its
+# keys are the CLI's non-secret local development keys, exported by
+# scripts/local-supabase-env.mjs (anon key only — never service-role).
 name: CI
 
 on:
@@ -15,19 +19,20 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Non-secret placeholders: CI builds must pass environment validation, but
-  # never talk to a hosted Supabase project. NEXT_PUBLIC_APP_ENV=test keeps
-  # production-only URL rules from rejecting the local placeholder URL.
-  NEXT_PUBLIC_APP_ENV: test
-  NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:55321
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key-not-a-secret
   NEXT_TELEMETRY_DISABLED: "1"
+  SUPABASE_CLI_VERSION: 2.109.0
 
 jobs:
   quality:
-    name: Lint, typecheck, unit tests, build
+    name: Format, lint, typecheck, unit tests, build
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      # Non-secret placeholders: the build must pass environment validation
+      # without talking to any Supabase project.
+      NEXT_PUBLIC_APP_ENV: test
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:55321
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key-not-a-secret
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -48,31 +53,10 @@ jobs:
       - name: Client bundle secret scan
         run: npm run check:bundle
 
-  e2e:
-    name: Playwright smoke (production build)
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: npm run build
-      - run: npm run test:e2e
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: playwright-report
-          path: playwright-report/
-          retention-days: 7
-
   database:
-    name: Migrations and database security tests
+    name: Migrations, database security tests, integration tests
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
         with:
@@ -80,6 +64,8 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
       - name: Migration discipline
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
@@ -89,14 +75,48 @@ jobs:
           fi
       - uses: supabase/setup-cli@v1
         with:
-          version: 2.109.0
+          version: ${{ env.SUPABASE_CLI_VERSION }}
       - name: Start local Supabase (applies every migration from an empty database)
-        run: supabase start -x analytics,vector,studio,imgproxy,edge-runtime,functions,inbucket,realtime,meta
+        run: supabase start -x analytics,vector,studio,imgproxy,edge-runtime,functions,realtime,meta
       - name: Lint database schema
-        run: supabase db lint --level warning --fail-on warning
+        run: supabase db lint --level warning --fail-on warning --schema public,authz,internal
       - name: pgTAP security tests
         run: supabase test db
       - name: Generated types are up to date
         run: |
           supabase gen types typescript --local --schema public > /tmp/database.types.ts
           diff -u src/types/database.types.ts /tmp/database.types.ts
+      - name: Export local stack environment
+        run: node scripts/local-supabase-env.mjs >> "$GITHUB_ENV"
+      - name: Integration tests
+        run: npm run test:integration
+
+  e2e:
+    name: Playwright (production build against local Supabase)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NEXT_PUBLIC_APP_ENV: test
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+      - name: Start local Supabase (auth, API, Mailpit)
+        run: supabase start -x analytics,vector,studio,imgproxy,edge-runtime,functions,realtime,meta,storage
+      - name: Export local stack environment
+        run: node scripts/local-supabase-env.mjs >> "$GITHUB_ENV"
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
