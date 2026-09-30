@@ -68,7 +68,9 @@ test.describe("credentials and compliance", () => {
     await signUpAndConfirm(worker, "Jane Williams", workerEmail);
     await worker.getByRole("link", { name: "Review invitation" }).click();
     await worker.getByRole("button", { name: "Accept invitation" }).click();
-    await expect(worker.getByRole("heading", { level: 1, name: "Compliance Agency" })).toBeVisible();
+    await expect(
+      worker.getByRole("heading", { level: 1, name: "Compliance Agency" }),
+    ).toBeVisible();
 
     await page.reload();
     await page.getByRole("link", { name: "Jane Williams" }).click();
