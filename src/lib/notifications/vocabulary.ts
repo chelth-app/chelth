@@ -16,6 +16,13 @@ export const NOTIFICATION_EVENTS = [
   "shift_offered",
   "relationship_suspended",
   "relationship_ended",
+  "attendance_clock_in_late",
+  "attendance_clock_in_blocked",
+  "attendance_missed_clock_in",
+  "attendance_missed_clock_out",
+  "attendance_correction_requested",
+  "attendance_correction_approved",
+  "attendance_correction_rejected",
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
@@ -49,6 +56,13 @@ export const NOTIFICATION_CATEGORY: Record<NotificationEvent, "required" | "opti
   shift_offered: "required",
   relationship_suspended: "required",
   relationship_ended: "required",
+  attendance_clock_in_late: "required",
+  attendance_clock_in_blocked: "required",
+  attendance_missed_clock_in: "required",
+  attendance_missed_clock_out: "required",
+  attendance_correction_requested: "required",
+  attendance_correction_approved: "required",
+  attendance_correction_rejected: "required",
 };
 
 export const NOTIFICATION_EVENT_LABELS: Record<NotificationEvent, string> = {
@@ -62,6 +76,13 @@ export const NOTIFICATION_EVENT_LABELS: Record<NotificationEvent, string> = {
   shift_offered: "Shift offered",
   relationship_suspended: "Relationship suspended",
   relationship_ended: "Relationship ended",
+  attendance_clock_in_late: "Late clock-in",
+  attendance_clock_in_blocked: "Clock-in refused",
+  attendance_missed_clock_in: "Missed clock-in",
+  attendance_missed_clock_out: "Missed clock-out",
+  attendance_correction_requested: "Attendance correction requested",
+  attendance_correction_approved: "Attendance correction approved",
+  attendance_correction_rejected: "Attendance correction rejected",
 };
 
 /**

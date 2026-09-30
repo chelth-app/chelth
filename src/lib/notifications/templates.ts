@@ -163,6 +163,75 @@ function content(event: NotificationEvent, data: NotificationTemplateData): Cont
         details: shiftDetails(data),
         cta: "Review assignment",
       };
+    case "attendance_clock_in_late":
+      return {
+        subject: `Late clock-in: ${worker}, ${facility}, ${date}`,
+        heading: "A worker clocked in late",
+        paragraphs: [`${worker} clocked in after the late threshold for the shift below.`],
+        details: shiftDetails(data),
+        cta: "Review attendance",
+      };
+    case "attendance_clock_in_blocked":
+      return {
+        subject: `Clock-in refused: ${worker}, ${facility}, ${date}`,
+        heading: "A clock-in was refused",
+        paragraphs: [
+          `${worker} tried to clock in for the shift below, but Chelth could not record it.`,
+          "Review the attendance exception in Chelth.",
+        ],
+        details: shiftDetails(data),
+        cta: "Review attendance",
+      };
+    case "attendance_missed_clock_in":
+      return {
+        subject: `No clock-in yet: ${worker}, ${facility}, ${date}`,
+        heading: "An assigned worker has not clocked in",
+        paragraphs: [`${worker} has not clocked in for the shift below, which has started.`],
+        details: shiftDetails(data),
+        cta: "Review attendance",
+      };
+    case "attendance_missed_clock_out":
+      return data.audience === "worker"
+        ? {
+            subject: `Clock-out missing: ${facility}, ${date}`,
+            heading: "You did not clock out",
+            paragraphs: [
+              "Your shift below has ended but no clock-out was recorded.",
+              "Sign in to CHELTH and request a correction with the time you finished.",
+            ],
+            details: shiftDetails(data),
+            cta: "View my shifts",
+          }
+        : {
+            subject: `No clock-out: ${worker}, ${facility}, ${date}`,
+            heading: "A worker has not clocked out",
+            paragraphs: [`${worker} has not clocked out for the shift below, which has ended.`],
+            details: shiftDetails(data),
+            cta: "Review attendance",
+          };
+    case "attendance_correction_requested":
+      return {
+        subject: `Attendance correction requested: ${worker}, ${date}`,
+        heading: "An attendance correction needs review",
+        paragraphs: [`${worker} asked to correct a clock time for the shift below.`],
+        details: shiftDetails(data),
+        cta: "Review correction",
+      };
+    case "attendance_correction_approved":
+    case "attendance_correction_rejected": {
+      const approved = event === "attendance_correction_approved";
+      return {
+        subject: `Attendance correction ${approved ? "approved" : "not approved"}: ${facility}, ${date}`,
+        heading: `Your attendance correction was ${approved ? "approved" : "not approved"}`,
+        paragraphs: [
+          approved
+            ? "Your corrected clock time has been recorded."
+            : "Your agency did not approve the requested time. Contact them if you have questions.",
+        ],
+        details: shiftDetails(data),
+        cta: "View my shifts",
+      };
+    }
     case "relationship_suspended":
     case "relationship_ended": {
       const verb = event === "relationship_ended" ? "ended" : "suspended";

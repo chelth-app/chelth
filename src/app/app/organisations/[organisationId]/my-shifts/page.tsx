@@ -3,6 +3,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { InlineActionForm } from "@/components/forms/inline-action-form";
+import { Badge } from "@/components/ui/badge";
+import {
+  AttendanceStateBadge,
+  ClockControl,
+  CorrectionRequestForm,
+  listMyAttendance,
+} from "@/features/attendance";
 import { loadOrganisationPage } from "@/features/organisations";
 import {
   acceptAssignmentAction,
@@ -16,10 +23,21 @@ import {
 } from "@/features/shifts";
 import { getMyWorkerRecord } from "@/features/workforce";
 import {
+  ATTENDANCE_EXCEPTION_LABELS,
+  CORRECTION_RESOLUTION_LABELS,
+  CORRECTION_STATUS_LABELS,
+  formatLocalClockTime,
+} from "@/lib/domain/attendance";
+import {
   ASSIGNMENT_CANCELLATION_REASON_LABELS,
   formatShiftDate,
   formatShiftTimeRange,
+  localDate,
 } from "@/lib/domain/shifts";
+
+function exceptionLabel(type: string): string {
+  return (ATTENDANCE_EXCEPTION_LABELS as Record<string, string>)[type] ?? type;
+}
 
 export const metadata: Metadata = { title: "My shifts" };
 
@@ -32,9 +50,10 @@ export default async function MyShiftsPage({
   );
   const worker = await getMyWorkerRecord(organisationId);
   if (!worker) notFound();
-  const [assignments, offers] = await Promise.all([
+  const [assignments, offers, attendance] = await Promise.all([
     listMyShiftAssignments(organisationId),
     listMyShiftOffers(organisationId),
+    listMyAttendance(organisationId),
   ]);
 
   return (
@@ -52,6 +71,111 @@ export default async function MyShiftsPage({
           Accept to confirm you will work the shift, or decline if you cannot.
         </p>
       </header>
+
+      <section aria-labelledby="my-attendance-heading" className="flex flex-col gap-3">
+        <h2 id="my-attendance-heading" className="text-lg font-semibold">
+          Attendance
+        </h2>
+        {attendance.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No accepted shifts around today.</p>
+        ) : (
+          <ul aria-label="My attendance" className="flex flex-col gap-3">
+            {attendance.map((item) => (
+              <li
+                key={item.assignmentId}
+                aria-label={`Attendance: ${item.facilityName} ${formatShiftDate(item)}`}
+                className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-medium">{item.facilityName}</span>
+                  <AttendanceStateBadge
+                    clockState={item.clockState}
+                    needsReview={item.exceptions.some(
+                      (exception) =>
+                        exception.status === "open" || exception.status === "under_review",
+                    )}
+                  />
+                </div>
+                <p className="text-sm">
+                  {formatShiftDate(item)} · {formatShiftTimeRange(item)}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {item.locationName} · Clocked in{" "}
+                  {formatLocalClockTime(item.clockInAt, item.timezone)} · Clocked out{" "}
+                  {formatLocalClockTime(item.clockOutAt, item.timezone)}
+                </p>
+                {item.canClockIn ? (
+                  <ClockControl
+                    organisationId={organisationId}
+                    assignmentId={item.assignmentId}
+                    kind="in"
+                    locationRequired={item.locationRequired}
+                    facilityName={item.facilityName}
+                  />
+                ) : item.canClockOut ? (
+                  <ClockControl
+                    organisationId={organisationId}
+                    assignmentId={item.assignmentId}
+                    kind="out"
+                    locationRequired={item.locationRequired}
+                    facilityName={item.facilityName}
+                  />
+                ) : item.clockState === "not_started" && item.shiftStatus === "open" ? (
+                  <p className="text-sm text-muted-foreground">
+                    Clock-in opens at {formatLocalClockTime(item.earliestClockInAt, item.timezone)}.
+                  </p>
+                ) : null}
+                {item.exceptions.length > 0 ? (
+                  <ul aria-label="Attendance notes" className="flex flex-wrap gap-1">
+                    {item.exceptions.map((exception, index) => (
+                      <li key={`${exception.type}-${index}`}>
+                        <Badge
+                          tone={
+                            exception.status === "open" || exception.status === "under_review"
+                              ? "warning"
+                              : "neutral"
+                          }
+                        >
+                          {exceptionLabel(exception.type)}
+                        </Badge>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                {item.corrections.length > 0 ? (
+                  <ul aria-label="My correction requests" className="flex flex-col gap-1 text-sm">
+                    {item.corrections.map((correction) => (
+                      <li key={correction.id}>
+                        {correction.eventType === "clock_in" ? "Clock-in" : "Clock-out"} at{" "}
+                        {formatLocalClockTime(correction.requestedTime, item.timezone)}:{" "}
+                        <span className="font-medium">
+                          {CORRECTION_STATUS_LABELS[correction.status]}
+                        </span>
+                        {correction.resolution && correction.status === "rejected"
+                          ? ` (${CORRECTION_RESOLUTION_LABELS[correction.resolution]})`
+                          : ""}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                <details className="text-sm">
+                  <summary className="cursor-pointer text-primary">
+                    Request a time correction
+                  </summary>
+                  <div className="mt-3">
+                    <CorrectionRequestForm
+                      organisationId={organisationId}
+                      assignmentId={item.assignmentId}
+                      timezone={item.timezone}
+                      defaultDate={localDate(item.startAt, item.timezone)}
+                    />
+                  </div>
+                </details>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <section aria-labelledby="my-offers-heading" className="flex flex-col gap-3">
         <h2 id="my-offers-heading" className="text-lg font-semibold">

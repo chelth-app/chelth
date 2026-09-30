@@ -3,6 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { InlineActionForm } from "@/components/forms/inline-action-form";
+import { Badge } from "@/components/ui/badge";
+import { AttendanceStateBadge, listFacilityShiftAttendance } from "@/features/attendance";
 import { ReadinessBadge } from "@/features/compliance";
 import { loadOrganisationPage, requireCapabilityOrNotFound } from "@/features/organisations";
 import {
@@ -15,9 +17,11 @@ import {
   withdrawFacilityRequestAction,
 } from "@/features/shifts";
 import { CAPABILITIES } from "@/lib/authz";
+import { formatLocalClockTime, GEOFENCE_RESULT_LABELS } from "@/lib/domain/attendance";
 import {
   formatShiftDate,
   formatShiftTimeRange,
+  hasStarted,
   SHIFT_CANCELLATION_REASON_LABELS,
 } from "@/lib/domain/shifts";
 
@@ -38,6 +42,13 @@ export default async function StaffingRequestPage({
   if (!shift) notFound();
   // Audited read of the narrow "who is coming" projection.
   const workers = shift.status === "open" ? await listFacilityShiftAssignments(shift.id) : [];
+  // Attendance is shown once the shift has begun (narrow, audited projection).
+  const attendance =
+    (shift.status === "open" || shift.status === "completed") &&
+    hasStarted(shift) &&
+    can(CAPABILITIES.ATTENDANCE_VIEW) === "granted"
+      ? await listFacilityShiftAttendance(shift.id)
+      : [];
 
   return (
     <>
@@ -130,6 +141,75 @@ export default async function StaffingRequestPage({
               ))}
             </ul>
           )}
+        </section>
+      ) : null}
+
+      {attendance.length > 0 ? (
+        <section aria-labelledby="facility-attendance-heading" className="flex flex-col gap-3">
+          <h2 id="facility-attendance-heading" className="text-lg font-semibold">
+            Attendance
+          </h2>
+          <div
+            role="region"
+            aria-label="Attendance for this request"
+            tabIndex={0}
+            className="overflow-x-auto rounded-lg border border-border bg-surface"
+          >
+            <table className="w-full min-w-[560px] text-left text-sm">
+              <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
+                <tr>
+                  <th scope="col" className="px-3 py-2 font-medium">
+                    Worker
+                  </th>
+                  <th scope="col" className="px-3 py-2 font-medium">
+                    Status
+                  </th>
+                  <th scope="col" className="px-3 py-2 font-medium">
+                    Clock in
+                  </th>
+                  <th scope="col" className="px-3 py-2 font-medium">
+                    Clock out
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {attendance.map((row) => (
+                  <tr
+                    key={row.assignmentId}
+                    className="border-b border-border align-top last:border-0"
+                  >
+                    <td className="px-3 py-2 font-medium">{row.workerName ?? "Worker"}</td>
+                    <td className="px-3 py-2">
+                      <AttendanceStateBadge
+                        clockState={row.clockState}
+                        needsReview={row.hasOpenException}
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      {formatLocalClockTime(row.clockInAt, shift.timezone)}
+                      {row.clockInLocation && row.clockInLocation !== "not_required" ? (
+                        <div>
+                          <Badge tone="neutral">
+                            {GEOFENCE_RESULT_LABELS[row.clockInLocation]}
+                          </Badge>
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-2">
+                      {formatLocalClockTime(row.clockOutAt, shift.timezone)}
+                      {row.clockOutLocation && row.clockOutLocation !== "not_required" ? (
+                        <div>
+                          <Badge tone="neutral">
+                            {GEOFENCE_RESULT_LABELS[row.clockOutLocation]}
+                          </Badge>
+                        </div>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       ) : null}
     </>

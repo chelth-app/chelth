@@ -119,6 +119,9 @@ export default async function OrganisationPage({
         showMyCredentials={myWorkerRecord !== null && myWorkerRecord.status !== "terminated"}
         showShifts={organisation.type === "agency" && can(CAPABILITIES.SHIFT_VIEW) !== "not_held"}
         showMyShifts={myWorkerRecord !== null}
+        showAttendance={
+          organisation.type === "agency" && can(CAPABILITIES.ATTENDANCE_VIEW) !== "not_held"
+        }
         showOperations={
           organisation.type === "agency" && can(CAPABILITIES.ASSIGNMENT_VIEW) !== "not_held"
         }

@@ -98,3 +98,19 @@ pending row per assignment). Delivery (email/push) is a later stage.
   delivery queue consumed by the dispatcher
   ([NOTIFICATION_DELIVERY.md](NOTIFICATION_DELIVERY.md)).
 - `accept_shift_assignment` follows the relationship → assignment lock order.
+
+## 9. Attendance (P0-E6-S1)
+
+- Only an `accepted` assignment can clock in (`CHT05` otherwise), and clock-in
+  re-runs the canonical eligibility gate: a worker no longer eligible is
+  refused with a committed `assignment_not_ready` exception.
+- `shift_assignments` gains a unique key `(id, agency_organisation_id,
+shift_id, agency_worker_id, profile_id)`; `assignment_attendance`
+  references it so attendance can never move between assignments, people or
+  tenants.
+- Attendance never changes assignment status. Cancelling or removing an
+  accepted assignment closes its missed-clock exceptions
+  (`assignment_closed`); an already clocked-in worker can still clock out.
+- Lock order: relationship (share) → assignment (update) → attendance.
+- See [ATTENDANCE_DOMAIN_MODEL.md](ATTENDANCE_DOMAIN_MODEL.md),
+  [ATTENDANCE_CORRECTIONS.md](ATTENDANCE_CORRECTIONS.md).

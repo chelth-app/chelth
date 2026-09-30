@@ -48,6 +48,10 @@ export const CAPABILITIES = {
   SHIFT_REQUEST: "shift.request",
   ASSIGNMENT_VIEW: "assignment.view",
   ASSIGNMENT_MANAGE: "assignment.manage",
+  ATTENDANCE_VIEW: "attendance.view",
+  ATTENDANCE_REVIEW: "attendance.review",
+  ATTENDANCE_MANAGE_SETTINGS: "attendance.manage_settings",
+  ATTENDANCE_LOCATION_VIEW: "attendance.location.view",
 } as const;
 
 export type CapabilityKey = (typeof CAPABILITIES)[keyof typeof CAPABILITIES];
@@ -153,6 +157,20 @@ export const AUDIT_ACTIONS = {
   ASSIGNMENT_READINESS_RECHECKED: "assignment.readiness_rechecked",
   RELATIONSHIP_OPERATIONS_APPLIED: "relationship.operations_applied",
   NOTIFICATION_FAILED: "notification.failed",
+  ATTENDANCE_CLOCKED_IN: "attendance.clocked_in",
+  ATTENDANCE_CLOCKED_OUT: "attendance.clocked_out",
+  ATTENDANCE_CLOCK_IN_REFUSED: "attendance.clock_in_refused",
+  ATTENDANCE_LOCATION_CHECKED: "attendance.location_checked",
+  ATTENDANCE_LOCATION_VIEWED: "attendance.location_viewed",
+  ATTENDANCE_EXCEPTION_OPENED: "attendance.exception_opened",
+  ATTENDANCE_EXCEPTION_RESOLVED: "attendance.exception_resolved",
+  ATTENDANCE_EXCEPTION_REVIEWED: "attendance.exception_reviewed",
+  ATTENDANCE_CORRECTION_REQUESTED: "attendance.correction_requested",
+  ATTENDANCE_CORRECTION_APPROVED: "attendance.correction_approved",
+  ATTENDANCE_CORRECTION_REJECTED: "attendance.correction_rejected",
+  ATTENDANCE_SETTINGS_UPDATED: "attendance.settings_updated",
+  ATTENDANCE_GEOFENCE_UPDATED: "attendance.geofence_updated",
+  ATTENDANCE_VIEWED_BY_FACILITY: "attendance.viewed_by_facility",
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
@@ -230,6 +248,20 @@ const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   "assignment.readiness_rechecked": "Assignment readiness re-checked",
   "relationship.operations_applied": "Relationship change applied to upcoming work",
   "notification.failed": "Notification could not be delivered",
+  "attendance.clocked_in": "Clocked in",
+  "attendance.clocked_out": "Clocked out",
+  "attendance.clock_in_refused": "Clock-in refused",
+  "attendance.location_checked": "Attendance location checked",
+  "attendance.location_viewed": "Attendance location evidence viewed",
+  "attendance.exception_opened": "Attendance exception opened",
+  "attendance.exception_resolved": "Attendance exception resolved",
+  "attendance.exception_reviewed": "Attendance exception reviewed",
+  "attendance.correction_requested": "Attendance correction requested",
+  "attendance.correction_approved": "Attendance correction approved",
+  "attendance.correction_rejected": "Attendance correction rejected",
+  "attendance.settings_updated": "Attendance rules changed",
+  "attendance.geofence_updated": "Location geofence changed",
+  "attendance.viewed_by_facility": "Facility viewed attendance",
 };
 
 export function auditActionLabel(action: string): string {

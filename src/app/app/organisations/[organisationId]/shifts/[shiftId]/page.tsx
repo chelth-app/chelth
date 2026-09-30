@@ -4,6 +4,12 @@ import { notFound } from "next/navigation";
 
 import { InlineActionForm } from "@/components/forms/inline-action-form";
 import { Badge } from "@/components/ui/badge";
+import {
+  AttendanceStateBadge,
+  CorrectionReviewForms,
+  listAgencyAttendance,
+  listPendingCorrections,
+} from "@/features/attendance";
 import { ReadinessBadge } from "@/features/compliance";
 import { loadOrganisationPage, requireCapabilityOrNotFound } from "@/features/organisations";
 import {
@@ -34,6 +40,12 @@ import {
   ShiftStatusBadge,
 } from "@/features/shifts";
 import { CAPABILITIES } from "@/lib/authz";
+import {
+  ATTENDANCE_EXCEPTION_LABELS,
+  CORRECTION_REASON_LABELS,
+  formatLocalClockTime,
+  GEOFENCE_RESULT_LABELS,
+} from "@/lib/domain/attendance";
 import {
   ASSIGNMENT_BLOCK_REASON_LABELS,
   ASSIGNMENT_CANCELLATION_REASON_LABELS,
@@ -99,6 +111,19 @@ export default async function ShiftPage({
     listShiftNotes(shift.id),
     listCredentialTypeNames(),
   ]);
+  const canViewAttendance = can(CAPABILITIES.ATTENDANCE_VIEW) === "granted";
+  const attendance = canViewAttendance
+    ? await listAgencyAttendance(organisationId, { shiftId: shift.id })
+    : [];
+  const attendanceCorrections =
+    canViewAttendance && attendance.length > 0
+      ? await listPendingCorrections(
+          organisationId,
+          attendance.map((row) => row.assignmentId),
+        )
+      : [];
+  const attendanceByAssignment = new Map(attendance.map((row) => [row.assignmentId, row]));
+  const canReviewAttendance = can(CAPABILITIES.ATTENDANCE_REVIEW) === "granted";
   const candidates = allCandidates;
   const issuesByAssignment = new Map<string, typeof issues>();
   for (const issue of issues) {
@@ -355,6 +380,111 @@ export default async function ShiftPage({
                 ))}
               </ul>
             </details>
+          ) : null}
+        </section>
+      ) : null}
+
+      {canViewAttendance && attendance.length > 0 ? (
+        <section aria-labelledby="attendance-heading" className="flex flex-col gap-3">
+          <h2 id="attendance-heading" className="text-lg font-semibold">
+            Attendance
+          </h2>
+          <div
+            role="region"
+            aria-label="Attendance for this shift"
+            tabIndex={0}
+            className="overflow-x-auto rounded-lg border border-border bg-surface"
+          >
+            <table className="w-full min-w-[640px] text-left text-sm">
+              <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
+                <tr>
+                  <th scope="col" className="px-3 py-2 font-medium">
+                    Worker
+                  </th>
+                  <th scope="col" className="px-3 py-2 font-medium">
+                    Status
+                  </th>
+                  <th scope="col" className="px-3 py-2 font-medium">
+                    Clock in
+                  </th>
+                  <th scope="col" className="px-3 py-2 font-medium">
+                    Clock out
+                  </th>
+                  <th scope="col" className="px-3 py-2 font-medium">
+                    Exceptions
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {attendance.map((row) => (
+                  <tr
+                    key={row.assignmentId}
+                    className="border-b border-border align-top last:border-0"
+                  >
+                    <td className="px-3 py-2 font-medium">{row.workerName ?? "Worker"}</td>
+                    <td className="px-3 py-2">
+                      <AttendanceStateBadge
+                        clockState={row.clockState}
+                        needsReview={row.needsReview}
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      {formatLocalClockTime(row.clockInAt, row.timezone)}
+                      {row.clockInLocation && row.clockInLocation !== "not_required" ? (
+                        <div className="text-xs text-muted-foreground">
+                          {GEOFENCE_RESULT_LABELS[row.clockInLocation]}
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-2">
+                      {formatLocalClockTime(row.clockOutAt, row.timezone)}
+                      {row.clockOutLocation && row.clockOutLocation !== "not_required" ? (
+                        <div className="text-xs text-muted-foreground">
+                          {GEOFENCE_RESULT_LABELS[row.clockOutLocation]}
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex flex-wrap gap-1">
+                        {row.openExceptionTypes.map((type) => (
+                          <Badge key={type} tone="warning">
+                            {ATTENDANCE_EXCEPTION_LABELS[type]}
+                          </Badge>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {attendanceCorrections.length > 0 ? (
+            <ul aria-label="Attendance corrections for this shift" className="flex flex-col gap-3">
+              {attendanceCorrections.map((correction) => {
+                const row = attendanceByAssignment.get(correction.assignmentId);
+                const worker = row?.workerName ?? "Worker";
+                return (
+                  <li
+                    key={correction.id}
+                    className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3 text-sm"
+                  >
+                    <p>
+                      <span className="font-medium">{worker}</span> asks to set the{" "}
+                      {correction.eventType === "clock_in" ? "clock-in" : "clock-out"} time to{" "}
+                      {formatLocalClockTime(correction.requestedTime, shift.timezone)} ·{" "}
+                      {CORRECTION_REASON_LABELS[correction.reason]}
+                    </p>
+                    {canReviewAttendance ? (
+                      <CorrectionReviewForms
+                        organisationId={organisationId}
+                        correctionId={correction.id}
+                        workerName={worker}
+                      />
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
           ) : null}
         </section>
       ) : null}

@@ -124,3 +124,23 @@ same route with the secret.
   to keep audit volume proportional).
 - `internal.scheduled_job_runs` records every scheduled scan/expiry run.
 - Dispatcher logs: notification id, event, attempt, state, error code.
+
+## 9. Attendance events (P0-E6-S1)
+
+| Event                             | Audience                            | When                                           |
+| --------------------------------- | ----------------------------------- | ---------------------------------------------- |
+| `attendance_clock_in_late`        | agency `attendance.review` holders  | first late clock-in on an attendance           |
+| `attendance_clock_in_blocked`     | agency `attendance.review` holders  | clock-in refused (not eligible / outside site) |
+| `attendance_missed_clock_in`      | agency `attendance.review` holders  | scan opens `missed_clock_in`                   |
+| `attendance_missed_clock_out`     | agency reviewers **and** the worker | scan opens `missed_clock_out`                  |
+| `attendance_correction_requested` | agency `attendance.review` holders  | worker requests a correction                   |
+| `attendance_correction_approved`  | the worker                          | reviewer approves                              |
+| `attendance_correction_rejected`  | the worker                          | reviewer rejects                               |
+
+`internal.enqueue_notification` routes `attendance_*` agency fan-out to
+`attendance.review` (other agency events keep `assignment.manage`). Each
+exception notifies once (only when the exception is newly opened), so repeated
+attempts or scans do not repeat emails. Templates carry worker name, facility
+and local shift time only: **never coordinates, distances, refusal reasons or
+credential detail**. Worker emails explain how to request a correction.
+Facilities receive no attendance email.

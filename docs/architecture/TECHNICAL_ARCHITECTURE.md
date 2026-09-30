@@ -248,6 +248,23 @@ The identity and authorization design is specified in
 - UI: offers on the shift page and `/my-shifts`; `/operations` attention
   surface. Code: `src/lib/notifications`, `src/features/shifts`.
 
+### Time & attendance (P0-E6-S1)
+
+- Attendance per accepted assignment: append-only events with server time,
+  a projection rebuilt from events, exceptions, and corrections that append
+  corrected events ([ATTENDANCE_DOMAIN_MODEL.md](ATTENDANCE_DOMAIN_MODEL.md),
+  [ATTENDANCE_EVENT_MODEL.md](ATTENDANCE_EVENT_MODEL.md),
+  [ATTENDANCE_CORRECTIONS.md](ATTENDANCE_CORRECTIONS.md)).
+- Optional per-location geofence validated in the database (haversine); one
+  location reading per clock action, never tracking
+  ([GEOFENCE_MODEL.md](GEOFENCE_MODEL.md),
+  [../security/ATTENDANCE_LOCATION_PRIVACY.md](../security/ATTENDANCE_LOCATION_PRIVACY.md)).
+- pg_cron `chelth-attendance-scan` every 15 min detects missed clocks
+  idempotently.
+- UI: agency `/attendance`, attendance on shift detail and facility request
+  detail, clock in/out on `/my-shifts` (mobile-first). Code:
+  `src/features/attendance`, vocabulary `src/lib/domain/attendance.ts`.
+
 ### Content Security Policy
 
 `src/proxy.ts` generates a 128-bit nonce per request and sets:

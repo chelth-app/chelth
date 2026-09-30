@@ -97,6 +97,8 @@ describe("organisations, capabilities and AAL2", () => {
       .map((row) => row.capability_key)
       .sort();
     expect(unsatisfied).toEqual([
+      "attendance.location.view",
+      "attendance.manage_settings",
       "audit.view",
       "credential.requirements.manage",
       "credential.review",

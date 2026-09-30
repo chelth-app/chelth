@@ -1,0 +1,102 @@
+-- =============================================================================
+-- Attendance test helpers (include after _shift_fixture.psql).
+-- now() is fixed for the whole test transaction, so shifts are placed relative
+-- to it. Past shifts are arranged as the owner role (the public API refuses
+-- to schedule the past), never to test authorization.
+-- =============================================================================
+
+-- Open shift between two instants at a location (local wall-clock computed here).
+create function pg_temp.shift_between(p_user uuid, p_facility uuid, p_location uuid,
+  p_start timestamptz, p_end timestamptz, p_headcount integer default 2)
+returns uuid language plpgsql as $$
+declare
+  v_tz text := (select timezone from public.facility_locations where id = p_location);
+begin
+  return pg_temp.scalar_as(p_user, 'aal1', format(
+    'select public.create_shift(%L, %L, ''cna'', %L::date, %L::time, %L::time, %s, null, null, true)',
+    p_facility, p_location, (p_start at time zone v_tz)::date, (p_start at time zone v_tz)::time,
+    (p_end at time zone v_tz)::time, p_headcount))::uuid;
+end;
+$$;
+
+-- Assign (as scheduler) and accept (as the worker) → assignment id.
+create function pg_temp.accepted(p_scheduler uuid, p_shift uuid, p_worker_record uuid, p_worker_user uuid)
+returns uuid language plpgsql as $$
+declare
+  v_assignment uuid := (pg_temp.assign(p_scheduler, p_shift, p_worker_record) ->> 'assignment_id')::uuid;
+begin
+  perform pg_temp.exec_as(p_worker_user, 'aal1', format('select public.accept_shift_assignment(%L)', v_assignment));
+  return v_assignment;
+end;
+$$;
+
+-- A shift entirely/partly in the past with an accepted assignment (owner arrangement).
+create function pg_temp.past_accepted(p_facility uuid, p_location uuid, p_start timestamptz, p_end timestamptz,
+  p_worker_record uuid, p_worker_user uuid, p_scheduler uuid, p_org uuid)
+returns uuid language plpgsql as $$
+declare
+  v_tz text := (select timezone from public.facility_locations where id = p_location);
+  v_shift uuid := pg_temp.scalar_as(p_scheduler, 'aal1', format(
+    'select public.create_shift(%L, %L, ''cna'', %L::date, ''07:00'', ''15:00'', 2, null, null, false)',
+    p_facility, p_location, ((now() + interval '5 days') at time zone v_tz)::date))::uuid;
+  v_assignment uuid;
+begin
+  -- Draft scheduling details may change; then open it (as the owner).
+  update public.shifts set start_at = p_start, end_at = p_end where id = v_shift;
+  update public.shifts set status = 'open', opened_at = now() where id = v_shift;
+  insert into public.shift_assignments (shift_id, agency_organisation_id, agency_worker_id, profile_id, start_at,
+    end_at, assigned_by_membership_id)
+  values (v_shift, p_org, p_worker_record, p_worker_user, p_start, p_end, pg_temp.membership_of(p_org, p_scheduler))
+  returning id into v_assignment;
+  update public.shift_assignments set status = 'accepted', accepted_at = now() where id = v_assignment;
+  return v_assignment;
+end;
+$$;
+
+-- Owner: a device clock-in in the past (server-timed at that moment).
+create function pg_temp.past_clock_in(p_assignment uuid, p_at timestamptz)
+returns uuid language plpgsql as $$
+declare
+  att public.assignment_attendance := internal.ensure_attendance(p_assignment);
+begin
+  insert into public.attendance_events (attendance_id, assignment_id, agency_organisation_id, event_type,
+    occurred_at, recorded_at, source)
+  values (att.id, att.assignment_id, att.agency_organisation_id, 'clock_in', p_at, p_at, 'worker_device');
+  perform internal.refresh_attendance(att.id);
+  return att.id;
+end;
+$$;
+
+create function pg_temp.clock_in(p_user uuid, p_assignment uuid, p_lat double precision default null,
+  p_lon double precision default null, p_acc double precision default null)
+returns jsonb language sql as $$
+  select pg_temp.query_as(p_user, 'aal1', format(
+    'select * from public.clock_in_assignment(%L, %L, %L, %L, %L)',
+    p_assignment, p_lat, p_lon, p_acc, '2000-01-01T00:00:00Z')) -> 0
+$$;
+
+create function pg_temp.clock_out(p_user uuid, p_assignment uuid, p_lat double precision default null,
+  p_lon double precision default null, p_acc double precision default null)
+returns jsonb language sql as $$
+  select pg_temp.query_as(p_user, 'aal1', format(
+    'select * from public.clock_out_assignment(%L, %L, %L, %L)', p_assignment, p_lat, p_lon, p_acc)) -> 0
+$$;
+
+create function pg_temp.attendance_of(p_assignment uuid)
+returns public.assignment_attendance language sql as $$
+  select * from public.assignment_attendance where assignment_id = p_assignment
+$$;
+
+create function pg_temp.open_exceptions(p_assignment uuid)
+returns text language sql as $$
+  select coalesce(string_agg(exception_type::text, ',' order by exception_type::text), '')
+  from public.attendance_exceptions where assignment_id = p_assignment and status in ('open', 'under_review')
+$$;
+
+-- Mercy Main site coordinates (New York City Hall).
+create function pg_temp.site_lat() returns double precision language sql as $$ select 40.712800::double precision $$;
+create function pg_temp.site_lon() returns double precision language sql as $$ select -74.006000::double precision $$;
+-- Degrees of latitude per metre on the mean-radius sphere.
+create function pg_temp.lat_offset(p_meters double precision) returns double precision language sql as $$
+  select degrees(p_meters / 6371008.8)
+$$;
