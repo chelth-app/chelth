@@ -19,12 +19,24 @@ export type AssignmentStatus = Enums["assignment_status"];
 export type AssignmentCancellationReason = Enums["assignment_cancellation_reason"];
 export type AssignmentBlockReason = Enums["assignment_block_reason"];
 export type AssignmentDecisionOutcome = Enums["assignment_decision_outcome"];
+export type ShiftOfferStatus = Enums["shift_offer_status"];
+export type ShiftOfferCloseReason = Enums["shift_offer_close_reason"];
+export type AssignmentIssueType = Enums["assignment_issue_type"];
+export type AssignmentIssueSeverity = Enums["assignment_issue_severity"];
+export type AssignmentIssueStatus = Enums["assignment_issue_status"];
+export type AssignmentIssueSource = Enums["assignment_issue_source"];
 
 export const SHIFT_STATUSES = Constants.public.Enums.shift_status;
 export const SHIFT_SOURCES = Constants.public.Enums.shift_source;
-export const SHIFT_CANCELLATION_REASONS = Constants.public.Enums.shift_cancellation_reason;
+/** Reasons a person may choose; relationship_ended is set only by ending a relationship. */
+export const SHIFT_CANCELLATION_REASONS = Constants.public.Enums.shift_cancellation_reason.filter(
+  (reason): reason is Exclude<ShiftCancellationReason, "relationship_ended"> =>
+    reason !== "relationship_ended",
+);
 export const ASSIGNMENT_STATUSES = Constants.public.Enums.assignment_status;
 export const ASSIGNMENT_BLOCK_REASONS = Constants.public.Enums.assignment_block_reason;
+export const SHIFT_OFFER_STATUSES = Constants.public.Enums.shift_offer_status;
+export const ASSIGNMENT_ISSUE_TYPES = Constants.public.Enums.assignment_issue_type;
 /** shift_cancelled is set only by cancelling the shift itself. */
 export const ASSIGNMENT_CANCELLATION_REASONS =
   Constants.public.Enums.assignment_cancellation_reason.filter(
@@ -65,6 +77,7 @@ export const SHIFT_CANCELLATION_REASON_LABELS: Record<ShiftCancellationReason, s
   staffing_no_longer_needed: "Staffing no longer needed",
   entered_in_error: "Entered in error",
   relationship_suspended: "Relationship suspended",
+  relationship_ended: "Relationship ended",
   other: "Other",
 };
 
@@ -197,4 +210,50 @@ export function todayIsoDate(): string {
 /** True once the shift's end instant has passed. */
 export function hasEnded({ endAt }: Pick<ShiftTimes, "endAt">): boolean {
   return new Date(endAt).getTime() <= Date.now();
+}
+
+// -----------------------------------------------------------------------------
+// Offers and assignment issues (P0-E5-S2)
+// -----------------------------------------------------------------------------
+export const SHIFT_OFFER_STATUS_LABELS: Record<ShiftOfferStatus, string> = {
+  offered: "Offered",
+  accepted: "Accepted",
+  declined: "Declined",
+  expired: "Expired",
+  cancelled: "Closed",
+};
+
+export const SHIFT_OFFER_CLOSE_REASON_LABELS: Record<ShiftOfferCloseReason, string> = {
+  shift_filled: "Shift filled",
+  shift_cancelled: "Shift cancelled",
+  shift_closed: "Shift closed",
+  withdrawn: "Withdrawn",
+  relationship_not_active: "Relationship not active",
+  assigned_directly: "Assigned directly",
+};
+
+/** Offer expiry choices (minutes). The server bounds 15 min – 7 days and never past the shift start. */
+export const OFFER_EXPIRY_OPTIONS: readonly { minutes: number; label: string }[] = [
+  { minutes: 60, label: "1 hour" },
+  { minutes: 240, label: "4 hours" },
+  { minutes: 720, label: "12 hours" },
+  { minutes: 1440, label: "24 hours" },
+  { minutes: 4320, label: "3 days" },
+];
+
+export const MAX_OFFER_RECIPIENTS = 50;
+
+export const ASSIGNMENT_ISSUE_TYPE_LABELS: Record<AssignmentIssueType, string> = {
+  not_eligible: "No longer eligible",
+  relationship_not_active: "Facility relationship not active",
+};
+
+export const ASSIGNMENT_ISSUE_SEVERITY_LABELS: Record<AssignmentIssueSeverity, string> = {
+  attention: "Needs attention",
+  urgent: "Urgent",
+};
+
+/** True once the shift's start instant has passed. */
+export function hasStarted({ startAt }: Pick<ShiftTimes, "startAt">): boolean {
+  return new Date(startAt).getTime() <= Date.now();
 }

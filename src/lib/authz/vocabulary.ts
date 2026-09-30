@@ -143,6 +143,16 @@ export const AUDIT_ACTIONS = {
   ASSIGNMENT_REJECTED_BY_COMPLIANCE: "assignment.rejected_by_compliance",
   ASSIGNMENT_REJECTED_BY_CONFLICT: "assignment.rejected_by_conflict",
   ASSIGNMENT_REJECTED_BY_CAPACITY: "assignment.rejected_by_capacity",
+  SHIFT_OFFER_CREATED: "shift.offer_created",
+  SHIFT_OFFER_ACCEPTED: "shift.offer_accepted",
+  SHIFT_OFFER_DECLINED: "shift.offer_declined",
+  SHIFT_OFFER_EXPIRED: "shift.offer_expired",
+  SHIFT_OFFER_CANCELLED: "shift.offer_cancelled",
+  ASSIGNMENT_ISSUE_OPENED: "assignment.issue_opened",
+  ASSIGNMENT_ISSUE_RESOLVED: "assignment.issue_resolved",
+  ASSIGNMENT_READINESS_RECHECKED: "assignment.readiness_rechecked",
+  RELATIONSHIP_OPERATIONS_APPLIED: "relationship.operations_applied",
+  NOTIFICATION_FAILED: "notification.failed",
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
@@ -210,6 +220,16 @@ const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   "assignment.rejected_by_compliance": "Assignment refused (eligibility)",
   "assignment.rejected_by_conflict": "Assignment refused (schedule conflict)",
   "assignment.rejected_by_capacity": "Assignment refused (capacity)",
+  "shift.offer_created": "Shift offered to worker",
+  "shift.offer_accepted": "Shift offer accepted",
+  "shift.offer_declined": "Shift offer declined",
+  "shift.offer_expired": "Shift offer expired",
+  "shift.offer_cancelled": "Shift offer withdrawn",
+  "assignment.issue_opened": "Assignment needs attention",
+  "assignment.issue_resolved": "Assignment issue resolved",
+  "assignment.readiness_rechecked": "Assignment readiness re-checked",
+  "relationship.operations_applied": "Relationship change applied to upcoming work",
+  "notification.failed": "Notification could not be delivered",
 };
 
 export function auditActionLabel(action: string): string {

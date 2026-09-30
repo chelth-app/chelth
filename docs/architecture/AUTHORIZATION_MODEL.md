@@ -103,6 +103,16 @@ that changes no person, client record, commercial term or credential decision,
 and every assignment is independently gated server-side (compliance, tenancy,
 capacity, schedule).
 
+Assignment operations (P0-E5-S2) add **no capabilities**: offers reuse
+`assignment.manage` (an offer is an invitation to an assignment and passes the
+same gate on acceptance); re-checking readiness needs `assignment.manage` +
+`compliance.view`; issues and the operations surface need `assignment.view`
+(+ `compliance.view` for issue reasons); delivery status needs
+`assignment.view` and shows only deliveries to the caller's own organisation.
+Workers act on their own offers by identity (`authz.is_own_active_worker`).
+Facilities have no offer or issue access. The dispatcher is not an
+application role: it is a database role limited to two functions.
+
 Least-privilege notes: `relationship.manage` (commercial state) is owner-only;
 recruiters do not see client data; finance does not see workers; credentialing
 officers do not see internal notes (credentials arrive later).
@@ -304,6 +314,7 @@ hid the button, or use a privileged key.
 | `CHS09` / `CHA09`           | `SHIFT_NOT_OPEN` / `ASSIGNMENT_NOT_ACTIONABLE`                                                              | shift/assignment lifecycle rule violated                                 |
 | `CHS10` / `CHS11`           | `RELATIONSHIP_NOT_ACTIVE` / `FACILITY_LOCATION_INVALID`                                                     | relationship not active / location not of this facility                  |
 | `CHS12`–`CHS16`             | `DISCIPLINE_MISMATCH`, `WORKER_NOT_ACTIVE`, `WORKER_NOT_ELIGIBLE`, `WORKER_SCHEDULE_CONFLICT`, `SHIFT_FULL` | eligibility (acceptance re-check; capacity backstop)                     |
+| `CHO04` / `CHO09` / `CHO10` | `OFFER_NOT_FOUND` / `OFFER_NOT_ACTIONABLE` / `OFFER_EXPIRED`                                                | offer missing or not own / closed / expired                              |
 | (decision row)              | `ASSIGNMENT_ALREADY_EXISTS` and the codes above                                                             | refused assignment returned as a recorded decision, mapped by the server |
 | `CH429`                     | `RATE_LIMITED`                                                                                              | throttled                                                                |
 | (empty result)              | `INVITE_INVALID`                                                                                            | invitation cannot be redeemed (uniform)                                  |

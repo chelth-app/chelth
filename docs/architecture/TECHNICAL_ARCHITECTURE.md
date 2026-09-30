@@ -231,6 +231,23 @@ The identity and authorization design is specified in
   `/staffing-requests`, `/staffing-requests/[shiftId]` (facility); feature
   module `src/features/shifts`, vocabulary `src/lib/domain/shifts.ts`.
 
+### Assignment operations & notifications (P0-E5-S2)
+
+- Reliable notification delivery: per-recipient outbox, SKIP LOCKED claims
+  with leases, bounded retries, provider idempotency, consumed by
+  `POST /api/internal/notifications/dispatch` (bearer secret) through a
+  least-privilege database role — no service-role key
+  ([NOTIFICATION_DELIVERY.md](NOTIFICATION_DELIVERY.md)).
+- Migration-driven schedules (pg_cron): readiness scan hourly, offer expiry
+  every 5 min, dispatch kick every minute via pg_net (URL/secret in Vault).
+- Shift offers ([SHIFT_OFFER_MODEL.md](SHIFT_OFFER_MODEL.md)), readiness
+  monitoring ([ASSIGNMENT_READINESS_MONITORING.md](ASSIGNMENT_READINESS_MONITORING.md)),
+  relationship suspension operations
+  ([RELATIONSHIP_SUSPENSION_OPERATIONS.md](RELATIONSHIP_SUSPENSION_OPERATIONS.md)).
+- Keyset pagination for shift lists; pre-filtered candidate evaluation.
+- UI: offers on the shift page and `/my-shifts`; `/operations` attention
+  surface. Code: `src/lib/notifications`, `src/features/shifts`.
+
 ### Content Security Policy
 
 `src/proxy.ts` generates a 128-bit nonce per request and sets:

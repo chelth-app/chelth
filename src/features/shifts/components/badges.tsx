@@ -4,7 +4,9 @@ import {
   type AssignmentStatus,
   FILL_STATE_LABELS,
   type FillState,
+  SHIFT_OFFER_STATUS_LABELS,
   SHIFT_STATUS_LABELS,
+  type ShiftOfferStatus,
   type ShiftStatus,
 } from "@/lib/domain/shifts";
 
@@ -54,4 +56,16 @@ export function FillBadge({
 
 export function AssignmentStatusBadge({ status }: { status: AssignmentStatus }) {
   return <Badge tone={ASSIGNMENT_TONE[status]}>{ASSIGNMENT_STATUS_LABELS[status]}</Badge>;
+}
+
+const OFFER_TONE: Record<ShiftOfferStatus, Tone> = {
+  offered: "info",
+  accepted: "success",
+  declined: "warning",
+  expired: "neutral",
+  cancelled: "neutral",
+};
+
+export function OfferStatusBadge({ status }: { status: ShiftOfferStatus }) {
+  return <Badge tone={OFFER_TONE[status]}>{SHIFT_OFFER_STATUS_LABELS[status]}</Badge>;
 }

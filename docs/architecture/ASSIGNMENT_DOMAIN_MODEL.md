@@ -83,3 +83,18 @@ Every attempt records an append-only `assignment_eligibility_decisions` row
 `facility_request_submitted`, `facility_request_opened`, `shift_cancelled`,
 `assignment_non_compliant` (from `internal.scan_assignment_readiness`, one
 pending row per assignment). Delivery (email/push) is a later stage.
+
+## 8. Operations (P0-E5-S2)
+
+- **One assignment core**: `internal.perform_assignment` is used by direct
+  assignment and offer acceptance (relationship share lock → shift row lock →
+  person advisory lock → canonical eligibility → decision → assignment).
+  An assignment created by accepting an offer is `accepted` immediately and
+  attributed to the scheduler who made the offer.
+- **Offers**: [SHIFT_OFFER_MODEL.md](SHIFT_OFFER_MODEL.md).
+- **Issues**: operational attention is a separate table, never an assignment
+  status ([ASSIGNMENT_READINESS_MONITORING.md](ASSIGNMENT_READINESS_MONITORING.md)).
+- **Notification hooks are delivered**: the outbox is now a per-recipient
+  delivery queue consumed by the dispatcher
+  ([NOTIFICATION_DELIVERY.md](NOTIFICATION_DELIVERY.md)).
+- `accept_shift_assignment` follows the relationship → assignment lock order.

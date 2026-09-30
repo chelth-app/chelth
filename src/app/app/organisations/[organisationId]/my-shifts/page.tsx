@@ -9,6 +9,9 @@ import {
   AssignmentStatusBadge,
   declineAssignmentAction,
   listMyShiftAssignments,
+  listMyShiftOffers,
+  OfferStatusBadge,
+  RespondToOffer,
   ShiftStatusBadge,
 } from "@/features/shifts";
 import { getMyWorkerRecord } from "@/features/workforce";
@@ -29,7 +32,10 @@ export default async function MyShiftsPage({
   );
   const worker = await getMyWorkerRecord(organisationId);
   if (!worker) notFound();
-  const assignments = await listMyShiftAssignments(organisationId);
+  const [assignments, offers] = await Promise.all([
+    listMyShiftAssignments(organisationId),
+    listMyShiftOffers(organisationId),
+  ]);
 
   return (
     <>
@@ -47,6 +53,59 @@ export default async function MyShiftsPage({
         </p>
       </header>
 
+      <section aria-labelledby="my-offers-heading" className="flex flex-col gap-3">
+        <h2 id="my-offers-heading" className="text-lg font-semibold">
+          Offers
+        </h2>
+        {offers.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No shift offers right now.</p>
+        ) : (
+          <ul aria-label="Shift offers" className="flex flex-col gap-3">
+            {offers.map((offer) => (
+              <li
+                key={offer.id}
+                aria-label={`Offer: ${offer.facilityName} ${formatShiftDate(offer)}`}
+                className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-4"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-medium">
+                    {offer.facilityName} · {offer.disciplineName}
+                  </span>
+                  <OfferStatusBadge status={offer.status} />
+                </div>
+                <p className="text-sm">
+                  {formatShiftDate(offer)} · {formatShiftTimeRange(offer)}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {offer.locationName} · {offer.timezone}
+                </p>
+                {offer.canRespond ? (
+                  <>
+                    <p className="text-sm text-muted-foreground">
+                      Respond by{" "}
+                      {formatShiftDate({ startAt: offer.expiresAt, timezone: offer.timezone })},{" "}
+                      {new Intl.DateTimeFormat("en-US", {
+                        timeZone: offer.timezone,
+                        hour: "numeric",
+                        minute: "2-digit",
+                        timeZoneName: "short",
+                      }).format(new Date(offer.expiresAt))}
+                      . Accepting assigns you only if the shift still has a place and you still meet
+                      its requirements.
+                    </p>
+                    <RespondToOffer
+                      organisationId={organisationId}
+                      offerId={offer.id}
+                      facilityName={offer.facilityName}
+                    />
+                  </>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       <section aria-labelledby="my-shifts-heading" className="flex flex-col gap-3">
         <h2 id="my-shifts-heading" className="text-lg font-semibold">
           Assignments
@@ -54,7 +113,7 @@ export default async function MyShiftsPage({
         {assignments.length === 0 ? (
           <p className="text-sm text-muted-foreground">You have no assignments yet.</p>
         ) : (
-          <ul className="flex flex-col gap-3">
+          <ul aria-label="My assignments" className="flex flex-col gap-3">
             {assignments.map((assignment) => (
               <li
                 key={assignment.id}

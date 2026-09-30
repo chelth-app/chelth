@@ -7,9 +7,10 @@ import { listDisciplines } from "@/features/credentials";
 import { listPartnerRelationships } from "@/features/facilities";
 import { loadOrganisationPage, requireCapabilityOrNotFound } from "@/features/organisations";
 import {
+  decodeCursor,
   FacilityRequestForm,
   FillBadge,
-  listFacilityShifts,
+  listFacilityShiftsPage,
   listRequestLocations,
   ShiftStatusBadge,
 } from "@/features/shifts";
@@ -29,6 +30,7 @@ export const metadata: Metadata = { title: "Staffing requests" };
  */
 export default async function StaffingRequestsPage({
   params,
+  searchParams,
 }: PageProps<"/app/organisations/[organisationId]/staffing-requests">) {
   const context = await loadOrganisationPage((await params).organisationId);
   requireCapabilityOrNotFound(context, CAPABILITIES.SHIFT_VIEW);
@@ -36,13 +38,16 @@ export default async function StaffingRequestsPage({
   if (organisation.type !== "facility") notFound();
 
   const canRequest = can(CAPABILITIES.SHIFT_REQUEST) === "granted";
-  const [shifts, relationships, disciplines] = await Promise.all([
-    listFacilityShifts(organisationId),
+  const after = (await searchParams).after;
+  const cursor = decodeCursor(typeof after === "string" ? after : undefined);
+  const [page, relationships, disciplines] = await Promise.all([
+    listFacilityShiftsPage(organisationId, cursor),
     canRequest && can(CAPABILITIES.RELATIONSHIP_VIEW) === "granted"
       ? listPartnerRelationships(organisationId)
       : Promise.resolve([]),
     canRequest ? listDisciplines() : Promise.resolve([]),
   ]);
+  const shifts = page.items;
   const options = (
     await Promise.all(
       relationships
@@ -113,6 +118,16 @@ export default async function StaffingRequestsPage({
             ))}
           </ul>
         )}
+        {page.nextCursor ? (
+          <nav aria-label="Request list pages" className="text-sm">
+            <Link
+              href={`/app/organisations/${organisationId}/staffing-requests?after=${page.nextCursor}`}
+              className="text-primary underline underline-offset-4"
+            >
+              Older requests
+            </Link>
+          </nav>
+        ) : null}
       </section>
 
       {canRequest ? (

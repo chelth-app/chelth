@@ -179,6 +179,21 @@ export const ERROR_CODES = {
     status: 409,
     message: "This assignment can no longer be changed.",
   },
+  OFFER_NOT_FOUND: {
+    kind: "not_found",
+    status: 404,
+    message: "That shift offer could not be found.",
+  },
+  OFFER_NOT_ACTIONABLE: {
+    kind: "conflict",
+    status: 409,
+    message: "This offer is no longer open.",
+  },
+  OFFER_EXPIRED: {
+    kind: "conflict",
+    status: 409,
+    message: "This offer has expired.",
+  },
   RATE_LIMITED: {
     kind: "rate_limited",
     status: 429,

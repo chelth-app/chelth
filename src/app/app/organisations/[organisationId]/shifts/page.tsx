@@ -11,8 +11,9 @@ import { listDisciplines } from "@/features/credentials";
 import { loadOrganisationPage, requireCapabilityOrNotFound } from "@/features/organisations";
 import {
   CreateShiftForm,
+  decodeCursor,
   FillBadge,
-  listAgencyShifts,
+  listAgencyShiftsPage,
   listFacilityFilterOptions,
   listSchedulableLocations,
   shiftFiltersSchema,
@@ -51,12 +52,19 @@ export default async function ShiftsPage({
     to: first(raw.to),
   });
   const canCreate = can(CAPABILITIES.SHIFT_CREATE) === "granted";
-  const [shifts, facilities, locations, disciplines] = await Promise.all([
-    listAgencyShifts(organisationId, filters),
+  const cursor = decodeCursor(first(raw.after));
+  const [page, facilities, locations, disciplines] = await Promise.all([
+    listAgencyShiftsPage(organisationId, filters, cursor),
     listFacilityFilterOptions(organisationId),
     canCreate ? listSchedulableLocations(organisationId) : Promise.resolve([]),
     canCreate ? listDisciplines() : Promise.resolve([]),
   ]);
+  const shifts = page.items;
+  const nextQuery = new URLSearchParams(
+    Object.entries({ ...filters, after: page.nextCursor ?? "" }).filter(
+      (entry): entry is [string, string] => typeof entry[1] === "string" && entry[1] !== "",
+    ),
+  ).toString();
 
   return (
     <>
@@ -150,6 +158,9 @@ export default async function ShiftsPage({
                     {shift.relationshipStatus !== "active" ? (
                       <Badge tone="warning">Relationship not active</Badge>
                     ) : null}
+                    {shift.openIssueCount > 0 ? (
+                      <Badge tone="danger">Needs attention ({shift.openIssueCount})</Badge>
+                    ) : null}
                   </div>
                 </div>
                 <p className="text-sm text-muted-foreground">
@@ -160,6 +171,24 @@ export default async function ShiftsPage({
             ))}
           </ul>
         )}
+        <nav aria-label="Shift list pages" className="flex gap-3 text-sm">
+          {cursor ? (
+            <Link
+              href={`/app/organisations/${organisationId}/shifts`}
+              className="text-primary underline underline-offset-4"
+            >
+              First page
+            </Link>
+          ) : null}
+          {page.nextCursor ? (
+            <Link
+              href={`/app/organisations/${organisationId}/shifts?${nextQuery}`}
+              className="text-primary underline underline-offset-4"
+            >
+              Next page
+            </Link>
+          ) : null}
+        </nav>
       </section>
 
       {canCreate ? (

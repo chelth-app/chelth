@@ -2,7 +2,9 @@ import { z } from "zod";
 
 import {
   ASSIGNMENT_CANCELLATION_REASONS,
+  MAX_OFFER_RECIPIENTS,
   MAX_REQUESTED_HEADCOUNT,
+  OFFER_EXPIRY_OPTIONS,
   SHIFT_CANCELLATION_REASONS,
   SHIFT_STATUSES,
 } from "@/lib/domain/shifts";
@@ -124,3 +126,22 @@ export const shiftFiltersSchema = z.object({
 });
 
 export type ShiftFilters = z.infer<typeof shiftFiltersSchema>;
+
+// P0-E5-S2
+export const offerShiftSchema = z.object({
+  organisationId,
+  shiftId,
+  workerIds: z
+    .array(z.uuid())
+    .min(1, "Choose at least one worker.")
+    .max(MAX_OFFER_RECIPIENTS, `Offer to at most ${MAX_OFFER_RECIPIENTS} workers at a time.`),
+  expiresInMinutes: z.coerce
+    .number()
+    .int()
+    .refine((value) => OFFER_EXPIRY_OPTIONS.some((option) => option.minutes === value), {
+      message: "Choose how long the offer stays open.",
+    }),
+});
+
+export const offerActionSchema = z.object({ organisationId, offerId: z.uuid() });
+export const agencyOfferActionSchema = z.object({ organisationId, shiftId, offerId: z.uuid() });

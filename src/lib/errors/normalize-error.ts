@@ -43,6 +43,9 @@ const SQLSTATE_TO_CODE: Readonly<Record<string, ErrorCode>> = {
   CHS16: "SHIFT_FULL",
   CHA04: "ASSIGNMENT_NOT_FOUND",
   CHA09: "ASSIGNMENT_NOT_ACTIONABLE",
+  CHO04: "OFFER_NOT_FOUND",
+  CHO09: "OFFER_NOT_ACTIONABLE",
+  CHO10: "OFFER_EXPIRED",
 };
 
 /** Supabase Auth error codes (AuthError.code). */
