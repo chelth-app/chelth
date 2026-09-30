@@ -15,12 +15,17 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formDataToObject, parseInput } from "@/lib/validation";
 
 import {
+  attendanceAdjustmentSchema,
   attendanceSettingsSchema,
+  breakSchema,
   clockSchema,
   correctionRequestSchema,
   correctionReviewSchema,
   exceptionReviewSchema,
   geofenceSchema,
+  legalHoldSchema,
+  releaseHoldSchema,
+  retentionSchema,
 } from "./schemas";
 
 export type ClockOutcome = { recordedAt: string | null; exceptionCodes: string[] };
@@ -33,6 +38,21 @@ const REFUSAL_ERROR: Record<string, ErrorCode> = {
 
 function myShiftsPath(organisationId: string) {
   return `/app/organisations/${organisationId}/my-shifts` as const;
+}
+
+/** Attendance changes can recalculate timesheets: refresh every view that shows them. */
+function revalidateAttendance(organisationId: string) {
+  revalidatePath(`/app/organisations/${organisationId}`, "layout");
+}
+
+function localInstant(date: string, time: string, timezone: string): string {
+  const instant = zonedLocalToInstant(date, time, timezone);
+  if (!instant) {
+    throw new AppError("VALIDATION_FAILED", {
+      fieldErrors: { time: ["That local time does not exist (clock change)."] },
+    });
+  }
+  return instant;
 }
 
 function locationArgs(input: {
@@ -99,12 +119,7 @@ export async function requestCorrectionAction(
 ): Promise<ActionState> {
   return runAction("attendance.requestCorrection", async () => {
     const input = parseInput(correctionRequestSchema, formDataToObject(formData));
-    const instant = zonedLocalToInstant(input.date, input.time, input.timezone);
-    if (!instant) {
-      throw new AppError("VALIDATION_FAILED", {
-        fieldErrors: { time: ["That local time does not exist (clock change)."] },
-      });
-    }
+    const instant = localInstant(input.date, input.time, input.timezone);
     await requireAuthIdentity();
     const supabase = await createSupabaseServerClient();
     const { error } = await supabase.rpc("request_attendance_correction", {
@@ -112,10 +127,12 @@ export async function requestCorrectionAction(
       p_event_type: input.eventType,
       p_requested_time: instant,
       p_reason: input.reason,
+      p_segment:
+        input.eventType === "break_start" || input.eventType === "break_end" ? input.segment : 1,
       ...(input.note ? { p_note: input.note } : {}),
     });
     if (error) throw error;
-    revalidatePath(myShiftsPath(input.organisationId));
+    revalidateAttendance(input.organisationId);
     return null;
   });
 }
@@ -126,15 +143,30 @@ export async function reviewCorrectionAction(
 ): Promise<ActionState> {
   return runAction("attendance.reviewCorrection", async () => {
     const input = parseInput(correctionReviewSchema, formDataToObject(formData));
+    const adjusted =
+      input.decision === "adjust" && input.date && input.time && input.timezone
+        ? localInstant(input.date, input.time, input.timezone)
+        : null;
     await requireAuthIdentity();
     const supabase = await createSupabaseServerClient();
     const { error } = await supabase.rpc("review_attendance_correction", {
       p_correction_id: input.correctionId,
-      p_approve: input.decision === "approve",
-      p_resolution: input.resolution,
+      p_approve: input.decision !== "reject",
+      p_resolution:
+        input.decision === "adjust"
+          ? "approved_with_adjustment"
+          : input.decision === "approve"
+            ? "approved_as_requested"
+            : (input.resolution ?? "rejected_other"),
+      ...(adjusted ? { p_approved_time: adjusted } : {}),
+      ...(input.decision === "adjust" && input.adjustmentReason
+        ? { p_adjustment_reason: input.adjustmentReason }
+        : {}),
+      ...(input.note ? { p_note: input.note } : {}),
+      p_confirm_revision: input.confirmRevision,
     });
     if (error) throw error;
-    revalidatePath(`/app/organisations/${input.organisationId}/attendance`);
+    revalidateAttendance(input.organisationId);
     return null;
   });
 }
@@ -153,7 +185,7 @@ export async function reviewExceptionAction(
       ...(input.resolution ? { p_resolution: input.resolution } : {}),
     });
     if (error) throw error;
-    revalidatePath(`/app/organisations/${input.organisationId}/attendance`);
+    revalidateAttendance(input.organisationId);
     return null;
   });
 }
@@ -201,6 +233,123 @@ export async function saveGeofenceAction(
     });
     if (error) throw error;
     revalidatePath(`/app/organisations/${input.organisationId}/facilities/${input.facilityId}`);
+    return null;
+  });
+}
+
+export async function startBreakAction(
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction("attendance.startBreak", async () => {
+    const input = parseInput(breakSchema, formDataToObject(formData));
+    await requireAuthIdentity();
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.rpc("start_break_assignment", {
+      p_assignment_id: input.assignmentId,
+    });
+    if (error) throw error;
+    revalidatePath(myShiftsPath(input.organisationId));
+    return null;
+  });
+}
+
+export async function endBreakAction(
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction("attendance.endBreak", async () => {
+    const input = parseInput(breakSchema, formDataToObject(formData));
+    await requireAuthIdentity();
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.rpc("end_break_assignment", {
+      p_assignment_id: input.assignmentId,
+    });
+    if (error) throw error;
+    revalidatePath(myShiftsPath(input.organisationId));
+    return null;
+  });
+}
+
+/** Reviewer-originated adjustment: appended as a corrected event with a required reason. */
+export async function adjustAttendanceAction(
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction("attendance.adjust", async () => {
+    const input = parseInput(attendanceAdjustmentSchema, formDataToObject(formData));
+    const instant = localInstant(input.date, input.time, input.timezone);
+    await requireAuthIdentity();
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.rpc("adjust_attendance_time", {
+      p_attendance_id: input.attendanceId,
+      p_event_type: input.eventType,
+      p_time: instant,
+      p_adjustment_reason: input.adjustmentReason,
+      p_segment:
+        input.eventType === "break_start" || input.eventType === "break_end" ? input.segment : 1,
+      ...(input.note ? { p_note: input.note } : {}),
+      p_confirm_revision: input.confirmRevision,
+    });
+    if (error) throw error;
+    revalidateAttendance(input.organisationId);
+    return null;
+  });
+}
+
+export async function placeLegalHoldAction(
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction("attendance.placeHold", async () => {
+    const input = parseInput(legalHoldSchema, formDataToObject(formData));
+    await requireAuthIdentity();
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.rpc("place_location_evidence_hold", {
+      p_attendance_id: input.attendanceId,
+      p_reason: input.reason,
+    });
+    if (error) throw error;
+    revalidatePath(
+      `/app/organisations/${input.organisationId}/attendance/${input.attendanceId}/evidence`,
+    );
+    return null;
+  });
+}
+
+export async function releaseLegalHoldAction(
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction("attendance.releaseHold", async () => {
+    const input = parseInput(releaseHoldSchema, formDataToObject(formData));
+    await requireAuthIdentity();
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.rpc("release_location_evidence_hold", {
+      p_hold_id: input.holdId,
+    });
+    if (error) throw error;
+    revalidatePath(
+      `/app/organisations/${input.organisationId}/attendance/${input.attendanceId}/evidence`,
+    );
+    return null;
+  });
+}
+
+export async function saveRetentionAction(
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction("attendance.saveRetention", async () => {
+    const input = parseInput(retentionSchema, formDataToObject(formData));
+    await requireAuthIdentity();
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.rpc("set_location_evidence_retention", {
+      p_organisation_id: input.organisationId,
+      p_retention_days: input.retentionDays,
+    });
+    if (error) throw error;
+    revalidatePath(`/app/organisations/${input.organisationId}/attendance`);
     return null;
   });
 }

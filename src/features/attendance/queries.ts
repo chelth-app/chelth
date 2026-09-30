@@ -1,7 +1,9 @@
 import "server-only";
 
 import type {
+  AttendanceAdjustmentReason,
   AttendanceClockState,
+  AttendanceCorrectionOrigin,
   AttendanceCorrectionReason,
   AttendanceCorrectionResolution,
   AttendanceCorrectionStatus,
@@ -10,6 +12,7 @@ import type {
   AttendanceExceptionType,
   GeofenceOutsidePolicy,
   GeofenceResult,
+  LocationEvidenceState,
 } from "@/lib/domain/attendance";
 import type { AssignmentStatus, ShiftStatus } from "@/lib/domain/shifts";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -82,6 +85,8 @@ export async function listAgencyAttendance(
 export type PendingCorrection = {
   id: string;
   assignmentId: string;
+  attendanceId: string;
+  segment: number;
   eventType: AttendanceEventType;
   requestedTime: string;
   reason: AttendanceCorrectionReason;
@@ -98,7 +103,7 @@ export async function listPendingCorrections(
   let query = supabase
     .from("attendance_corrections")
     .select(
-      "id, assignment_id, requested_event_type, requested_time, reason, worker_note, requested_at",
+      "id, assignment_id, attendance_id, segment, requested_event_type, requested_time, reason, worker_note, requested_at",
     )
     .eq("agency_organisation_id", organisationId)
     .eq("status", "pending")
@@ -110,6 +115,8 @@ export async function listPendingCorrections(
   return data.map((row) => ({
     id: row.id,
     assignmentId: row.assignment_id,
+    attendanceId: row.attendance_id,
+    segment: row.segment,
     eventType: row.requested_event_type,
     requestedTime: row.requested_time,
     reason: row.reason,
@@ -168,14 +175,23 @@ export type MyAttendance = {
   earliestClockInAt: string;
   canClockIn: boolean;
   canClockOut: boolean;
+  canStartBreak: boolean;
+  canEndBreak: boolean;
+  breakMinutes: number | null;
+  workedMinutes: number | null;
   exceptions: { type: string; status: string; resolution: string | null }[];
   corrections: {
     id: string;
     eventType: string;
+    segment: number;
     requestedTime: string;
+    approvedTime: string | null;
     reason: string;
     status: AttendanceCorrectionStatus;
     resolution: AttendanceCorrectionResolution | null;
+    origin: AttendanceCorrectionOrigin;
+    adjustmentReason: AttendanceAdjustmentReason | null;
+    reviewerNote: string | null;
   }[];
 };
 
@@ -211,6 +227,10 @@ export async function listMyAttendance(organisationId: string): Promise<MyAttend
     earliestClockInAt: row.earliest_clock_in_at,
     canClockIn: row.can_clock_in,
     canClockOut: row.can_clock_out,
+    canStartBreak: row.can_start_break,
+    canEndBreak: row.can_end_break,
+    breakMinutes: row.break_minutes,
+    workedMinutes: row.worked_minutes,
     exceptions: records(row.exceptions).map((item) => ({
       type: str(item.type) ?? "",
       status: str(item.status) ?? "",
@@ -224,15 +244,27 @@ export async function listMyAttendance(organisationId: string): Promise<MyAttend
         Constants.public.Enums.attendance_correction_resolution.find(
           (r) => r === item.resolution,
         ) ?? null;
+      const origin =
+        Constants.public.Enums.attendance_correction_origin.find((o) => o === item.origin) ??
+        "worker_request";
+      const adjustmentReason =
+        Constants.public.Enums.attendance_adjustment_reason.find(
+          (r) => r === item.adjustment_reason,
+        ) ?? null;
       return status
         ? [
             {
               id: str(item.id) ?? "",
               eventType: str(item.event_type) ?? "",
+              segment: typeof item.segment === "number" ? item.segment : 1,
               requestedTime: str(item.requested_time) ?? "",
+              approvedTime: str(item.approved_time),
               reason: str(item.reason) ?? "",
               status,
               resolution,
+              origin,
+              adjustmentReason,
+              reviewerNote: str(item.reviewer_note),
             },
           ]
         : [];
@@ -279,6 +311,7 @@ export type AttendanceRules = {
   missedClockInMinutes: number;
   missedClockOutMinutes: number;
   clockOutCutoffMinutes: number;
+  retentionDays: number;
   isDefault: boolean;
 };
 
@@ -298,6 +331,7 @@ export async function getAttendanceRules(organisationId: string): Promise<Attend
     missedClockInMinutes: data?.missed_clock_in_minutes ?? 15,
     missedClockOutMinutes: data?.missed_clock_out_minutes ?? 60,
     clockOutCutoffMinutes: data?.clock_out_cutoff_minutes ?? 240,
+    retentionDays: data?.location_evidence_retention_days ?? 90,
     isDefault: data === null,
   };
 }
@@ -329,5 +363,172 @@ export async function listLocationGeofences(facilityId: string): Promise<Locatio
     radiusMeters: row.radius_meters,
     maxAccuracyMeters: row.max_accuracy_meters,
     outsidePolicy: row.outside_policy,
+  }));
+}
+
+export type AttendanceRecord = {
+  attendanceId: string;
+  assignmentId: string;
+  shiftId: string;
+  clockState: AttendanceClockState;
+  openExceptionCount: number;
+};
+
+/** One attendance record of the organisation (RLS: attendance.view). */
+export async function getAttendanceRecord(
+  organisationId: string,
+  attendanceId: string,
+): Promise<AttendanceRecord | null> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("assignment_attendance")
+    .select("id, assignment_id, shift_id, clock_state, open_exception_count")
+    .eq("agency_organisation_id", organisationId)
+    .eq("id", attendanceId)
+    .maybeSingle();
+  if (error) throw error;
+  return data
+    ? {
+        attendanceId: data.id,
+        assignmentId: data.assignment_id,
+        shiftId: data.shift_id,
+        clockState: data.clock_state,
+        openExceptionCount: data.open_exception_count,
+      }
+    : null;
+}
+
+export type AttendanceHistoryItem = {
+  kind: "event" | "correction" | "exception";
+  id: string;
+  at: string;
+  eventType: string;
+  segment: number | null;
+  detail: { [key: string]: Json | undefined };
+};
+
+/**
+ * The full, append-only story of one attendance record: original events,
+ * requests, decisions, corrected events and exceptions. Never coordinates.
+ */
+export async function listAttendanceHistory(
+  attendanceId: string,
+): Promise<AttendanceHistoryItem[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("list_attendance_history", {
+    p_attendance_id: attendanceId,
+  });
+  if (error) throw error;
+  return data.flatMap((row) => {
+    const kind =
+      row.item_kind === "event" || row.item_kind === "correction" || row.item_kind === "exception"
+        ? row.item_kind
+        : null;
+    const detail =
+      typeof row.detail === "object" && row.detail !== null && !Array.isArray(row.detail)
+        ? row.detail
+        : {};
+    return kind
+      ? [
+          {
+            kind,
+            id: row.item_id,
+            at: row.at,
+            eventType: row.event_type,
+            segment: row.segment,
+            detail,
+          },
+        ]
+      : [];
+  });
+}
+
+export type AttendanceExceptionRow = OpenException & {
+  resolution: string | null;
+  resolvedAt: string | null;
+};
+
+export async function listAttendanceExceptions(
+  attendanceId: string,
+): Promise<AttendanceExceptionRow[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("attendance_exceptions")
+    .select(
+      "id, assignment_id, exception_type, status, severity, opened_at, resolution, resolved_at",
+    )
+    .eq("attendance_id", attendanceId)
+    .order("opened_at");
+  if (error) throw error;
+  return data.map((row) => ({
+    id: row.id,
+    assignmentId: row.assignment_id,
+    type: row.exception_type,
+    status: row.status,
+    severity: row.severity,
+    openedAt: row.opened_at,
+    resolution: row.resolution,
+    resolvedAt: row.resolved_at,
+  }));
+}
+
+export type LocationEvidenceRow = {
+  eventType: AttendanceEventType;
+  result: GeofenceResult;
+  latitude: number | null;
+  longitude: number | null;
+  accuracyMeters: number | null;
+  distanceMeters: number | null;
+  radiusMeters: number;
+  deviceCapturedAt: string | null;
+  recordedAt: string;
+  purgedAt: string | null;
+  state: LocationEvidenceState;
+  retentionDays: number;
+};
+
+/** Raw evidence: attendance.location.view at AAL2; the database audits every read. */
+export async function listLocationEvidence(attendanceId: string): Promise<LocationEvidenceRow[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("list_attendance_location_evidence", {
+    p_attendance_id: attendanceId,
+  });
+  if (error) throw error;
+  return data.map((row) => ({
+    eventType: row.event_type,
+    result: row.result,
+    latitude: row.latitude,
+    longitude: row.longitude,
+    accuracyMeters: row.accuracy_meters,
+    distanceMeters: row.distance_meters,
+    radiusMeters: row.radius_meters,
+    deviceCapturedAt: row.device_captured_at,
+    recordedAt: row.recorded_at,
+    purgedAt: row.purged_at,
+    state: row.state,
+    retentionDays: row.retention_days,
+  }));
+}
+
+export type EvidenceHold = {
+  id: string;
+  reason: string;
+  placedAt: string;
+  placedByName: string | null;
+  releasedAt: string | null;
+};
+
+export async function listEvidenceHolds(attendanceId: string): Promise<EvidenceHold[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("list_location_evidence_holds", {
+    p_attendance_id: attendanceId,
+  });
+  if (error) throw error;
+  return data.map((row) => ({
+    id: row.hold_id,
+    reason: row.reason,
+    placedAt: row.placed_at,
+    placedByName: row.placed_by_name,
+    releasedAt: row.released_at,
   }));
 }

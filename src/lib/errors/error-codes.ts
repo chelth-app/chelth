@@ -270,6 +270,62 @@ export const ERROR_CODES = {
     status: 409,
     message: "The clock-out window has closed. Request a correction instead.",
   },
+  ALREADY_ON_BREAK: {
+    kind: "conflict",
+    status: 409,
+    message: "You are already on a break.",
+  },
+  NOT_ON_BREAK: {
+    kind: "conflict",
+    status: 409,
+    message: "You are not on a break.",
+  },
+  ON_BREAK: {
+    kind: "conflict",
+    status: 409,
+    message: "End your break before clocking out.",
+  },
+  TIMESHEET_REVISION_REQUIRED: {
+    kind: "conflict",
+    status: 409,
+    message:
+      "This time is on an approved timesheet. Confirm that you want to create a new revision for re-approval.",
+  },
+  TIMESHEET_NOT_FOUND: {
+    kind: "not_found",
+    status: 404,
+    message: "That timesheet could not be found.",
+  },
+  TIMESHEET_NOT_ACTIONABLE: {
+    kind: "conflict",
+    status: 409,
+    message: "This timesheet cannot be changed in its current state.",
+  },
+  TIMESHEET_NOT_READY: {
+    kind: "conflict",
+    status: 409,
+    message: "This timesheet still has items to resolve.",
+  },
+  TIMESHEET_ENTRY_NOT_FOUND: {
+    kind: "not_found",
+    status: 404,
+    message: "That timesheet entry could not be found.",
+  },
+  SIGNOFF_NOT_ACTIONABLE: {
+    kind: "conflict",
+    status: 409,
+    message: "This entry is not awaiting sign-off.",
+  },
+  TIMESHEET_REVISION_CONFLICT: {
+    kind: "conflict",
+    status: 409,
+    message: "This timesheet changed while you were viewing it. Reload and review it again.",
+  },
+  TIMESHEET_SETTINGS_LOCKED: {
+    kind: "conflict",
+    status: 409,
+    message: "The timesheet week is fixed once timesheets exist.",
+  },
   RATE_LIMITED: {
     kind: "rate_limited",
     status: 429,

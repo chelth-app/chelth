@@ -93,6 +93,7 @@ describe("invitation → membership → role lifecycle", () => {
       "shift.create",
       "shift.manage",
       "shift.view",
+      "timesheet.view",
       "worker.view",
     ]);
   });

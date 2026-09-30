@@ -9,6 +9,7 @@ import {
 const TONE: Record<AttendanceState, NonNullable<BadgeProps["tone"]>> = {
   not_started: "neutral",
   clocked_in: "info",
+  on_break: "info",
   clocked_out: "success",
   needs_review: "warning",
 };

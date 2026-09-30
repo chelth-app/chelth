@@ -1,0 +1,46 @@
+-- =============================================================================
+-- Timesheet test helpers (include after _attendance_helpers.psql).
+-- Past work is arranged as the owner role with device events whose recorded
+-- time equals their occurred time (the only shape the table accepts), then
+-- the projection is refreshed through the one trusted path. Never used to
+-- test authorization.
+-- =============================================================================
+
+-- A wall-clock time at a facility → instant.
+create function pg_temp.local_ts(p_date date, p_time text, p_tz text)
+returns timestamptz language sql as $$
+  select (p_date + p_time::time) at time zone p_tz
+$$;
+
+-- Owner: a device event in the past, then the trusted refresh.
+create function pg_temp.past_event(p_assignment uuid, p_type text, p_at timestamptz, p_segment smallint default 1)
+returns void language plpgsql as $$
+declare
+  att public.assignment_attendance := internal.ensure_attendance(p_assignment);
+begin
+  insert into public.attendance_events (attendance_id, assignment_id, agency_organisation_id, event_type, segment,
+    occurred_at, recorded_at, source)
+  values (att.id, att.assignment_id, att.agency_organisation_id, p_type::public.attendance_event_type, p_segment,
+    p_at, p_at, 'worker_device');
+  perform internal.refresh_attendance(att.id);
+end;
+$$;
+
+create function pg_temp.entry_of(p_assignment uuid)
+returns public.timesheet_entries language sql as $$
+  select * from public.timesheet_entries where assignment_id = p_assignment
+$$;
+
+create function pg_temp.timesheet_of(p_assignment uuid)
+returns public.timesheets language sql as $$
+  select t.* from public.timesheets t join public.timesheet_entries e on e.timesheet_id = t.id
+  where e.assignment_id = p_assignment
+$$;
+
+-- RPCs that return (outcome, blocking_reasons) → "outcome:REASON,REASON".
+create function pg_temp.outcome_as(p_user uuid, p_sql text, p_aal text default 'aal1')
+returns text language sql as $$
+  select (r ->> 'outcome') || ':' || coalesce((select string_agg(x, ',' order by x)
+                                               from jsonb_array_elements_text(r -> 'blocking_reasons') x), '')
+  from (select pg_temp.query_as(p_user, p_aal, p_sql) -> 0 as r) q
+$$;

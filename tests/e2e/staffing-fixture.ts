@@ -29,7 +29,14 @@ const DB_URL =
 const PDF = new TextEncoder().encode("%PDF-1.4\n% Chelth E2E shift fixture\n%%EOF\n");
 
 type Client = SupabaseClient<Database>;
-export type Person = { client: Client; email: string; userId: string; name: string };
+export type Person = {
+  client: Client;
+  email: string;
+  userId: string;
+  name: string;
+  /** Set for people enrolled in TOTP by the fixture (used for browser step-up). */
+  totpSecret?: string;
+};
 
 function assertLocal() {
   for (const url of [SUPABASE_URL, DB_URL]) {
@@ -90,6 +97,7 @@ async function stepUp(who: Person) {
       code: generateTotp(enrolled.totp.secret),
     }),
   );
+  who.totpSecret = enrolled.totp.secret;
 }
 
 async function join(admin: Client, organisationId: string, role: string, who: Person) {
@@ -343,4 +351,90 @@ export async function createStaffingWorld(
     relationshipId,
     extra,
   };
+}
+
+export type PastEvent = {
+  type: "clock_in" | "clock_out" | "break_start" | "break_end";
+  at: string;
+  segment?: number;
+};
+
+/**
+ * Owner arrangement of work that happened in the PAST (the public API refuses
+ * to schedule or clock the past): a draft shift moved into the past and
+ * opened, an accepted assignment, device events whose recorded time equals
+ * their occurred time, then the one trusted projection refresh (which also
+ * derives the timesheet). Local only; never used to test authorization.
+ */
+export async function arrangePastWork(
+  world: StaffingWorld,
+  options: {
+    worker: Person & { workerId: string };
+    facilityId: string;
+    locationId: string;
+    startAt: string;
+    endAt: string;
+    events: PastEvent[];
+  },
+): Promise<{ shiftId: string; assignmentId: string }> {
+  assertLocal();
+  const future = isoDay(5);
+  const shiftId = await must(
+    world.scheduler.client.rpc("create_shift", {
+      p_agency_facility_id: options.facilityId,
+      p_facility_location_id: options.locationId,
+      p_discipline_key: "cna",
+      p_shift_date: future,
+      p_start_time: "07:00",
+      p_end_time: "15:00",
+      p_requested_headcount: 2,
+      p_open: false,
+    }),
+  );
+  const assignmentId = await owner(async (sql) => {
+    await sql`update public.shifts set start_at = ${options.startAt}, end_at = ${options.endAt} where id = ${shiftId}`;
+    await sql`update public.shifts set status = 'open', opened_at = now() where id = ${shiftId}`;
+    const [membership] = await sql<{ id: string }[]>`
+      select id from public.organisation_memberships
+      where organisation_id = ${world.agencyId} and profile_id = ${world.scheduler.userId}`;
+    const [row] = await sql<{ id: string }[]>`
+      insert into public.shift_assignments
+        (shift_id, agency_organisation_id, agency_worker_id, profile_id, start_at, end_at, assigned_by_membership_id)
+      values (${shiftId}, ${world.agencyId}, ${options.worker.workerId}, ${options.worker.userId},
+              ${options.startAt}, ${options.endAt}, ${membership?.id ?? null})
+      returning id`;
+    const id = row?.id ?? "";
+    await sql`update public.shift_assignments set status = 'accepted', accepted_at = now() where id = ${id}`;
+    for (const event of options.events) {
+      const [attendance] = await sql<{ id: string }[]>`
+        select (internal.ensure_attendance(${id}::uuid)).id as id`;
+      await sql`
+        insert into public.attendance_events
+          (attendance_id, assignment_id, agency_organisation_id, event_type, segment, occurred_at, recorded_at, source)
+        values (${attendance?.id ?? ""}, ${id}, ${world.agencyId}, ${event.type}::public.attendance_event_type,
+                ${event.segment ?? 1}, ${event.at}, ${event.at}, 'worker_device')`;
+      await sql`select internal.refresh_attendance(${attendance?.id ?? ""}::uuid)`;
+    }
+    return id;
+  });
+  return { shiftId, assignmentId };
+}
+
+/** Owner: device location evidence for an assignment's existing clock-in event. */
+export async function attachClockInEvidence(assignmentId: string): Promise<string> {
+  assertLocal();
+  return owner(async (sql) => {
+    const [row] = await sql<
+      { id: string; attendance_id: string; agency_organisation_id: string }[]
+    >`
+      select id, attendance_id, agency_organisation_id from public.attendance_events
+      where assignment_id = ${assignmentId} and event_type = 'clock_in'`;
+    await sql`
+      insert into public.attendance_location_evidence
+        (event_id, attendance_id, agency_organisation_id, latitude, longitude, accuracy_meters,
+         device_captured_at, distance_meters, radius_meters, result)
+      values (${row?.id ?? ""}, ${row?.attendance_id ?? ""}, ${row?.agency_organisation_id ?? ""},
+              40.7128, -74.006, 12, now(), 10, 200, 'inside')`;
+    return row?.attendance_id ?? "";
+  });
 }

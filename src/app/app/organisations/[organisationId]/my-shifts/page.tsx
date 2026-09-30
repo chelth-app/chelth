@@ -6,6 +6,7 @@ import { InlineActionForm } from "@/components/forms/inline-action-form";
 import { Badge } from "@/components/ui/badge";
 import {
   AttendanceStateBadge,
+  BreakControl,
   ClockControl,
   CorrectionRequestForm,
   listMyAttendance,
@@ -23,9 +24,11 @@ import {
 } from "@/features/shifts";
 import { getMyWorkerRecord } from "@/features/workforce";
 import {
+  ADJUSTMENT_REASON_LABELS,
   ATTENDANCE_EXCEPTION_LABELS,
   CORRECTION_RESOLUTION_LABELS,
   CORRECTION_STATUS_LABELS,
+  describeCorrectionTarget,
   formatLocalClockTime,
 } from "@/lib/domain/attendance";
 import {
@@ -34,6 +37,7 @@ import {
   formatShiftTimeRange,
   localDate,
 } from "@/lib/domain/shifts";
+import { formatWorkedMinutes } from "@/lib/domain/timesheets";
 
 function exceptionLabel(type: string): string {
   return (ATTENDANCE_EXCEPTION_LABELS as Record<string, string>)[type] ?? type;
@@ -104,7 +108,21 @@ export default async function MyShiftsPage({
                   {formatLocalClockTime(item.clockInAt, item.timezone)} · Clocked out{" "}
                   {formatLocalClockTime(item.clockOutAt, item.timezone)}
                 </p>
-                {item.canClockIn ? (
+                {item.workedMinutes !== null ? (
+                  <p className="text-sm">
+                    Worked{" "}
+                    <span className="font-medium">{formatWorkedMinutes(item.workedMinutes)}</span>
+                    {item.breakMinutes ? ` · breaks ${formatWorkedMinutes(item.breakMinutes)}` : ""}
+                  </p>
+                ) : null}
+                {item.canEndBreak ? (
+                  <BreakControl
+                    organisationId={organisationId}
+                    assignmentId={item.assignmentId}
+                    kind="end"
+                    facilityName={item.facilityName}
+                  />
+                ) : item.canClockIn ? (
                   <ClockControl
                     organisationId={organisationId}
                     assignmentId={item.assignmentId}
@@ -113,13 +131,23 @@ export default async function MyShiftsPage({
                     facilityName={item.facilityName}
                   />
                 ) : item.canClockOut ? (
-                  <ClockControl
-                    organisationId={organisationId}
-                    assignmentId={item.assignmentId}
-                    kind="out"
-                    locationRequired={item.locationRequired}
-                    facilityName={item.facilityName}
-                  />
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
+                    <ClockControl
+                      organisationId={organisationId}
+                      assignmentId={item.assignmentId}
+                      kind="out"
+                      locationRequired={item.locationRequired}
+                      facilityName={item.facilityName}
+                    />
+                    {item.canStartBreak ? (
+                      <BreakControl
+                        organisationId={organisationId}
+                        assignmentId={item.assignmentId}
+                        kind="start"
+                        facilityName={item.facilityName}
+                      />
+                    ) : null}
+                  </div>
                 ) : item.clockState === "not_started" && item.shiftStatus === "open" ? (
                   <p className="text-sm text-muted-foreground">
                     Clock-in opens at {formatLocalClockTime(item.earliestClockInAt, item.timezone)}.
@@ -144,18 +172,49 @@ export default async function MyShiftsPage({
                 ) : null}
                 {item.corrections.length > 0 ? (
                   <ul aria-label="My correction requests" className="flex flex-col gap-1 text-sm">
-                    {item.corrections.map((correction) => (
-                      <li key={correction.id}>
-                        {correction.eventType === "clock_in" ? "Clock-in" : "Clock-out"} at{" "}
-                        {formatLocalClockTime(correction.requestedTime, item.timezone)}:{" "}
-                        <span className="font-medium">
-                          {CORRECTION_STATUS_LABELS[correction.status]}
-                        </span>
-                        {correction.resolution && correction.status === "rejected"
-                          ? ` (${CORRECTION_RESOLUTION_LABELS[correction.resolution]})`
-                          : ""}
-                      </li>
-                    ))}
+                    {item.corrections.map((correction) => {
+                      const target = describeCorrectionTarget(
+                        correction.eventType,
+                        correction.segment,
+                      );
+                      return (
+                        <li key={correction.id} className="flex flex-col">
+                          <span>
+                            {correction.origin === "reviewer_adjustment"
+                              ? `Your agency set the ${target} to `
+                              : `You asked for ${target} `}
+                            {formatLocalClockTime(correction.requestedTime, item.timezone)}:{" "}
+                            <span className="font-medium">
+                              {correction.origin === "reviewer_adjustment"
+                                ? "Adjusted"
+                                : CORRECTION_STATUS_LABELS[correction.status]}
+                            </span>
+                            {correction.resolution && correction.status === "rejected"
+                              ? ` (${CORRECTION_RESOLUTION_LABELS[correction.resolution]})`
+                              : ""}
+                          </span>
+                          {correction.resolution === "approved_with_adjustment" &&
+                          correction.origin === "worker_request" ? (
+                            <span className="text-muted-foreground">
+                              Approved at{" "}
+                              {formatLocalClockTime(correction.approvedTime, item.timezone)} instead
+                              {correction.adjustmentReason
+                                ? ` · ${ADJUSTMENT_REASON_LABELS[correction.adjustmentReason]}`
+                                : ""}
+                            </span>
+                          ) : correction.adjustmentReason ? (
+                            <span className="text-muted-foreground">
+                              {ADJUSTMENT_REASON_LABELS[correction.adjustmentReason]}
+                            </span>
+                          ) : null}
+                          {correction.reviewerNote ? (
+                            <span className="text-muted-foreground">
+                              “{correction.reviewerNote}”
+                            </span>
+                          ) : null}
+                        </li>
+                      );
+                    })}
                   </ul>
                 ) : null}
                 <details className="text-sm">

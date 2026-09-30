@@ -125,6 +125,21 @@ through `authz.has_relationship_capability` and only via the narrow facility
 projection (no coordinates, no exception detail). Reviewers can never review
 their own attendance.
 
+Timesheet capabilities (P0-E6-S2, none AAL2-privileged): `timesheet.view`
+(agency timesheets and entries) — admin, operations manager, scheduler,
+finance (later payroll/billing consume approved timesheets);
+`timesheet.approve` (approve, return, reopen, answer discrepancies,
+recalculate) — admin, operations manager; `timesheet.facility_signoff`
+(sign off or dispute entries at the caller's facility) — facility admin and
+facility supervisor, effective only through the linked relationship.
+Recruiter, credentialing officer, healthcare worker and facility scheduler:
+none. A worker submits their **own** timesheet by identity
+(`authz.is_own_active_worker`), never by capability, and can never approve
+it; approvers can never approve their own timesheet. Correction review that
+would change an approved timesheet additionally requires `timesheet.approve`.
+Retention settings use `attendance.manage_settings`; legal holds use
+`attendance.location.view` (both AAL2).
+
 Least-privilege notes: `relationship.manage` (commercial state) is owner-only;
 recruiters do not see client data; finance does not see workers; credentialing
 officers do not see internal notes (credentials arrive later).
@@ -329,5 +344,7 @@ hid the button, or use a privileged key.
 | `CHO04` / `CHO09` / `CHO10` | `OFFER_NOT_FOUND` / `OFFER_NOT_ACTIONABLE` / `OFFER_EXPIRED`                                                                                                                                                                                                                                                                     | offer missing or not own / closed / expired                              |
 | (decision row)              | `ASSIGNMENT_ALREADY_EXISTS` and the codes above                                                                                                                                                                                                                                                                                  | refused assignment returned as a recorded decision, mapped by the server |
 | `CHT04`–`CHT18`             | `ATTENDANCE_NOT_FOUND`, `ASSIGNMENT_NOT_ACCEPTED`, `SHIFT_CANCELLED`, `TOO_EARLY/LATE_TO_CLOCK_IN`, `ALREADY_CLOCKED_IN/OUT`, `NOT_CLOCKED_IN`, `GEOFENCE_REQUIRED`, `LOCATION_UNAVAILABLE`, `LOCATION_ACCURACY_TOO_LOW`, `OUTSIDE_GEOFENCE`, `CORRECTION_NOT_ALLOWED`, `CORRECTION_ALREADY_REVIEWED`, `CLOCK_OUT_WINDOW_CLOSED` | attendance rules (refused clock-ins return a recorded refusal)           |
+| `CHT19`–`CHT22`             | `ALREADY_ON_BREAK`, `NOT_ON_BREAK`, `ON_BREAK`, `TIMESHEET_REVISION_REQUIRED`                                                                                                                                                                                                                                                    | break state / change to an approved timesheet needs a confirmed revision |
+| `CHP04`–`CHP15`             | `TIMESHEET_NOT_FOUND`, `TIMESHEET_NOT_ACTIONABLE`, `TIMESHEET_ENTRY_NOT_FOUND`, `SIGNOFF_NOT_ACTIONABLE`, `TIMESHEET_REVISION_CONFLICT`, `TIMESHEET_SETTINGS_LOCKED`                                                                                                                                                             | timesheet lifecycle (blocked submission/approval returns reason codes)   |
 | `CH429`                     | `RATE_LIMITED`                                                                                                                                                                                                                                                                                                                   | throttled                                                                |
 | (empty result)              | `INVITE_INVALID`                                                                                                                                                                                                                                                                                                                 | invitation cannot be redeemed (uniform)                                  |

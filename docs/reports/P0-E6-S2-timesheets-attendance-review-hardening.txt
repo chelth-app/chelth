@@ -1,0 +1,831 @@
+CHELTH — P0-E6-S2 TIMESHEETS & ATTENDANCE REVIEW HARDENING
+Stage report · 2026-09-30 · branch p0-e6-s2-timesheets (uncommitted)
+
+======================================================================
+1. EXECUTIVE SUMMARY
+======================================================================
+Chelth now turns attendance into weekly timesheets that can be reviewed,
+signed off and locked. Timesheets never become a second clock.
+
+  - Source of truth. Attendance events stay the only source of worked
+    time:
+      * device events carry server time;
+      * breaks are events too;
+      * corrections and reviewer adjustments add new corrected events.
+    One database function, internal.effective_time, computes effective
+    times, breaks and worked minutes. The attendance projection, My Shifts
+    and every timesheet entry use it.
+  - Derived timesheets.
+      * One timesheet per worker per week; one entry per assignment.
+      * Entries are written only by the trusted derivation, which runs on
+        every attendance or assignment change.
+      * Nobody can write minutes. The API has no write grant, and a
+        trigger refuses writes outside the trusted path, even for the
+        table owner.
+  - Lifecycle. Worker submits (reasons are returned when blocked); the
+    agency approves, which stores an immutable snapshot; each linked
+    facility signs off its own entries or raises a discrepancy; the last
+    sign-off locks the timesheet.
+  - Revisions. Changing attendance behind an approved or locked timesheet
+    needs:
+      * an explicit confirmation from the reviewer;
+      * the timesheet.approve capability.
+    It then:
+      * supersedes the approval and the facility decisions;
+      * increments the revision;
+      * requires re-approval and fresh facility sign-off.
+    Nothing historical is edited.
+  - Attendance review hardening:
+      * breaks, with an on_break state;
+      * reviewer-adjusted approvals (a different time with a structured
+        reason and a note);
+      * reviewer-originated adjustments;
+      * "not worked" closure for no-shows;
+      * a full correction history page;
+      * a raw evidence viewer behind MFA step-up.
+  - Closed the P0-E6-S1 findings:
+      * F5: location evidence retention (default 90 days), a daily bounded
+        purge that removes coordinates only, and a narrow legal hold;
+      * F6: refused clock-in rate limit;
+      * F7: facility-view audit deduplicated per viewer.
+  - Validation. All 13 checks pass:
+      * pgTAP: 22 files, 1,007 assertions, all 26 required cases (A–Z);
+      * integration: 84 tests;
+      * unit: 213 tests;
+      * E2E: flows 1–7 on desktop and mobile (see §26 and §32).
+  - Security. No open HIGH or CRITICAL finding.
+  - Out of scope, as instructed: pay rates, bill rates, overtime, payroll,
+    exports, invoices, accounting, tax, reimbursement, expenses, automated
+    approval or billing, and GPS beyond the existing point-in-time
+    evidence.
+
+A second local Claude session (chelth-cc) was working in the same tree and
+on the same local Supabase stack. Its stack restarts caused flaky runs; we
+coordinated, and it paused. It contributed one reviewed change: facility
+self sign-off is refused (CH403). The migration and the pgTAP test are
+included in the counts above.
+
+======================================================================
+2. TIMESHEET SCHEMA
+======================================================================
+Migration 20260930150200_timesheet_tables.sql:
+
+  agency_timesheet_settings
+    week_starts_on (ISO 1–7, default Monday).
+  timesheets
+    Agency + worker + person + period, with period_end = start + 6.
+      - status, revision;
+      - submission, approval, lock and rejection fields;
+      - unique per (worker, period).
+  timesheet_entries
+    One per assignment.
+      - scheduled start and end, local date, timezone;
+      - derived values: effective start and end, breaks (jsonb), break and
+        worked minutes, not_worked, complete, blocking_reasons,
+        open_exception_types, pending_corrections;
+      - calculation_version, revision, facility_state,
+        facility_organisation_id.
+  timesheet_approvals
+    Immutable snapshot and totals per revision. Supersede-only.
+  timesheet_facility_signoffs
+    Per-entry decision with a snapshot, dispute reason and note, plus
+    resolution and supersede fields. Otherwise immutable.
+  timesheet_history
+    Append-only lifecycle log.
+
+None of these tables has a pay, bill, rate or currency column.
+
+======================================================================
+3. TIMESHEET PERIOD MODEL
+======================================================================
+  - Weekly periods only. Payroll calendars are deferred.
+  - internal.period_start_for(org, local_date) is deterministic. An entry
+    belongs to the week of its shift's LOCAL start date, so overnight
+    shifts stay in their start week.
+  - The week start is fixed once an agency has timesheets (CHP15).
+  - Timesheets are created lazily when an assignment is accepted. No
+    period-creation job exists.
+  - A week can be submitted when its last local date has ended everywhere
+    (period_end + 1 day at 12:00 UTC, which is after midnight in UTC−12).
+
+======================================================================
+4. ENTRY DERIVATION
+======================================================================
+internal.sync_timesheet_entry(assignment) is the only writer of entries.
+
+When it runs:
+  - from internal.refresh_attendance, i.e. after every clock, break,
+    correction, adjustment, exception or scan change;
+  - from an AFTER trigger on shift_assignments (insert, or status change);
+  - through internal.rebuild_timesheet, and the agency-facing
+    rebuild_timesheet (idempotent, never destructive).
+
+What it does:
+  - An included entry is one with an effective clock-in, or an accepted
+    assignment on a shift that is not cancelled.
+  - Other entries stay in place with included = false. Nothing is
+    deleted.
+  - When a derived time changes on an approved or locked timesheet, it
+    creates a revision (§11).
+  - Only exception metadata may change on approved rows.
+
+Protection:
+  - authenticated has SELECT only;
+  - trigger timesheet_entries_guard refuses writes unless the
+    transaction-local flag is set by internal functions;
+  - time columns are frozen while the timesheet is approved or locked
+    (CHP09).
+
+======================================================================
+5. ATTENDANCE SEGMENT / BREAK MODEL
+======================================================================
+  - New events: break_start, break_end, corrected_break_start and
+    corrected_break_end. A break event's segment is its break number
+    (1–20); clock events are constrained to segment 1.
+  - Unique indexes allow one device start and one device end per break.
+  - States: not_started → clocked_in ⇄ on_break → clocked_out.
+  - start_break_assignment and end_break_assignment:
+      * own assignment only, server time, no location;
+      * CHT19 if already on a break, CHT20 if not on a break;
+      * clock-out while on a break is refused with CHT21.
+  - No jurisdictional break rules are automated.
+
+======================================================================
+6. EFFECTIVE TIME CALCULATION
+======================================================================
+internal.effective_time(attendance):
+
+  - Effective time for each (type, segment): the latest corrected event,
+    else the device event.
+  - worked = whole_minutes(in, out) − Σ break minutes, where
+    whole_minutes(a, b) = floor(epoch(b)/60) − floor(epoch(a)/60).
+  - Minutes are computed on UTC instants, so DST and odd offsets cannot
+    skew them.
+  - Reasons:
+      * MISSING_CLOCK_IN, MISSING_CLOCK_OUT: no minutes, and an end time is
+        never invented;
+      * BREAK_NOT_ENDED;
+      * TIMES_INCONSISTENT.
+  - "Not worked" gives a complete zero-minute entry.
+  - Scheduled duration is never used.
+  - Calculation version is 1. Payroll rounding is deferred.
+
+======================================================================
+7. WORKER SUBMISSION
+======================================================================
+submit_timesheet:
+
+  - Own timesheet only, from open or rejected.
+  - Rebuilds, then checks the blocking codes:
+      * PERIOD_NOT_ENDED
+      * NO_WORK
+      * MISSING_CLOCK_IN
+      * MISSING_CLOCK_OUT
+      * BREAK_NOT_ENDED
+      * TIMES_INCONSISTENT
+      * PENDING_CORRECTION
+  - Blocked: returns outcome 'blocked' plus the codes, and writes
+    nothing.
+  - Success: history entry, audit event, and a notice to agency
+    approvers.
+  - The UI lists each reason with guidance on what to do.
+
+======================================================================
+8. AGENCY APPROVAL
+======================================================================
+approve_timesheet(timesheet, expected_revision):
+
+  - Requires timesheet.approve.
+  - Never the worker themself (CH403). A worker without timesheet.view
+    gets CHP04.
+  - The expected revision must still match (CHP14).
+  - Rebuilds, then checks the submission codes plus UNREVIEWED_EXCEPTION:
+    every attendance exception must be acknowledged or dismissed first.
+  - Writes an immutable snapshot:
+      * derived times, breaks, minutes, not_worked;
+      * exception types, approved correction ids;
+      * totals and calculation version;
+      * no coordinates or notes.
+  - Entries at linked facilities (relationship not ended) become pending.
+    If none are pending, the timesheet locks immediately.
+  - reject_timesheet(reason, note) returns the timesheet to the worker.
+
+Reviewers never edit hours. The review page shows:
+  - scheduled times, effective clock-in and clock-out, and breaks;
+  - worked time, exceptions and approved corrections;
+  - facility and location result;
+  - a link to each entry's full attendance history.
+
+======================================================================
+9. FACILITY SIGN-OFF
+======================================================================
+facility_decide_timesheet_entry(entry, expected_revision, sign_off,
+reason, note):
+
+  - Scope: timesheet.facility_signoff through the entry's relationship,
+    plus membership of the entry's facility organisation.
+  - Only on agency-approved timesheets, and only for pending entries.
+  - The entry's own worker cannot sign it off (CH403; the peer session's
+    change).
+  - The last sign-off locks the timesheet.
+
+What the facility sees (list_facility_timesheet_entries; access is audited
+once per 15 minutes):
+  - worker name, agency, facility and location;
+  - date and scheduled shift;
+  - effective start and end, breaks, worked minutes;
+  - "reviewed by agency" indicator and sign-off state.
+
+Never shown to the facility: coordinates, notes, credentials, other
+facilities, other agencies' work.
+
+======================================================================
+10. MULTI-FACILITY HANDLING
+======================================================================
+  - Sign-off is per entry. A week spanning Mercy (Gamma) and Riverside
+    (Delta) needs both.
+  - Gamma sees and signs only Mercy; Delta only Riverside.
+  - Cross-signing fails with CHP12. Listing another facility's entries
+    fails with CH403.
+  - One notice per facility organisation per approval.
+  - An unlinked facility's entries need no sign-off.
+  - Tested in pgTAP (C, D), in integration, and in E2E Flow 3.
+
+======================================================================
+11. REVISION MODEL
+======================================================================
+internal.revise_timesheet:
+  - supersedes the approval and the live facility decisions;
+  - resolves open disputes as timesheet_revised;
+  - increments the revision;
+  - sets the status to 'submitted' (automatic) or 'open' (reopen);
+  - resets entry facility states;
+  - writes history and audit.
+
+A trigger only allows a revision increment when leaving approved or
+locked.
+
+  - Correction or adjustment on a locked timesheet: CHT22 unless
+    confirmed and the reviewer holds timesheet.approve.
+  - reopen_timesheet(reason, note): explicit; returns to the worker.
+  - Every approval is kept, one per revision.
+
+======================================================================
+12. REVIEWER-ADJUSTED CORRECTIONS
+======================================================================
+review_attendance_correction gains four parameters:
+  - approved_time;
+  - adjustment_reason: facility_reported_time, supervisor_observation,
+    device_or_app_problem, worker_statement, break_not_recorded or other;
+  - note (≤ 500 characters);
+  - confirm_revision.
+
+Resolution approved_with_adjustment:
+  - requires a DIFFERENT time and a reason;
+  - the worker gets an attendance_time_adjusted notice;
+  - no worker acknowledgment is required in this stage.
+
+adjust_attendance_time: a reviewer-originated adjustment, stored as an
+approved correction (origin reviewer_adjustment).
+
+Common rules:
+  - never on your own attendance;
+  - consistency is re-checked by recalculation (CHT16), and a failure
+    rolls everything back;
+  - the original event always remains.
+
+list_attendance_history returns original events → requests → decisions
+(approved time, reasons, notes) → corrected events → the exception
+lifecycle.
+  - Agency: sees staff names.
+  - Worker: sees their own history without staff names.
+
+======================================================================
+13. EXCEPTION GATING
+======================================================================
+  Submission (worker): MISSING_CLOCK_IN, MISSING_CLOCK_OUT,
+    BREAK_NOT_ENDED, TIMES_INCONSISTENT, PENDING_CORRECTION,
+    PERIOD_NOT_ENDED, NO_WORK.
+  Approval (agency): all of the above, plus UNREVIEWED_EXCEPTION (any
+    open or under-review exception).
+  No-shows: a missed clock-in can be closed as not_worked (only when
+    there is no effective clock-in), giving a complete zero-minute
+    entry.
+
+======================================================================
+14. LOCATION EVIDENCE RETENTION
+======================================================================
+  - agency_attendance_settings.location_evidence_retention_days: default
+    90, bounds 7–365.
+  - Changed with set_location_evidence_retention (manage_settings, AAL2,
+    audited).
+  - Documented legal-review requirement before production:
+    docs/security/ATTENDANCE_EVIDENCE_RETENTION.md.
+  - What is kept with the attendance record:
+      * the result classification;
+      * accuracy, distance and radius.
+
+======================================================================
+15. PURGE / LEGAL HOLD
+======================================================================
+Purge: internal.run_location_evidence_purge, pg_cron
+chelth-location-evidence-purge, daily at 03:17 UTC.
+  - Applies each agency's OWN retention period.
+  - Batches of 1000, at most 20 batches, SKIP LOCKED.
+  - Nulls coordinates and device time and sets purged_at. This is the
+    only update the evidence table accepts, enforced by a trigger.
+  - No deletes. The event and its result are untouched.
+  - Idempotent.
+  - Audited per agency as a count.
+
+Legal hold: place and release (location.view, AAL2).
+  - One active hold per record; holds are never deleted.
+  - The reason is stored with the hold and never audited.
+  - Held records are skipped by the purge.
+
+======================================================================
+16. CLOCK-IN RATE LIMIT
+======================================================================
+  - At most 10 committed refusals per worker + assignment per 10-minute
+    window.
+  - Beyond that: CH429, and the transaction rolls back. No exception,
+    audit row or notification is written.
+  - Successful clock-ins never consume the limit.
+  - Tested: 10 audit rows, 1 exception and 1 notification after 11
+    attempts; a legitimate clock-in from inside still works afterwards.
+
+======================================================================
+17. AUDIT VOLUME HARDENING
+======================================================================
+internal.record_audit_event_once writes one row per actor + action +
+target per window, backed by the new index audit_events_dedupe_idx.
+  - Facility attendance views: 15 minutes per viewer and shift.
+  - Facility timesheet views: 15 minutes per viewer and facility.
+  - Traceability is kept: every distinct viewer is still recorded.
+  - Raw evidence reads are NOT deduplicated; every read is audited.
+
+======================================================================
+18. RAW EVIDENCE VIEWER
+======================================================================
+Route: /attendance/[attendanceId]/evidence.
+  - Requires attendance.location.view. That is agency admin by the
+    current mapping.
+  - Without an AAL2 session, shows a step-up notice.
+  - Every read is audited.
+
+Labelled: "Device-reported location … not proof of presence".
+
+Shows, per clock action:
+  - result;
+  - server and device times;
+  - accuracy, distance and radius;
+  - coordinates while retained, or "Coordinates purged";
+  - legal hold management.
+
+Facilities get 404 (tested in E2E Flow 6), and CHT04 from the RPC.
+
+======================================================================
+19. CAPABILITIES
+======================================================================
+None of these is AAL2-privileged.
+
+  timesheet.view              admin, ops manager, scheduler, finance
+  timesheet.approve           admin, ops manager
+  timesheet.facility_signoff  facility admin, facility supervisor
+                              (relationship-scoped)
+
+  - Worker submission is an identity rule. No timesheet.submit
+    capability exists.
+  - Recruiter, credentialing officer and facility scheduler get none.
+  - Retention settings use attendance.manage_settings; legal holds use
+    attendance.location.view (both AAL2).
+  - Totals: admin holds 32 capabilities (pgTAP 030); the RPC allow-list
+    has 110 entries (pgTAP 000).
+
+======================================================================
+20. RLS ARCHITECTURE
+======================================================================
+  - timesheets and entries: agency timesheet.view, OR the worker's own
+    record (is_own_active_worker).
+  - approvals, sign-offs and history: agency timesheet.view only.
+  - Facilities: no table path; audited definer projections only.
+  - Legal holds: attendance.location.view.
+  - Settings: timesheet.view.
+  - No anon grants. Platform admin has no tenant path.
+  - authenticated has SELECT only; every write is a SECURITY DEFINER RPC
+    with an empty search_path.
+
+======================================================================
+21. STRUCTURAL INTEGRITY
+======================================================================
+New composite keys:
+  - agency_facilities (id, linked_facility_organisation_id);
+  - shifts (id, agency, relationship, facility, location).
+
+Timesheet FKs:
+  - timesheet → agency_workers (id, agency, profile);
+  - entry → timesheet (agency, worker, profile);
+  - entry → shift_assignments (agency, shift, worker, profile);
+  - entry → shifts (agency, relationship, facility, location);
+  - entry → assignment_attendance (id, assignment);
+  - entry → agency_facilities (facility, facility organisation).
+
+Sign-off FKs:
+  - sign-off → entry (timesheet, relationship, facility, facility org);
+  - sign-off → relationships (agency, facility);
+  - deciding membership → facility organisation;
+  - resolving membership → agency.
+
+Approval FKs: approval → timesheet; approver membership → agency.
+
+History FKs: history → timesheet and → entry.
+
+Triggers and checks:
+  - immutable ownership columns;
+  - lifecycle transition trigger;
+  - supersede-only approvals; decision-immutable sign-offs;
+  - append-only history;
+  - evidence: purge-only update;
+  - holds: release-only;
+  - no DELETE or TRUNCATE on any history table;
+  - checks tying status to timestamps.
+
+======================================================================
+22. NOTIFICATIONS
+======================================================================
+  Event                                Recipients
+  timesheet_submitted                  agency approvers
+  timesheet_rejected                   worker (returned or reopened)
+  timesheet_facility_signoff_required  facility sign-off holders (once
+                                       per facility organisation)
+  timesheet_disputed                   agency approvers
+  attendance_time_adjusted             worker
+
+  - Routing uses timesheet.approve for agency fan-out and
+    timesheet.facility_signoff for facility fan-out.
+  - The template refuses facility rows without an entry at that facility.
+  - Emails contain no times, totals, pay, notes or coordinates.
+  - Approval, sign-off and lock are not emailed (volume).
+
+======================================================================
+23. UI ADDED
+======================================================================
+  - /timesheets serves three audiences:
+      * agency: a dense table with week and status filters;
+      * worker: weeks listed with a "Ready to submit" or blocking reasons
+        label;
+      * facility: an entries table with "Sign off" or "Raise a
+        discrepancy".
+  - /timesheets/[id] (worker and agency):
+      * header and totals;
+      * blocking reasons with guidance;
+      * submit, approve, return, reopen, recalculate;
+      * entries table: scheduled vs worked, breaks, badges, attendance
+        history links;
+      * discrepancy answers;
+      * history.
+  - /attendance/[id]: history table, open exceptions (including "Mark not
+    worked"), reviewer adjustment form, evidence link or step-up notice.
+  - /attendance/[id]/evidence: the raw evidence viewer and legal holds.
+  - /attendance: worker names link to their record; break-aware
+    correction text; "Approve a different time"; retention and
+    timesheet-week settings.
+  - /my-shifts:
+      * large Start break and End break buttons (mobile-first);
+      * worked time and breaks;
+      * correction requests for break times;
+      * adjusted-correction outcomes and reviewer notes.
+  - Organisation sections: a Timesheets link.
+
+Brand: tokens only, tables for dense data, whole-minute durations, no
+charts or effects. The logo and assets are untouched.
+
+======================================================================
+24. SECURITY TESTS
+======================================================================
+Files:
+  - 190_timesheets: 79 assertions.
+  - 200_attendance_hardening: 63 assertions.
+  - Updated: 000 (allow-list, 110), 030 (capabilities), 140 (cron jobs).
+  - Suite total: 22 files, 1,007 assertions, PASS.
+
+  A  Worker sees only own timesheets ............................. 190
+  B  Agency A cannot read Agency B timesheets .................... 190
+  C  Facility sees only entries at its facility .................. 190
+  D  Facility cannot sign off unrelated entry (CHP12) ............ 190
+  E  Worker cannot approve own timesheet ......................... 190
+     (also: self sign-off refused)
+  F  Worker cannot edit worked minutes (42501; owner CH409) ....... 190
+  G  Reviewer cannot rewrite time (42501, no RPC) ................ 190
+  H  Worked duration derives from attendance ..................... 190
+     (453, 245, overnight 480)
+  I  Approved correction changes derived duration (483) .......... 190
+  J  Original attendance event remains ........................... 190
+  K  Pending correction blocks submission ........................ 190
+  L  Missing clock blocks submission ............................. 190
+  M  Facility sign-off locks; locked time frozen (CHP09) ......... 190
+  N  Post-lock correction → CHT22 → confirmed revision 2 ......... 190
+     (superseded approval and sign-offs)
+  O  Facility projection has no coordinates or notes (keys) ...... 190
+  P  Raw evidence needs location.view (CH403) + AAL2 (CH402) ..... 200
+  Q  Raw evidence access audited ................................. 200
+  R  Purge preserves event and result; nulls coordinates only .... 200
+  S  Legal hold prevents purge; release then purges .............. 200
+  T  Purge per tenant (Beta 7 d vs Alpha 90 d) ................... 200
+  U  Refused clock-in rate limit (CH429 on the 11th) ............. 200
+  V  Rate-limit path bounded (10 audit rows, 1 exception, ........ 200
+     1 notice)
+  W  Facility view audit dedupe (same viewer 1 row; new viewer .. 200
+     +1)
+  X  Platform admin has no timesheet path ........................ 190
+  Y  Pinned search_path on every function ........................ 000
+  Z  No anon; no direct inserts or status writes ......... 000 / 190
+
+Also covered:
+  - breaks: order, states, CHT19, CHT20, CHT21;
+  - adjusted approvals: reason required, must differ, no future time;
+  - adjustment authorization; history visibility;
+  - not-worked closure;
+  - dispute → confirm → re-sign-off;
+  - return and reopen;
+  - immutable approvals, sign-offs and history;
+  - week-start lock;
+  - DST minute arithmetic.
+
+======================================================================
+25. INTEGRATION TESTS
+======================================================================
+tests/integration/timesheets.test.ts (8 tests, real local Supabase):
+
+  1. A completed shift derives its entry; breaks reduce worked time
+     (450, 240; total 690).
+  2. The worker submits and the agency approves.
+       - Worker update of minutes → 42501.
+       - Worker approval → CHP04.
+       - Scheduler approval → CH403.
+  3. Each facility sees and signs off only its own entry
+     (multi-facility, cross-sign CHP12, cross-list CH403) → locked.
+  4. A facility or agency outside the relationship cannot reach the
+     timesheet.
+  5. A correction to a locked entry needs an explicit revision:
+     CHT22, then revision 2 and 480 minutes.
+  6. A worker correction (approved with an adjusted time) completes an
+     open timesheet, which can then be submitted.
+  7. Raw evidence authorization:
+       - scheduler → CH403, facility → CHT04;
+       - purge keeps the result;
+       - a legal hold prevents the purge.
+  8. Repeated refused clock-ins are rate limited: 10 refused, then
+     CH429, with one exception.
+
+Support: tests/integration/support/past-work.ts arranges past work
+through the owner role, as the pgTAP fixtures do; the public API refuses
+to schedule the past.
+
+Updated: invitations-and-roles (the scheduler now holds timesheet.view).
+Suite: 10 files, 84 tests, PASS.
+
+======================================================================
+26. E2E TESTS
+======================================================================
+tests/e2e/timesheets.spec.ts, desktop and mobile.
+
+  Flow 1  A worker's completed week appears ("11 h 30 min worked",
+          "Ready to submit") → entries 7 h 30 min / 4 h → submitted.
+          Includes axe checks.
+  Flow 2  The agency opens the timesheet → attendance history (Break
+          start, Clock-out) → approves. Includes axe checks.
+  Flow 3  The facility sees only Tia's Mercy entry (no Riverside, no
+          coordinates) → signs off → the timesheet locks. Includes an axe
+          check.
+  Flow 4  The worker requests a clock-out correction on My Shifts → the
+          admin approves a different time with a reason → the worker sees
+          "… instead" and the timesheet shows 4 h and 1 approved
+          correction.
+  Flow 5  Live Clock in → Start break (Clock out hidden) → End break →
+          Clock out → break listed on the timesheet. The arranged 30-min
+          break is excluded (450/30). Includes an axe check.
+  Flow 6  Admin opens the record → "Verify now" → TOTP → evidence viewer
+          shows the "not proof" label, coordinates and result. The
+          facility gets 404 on the evidence URL and sees no coordinates
+          on its timesheets page.
+  Flow 7  Other agency, facility, and another worker get 404 on the
+          timesheets routes.
+
+Fixture: staffing-fixture now keeps the admin's TOTP secret and adds
+arrangePastWork and attachClockInEvidence (owner arrangement, local only).
+
+Results:
+  - Flows 1–4 passed on both viewports once the shared stack was stable.
+  - Full-suite results are in §32. Two classes of failure were purely
+    environmental:
+      * Auth "upstream timing out" / "fetch failed", and connection
+        refused, while the other session was restarting the shared stack;
+      * a host network suspension (ERR_NETWORK_IO_SUSPENDED).
+
+======================================================================
+27. TIME CALCULATION TESTS
+======================================================================
+  normal shift           453 min (break excluded) — pgTAP; 450 —
+                         integration and E2E
+  overnight              22:00→06:00 = 480, entry on start date — pgTAP;
+                         unit period across a month boundary
+  DST                    fall-back night 540 and spring-forward 420 min
+                         (pgTAP); zoned adjusted time (unit)
+  multiple segments      two breaks recorded in order (pgTAP 200)
+  break duration         30 min excluded (pgTAP 190/200, integration,
+                         E2E)
+  corrected times        17:05→17:35 gives 483; adjusted approval gives
+                         450; added break gives 420
+  no clock-out           no minutes, MISSING_CLOCK_OUT (pgTAP,
+                         integration)
+  revision after approval  revision 2, re-approval and re-sign-off (pgTAP,
+                         integration)
+  period boundary        period_closed; period start by local date
+                         (Monday/Sunday week start, month boundary; unit)
+
+All arithmetic uses timestamptz instants and whole epoch minutes.
+
+======================================================================
+28. SECURITY FINDINGS
+======================================================================
+Reviewed:
+  - worker editing hours;
+  - facility overreach;
+  - cross-tenant timesheet IDOR;
+  - post-approval mutation;
+  - source-of-truth drift;
+  - correction abuse;
+  - raw location leakage;
+  - retention failure;
+  - legal hold bypass;
+  - rate-limit bypass;
+  - sign-off spoofing;
+  - multi-facility leakage;
+  - service-role exposure (bundle scan OK; none used).
+
+  ID  Sev     Status    Finding
+  S1  MEDIUM  CLOSED    (S1 F5) No retention for raw location evidence
+                        → retention, purge and legal hold implemented.
+  S2  LOW     CLOSED    (S1 F6) Refused clock-ins not rate-limited →
+                        10 per 10 min, nothing written beyond that.
+  S3  LOW     CLOSED    (S1 F7) One audit row per facility view →
+                        deduplicated per viewer and target (15 min).
+  S4  LOW     FIXED     A facility member who is also the worker could
+                        sign off their own entry → refused (CH403),
+                        with a pgTAP test (peer session's change,
+                        reviewed).
+  S5  LOW     FIXED     The purge first used a temporary table inside a
+                        definer function → replaced by in-memory
+                        per-agency counts.
+  S6  LOW     ACCEPTED  Cancelling an assignment on an approved
+                        timesheet (rare; past shifts) triggers an
+                        automatic revision without reviewer
+                        confirmation. It is traceable (history and
+                        audit) and needs re-approval; never a silent
+                        edit.
+  S7  LOW     OPEN      If a relationship ends while entries await
+                        sign-off, those entries stay pending until the
+                        agency reopens and re-approves; they then become
+                        not_required.
+  S8  INFO    ACCEPTED  The worker sees a facility discrepancy's reason
+                        code (not its note) in their own history, for
+                        transparency.
+  S9  INFO    DEFERRED  The 90-day retention default needs legal
+                        confirmation per jurisdiction and contract
+                        before production (documented).
+  S10 INFO    ACCEPTED  Browser geolocation can be spoofed. The viewer
+                        labels it "not proof of presence".
+
+No open CRITICAL or HIGH finding. The completion gate is met.
+
+======================================================================
+29. KNOWN LIMITATIONS
+======================================================================
+  - Weekly periods only. No early submission before the week has ended
+    everywhere.
+  - One work span per assignment. Multiple clock-in/out spans are not
+    supported; breaks are.
+  - Timesheet visibility for ended relationships: the facility loses the
+    view once the relationship ends (the helper excludes ended
+    relationships).
+  - Worker acknowledgment of adjustments is not required. The worker is
+    notified and sees the history.
+  - Facilities cannot view decisions after lock beyond their own list.
+    There is no export.
+  - The agency list is capped at 500 rows, the worker list at 30 recent
+    weeks, the facility list at 500.
+  - Minute truncation is fixed (calculation v1). No rounding policy.
+
+======================================================================
+30. DEFERRED ITEMS
+======================================================================
+  - Payroll calendars (biweekly, semi-monthly); early submission policy.
+  - Payroll rounding; overtime; pay and bill rates; payroll and billing
+    exports (later stages consume locked snapshots).
+  - Jurisdictional break rules; paid versus unpaid breaks.
+  - Worker acknowledgment of reviewer adjustments.
+  - Automatic handling of sign-offs when a relationship ends (S7).
+  - Legal confirmation of the retention period (S9); records-management
+    tooling beyond the narrow legal hold.
+  - Notification preferences (digests for approvals and sign-offs).
+
+======================================================================
+31. MIGRATION LIST
+======================================================================
+New (not previously merged):
+  20260930150000_timesheet_vocabulary.sql
+  20260930150100_attendance_segments_and_retention.sql
+  20260930150200_timesheet_tables.sql
+  20260930150300_attendance_hardening_rpcs.sql
+  20260930150400_timesheet_rpcs.sql
+
+  - No merged migration was edited. S1 functions and constraints are
+    redefined or replaced in the new migrations only.
+  - Total: 40 migration files (check:migrations OK).
+  - New scheduled job: chelth-location-evidence-purge (17 3 * * *).
+
+======================================================================
+32. BUILD VALIDATION
+======================================================================
+Final state: database reset from empty, stack restarted.
+
+  npm run format:check        PASS
+  npm run lint                PASS
+  npm run typecheck           PASS
+  npm test                    PASS (20 files, 213 tests)
+  npm run build               PASS
+  npm run check:bundle        PASS (53 browser files, no secrets)
+  npx playwright test         PASS (96 passed, 2 skipped by design)
+  npm run check:migrations    PASS (40 files)
+  supabase db reset           PASS
+  supabase db lint            PASS (no schema errors)
+  supabase test db            PASS (22 files, 1,007 assertions)
+  npm run test:integration    PASS (10 files, 84 tests)
+  npm run db:types            PASS (no drift after regeneration)
+
+E2E: final clean run on a freshly restarted and reset stack, no other
+session using it: 96 passed, 2 skipped, 0 failed (3.0 min). The skips are
+the existing desktop-only keyboard tests on mobile. The timesheet spec
+(flows 1–7) passes on desktop and mobile; assignment-operations Flow 5
+(mobile) passes too.
+
+Earlier failed runs were caused by two sessions resetting and restarting
+the shared local stack at the same time (Auth timeouts, dropped sockets),
+not by the application.
+
+======================================================================
+33. GIT STATUS
+======================================================================
+Branch p0-e6-s2-timesheets, created from b1e8911 (P0-E6-S1). Nothing
+committed and nothing pushed.
+
+Modified:
+  - Docs (8): ATTENDANCE_DOMAIN_MODEL, ATTENDANCE_EVENT_MODEL,
+    ATTENDANCE_CORRECTIONS, ATTENDANCE_LOCATION_PRIVACY,
+    NOTIFICATION_DELIVERY, SECURITY_INVARIANTS (45–49),
+    AUTHORIZATION_MODEL, TECHNICAL_ARCHITECTURE.
+  - Pages: attendance, my-shifts, organisation overview, shift detail.
+  - Attendance feature: actions, queries, schemas, correction forms,
+    badges, index.
+  - Organisation sections.
+  - Vocabularies: authz, notifications (vocabulary and templates), errors;
+    domain attendance; database types.
+  - pgTAP 000, 030, 140; the E2E staffing fixture; integration
+    invitations-and-roles.
+
+New:
+  - 5 migrations.
+  - pgTAP 190, 200 and _timesheet_helpers.
+  - src/features/timesheets; src/lib/domain/timesheets.ts; attendance
+    break-control and review-tools.
+  - Routes: timesheets, timesheets/[id], attendance/[id],
+    attendance/[id]/evidence.
+  - Docs (5): TIMESHEET_DOMAIN_MODEL, TIMESHEET_APPROVAL_FLOW,
+    TIMESHEET_CALCULATION, ATTENDANCE_SEGMENTS_AND_BREAKS,
+    security/ATTENDANCE_EVIDENCE_RETENTION.
+  - Tests: unit timesheets, integration timesheets plus past-work
+    support, E2E timesheets.
+  - This report.
+
+Note: the peer session chelth-cc edited 20260930150400_timesheet_rpcs.sql
+(the self sign-off guard) and 190_timesheets.test.sql in this same tree.
+Both edits were reviewed and kept.
+
+======================================================================
+34. RECOMMENDED NEXT STAGE
+======================================================================
+P0-E7-S1: Pay & bill rate foundations, consuming locked timesheet
+snapshots only:
+  - rate cards per relationship, discipline and shift type (effective
+    dated, immutable versions);
+  - rounding and overtime policy as explicit, versioned configuration;
+  - priced timesheet lines derived from approval snapshots (never from
+    live attendance);
+  - approval, audit and export foundations for payroll and invoicing.
+
+Before or alongside it:
+  - legal confirmation of evidence retention (S9);
+  - relationship-end handling for pending sign-offs (S7);
+  - a CI-isolated Supabase stack per session or job, so concurrent local
+    sessions cannot reset each other.
