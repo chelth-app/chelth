@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { parseServerEnv } from "@/config/env.schema";
+import { parseServerEnv } from "@/config/env.server.schema";
 import { buildInvitationEmail } from "@/features/organisations/emails/invitation-email";
 import { disabledEmailSender } from "@/lib/email/disabled-sender";
 import { escapeHtml } from "@/lib/email/html";

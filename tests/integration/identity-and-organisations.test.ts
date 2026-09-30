@@ -98,6 +98,9 @@ describe("organisations, capabilities and AAL2", () => {
       .sort();
     expect(unsatisfied).toEqual([
       "audit.view",
+      "credential.requirements.manage",
+      "credential.review",
+      "credential.verify",
       "facility.manage",
       "membership.invite",
       "membership.manage",

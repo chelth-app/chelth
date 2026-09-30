@@ -10,7 +10,7 @@
  * Never log: access/refresh tokens, passwords, credential documents, form
  * payloads, or healthcare workforce identifiers. Log IDs and codes instead.
  */
-import type { LogLevel } from "@/config/env.schema";
+import type { LogLevel } from "@/config/env.server.schema";
 
 import { redact, redactString } from "./redact";
 

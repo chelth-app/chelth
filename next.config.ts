@@ -5,7 +5,8 @@ import {
   PHASE_PRODUCTION_SERVER,
 } from "next/constants";
 
-import { parsePublicEnv, parseServerEnv, resolveAppEnvironment } from "./src/config/env.schema";
+import { parsePublicEnv, resolveAppEnvironment } from "./src/config/env.schema";
+import { parseServerEnv } from "./src/config/env.server.schema";
 import { buildSecurityHeaders } from "./src/lib/security/security-headers";
 
 /**

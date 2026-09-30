@@ -123,3 +123,17 @@ credential or health information in notes.
 `/app/organisations/[id]/workforce/[workerId]` (record, status actions,
 reference, notes). Workers see "My worker record" on the organisation page.
 The organisation id is always explicit in the route.
+
+## 9. Credentials and readiness (P0-E4-S1)
+
+- Credentials belong to the **person** (`profile_id`), not to the worker
+  record; each agency sees them only through explicit shares
+  ([CREDENTIAL_DOMAIN_MODEL.md](CREDENTIAL_DOMAIN_MODEL.md)).
+- Disciplines are assigned per agency worker (`agency_worker_disciplines`,
+  `worker.manage`) and select which requirements apply.
+- Readiness is **derived** per worker (and per facility) by the compliance
+  engine ([COMPLIANCE_ENGINE.md](COMPLIANCE_ENGINE.md)); a worker must be
+  `active` with an active membership to be eligible.
+- Worker detail shows readiness with reasons (compliance.view), shared
+  credentials (credential.view), disciplines, and per-relationship readiness
+  sharing (credential.verify).

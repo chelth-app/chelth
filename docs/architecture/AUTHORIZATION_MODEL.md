@@ -25,31 +25,42 @@ Namespaced keys `<domain>.<action>` (lowercase, dot-separated), defined as
 reference rows by migration and mirrored in `src/lib/authz/vocabulary.ts`
 (drift-tested).
 
-| Capability            | Privileged (AAL2) | Meaning                                                 |
-| --------------------- | :---------------: | ------------------------------------------------------- |
-| `organisation.view`   |                   | See the organisation                                    |
-| `organisation.manage` |         ✔         | Organisation settings/status (reserved for owner roles) |
-| `membership.view`     |                   | See members, their roles and profiles                   |
-| `membership.invite`   |         ✔         | Issue, resend, revoke and list invitations              |
-| `membership.manage`   |         ✔         | Suspend, reinstate, revoke memberships                  |
-| `role.assign`         |         ✔         | Assign and revoke roles                                 |
-| `audit.view`          |         ✔         | Read the organisation audit history                     |
-| `worker.view`         |                   | View agency worker records (P0-E3-S3)                   |
-| `worker.manage`       |         ✔         | Change worker status and reference                      |
-| `worker.notes.view`   |                   | Read internal notes about workers                       |
-| `worker.notes.manage` |         ✔         | Add internal notes about workers                        |
-| `facility.view`       |                   | View client facilities and locations                    |
-| `facility.manage`     |         ✔         | Create/update client facilities and locations           |
-| `relationship.view`   |                   | View agency–facility relationships                      |
-| `relationship.manage` |         ✔         | Create relationships and change their status            |
+| Capability                       | Privileged (AAL2) | Meaning                                                                |
+| -------------------------------- | :---------------: | ---------------------------------------------------------------------- |
+| `organisation.view`              |                   | See the organisation                                                   |
+| `organisation.manage`            |         ✔         | Organisation settings/status (reserved for owner roles)                |
+| `membership.view`                |                   | See members, their roles and profiles                                  |
+| `membership.invite`              |         ✔         | Issue, resend, revoke and list invitations                             |
+| `membership.manage`              |         ✔         | Suspend, reinstate, revoke memberships                                 |
+| `role.assign`                    |         ✔         | Assign and revoke roles                                                |
+| `audit.view`                     |         ✔         | Read the organisation audit history                                    |
+| `worker.view`                    |                   | View agency worker records (P0-E3-S3)                                  |
+| `worker.manage`                  |         ✔         | Change worker status and reference                                     |
+| `worker.notes.view`              |                   | Read internal notes about workers                                      |
+| `worker.notes.manage`            |         ✔         | Add internal notes about workers                                       |
+| `facility.view`                  |                   | View client facilities and locations                                   |
+| `facility.manage`                |         ✔         | Create/update client facilities and locations                          |
+| `relationship.view`              |                   | View agency–facility relationships                                     |
+| `relationship.manage`            |         ✔         | Create relationships and change their status                           |
+| `credential.view`                |                   | View shared credential metadata and this agency's decisions (P0-E4-S1) |
+| `credential.review`              |         ✔         | Open numbers and clean documents of shared credentials                 |
+| `credential.verify`              |         ✔         | Record verification decisions; share readiness with facilities         |
+| `credential.requirements.view`   |                   | View baseline and facility requirements                                |
+| `credential.requirements.manage` |         ✔         | Create, change and deactivate requirements                             |
+| `compliance.view`                |                   | View derived readiness and reasons                                     |
+| `credential.view`                |                   | View shared credential metadata and this agency's decisions (P0-E4-S1) |
+| `credential.review`              |         ✔         | Open numbers and clean documents of shared credentials                 |
+| `credential.verify`              |         ✔         | Record verification decisions; share readiness with facilities         |
+| `credential.requirements.view`   |                   | View baseline and facility requirements                                |
+| `credential.requirements.manage` |         ✔         | Create, change and deactivate requirements                             |
+| `compliance.view`                |                   | View derived readiness and reasons                                     |
 
 Self-service identity actions (edit own name, enrol MFA, redeem an invitation
 addressed to you) are **identity-scoped**, not organisation capabilities, so
 there is no `identity.manage_self` row: they are authorised by being the
 identity (`auth.uid()`), enforced by RLS/column grants and RPC checks.
 
-Reserved namespaces for later stages (not created yet): `credential.*`,
-`shift.*`, `assignment.*`, `timesheet.*`, `rate.*`, `invoice.*`,
+Reserved namespaces for later stages (not created yet): `shift.*`, `assignment.*`, `timesheet.*`, `rate.*`, `invoice.*`,
 `payroll.*`. Each stage adds only the capabilities it implements, in its own
 migration, with role mappings.
 
@@ -71,6 +82,20 @@ role per type is granted to an organisation's creator.
 | Facility Admin (owner) | facility | all seven                                                                 | relationship.view (effective only via linked relationships)                           |
 | Facility Scheduler     | facility | organisation.view, membership.view                                        | relationship.view                                                                     |
 | Facility Supervisor    | facility | organisation.view, membership.view                                        | none                                                                                  |
+
+Credential & compliance capabilities (P0-E4-S1): admin — all six;
+credentialing officer — all six; operations manager — credential.view,
+requirements.view, compliance.view; recruiter — credential.view,
+compliance.view; scheduler — compliance.view; finance — none; healthcare
+worker — none (self-access is an identity rule); facility admin/scheduler —
+credential.view, effective only through the relationship projection.
+
+Credential & compliance capabilities (P0-E4-S1): admin — all six;
+credentialing officer — all six; operations manager — credential.view,
+requirements.view, compliance.view; recruiter — credential.view,
+compliance.view; scheduler — compliance.view; finance — none; healthcare
+worker — none (self-access is an identity rule); facility admin/scheduler —
+credential.view, effective only through the relationship projection.
 
 Least-privilege notes: `relationship.manage` (commercial state) is owner-only;
 recruiters do not see client data; finance does not see workers; credentialing
@@ -126,6 +151,18 @@ Added in P0-E3-S3:
 | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `authz.is_own_active_membership(membership)`           | the membership is the caller's AND live (active membership, active profile, non-archived org) — worker self-access                                                                                                                          |
 | `authz.has_relationship_capability(relationship, key)` | relationship not ended, client record explicitly linked to a facility org, caller holds `key` in THAT facility org — the only cross-organisation primitive ([../security/CROSS_ORG_DATA_SHARING.md](../security/CROSS_ORG_DATA_SHARING.md)) |
+
+Added in P0-E4-S1: `authz.can_access_shared_credential(credential, key)`
+(active share + active membership + capability in that agency),
+`authz.can_read_credential_document(document)` and its Storage twins
+`can_read/upload/delete_credential_object(path)` — the single source for both
+table RLS and Storage policies.
+
+Added in P0-E4-S1: `authz.can_access_shared_credential(credential, key)`
+(active share + active membership + capability in that agency),
+`authz.can_read_credential_document(document)` and its Storage twins
+`can_read/upload/delete_credential_object(path)` — the single source for both
+table RLS and Storage policies.
 
 `authz.can_view_profile` also admits `worker.view` holders for that agency's workers.
 

@@ -173,6 +173,52 @@ export type Database = {
           },
         ]
       }
+      agency_worker_disciplines: {
+        Row: {
+          agency_organisation_id: string
+          agency_worker_id: string
+          assigned_at: string
+          assigned_by_profile_id: string | null
+          discipline_key: string
+        }
+        Insert: {
+          agency_organisation_id: string
+          agency_worker_id: string
+          assigned_at?: string
+          assigned_by_profile_id?: string | null
+          discipline_key: string
+        }
+        Update: {
+          agency_organisation_id?: string
+          agency_worker_id?: string
+          assigned_at?: string
+          assigned_by_profile_id?: string | null
+          discipline_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agency_worker_disciplines_agency_worker_id_agency_organisa_fkey"
+            columns: ["agency_worker_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "agency_workers"
+            referencedColumns: ["id", "agency_organisation_id"]
+          },
+          {
+            foreignKeyName: "agency_worker_disciplines_assigned_by_profile_id_fkey"
+            columns: ["assigned_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agency_worker_disciplines_discipline_key_fkey"
+            columns: ["discipline_key"]
+            isOneToOne: false
+            referencedRelation: "disciplines"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
       agency_worker_notes: {
         Row: {
           agency_organisation_id: string
@@ -360,6 +406,493 @@ export type Database = {
         }
         Relationships: []
       }
+      credential_documents: {
+        Row: {
+          created_at: string
+          credential_id: string
+          credential_version_id: string
+          declared_size_bytes: number
+          id: string
+          mime_type: string
+          profile_id: string
+          sha256: string | null
+          status: Database["public"]["Enums"]["document_status"]
+          status_changed_at: string
+          status_reason: string | null
+          storage_path: string | null
+        }
+        Insert: {
+          created_at?: string
+          credential_id: string
+          credential_version_id: string
+          declared_size_bytes: number
+          id?: string
+          mime_type: string
+          profile_id: string
+          sha256?: string | null
+          status?: Database["public"]["Enums"]["document_status"]
+          status_changed_at?: string
+          status_reason?: string | null
+          storage_path?: string | null
+        }
+        Update: {
+          created_at?: string
+          credential_id?: string
+          credential_version_id?: string
+          declared_size_bytes?: number
+          id?: string
+          mime_type?: string
+          profile_id?: string
+          sha256?: string | null
+          status?: Database["public"]["Enums"]["document_status"]
+          status_changed_at?: string
+          status_reason?: string | null
+          storage_path?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credential_documents_credential_version_id_credential_id_p_fkey"
+            columns: ["credential_version_id", "credential_id", "profile_id"]
+            isOneToOne: false
+            referencedRelation: "credential_versions"
+            referencedColumns: ["id", "credential_id", "profile_id"]
+          },
+        ]
+      }
+      credential_identifiers: {
+        Row: {
+          created_at: string
+          credential_id: string
+          credential_number: string
+          profile_id: string
+        }
+        Insert: {
+          created_at?: string
+          credential_id: string
+          credential_number: string
+          profile_id: string
+        }
+        Update: {
+          created_at?: string
+          credential_id?: string
+          credential_number?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credential_identifiers_credential_id_profile_id_fkey"
+            columns: ["credential_id", "profile_id"]
+            isOneToOne: false
+            referencedRelation: "credentials"
+            referencedColumns: ["id", "profile_id"]
+          },
+        ]
+      }
+      credential_requirements: {
+        Row: {
+          agency_facility_id: string | null
+          agency_organisation_id: string
+          agency_organisation_type: Database["public"]["Enums"]["organisation_type"]
+          created_at: string
+          created_by_profile_id: string | null
+          credential_type_key: string
+          discipline_key: string | null
+          effective_from: string
+          effective_until: string | null
+          expiry_warning_days: number
+          id: string
+          jurisdiction_code: string | null
+          minimum_validity_days: number
+          must_be_verified: boolean
+          status: Database["public"]["Enums"]["requirement_status"]
+          updated_at: string
+        }
+        Insert: {
+          agency_facility_id?: string | null
+          agency_organisation_id: string
+          agency_organisation_type?: Database["public"]["Enums"]["organisation_type"]
+          created_at?: string
+          created_by_profile_id?: string | null
+          credential_type_key: string
+          discipline_key?: string | null
+          effective_from?: string
+          effective_until?: string | null
+          expiry_warning_days?: number
+          id?: string
+          jurisdiction_code?: string | null
+          minimum_validity_days?: number
+          must_be_verified?: boolean
+          status?: Database["public"]["Enums"]["requirement_status"]
+          updated_at?: string
+        }
+        Update: {
+          agency_facility_id?: string | null
+          agency_organisation_id?: string
+          agency_organisation_type?: Database["public"]["Enums"]["organisation_type"]
+          created_at?: string
+          created_by_profile_id?: string | null
+          credential_type_key?: string
+          discipline_key?: string | null
+          effective_from?: string
+          effective_until?: string | null
+          expiry_warning_days?: number
+          id?: string
+          jurisdiction_code?: string | null
+          minimum_validity_days?: number
+          must_be_verified?: boolean
+          status?: Database["public"]["Enums"]["requirement_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credential_requirements_agency_facility_id_agency_organisa_fkey"
+            columns: ["agency_facility_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "agency_facilities"
+            referencedColumns: ["id", "agency_organisation_id"]
+          },
+          {
+            foreignKeyName: "credential_requirements_agency_organisation_id_agency_orga_fkey"
+            columns: ["agency_organisation_id", "agency_organisation_type"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id", "type"]
+          },
+          {
+            foreignKeyName: "credential_requirements_created_by_profile_id_fkey"
+            columns: ["created_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credential_requirements_credential_type_key_fkey"
+            columns: ["credential_type_key"]
+            isOneToOne: false
+            referencedRelation: "credential_types"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "credential_requirements_discipline_key_fkey"
+            columns: ["discipline_key"]
+            isOneToOne: false
+            referencedRelation: "disciplines"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "credential_requirements_jurisdiction_code_fkey"
+            columns: ["jurisdiction_code"]
+            isOneToOne: false
+            referencedRelation: "jurisdictions"
+            referencedColumns: ["code"]
+          },
+        ]
+      }
+      credential_shares: {
+        Row: {
+          agency_organisation_id: string
+          agency_organisation_type: Database["public"]["Enums"]["organisation_type"]
+          credential_id: string
+          id: string
+          membership_id: string
+          profile_id: string
+          revoked_at: string | null
+          shared_at: string
+          status: Database["public"]["Enums"]["credential_share_status"]
+        }
+        Insert: {
+          agency_organisation_id: string
+          agency_organisation_type?: Database["public"]["Enums"]["organisation_type"]
+          credential_id: string
+          id?: string
+          membership_id: string
+          profile_id: string
+          revoked_at?: string | null
+          shared_at?: string
+          status?: Database["public"]["Enums"]["credential_share_status"]
+        }
+        Update: {
+          agency_organisation_id?: string
+          agency_organisation_type?: Database["public"]["Enums"]["organisation_type"]
+          credential_id?: string
+          id?: string
+          membership_id?: string
+          profile_id?: string
+          revoked_at?: string | null
+          shared_at?: string
+          status?: Database["public"]["Enums"]["credential_share_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credential_shares_agency_organisation_id_agency_organisati_fkey"
+            columns: ["agency_organisation_id", "agency_organisation_type"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id", "type"]
+          },
+          {
+            foreignKeyName: "credential_shares_credential_id_profile_id_fkey"
+            columns: ["credential_id", "profile_id"]
+            isOneToOne: false
+            referencedRelation: "credentials"
+            referencedColumns: ["id", "profile_id"]
+          },
+          {
+            foreignKeyName: "credential_shares_membership_id_agency_organisation_id_pro_fkey"
+            columns: ["membership_id", "agency_organisation_id", "profile_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id", "organisation_id", "profile_id"]
+          },
+        ]
+      }
+      credential_types: {
+        Row: {
+          category: Database["public"]["Enums"]["credential_category"]
+          created_at: string
+          is_active: boolean
+          is_renewable: boolean
+          jurisdiction_rule: Database["public"]["Enums"]["credential_jurisdiction_rule"]
+          key: string
+          name: string
+          requires_credential_number: boolean
+          requires_document: boolean
+          requires_expiry_date: boolean
+          requires_issue_date: boolean
+          requires_verification: boolean
+          scope: Database["public"]["Enums"]["credential_scope"]
+          sort_order: number
+          validity_months: number | null
+        }
+        Insert: {
+          category: Database["public"]["Enums"]["credential_category"]
+          created_at?: string
+          is_active?: boolean
+          is_renewable?: boolean
+          jurisdiction_rule?: Database["public"]["Enums"]["credential_jurisdiction_rule"]
+          key: string
+          name: string
+          requires_credential_number?: boolean
+          requires_document?: boolean
+          requires_expiry_date?: boolean
+          requires_issue_date?: boolean
+          requires_verification?: boolean
+          scope?: Database["public"]["Enums"]["credential_scope"]
+          sort_order: number
+          validity_months?: number | null
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["credential_category"]
+          created_at?: string
+          is_active?: boolean
+          is_renewable?: boolean
+          jurisdiction_rule?: Database["public"]["Enums"]["credential_jurisdiction_rule"]
+          key?: string
+          name?: string
+          requires_credential_number?: boolean
+          requires_document?: boolean
+          requires_expiry_date?: boolean
+          requires_issue_date?: boolean
+          requires_verification?: boolean
+          scope?: Database["public"]["Enums"]["credential_scope"]
+          sort_order?: number
+          validity_months?: number | null
+        }
+        Relationships: []
+      }
+      credential_verifications: {
+        Row: {
+          actor_membership_id: string
+          agency_facility_id: string | null
+          agency_organisation_id: string
+          created_at: string
+          credential_id: string
+          credential_version_id: string
+          id: string
+          outcome: Database["public"]["Enums"]["verification_outcome"]
+          profile_id: string
+          rejection_reason:
+            | Database["public"]["Enums"]["verification_rejection_reason"]
+            | null
+          sequence: number
+        }
+        Insert: {
+          actor_membership_id: string
+          agency_facility_id?: string | null
+          agency_organisation_id: string
+          created_at?: string
+          credential_id: string
+          credential_version_id: string
+          id?: string
+          outcome: Database["public"]["Enums"]["verification_outcome"]
+          profile_id: string
+          rejection_reason?:
+            | Database["public"]["Enums"]["verification_rejection_reason"]
+            | null
+          sequence?: never
+        }
+        Update: {
+          actor_membership_id?: string
+          agency_facility_id?: string | null
+          agency_organisation_id?: string
+          created_at?: string
+          credential_id?: string
+          credential_version_id?: string
+          id?: string
+          outcome?: Database["public"]["Enums"]["verification_outcome"]
+          profile_id?: string
+          rejection_reason?:
+            | Database["public"]["Enums"]["verification_rejection_reason"]
+            | null
+          sequence?: never
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credential_verifications_actor_membership_id_agency_organi_fkey"
+            columns: ["actor_membership_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id", "organisation_id"]
+          },
+          {
+            foreignKeyName: "credential_verifications_agency_facility_id_agency_organis_fkey"
+            columns: ["agency_facility_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "agency_facilities"
+            referencedColumns: ["id", "agency_organisation_id"]
+          },
+          {
+            foreignKeyName: "credential_verifications_credential_version_id_credential__fkey"
+            columns: ["credential_version_id", "credential_id", "profile_id"]
+            isOneToOne: false
+            referencedRelation: "credential_versions"
+            referencedColumns: ["id", "credential_id", "profile_id"]
+          },
+        ]
+      }
+      credential_versions: {
+        Row: {
+          created_at: string
+          credential_id: string
+          expiry_date: string | null
+          id: string
+          issue_date: string | null
+          profile_id: string
+          status: Database["public"]["Enums"]["credential_version_status"]
+          submitted_at: string | null
+          updated_at: string
+          version_number: number
+        }
+        Insert: {
+          created_at?: string
+          credential_id: string
+          expiry_date?: string | null
+          id?: string
+          issue_date?: string | null
+          profile_id: string
+          status?: Database["public"]["Enums"]["credential_version_status"]
+          submitted_at?: string | null
+          updated_at?: string
+          version_number: number
+        }
+        Update: {
+          created_at?: string
+          credential_id?: string
+          expiry_date?: string | null
+          id?: string
+          issue_date?: string | null
+          profile_id?: string
+          status?: Database["public"]["Enums"]["credential_version_status"]
+          submitted_at?: string | null
+          updated_at?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credential_versions_credential_id_profile_id_fkey"
+            columns: ["credential_id", "profile_id"]
+            isOneToOne: false
+            referencedRelation: "credentials"
+            referencedColumns: ["id", "profile_id"]
+          },
+        ]
+      }
+      credentials: {
+        Row: {
+          created_at: string
+          credential_type_key: string
+          id: string
+          issuing_authority: string | null
+          jurisdiction_code: string | null
+          profile_id: string
+          status: Database["public"]["Enums"]["credential_status"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          credential_type_key: string
+          id?: string
+          issuing_authority?: string | null
+          jurisdiction_code?: string | null
+          profile_id: string
+          status?: Database["public"]["Enums"]["credential_status"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          credential_type_key?: string
+          id?: string
+          issuing_authority?: string | null
+          jurisdiction_code?: string | null
+          profile_id?: string
+          status?: Database["public"]["Enums"]["credential_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credentials_credential_type_key_fkey"
+            columns: ["credential_type_key"]
+            isOneToOne: false
+            referencedRelation: "credential_types"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "credentials_jurisdiction_code_fkey"
+            columns: ["jurisdiction_code"]
+            isOneToOne: false
+            referencedRelation: "jurisdictions"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "credentials_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      disciplines: {
+        Row: {
+          is_active: boolean
+          key: string
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          is_active?: boolean
+          key: string
+          name: string
+          sort_order: number
+        }
+        Update: {
+          is_active?: boolean
+          key?: string
+          name?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
       facility_locations: {
         Row: {
           address_line1: string | null
@@ -436,6 +969,41 @@ export type Database = {
           sort_order?: number
         }
         Relationships: []
+      }
+      jurisdictions: {
+        Row: {
+          code: string
+          country_code: string
+          is_active: boolean
+          level: Database["public"]["Enums"]["jurisdiction_level"]
+          name: string
+          parent_code: string | null
+        }
+        Insert: {
+          code: string
+          country_code: string
+          is_active?: boolean
+          level: Database["public"]["Enums"]["jurisdiction_level"]
+          name: string
+          parent_code?: string | null
+        }
+        Update: {
+          code?: string
+          country_code?: string
+          is_active?: boolean
+          level?: Database["public"]["Enums"]["jurisdiction_level"]
+          name?: string
+          parent_code?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jurisdictions_parent_code_fkey"
+            columns: ["parent_code"]
+            isOneToOne: false
+            referencedRelation: "jurisdictions"
+            referencedColumns: ["code"]
+          },
+        ]
       }
       membership_roles: {
         Row: {
@@ -771,6 +1339,61 @@ export type Database = {
         }
         Relationships: []
       }
+      relationship_worker_compliance_shares: {
+        Row: {
+          agency_organisation_id: string
+          agency_worker_id: string
+          id: string
+          relationship_id: string
+          revoked_at: string | null
+          shared_at: string
+          shared_by_profile_id: string | null
+          status: Database["public"]["Enums"]["compliance_share_status"]
+        }
+        Insert: {
+          agency_organisation_id: string
+          agency_worker_id: string
+          id?: string
+          relationship_id: string
+          revoked_at?: string | null
+          shared_at?: string
+          shared_by_profile_id?: string | null
+          status?: Database["public"]["Enums"]["compliance_share_status"]
+        }
+        Update: {
+          agency_organisation_id?: string
+          agency_worker_id?: string
+          id?: string
+          relationship_id?: string
+          revoked_at?: string | null
+          shared_at?: string
+          shared_by_profile_id?: string | null
+          status?: Database["public"]["Enums"]["compliance_share_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "relationship_worker_complianc_agency_worker_id_agency_orga_fkey"
+            columns: ["agency_worker_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "agency_workers"
+            referencedColumns: ["id", "agency_organisation_id"]
+          },
+          {
+            foreignKeyName: "relationship_worker_complianc_relationship_id_agency_organ_fkey"
+            columns: ["relationship_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "agency_facility_relationships"
+            referencedColumns: ["id", "agency_organisation_id"]
+          },
+          {
+            foreignKeyName: "relationship_worker_compliance_shares_shared_by_profile_id_fkey"
+            columns: ["shared_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       role_capabilities: {
         Row: {
           capability_key: string
@@ -848,6 +1471,31 @@ export type Database = {
         Args: { p_membership_id: string; p_role_key: string }
         Returns: string
       }
+      authorize_credential_document_access: {
+        Args: { p_document_id: string; p_organisation_id?: string }
+        Returns: {
+          object_path: string
+        }[]
+      }
+      begin_credential_document_upload: {
+        Args: {
+          p_credential_version_id: string
+          p_mime_type: string
+          p_size_bytes: number
+        }
+        Returns: {
+          document_id: string
+          object_path: string
+        }[]
+      }
+      complete_credential_document_upload: {
+        Args: {
+          p_content_valid: boolean
+          p_document_id: string
+          p_sha256: string
+        }
+        Returns: Database["public"]["Enums"]["document_status"]
+      }
       create_agency_facility: {
         Args: {
           p_address_line1?: string
@@ -863,6 +1511,41 @@ export type Database = {
           p_postal_code?: string
           p_region?: string
           p_timezone: string
+        }
+        Returns: string
+      }
+      create_credential: {
+        Args: {
+          p_credential_number?: string
+          p_credential_type_key: string
+          p_expiry_date?: string
+          p_issue_date?: string
+          p_issuing_authority?: string
+          p_jurisdiction_code?: string
+        }
+        Returns: {
+          credential_id: string
+          credential_version_id: string
+        }[]
+      }
+      create_credential_requirement: {
+        Args: {
+          p_agency_facility_id?: string
+          p_agency_organisation_id: string
+          p_credential_type_key: string
+          p_discipline_key?: string
+          p_expiry_warning_days?: number
+          p_jurisdiction_code?: string
+          p_minimum_validity_days?: number
+          p_must_be_verified?: boolean
+        }
+        Returns: string
+      }
+      create_credential_version: {
+        Args: {
+          p_credential_id: string
+          p_expiry_date?: string
+          p_issue_date?: string
         }
         Returns: string
       }
@@ -897,6 +1580,39 @@ export type Database = {
           invite_token: string
         }[]
       }
+      evaluate_worker_compliance: {
+        Args: {
+          p_agency_facility_id?: string
+          p_agency_worker_id: string
+          p_as_of?: string
+        }
+        Returns: {
+          credential_id: string
+          credential_type_key: string
+          credential_type_name: string
+          effective_expiry_date: string
+          reason: Database["public"]["Enums"]["compliance_reason"]
+          requirement_id: string
+          requirement_scope: string
+          severity: Database["public"]["Enums"]["compliance_severity"]
+        }[]
+      }
+      list_agency_worker_credentials: {
+        Args: { p_agency_worker_id: string }
+        Returns: {
+          agency_verification: Database["public"]["Enums"]["verification_outcome"]
+          credential_id: string
+          credential_type_key: string
+          credential_type_name: string
+          documents_cleared: boolean
+          effective_expiry_date: string
+          jurisdiction_code: string
+          latest_version_id: string
+          latest_version_number: number
+          latest_version_status: Database["public"]["Enums"]["credential_version_status"]
+          shared_at: string
+        }[]
+      }
       list_organisation_invites: {
         Args: { p_organisation_id: string }
         Returns: {
@@ -918,6 +1634,18 @@ export type Database = {
           relationship_id: string
           relationship_started_at: string
           relationship_status: Database["public"]["Enums"]["relationship_status"]
+        }[]
+      }
+      list_shared_worker_compliance: {
+        Args: { p_relationship_id: string }
+        Returns: {
+          agency_worker_id: string
+          credential_type_name: string
+          effective_expiry_date: string
+          readiness: Database["public"]["Enums"]["readiness_status"]
+          reason: Database["public"]["Enums"]["compliance_reason"]
+          severity: Database["public"]["Enums"]["compliance_severity"]
+          worker_display_name: string
         }[]
       }
       my_capabilities: {
@@ -986,6 +1714,16 @@ export type Database = {
           role_name: string
         }[]
       }
+      record_credential_verification: {
+        Args: {
+          p_agency_facility_id?: string
+          p_agency_organisation_id: string
+          p_credential_version_id: string
+          p_outcome: Database["public"]["Enums"]["verification_outcome"]
+          p_rejection_reason?: Database["public"]["Enums"]["verification_rejection_reason"]
+        }
+        Returns: string
+      }
       record_organisation_invite_delivery: {
         Args: {
           p_error_code?: string
@@ -1004,6 +1742,10 @@ export type Database = {
           invite_token: string
         }[]
       }
+      revoke_credential_share: {
+        Args: { p_share_id: string }
+        Returns: undefined
+      }
       revoke_membership_role: {
         Args: { p_membership_id: string; p_role_key: string }
         Returns: undefined
@@ -1012,10 +1754,22 @@ export type Database = {
         Args: { p_invite_id: string }
         Returns: undefined
       }
+      revoke_worker_compliance_share: {
+        Args: { p_share_id: string }
+        Returns: undefined
+      }
       set_agency_facility_status: {
         Args: {
           p_facility_id: string
           p_status: Database["public"]["Enums"]["facility_status"]
+        }
+        Returns: undefined
+      }
+      set_agency_worker_discipline: {
+        Args: {
+          p_agency_worker_id: string
+          p_assigned: boolean
+          p_discipline_key: string
         }
         Returns: undefined
       }
@@ -1040,6 +1794,18 @@ export type Database = {
         }
         Returns: undefined
       }
+      share_credential: {
+        Args: { p_agency_organisation_id: string; p_credential_id: string }
+        Returns: string
+      }
+      share_worker_compliance: {
+        Args: { p_agency_worker_id: string; p_relationship_id: string }
+        Returns: string
+      }
+      submit_credential_version: {
+        Args: { p_credential_version_id: string }
+        Returns: undefined
+      }
       update_agency_facility: {
         Args: {
           p_address_line1?: string
@@ -1062,17 +1828,95 @@ export type Database = {
         Args: { p_worker_id: string; p_worker_reference: string }
         Returns: undefined
       }
+      update_credential_requirement: {
+        Args: {
+          p_expiry_warning_days: number
+          p_minimum_validity_days: number
+          p_must_be_verified: boolean
+          p_requirement_id: string
+          p_status: Database["public"]["Enums"]["requirement_status"]
+        }
+        Returns: undefined
+      }
+      withdraw_credential: {
+        Args: { p_credential_id: string }
+        Returns: undefined
+      }
+      withdraw_credential_version: {
+        Args: { p_credential_version_id: string }
+        Returns: undefined
+      }
+      worker_readiness: {
+        Args: {
+          p_agency_facility_id?: string
+          p_agency_worker_id: string
+          p_as_of?: string
+        }
+        Returns: {
+          blocking_count: number
+          readiness: Database["public"]["Enums"]["readiness_status"]
+          warning_count: number
+        }[]
+      }
     }
     Enums: {
+      compliance_reason:
+        | "MET"
+        | "EXPIRING_SOON"
+        | "MISSING_CREDENTIAL"
+        | "CREDENTIAL_NOT_SHARED"
+        | "WRONG_JURISDICTION"
+        | "NOT_SUBMITTED"
+        | "DOCUMENT_MISSING"
+        | "DOCUMENT_NOT_CLEARED"
+        | "UNVERIFIED_CREDENTIAL"
+        | "VERIFICATION_REJECTED"
+        | "EXPIRED_CREDENTIAL"
+        | "INSUFFICIENT_VALIDITY"
+        | "WORKER_NOT_ACTIVE"
+        | "DISCIPLINE_NOT_SET"
+      compliance_severity: "ok" | "warning" | "blocking"
+      compliance_share_status: "active" | "revoked"
+      credential_category:
+        | "professional_license"
+        | "certification"
+        | "background_screening"
+        | "health_screening"
+        | "training"
+        | "identity_work_authorization"
+        | "competency"
+      credential_jurisdiction_rule: "none" | "country" | "subdivision"
+      credential_scope: "person" | "facility"
+      credential_share_status: "active" | "revoked"
+      credential_status: "active" | "withdrawn"
+      credential_version_status: "draft" | "submitted" | "withdrawn"
+      document_status:
+        | "upload_pending"
+        | "scanning"
+        | "clean"
+        | "rejected"
+        | "quarantined"
       facility_location_status: "active" | "inactive"
       facility_status: "active" | "inactive" | "archived"
       invite_delivery_status: "not_attempted" | "sent" | "failed" | "skipped"
       invite_status: "pending" | "accepted" | "revoked"
+      jurisdiction_level: "country" | "subdivision"
       membership_status: "active" | "suspended" | "revoked"
       organisation_status: "active" | "suspended" | "archived"
       organisation_type: "agency" | "facility"
       profile_status: "active" | "suspended"
+      readiness_status: "ready" | "action_required" | "not_eligible"
       relationship_status: "pending" | "active" | "suspended" | "ended"
+      requirement_status: "active" | "inactive"
+      verification_outcome: "under_review" | "verified" | "rejected"
+      verification_rejection_reason:
+        | "document_illegible"
+        | "details_mismatch"
+        | "expired"
+        | "wrong_credential_type"
+        | "not_authentic"
+        | "incomplete"
+        | "other"
       worker_status:
         | "onboarding"
         | "active"
@@ -1206,15 +2050,67 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      compliance_reason: [
+        "MET",
+        "EXPIRING_SOON",
+        "MISSING_CREDENTIAL",
+        "CREDENTIAL_NOT_SHARED",
+        "WRONG_JURISDICTION",
+        "NOT_SUBMITTED",
+        "DOCUMENT_MISSING",
+        "DOCUMENT_NOT_CLEARED",
+        "UNVERIFIED_CREDENTIAL",
+        "VERIFICATION_REJECTED",
+        "EXPIRED_CREDENTIAL",
+        "INSUFFICIENT_VALIDITY",
+        "WORKER_NOT_ACTIVE",
+        "DISCIPLINE_NOT_SET",
+      ],
+      compliance_severity: ["ok", "warning", "blocking"],
+      compliance_share_status: ["active", "revoked"],
+      credential_category: [
+        "professional_license",
+        "certification",
+        "background_screening",
+        "health_screening",
+        "training",
+        "identity_work_authorization",
+        "competency",
+      ],
+      credential_jurisdiction_rule: ["none", "country", "subdivision"],
+      credential_scope: ["person", "facility"],
+      credential_share_status: ["active", "revoked"],
+      credential_status: ["active", "withdrawn"],
+      credential_version_status: ["draft", "submitted", "withdrawn"],
+      document_status: [
+        "upload_pending",
+        "scanning",
+        "clean",
+        "rejected",
+        "quarantined",
+      ],
       facility_location_status: ["active", "inactive"],
       facility_status: ["active", "inactive", "archived"],
       invite_delivery_status: ["not_attempted", "sent", "failed", "skipped"],
       invite_status: ["pending", "accepted", "revoked"],
+      jurisdiction_level: ["country", "subdivision"],
       membership_status: ["active", "suspended", "revoked"],
       organisation_status: ["active", "suspended", "archived"],
       organisation_type: ["agency", "facility"],
       profile_status: ["active", "suspended"],
+      readiness_status: ["ready", "action_required", "not_eligible"],
       relationship_status: ["pending", "active", "suspended", "ended"],
+      requirement_status: ["active", "inactive"],
+      verification_outcome: ["under_review", "verified", "rejected"],
+      verification_rejection_reason: [
+        "document_illegible",
+        "details_mismatch",
+        "expired",
+        "wrong_credential_type",
+        "not_authentic",
+        "incomplete",
+        "other",
+      ],
       worker_status: [
         "onboarding",
         "active",

@@ -77,3 +77,13 @@ All are pgTAP/integration tested.
 Each will ship with pgTAP tests proving: unrelated facility sees nothing;
 ended relationship shares nothing; facility cannot read agency tenant tables;
 agency B cannot see agency A's shares.
+
+## 6. Credentials and compliance (implemented, P0-E4-S1)
+
+| Resource                                                         | Facility side sees                                                     | Mechanism                                                                                                                                                                                                                |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Worker readiness for this facility                               | readiness, reason codes, credential type names, effective expiry dates | explicit per-worker share (`relationship_worker_compliance_shares`, `credential.verify`, active relationship) → `list_shared_worker_compliance` (facility `credential.view`, audited as `compliance.viewed_by_facility`) |
+| Credential rows, numbers, documents, verification history, notes | **nothing**                                                            | no policy path                                                                                                                                                                                                           |
+
+Revocation: removing the share, ending/suspending the relationship, or the
+facility member losing access each stop sharing immediately (tested).

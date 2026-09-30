@@ -187,6 +187,20 @@ The identity and authorization design is specified in
 - Routes are organisation-scoped: `/app/organisations/[id]/workforce…`,
   `/app/organisations/[id]/facilities…` (explicit context, 404 for non-members).
 
+### Credentials & compliance (P0-E4-S1)
+
+- Person-owned credentials with immutable versions, explicit agency shares and
+  append-only per-agency verification
+  ([CREDENTIAL_DOMAIN_MODEL.md](CREDENTIAL_DOMAIN_MODEL.md),
+  [../security/CREDENTIAL_SHARING_MODEL.md](../security/CREDENTIAL_SHARING_MODEL.md)).
+- Private Storage bucket with signed upload/download URLs, server-side content
+  checks and a scan trust gate
+  ([../security/CREDENTIAL_DOCUMENT_SECURITY.md](../security/CREDENTIAL_DOCUMENT_SECURITY.md)).
+- Requirements: agency baseline + facility add-ons
+  ([FACILITY_CREDENTIAL_REQUIREMENTS.md](FACILITY_CREDENTIAL_REQUIREMENTS.md)).
+- Derived, explainable eligibility with reason codes
+  ([COMPLIANCE_ENGINE.md](COMPLIANCE_ENGINE.md)).
+
 1. **Identity** — Supabase Auth; server code trusts only validated sessions.
 2. **Authorization** — database-enforced (RLS + RPC checks), mirrored by
    server checks for good UX. UI hiding is never authorization.
