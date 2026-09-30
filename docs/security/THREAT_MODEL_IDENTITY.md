@@ -58,7 +58,8 @@ the enforcement point.
 - Email confirmation ON; secure password change ON; min length 12 with
   lower/upper/digit; anonymous sign-ins OFF; no OAuth providers.
 - TOTP MFA enrol/verify ON.
-- Email templates from `supabase/templates/`; Site URL = the Chelth domain;
+- Email templates from `supabase/templates/` (Confirm signup, Reset Password,
+  Change Email — never the defaults using `{{ .ConfirmationURL }}`); Site URL = the Chelth domain;
   redirect allow-list limited to `https://<domain>/auth/confirm`.
 - **Production** rate limits (not the local test values): resend interval
   60 s; default sign-in/sign-up and token-verification limits.
