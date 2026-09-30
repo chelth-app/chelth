@@ -26,6 +26,12 @@ a test file that proves:
 3. Each role can do exactly what its policy allows — and nothing else.
 4. Append-only tables reject `update` and `delete`.
 
-Use `set local role authenticated;` plus
-`set local request.jwt.claims = '{"sub": "<uuid>", "role": "authenticated"}';`
-to act as a specific user inside a transaction. Tests always `rollback`.
+Use the shared helpers in `security/_helpers.psql` (included with `\ir`):
+`pg_temp.create_user`, `query_as` / `scalar_as` / `exec_as` / `count_as`
+(run SQL as a user at `aal1`/`aal2`, or as `anon` with a NULL user),
+`create_org_as`, `add_member`, `membership_of`. Assertions always run as the
+owner role; user actions run inside the helpers, which switch role and JWT
+claims and switch back. Tests always `rollback`.
+
+When you add an RPC or policy helper, update the allow-lists in
+`000_security_baseline.test.sql` in the same pull request.

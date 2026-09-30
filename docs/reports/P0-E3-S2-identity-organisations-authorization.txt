@@ -1,0 +1,435 @@
+================================================================================
+CHELTH — P0-E3-S2 — IDENTITY, ORGANISATIONS & AUTHORIZATION ARCHITECTURE
+Completion report
+Date: 2026-09-30        Branch: p0-e3-s2-identity-authorization (uncommitted)
+================================================================================
+
+1. EXECUTIVE SUMMARY
+--------------------------------------------------------------------------------
+Status: COMPLETE — every completion-gate criterion is met (section 22).
+
+Chelth now has a multi-organisation identity and authorization model:
+
+  identity (profile) → memberships (one per organisation)
+                     → role assignments (membership-scoped, history kept)
+                     → capabilities (namespaced; privileged ones need MFA/AAL2)
+
+Authorization is evaluated by Postgres on every request through one
+primitive, authz.has_capability(organisation_id, capability), used by both RLS
+policies and SECURITY DEFINER RPCs. All writes to identity/organisation
+tables go through RPCs that authorise, enforce anti-escalation rules, mutate
+and audit in a single transaction. Platform administration is a separate,
+AAL2-gated, fully audited privilege with no RLS access to tenant data.
+No service-role key is used anywhere — application, tests or CI.
+
+Verification: 184 pgTAP assertions (7 files), 23 integration tests against
+the real local Supabase APIs (real sign-up + email verification via Mailpit,
+real TOTP), 34 Playwright E2E tests on desktop and mobile viewports (2
+intentional desktop-only skips), 84 unit tests. All three CI jobs were
+reproduced locally with CI's exact service configuration and passed.
+
+No healthcare domain modules were built. Nothing was committed or pushed.
+
+2. SCHEMA ADDED
+--------------------------------------------------------------------------------
+Schemas
+  authz      policy helpers; USAGE + allow-listed EXECUTE for authenticated;
+             not exposed via the Data API
+  internal   triggers, audit writer, rate limiter, token helpers, operator
+             procedures; no API role has any privilege
+
+Enums (public): profile_status, organisation_type, organisation_status,
+membership_status, invite_status
+
+Tables — each justified:
+  public.profiles                 identity (1:1 auth.users); display name + status
+  public.organisations            tenant abstraction (agency | facility)
+  public.organisation_memberships profile ↔ organisation, lifecycle
+  public.capabilities             permission vocabulary (7 rows)
+  public.roles                    capability bundles per org type (10 rows)
+  public.role_capabilities        role → capability mapping (36 rows)
+  public.membership_roles         role assignments, revoke-only history
+  public.organisation_invites     invitations (token hash only; no API grants)
+  public.platform_admins          platform privilege grants (history kept)
+  public.audit_events             append-only audit log
+  internal.rate_limit_counters    fixed-window throttling
+
+Public RPCs (authenticated only — allow-listed in pgTAP):
+  create_organisation, my_capabilities, assign_membership_role,
+  revoke_membership_role, set_membership_status, create_organisation_invite,
+  resend_organisation_invite, revoke_organisation_invite,
+  list_organisation_invites, preview_organisation_invite,
+  accept_organisation_invite, platform_list_organisations,
+  platform_create_organisation, platform_set_organisation_status,
+  platform_set_profile_status
+
+Not created (per scope): workers, facilities as domain records, credentials,
+shifts, assignments, timesheets, invoices, payroll, storage buckets.
+
+3. IDENTITY MODEL
+--------------------------------------------------------------------------------
+- Supabase Auth is the identity source; profiles.id = auth.users.id.
+- Profile created by trigger; only a sanitised display_name is read from
+  (user-controlled) metadata. Email stays in auth.users (PII minimisation).
+- Users may update only their own display_name (column grant + RLS).
+- profiles has NO role / organisation / active-organisation column
+  (pgTAP columns_are test).
+- A suspended profile holds no capabilities anywhere.
+- Sign-up model: sign-up creates an identity ONLY. No automatic role in any
+  organisation. People join by invitation or explicitly create an agency.
+
+4. ORGANISATION MODEL
+--------------------------------------------------------------------------------
+- Constrained type enum (agency | facility); immutable (trigger).
+- Stable slug; self-serve slugs get a random suffix (non-enumerable).
+- Status active | suspended | archived; never deleted.
+- Creation paths:
+    create_organisation('agency', …)  verified email, 5/day; creator's
+                                      membership + owner role derived
+                                      server-side, atomic, audited
+    platform_create_organisation(…)   platform admin (AAL2); creates org +
+                                      owner INVITATION; admin is not a member
+  Facilities are not self-serve.
+
+5. MEMBERSHIP MODEL
+--------------------------------------------------------------------------------
+- One membership per (organisation, profile); organisation_id/profile_id
+  immutable.
+- Lifecycle: active ⇄ suspended → revoked. Suspended: no access, roles kept.
+  Revoked: all role assignments ended (re-admission by new invitation only,
+  never silently restoring old privileges).
+- Invitation state lives in organisation_invites (justified deviation from an
+  "invited" membership status: invitees may not have an identity yet).
+- Nobody can change their own membership. Managing a member requires
+  membership.manage AND holding every capability the target holds.
+- Multi-organisation identities verified in pgTAP (one identity: Recruiter in
+  Alpha, Healthcare Worker in Beta, different capabilities per organisation).
+
+6. ROLES & CAPABILITIES
+--------------------------------------------------------------------------------
+Capabilities (privileged = AAL2): organisation.view, organisation.manage*,
+membership.view, membership.invite*, membership.manage*, role.assign*,
+audit.view*.
+
+Roles: agency.admin (owner), agency.operations_manager, agency.recruiter,
+agency.scheduler, agency.credentialing_officer, agency.finance,
+agency.healthcare_worker, facility.admin (owner), facility.scheduler,
+facility.supervisor. Platform Admin is not a role (section 7).
+
+Rules: code checks capabilities, never role names; role key namespace must
+equal organisation type (constraint); one owner role per type; typed TS
+vocabulary in src/lib/authz with an integration drift test against the DB.
+
+Role assignment: role.assign (AAL2) + not self + capability ceiling (cannot
+grant or revoke a role conferring anything the caller lacks) + role valid for
+org type + active membership. Revocation sets revoked_at; rows can never be
+deleted or un-revoked (trigger). Last-administrator protection.
+
+Scoped permissions: documented evolution path (AUTHORIZATION_MODEL.md §10):
+nullable scope columns on membership_roles + 4-argument has_capability.
+
+7. PLATFORM ADMIN MODEL
+--------------------------------------------------------------------------------
+- platform_admins grant + AAL2 session (authz.is_platform_admin).
+- Not a tenant member; RLS gives no tenant rows (tested).
+- Narrow RPCs only; EVERY call (reads included) audited with the session AAL.
+- Grants/revocations: internal.grant_platform_admin / revoke_platform_admin,
+  executable only by the database owner role, audited with the named
+  operator (DATABASE_MIGRATION_POLICY.md §11). Unreachable via the API.
+
+8. MFA ENFORCEMENT
+--------------------------------------------------------------------------------
+Where AAL2 is checked:
+  RLS / helper layer  authz.has_capability (privileged capabilities),
+                      authz.is_platform_admin — authoritative
+  RPC layer           internal.require_capability / require_platform_admin
+                      raise CH402 so clients can prompt step-up — authoritative
+  Server Actions      map CH402 → MFA_REQUIRED (no authority)
+  UI                  my_capabilities().is_satisfied → step-up notice (hint)
+AAL comes from the Supabase-signed JWT; a missing claim is treated as AAL1.
+TOTP enrolment (/app/security) and step-up (/app/security/verify) are built.
+Policy: MFA is required to exercise privileged capabilities; enrolment is not
+forced on non-privileged users (e.g. healthcare workers).
+
+9. RLS ARCHITECTURE
+--------------------------------------------------------------------------------
+- RLS enabled on every table in public/authz/internal (pgTAP).
+- authenticated holds only SELECT at table level; the single direct write is
+  UPDATE(display_name) on one's own profile (pgTAP asserts exactly this).
+- anon holds nothing anywhere (pgTAP).
+- Policies: profiles (self or co-member via membership.view), organisations
+  (active member), memberships and role assignments (own or membership.view
+  in that org), reference data (authenticated), platform_admins (own rows),
+  audit_events (own actions or audit.view@AAL2 in that org), invites (none).
+- Cross-tenant integrity is declarative: composite FKs
+  (membership_id, organisation_id), (organisation_id, organisation_type),
+  (role_key, organisation_type) on membership_roles and invites, plus
+  immutability triggers. Tested to hold even for the owner role.
+- No roles/capabilities in JWT claims → suspension/revocation are immediate.
+
+10. AUTHORIZATION HELPERS
+--------------------------------------------------------------------------------
+authz (EXECUTE: authenticated): current_profile_id, current_aal,
+has_capability(org, key), is_org_member(org), is_own_membership(m),
+can_view_profile(p), is_platform_admin.
+internal (no API EXECUTE): profile_capabilities, require_identity,
+require_capability, require_platform_admin, role_within_ceiling,
+membership_within_ceiling, assert_owner_remains, record_audit_event,
+request_id, consume_rate_limit, new_invite_token, hash_invite_token,
+resolve_invite_for_caller, require_invite_authority, grant/revoke_platform_admin,
+trigger functions.
+All: fixed search_path (SECURITY DEFINER use ''), qualified names, explicit
+grants, revoke-by-default — each property enforced by pgTAP.
+Deliberately absent: has_role() (would invite role-name checks) and any
+unscoped "my organisation/my staff" helper. Every organisation-aware check
+takes or derives the organisation explicitly.
+
+11. INVITATION SYSTEM
+--------------------------------------------------------------------------------
+  strong token          256-bit pgcrypto, base64url (43 chars)
+  hashed at rest        SHA-256 only; table has no API grants
+  shown only as needed  returned once to issuer; never listed/logged/audited
+  expiry / single use   7 days; pending → accepted under row lock
+  resend rotates        new token, old hash overwritten, max 5 sends
+  uniform pre-auth      NO anonymous validation endpoint; /invite/<token>
+                        responds identically for every token and moves the
+                        token into a 1-hour httpOnly cookie
+  no PII in validation  preview returns organisation + role names only
+  server-side accept    accept_organisation_invite(token) — token is the only
+                        parameter; org and role come from the invite row
+  email binding         caller's VERIFIED auth.users email must match
+  throttling            20 attempts / identity / 15 min; invalid attempts
+                        return an empty result (not an error) so the counter
+                        and the failure audit event commit
+  stale issuer          issuer must still hold membership.invite + the role's
+                        capabilities (or platform admin) at redemption
+  audited               created/resent/revoked/accepted/acceptance_failed
+Delivery: links are displayed once to the issuer; email delivery is deferred
+(section 20).
+
+12. AUDIT EVENT ARCHITECTURE
+--------------------------------------------------------------------------------
+Fields: id, occurred_at, actor_profile_id (no FK — outlives identities),
+actor_membership_id (composite FK with organisation_id), actor_aal,
+organisation_id, action (namespaced), target_type, target_id, metadata
+(jsonb object ≤ 4 KB; identifiers/codes only), request_id (from the
+x-chelth-request-id header the server forwards; accepted only if a UUID).
+Append-only: no API write grants; triggers refuse UPDATE/DELETE/TRUNCATE for
+every role including the owner. Written only by internal.record_audit_event
+inside RPCs. Visibility: own actions, or audit.view (AAL2) per organisation.
+Actions recorded this stage: organisation.created/status_changed,
+membership.created/reactivated/status_changed, role.assigned/revoked,
+invite.created/resent/revoked/accepted/acceptance_failed,
+profile.status_changed, platform.admin_granted/admin_revoked/
+organisations_listed.
+
+13. AUTH UI
+--------------------------------------------------------------------------------
+Feature modules: src/features/identity, src/features/organisations.
+Pages: /sign-in, /sign-up, /forgot-password, /reset-password, /auth/confirm,
+/auth/error, /app (organisations + create agency + pending-invite banner),
+/app/organisations/[id] (members, roles, status, invitations, recent
+activity — each shown only with the capability; step-up notice at AAL1),
+/app/security (TOTP enrolment), /app/security/verify (step-up), /app/account
+(display name), /invite/[token] → /invite (review + accept).
+Properties: server-first; small client forms with useActionState
+(progressive enhancement); uniform responses for sign-up, reset and bad
+credentials; POST-only sign-out; safe redirects; accessible forms (axe-clean
+on desktop and mobile). Active-organisation cookie reorders /app only —
+never auto-selects, never read by actions. No social providers; no Facebook.
+Email templates use the token_hash flow (supabase/templates/).
+
+14. INTEGRATION TESTS (tests/integration — 23 tests, all passing)
+--------------------------------------------------------------------------------
+Real sign-up + email verification via Mailpit; real TOTP step-up; no
+service-role key. Covers: profile creation and column restrictions; no
+membership after sign-up; organisation creation with server-derived owner
+role; facility self-serve refused; CH402 at AAL1 then success at AAL2;
+cross-organisation reads empty and writes CH403 at AAL2; direct writes 42501;
+audit visibility; invite token never readable; impostor cannot preview or
+accept; invitee accepts with exactly the invited role; replay refused; no
+self-escalation; role assign/revoke with history + audit; suspension removes
+access with the SAME JWT; platform admin (operator grant, CH402 → AAL2,
+audited, no RLS access, grant procedure unreachable); vocabulary drift.
+
+15. SECURITY TESTS (supabase/tests/security — 184 assertions, all passing)
+--------------------------------------------------------------------------------
+  000 baseline         RLS everywhere; anon/PUBLIC no grants; authenticated
+                       SELECT-only (+ own display name); search_path on every
+                       function ('' for definers); explicit EXECUTE
+                       allow-lists; no internal EXECUTE; private schema usage;
+                       no public buckets; deny-by-default for new objects (20)
+  010 profiles         A, impersonation, anonymous denial (17)
+  020 orgs/memberships B, C, D, F, multi-org, lifecycle, AAL2 step-up (40)
+  030 roles            E, J, ceiling, composite-FK integrity, history, last
+                       admin (36)
+  040 invitations      G, H, rotation, expiry, email binding, unverified,
+                       stale issuer, throttle, payload manipulation (37)
+  050 platform admin   I, operator-only grants, no RLS bypass (20)
+  060 audit            K, visibility, metadata hygiene, request id (14)
+Required categories A–O are all covered (L/M/N/O in 000). Shared helpers in
+_helpers.psql run user actions with switched role/JWT and assert as owner.
+Tests were verified to be independent of pre-existing data.
+
+16. E2E TESTS (tests/e2e — 34 passed, 2 intentional skips)
+--------------------------------------------------------------------------------
+identity.spec.ts (desktop + mobile): protected-route redirect; auth pages
+axe-clean; sign-up → email verification (Mailpit) → create agency → step-up
+notice → axe-clean org page → sign-out → sign-in; uniform wrong-credentials
+error; password reset (uniform request, email link, new password, old
+password rejected); reset page without session; unverified account blocked;
+FULL FLOW: admin enables TOTP via step-up path → invites Scheduler → invitee
+(separate browser) opens link → signs up with invited email → verifies →
+accepts → sees organisation with Scheduler role → replay shows uniform
+invalid message → admin sees new member; foreign/malformed organisation ids
+return 404. foundation.spec.ts (S1) still passes.
+
+17. CI CHANGES
+--------------------------------------------------------------------------------
+.github/workflows/ci.yml — three jobs:
+  quality   format, lint, typecheck, unit, build, bundle secret scan
+  database  migration discipline, local Supabase from empty, db lint
+            (public/authz/internal, fail on warning), pgTAP, generated-type
+            drift, integration tests
+  e2e       local Supabase (auth/API/Mailpit), production build, Playwright
+Local-stack variables come from scripts/local-supabase-env.mjs (anon key
+only; refuses non-local stacks). Any security test failure fails CI.
+.github/dependabot.yml — ignores the deliberately pinned majors
+(TypeScript, ESLint, @eslint/js, @types/node) that produced failing PRs.
+
+18. SECURITY FINDINGS
+--------------------------------------------------------------------------------
+Review of privilege escalation, IDOR, cross-organisation access, stale
+membership, suspended membership, revoked roles, invite replay/enumeration,
+role tampering, AAL1 vs AAL2, RPC grants, audit tampering, profile
+impersonation, anonymous access and service-role leakage:
+docs/security/THREAT_MODEL_IDENTITY.md (30 threats, controls, tests,
+residual risk). No open high/critical findings.
+
+Residual risks accepted (documented, deferred):
+R1 (Medium) Denied RPC calls are not audited in the database — Postgres rolls
+   back the audit row with the raised error. Denials are logged by the
+   Server Action layer; invitation failures are audited.
+R2 (Medium) AAL2 lasts for the session; no "recent MFA" window for platform
+   actions.
+R3 (Low)    Hosting access logs may record /invite/<token> paths; tokens remain
+   bound to the invitee's verified email.
+R4 (Low)    A superuser can disable audit triggers; off-site immutable export
+   deferred.
+R5 (Low)    Suspended profiles can still authenticate (but hold nothing);
+   Auth-level ban deferred.
+R6 (Medium) Hosted Auth settings (templates, Site URL, rate limits, MFA,
+   confirmations, exposed schemas) must be aligned manually with
+   supabase/config.toml — release checklist in the threat model. Local
+   config deliberately relaxes auth rate limits and the resend interval for
+   tests (marked LOCAL ONLY).
+
+Defects found and fixed during this stage:
+D1 (S1 foundation) Root src/app/loading.tsx made notFound() pages return HTTP
+   200 (streaming began before the 404). Removed; 404s are now real 404s.
+D2 (S1 foundation) Label announced "required" twice (sr-only text + native
+   required). Marker is now aria-hidden; the native attribute is announced.
+D3 Members table scroll region was not keyboard-scrollable on mobile (axe
+   scrollable-region-focusable). Now a labelled, focusable region.
+D4 Dependabot opened failing PRs for pinned majors. Ignore rules added.
+No secrets found (working tree and new files); no Maaklin references outside
+this report; no service-role usage anywhere.
+
+19. KNOWN LIMITATIONS
+--------------------------------------------------------------------------------
+- Invitation links are displayed to the issuer, not emailed.
+- No platform-admin UI (RPCs + tests only).
+- No organisation settings UI (organisation.manage currently used for
+  last-admin protection and platform status changes).
+- Integration tests commit real (uniquely named) rows to the local database;
+  run `npm run db:reset` to clean up.
+- Local jsdom engine warning on Node 24.14 (S1 note) persists.
+
+20. DEFERRED ITEMS
+--------------------------------------------------------------------------------
+Transactional email delivery for invitations (provider must not log links) ·
+platform-admin UI · organisation settings/rename · leave-organisation ·
+scoped permissions (facility/department/team) · agency ↔ facility
+relationships · recent-MFA window · database-level denial auditing and
+audit export/alerting · Auth ban for suspended profiles · automated hosted
+Auth configuration checks · account deletion/erasure process · MFA factor
+management UI (remove/replace factor, recovery) · Sentry.
+
+21. MIGRATION LIST
+--------------------------------------------------------------------------------
+  20260929232049_security_baseline.sql            (S1, unchanged)
+  20260930090000_identity_profiles.sql
+  20260930090100_organisations_and_memberships.sql
+  20260930090200_roles_and_capabilities.sql
+  20260930090300_platform_admins_audit_rate_limits.sql
+  20260930090400_authorization_helpers_and_policies.sql
+  20260930090500_organisation_membership_rpcs.sql
+  20260930090600_organisation_invites.sql
+  20260930090700_platform_admin_rpcs.sql
+Reference data (roles, capabilities, mappings) is in migrations, not seeds.
+seed.sql remains comment-only.
+
+22. BUILD VALIDATION RESULTS (local, 2026-09-30)
+--------------------------------------------------------------------------------
+  npm run format:check        PASS
+  npm run lint                PASS (0 warnings)
+  npm run typecheck           PASS
+  npm test                    PASS — 10 files, 84 tests
+  npm run build               PASS — 17 routes
+  npm run check:bundle        PASS — 30 browser files, no secrets/maps
+  npx playwright test         PASS — 34 passed, 2 skipped (by design), 0 flaky
+  npm run check:migrations    PASS — 9 migrations
+  supabase db reset           PASS — all migrations from empty
+  supabase db lint            PASS — public, authz, internal
+  supabase test db            PASS — 7 files, 184 assertions
+  npm run test:integration    PASS — 4 files, 23 tests
+  npm run db:types            PASS — regenerated; CI drift check clean
+CI equivalence: quality, database and e2e jobs each reproduced locally with
+CI's environment (placeholder env for quality; `supabase start` with CI's
+exact service exclusions; env from local-supabase-env.mjs; CI=1).
+
+Completion gate:
+  [x] multi-organisation membership works      [x] no global tenant role on profiles
+  [x] roles are membership-scoped              [x] capability checks work
+  [x] platform admin separate from membership  [x] privileged operations enforce AAL2
+  [x] invites are secure                       [x] audit events are append-only
+  [x] RLS prevents cross-tenant access         [x] cross-tenant pgTAP tests pass
+  [x] identity auth UI works                   [x] integration tests pass
+  [x] E2E tests pass                           [x] migration reset from empty succeeds
+  [x] DB types regenerate cleanly              [x] CI passes locally/equivalently
+  [x] report exists
+
+23. GIT STATUS
+--------------------------------------------------------------------------------
+Branch p0-e3-s2-identity-authorization (from main @ 06f3396). Nothing
+staged, committed or pushed.
+  Modified (29): CI + Dependabot, .prettierignore, README, 5 docs, ESLint
+    config, package.json/lock (+ postgres dev dependency), landing page,
+    UI index/label, features README, auth session, error codes/mapping,
+    Supabase server client, generated DB types, supabase/config.toml, test
+    READMEs, baseline pgTAP, integration setup/config, errors unit test.
+  Deleted (1): src/app/loading.tsx (defect D1).
+  Added: 3 docs; 8 migrations; 3 email templates; 6 pgTAP files + helpers;
+    identity + organisations features; app routes (auth), app/, invite/;
+    forms components, Select; lib/actions, lib/authz, navigation,
+    request-context; integration + E2E suites and support; local env script.
+
+24. RECOMMENDED NEXT STAGE
+--------------------------------------------------------------------------------
+Before merging: review the migrations and threat model; commit on this
+branch; open a PR and let CI run on GitHub; then apply migrations to staging
+per DATABASE_MIGRATION_POLICY §7 and align hosted Auth settings with the
+checklist in THREAT_MODEL_IDENTITY.md.
+
+Next: P0-E3-S3 — Workforce & Facility Domain Foundations (proposed):
+  - Worker profile records keyed by (organisation_id, membership_id) for
+    workers across multiple agencies.
+  - Client facility records within an agency, and the agency ↔ facility
+    relationship model (explicit, mutually accepted, relationship-scoped
+    capabilities).
+  - First domain capabilities (worker.view/manage, facility.view/manage,
+    relationship.manage) added by migration with role mappings.
+  - Transactional email provider for invitations.
+  - Credential document storage design (private buckets whose policies call
+    authz.has_capability) — or schedule it as its own stage.
+================================================================================

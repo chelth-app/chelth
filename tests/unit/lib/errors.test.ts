@@ -91,3 +91,23 @@ describe("ActionResult helpers", () => {
     expect(isErrorCode("toString")).toBe(false);
   });
 });
+
+describe("normalizeError — identity & authorization codes", () => {
+  it.each([
+    [{ code: "CH402", message: "multi-factor authentication required" }, "MFA_REQUIRED"],
+    [{ code: "CH403", message: "not permitted" }, "FORBIDDEN"],
+    [{ code: "CH410", message: "invalid invitation" }, "INVITE_INVALID"],
+    [
+      { code: "invalid_credentials", status: 400, message: "Invalid login" },
+      "AUTH_INVALID_CREDENTIALS",
+    ],
+    [
+      { code: "email_not_confirmed", status: 400, message: "Email not confirmed" },
+      "AUTH_EMAIL_NOT_VERIFIED",
+    ],
+    [{ code: "mfa_verification_failed", status: 422, message: "Invalid TOTP" }, "MFA_CODE_INVALID"],
+    [{ code: "over_email_send_rate_limit", status: 429, message: "rate" }, "RATE_LIMITED"],
+  ])("maps %o to %s", (input, expected) => {
+    expect(normalizeError(input).code).toBe(expected);
+  });
+});

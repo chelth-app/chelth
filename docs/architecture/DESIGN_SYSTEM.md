@@ -58,16 +58,17 @@ text-muted-foreground`; metadata `text-xs`.
 
 ## Components (`src/components/ui`)
 
-| Component                                          | Notes                                                                                                                               |
-| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `Button`                                           | variants primary/secondary/outline/ghost/danger; sizes sm/md/lg; `loading` sets `aria-busy` + disabled; defaults to `type="button"` |
-| `Input`, `Label`                                   | `invalid` → `aria-invalid`; required marker announced as “(required)”                                                               |
-| `FormField`                                        | wires `id`, label, description and errors (`aria-describedby`, `aria-invalid`) — use for every form control                         |
-| `Badge`                                            | tones neutral/brand/info/success/warning/danger; meaning must be in the text, never colour alone                                    |
-| `Card` (+ Header/Title/Description/Content/Footer) |                                                                                                                                     |
-| `Dialog`                                           | native `<dialog>` + `showModal()`: focus trap, Escape, inert background, focus restore; no inline styles (CSP-safe)                 |
-| `Spinner`, `LoadingState`                          | `role="status"`                                                                                                                     |
-| `ErrorState`                                       | `role="alert"`; shows safe message and optional reference only                                                                      |
+| Component                                          | Notes                                                                                                                                 |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `Button`                                           | variants primary/secondary/outline/ghost/danger; sizes sm/md/lg; `loading` sets `aria-busy` + disabled; defaults to `type="button"`   |
+| `Input`, `Label`                                   | `invalid` → `aria-invalid`; visual `*` marker is aria-hidden — the control's native `required` is announced (no duplicate "required") |
+| `FormField`                                        | wires `id`, label, description and errors (`aria-describedby`, `aria-invalid`) — use for every form control                           |
+| `Badge`                                            | tones neutral/brand/info/success/warning/danger; meaning must be in the text, never colour alone                                      |
+| `Card` (+ Header/Title/Description/Content/Footer) |                                                                                                                                       |
+| `Dialog`                                           | native `<dialog>` + `showModal()`: focus trap, Escape, inert background, focus restore; no inline styles (CSP-safe)                   |
+| `Select`                                           | native `<select>`: robust keyboard/screen-reader support on every platform                                                            |
+| `Spinner`, `LoadingState`                          | `role="status"`                                                                                                                       |
+| `ErrorState`                                       | `role="alert"`; shows safe message and optional reference only                                                                        |
 
 Ownership: these components are ours. We do not depend on a component
 framework runtime. If a complex primitive (combobox, date picker, menu) is

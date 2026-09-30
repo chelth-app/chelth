@@ -33,10 +33,14 @@
 │   │   ├── env.server.ts         # validated server-only values (server-only)
 │   │   └── runtime.ts            # build mode flags
 │   ├── constants/                # app-wide constants (name, descriptor)
-│   ├── features/                 # business domains (from P0-E3-S2) — see features/README.md
+│   ├── features/                 # business domains — see features/README.md
+│   │   ├── identity/             # sign-in/up, verification, reset, sign-out, MFA, profile
+│   │   └── organisations/        # organisations, memberships, roles, invitations, org context
 │   ├── hooks/                    # shared client hooks
 │   ├── lib/
+│   │   ├── actions/              # runAction(): the Server Action error contract
 │   │   ├── auth/                 # identity helpers (who) — no roles/permissions
+│   │   ├── authz/                # capability/role/audit vocabulary (typed; drift-tested)
 │   │   ├── errors/               # AppError, codes, normalisation, ActionResult
 │   │   ├── logging/              # redacting structured logger
 │   │   ├── security/             # CSP, nonce, headers, safe redirects

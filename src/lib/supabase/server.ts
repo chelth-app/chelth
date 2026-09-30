@@ -11,6 +11,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
 import { publicEnv } from "@/config/env.public";
+import { getRequestId, REQUEST_ID_HEADER } from "@/lib/request-context";
 import type { Database } from "@/types/database.types";
 
 export async function createSupabaseServerClient() {
@@ -20,6 +21,7 @@ export async function createSupabaseServerClient() {
     publicEnv.NEXT_PUBLIC_SUPABASE_URL,
     publicEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
+      global: { headers: { [REQUEST_ID_HEADER]: getRequestId() } },
       cookies: {
         getAll() {
           return cookieStore.getAll();

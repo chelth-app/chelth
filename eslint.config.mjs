@@ -24,7 +24,16 @@ export default defineConfig([
   ...nextTypescript,
 
   // Full jsx-a11y recommended set (plugin is already registered by next config).
-  { files: ["**/*.{jsx,tsx}"], rules: jsxA11y.flatConfigs.recommended.rules },
+  {
+    files: ["**/*.{jsx,tsx}"],
+    rules: {
+      ...jsxA11y.flatConfigs.recommended.rules,
+      // Scrollable regions (e.g. wide tables on mobile) must be keyboard-focusable
+      // to satisfy WCAG 2.1.1 (axe: scrollable-region-focusable). Allow tabIndex
+      // on labelled role="region" containers only.
+      "jsx-a11y/no-noninteractive-tabindex": ["error", { tags: [], roles: ["tabpanel", "region"] }],
+    },
+  },
 
   // Type-aware rules for application code.
   {

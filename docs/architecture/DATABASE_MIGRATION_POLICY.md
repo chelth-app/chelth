@@ -166,3 +166,21 @@ Migrations are **forward-only**. There are no down-migrations.
 `supabase/seed.sql` holds **local development data only** and runs only on
 local `db reset`. It must contain no DDL, grants, policies, functions or
 triggers (CI enforces this). Production reference data belongs in migrations.
+
+## 11. Privileged data operations (not schema)
+
+Some operations change **data** that confers privilege and are deliberately
+unreachable through the API. They are performed by a named operator with the
+database owner role, using the provided procedures only — never ad-hoc SQL:
+
+```sql
+-- Grant / revoke platform administration (audited with the operator name).
+select internal.grant_platform_admin('<profile uuid>', '<operator full name>', '<reason / ticket>');
+select internal.revoke_platform_admin('<profile uuid>', '<operator full name>', '<reason / ticket>');
+```
+
+Rules: two-person review of the request; record the ticket in the reason;
+never grant to shared or test accounts in production; review active grants
+quarterly (`select * from public.platform_admins where revoked_at is null`).
+Adding any new operator procedure requires a migration and an update to this
+section.
