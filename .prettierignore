@@ -13,3 +13,7 @@ supabase/.branches
 docs/reports/*.txt
 src/types/database.types.ts
 supabase/templates
+# Locked brand source files: kept byte-for-byte as approved (docs/brand).
+src/styles/brand.css
+docs/brand
+public/brand

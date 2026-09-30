@@ -1,52 +1,103 @@
 # Design System Foundation
 
-Brand: **CHELTH** — _Healthcare workforce operations_.
-Qualities: reliable, calm, operational, trusted, premium, healthcare-native.
-Not futuristic, not AI-centric.
+Brand: **Chelth** — _Healthcare Workforce Operations_.
+
+**Source of truth (locked, B3):** [../brand/CHELTH-BRAND-GUIDELINES.md](../brand/CHELTH-BRAND-GUIDELINES.md),
+[../brand/CHELTH-DESIGN-TOKENS.md](../brand/CHELTH-DESIGN-TOKENS.md),
+[../brand/CLAUDE-CHELTH-BRAND-RULES.md](../brand/CLAUDE-CHELTH-BRAND-RULES.md),
+`src/styles/brand.css` (values) and `public/brand/chelth/` (logo and icon
+assets). This document only describes how the application consumes them.
+Where this file and the brand documents disagree, the brand documents win.
 
 A live reference is available at `/design-system` in non-production
 environments.
 
 ## Tokens
 
-Defined once in `src/app/globals.css` (`@theme`). Components use **semantic**
-tokens so the brand palette can evolve without editing components.
+- `src/styles/brand.css` holds every brand value as `--chelth-*` custom
+  properties plus base element rules. It is kept byte-for-byte as approved
+  (excluded from Prettier) and imported into the `base` cascade layer in
+  `src/app/globals.css`, so Tailwind utilities always take precedence over its
+  element rules.
+- `src/app/globals.css` maps those variables into Tailwind with
+  `@theme inline`: every brand colour is available as `chelth-*`
+  (`bg-chelth-teal`, `text-chelth-navy`, `border-chelth-border`…), plus
+  `font-display`, `shadow-card`, `shadow-elevated`, `rounded-marketing`.
+- Components use **semantic** tokens. Brand-equivalent semantic tokens resolve
+  to the brand variables:
 
-| Brand colour | Hex       | Semantic use                            |
-| ------------ | --------- | --------------------------------------- |
-| Deep Teal    | `#0F766E` | `primary` (actions, brand)              |
-| Slate Navy   | `#1E3A8A` | `secondary`, `focus-ring`, info text    |
-| Cool Gray    | `#64748B` | `subtle-foreground`, `input-border`     |
-| Soft Mint    | `#B7E4D9` | `accent-soft` (brand badges/highlights) |
-| Off White    | `#F8FAFC` | `background`                            |
+| Semantic token                  | Brand value                               |
+| ------------------------------- | ----------------------------------------- |
+| `background`                    | Off White `#FAFBFA`                       |
+| `surface` / `surface-muted`     | White `#FFFFFF` / Cloud `#F3F6F5`         |
+| `foreground`                    | Ink `#17272D`                             |
+| `border`                        | Border `#DDE5E3`                          |
+| `primary` / `primary-hover`     | Deep Teal `#126B67` / Teal Dark `#0D514F` |
+| `secondary` / `secondary-hover` | Navy `#193348` / Ink `#17272D`            |
+| `accent-soft` / `-foreground`   | Soft Mint `#B8DDD5` / Teal Dark           |
+| `focus-ring`                    | Navy                                      |
+| radii `sm` / `md` / `lg`        | 6 / 8 / 12 px (marketing max 16)          |
 
-Additional semantic tokens: `surface`, `surface-muted`, `foreground`,
-`muted-foreground`, `border`, and `danger` / `warning` / `success` / `info`
-with `-soft` backgrounds and `-soft-foreground` text.
+### Accessibility exceptions (kept pending design review)
+
+| Brand value                | Problem                                             | App keeps                                                   |
+| -------------------------- | --------------------------------------------------- | ----------------------------------------------------------- |
+| Slate `#657780` as text    | 4.49:1 on Off White, 4.29:1 on Cloud (AA needs 4.5) | `muted-foreground` `#475569`, `subtle-foreground` `#64748B` |
+| Border `#DDE5E3` on inputs | 1.28:1 (form controls need 3:1)                     | `input-border` `#64748B`                                    |
+| Warning `#B57A31` as text  | 3.63:1 on white                                     | status text via `warning-soft-foreground`                   |
+
+Status colours (`danger`, `warning`, `success`, `info` and their `-soft`
+pairs) are not yet aligned to the brand semantic palette (see the B3 report).
 
 ### Contrast (WCAG 2.2 AA verified)
 
-| Pair                                            | Ratio                 |
-| ----------------------------------------------- | --------------------- |
-| White on teal (primary button)                  | 5.47                  |
-| White on navy                                   | 10.36                 |
-| Cool gray on white / off-white                  | 4.76 / 4.55           |
-| Teal-900 on mint                                | 6.82                  |
-| Status soft pairs (danger/warning/success/info) | 6.37 – 8.49           |
-| Input border (cool gray) vs white               | 4.76 (≥ 3:1 non-text) |
+| Pair                           | Ratio |
+| ------------------------------ | ----- |
+| White on Deep Teal (primary)   | 6.32  |
+| White on Teal Dark (hover)     | 9.10  |
+| White on Navy (secondary)      | ≥ 12  |
+| Ink on Off White (body)        | 14.84 |
+| Navy on Off White (headings)   | 12.59 |
+| Teal Dark on Soft Mint (badge) | 6.22  |
+| Navy focus ring on white       | 13.06 |
 
-**Do not** place brand teal text on mint (3.94:1 — fails for body text); use
-`accent-soft-foreground`. Focus rings use a 2 px offset so they are measured
-against the page background (navy on white 10.36:1).
+Do not place Deep Teal text on Soft Mint (4.31:1).
 
 ## Typography
 
-- Inter Variable, self-hosted via `@fontsource-variable/inter` (no runtime
-  requests to third-party font CDNs; CSP `font-src 'self'`).
+- **Inter** (product/UI) and **Manrope** (display/marketing), both self-hosted
+  via `@fontsource-variable/*` (no third-party font requests; CSP
+  `font-src 'self'`). They register as "Inter Variable" / "Manrope Variable";
+  `globals.css` prepends those names to `--chelth-font-ui` /
+  `--chelth-font-display` so the brand rules resolve to the loaded fonts.
+- `brand.css` sets `h1`–`h4` in Manrope, Navy; body text is Inter, Ink.
+  Utilities: `font-sans` (Inter), `font-display` (Manrope).
 - Scale: Tailwind defaults. Page title `text-2xl`–`text-4xl font-semibold`;
   section `text-lg font-semibold`; body `text-base`; secondary `text-sm
 text-muted-foreground`; metadata `text-xs`.
 - Inputs use `text-base` (16 px) to prevent iOS zoom.
+
+## Logo and icons
+
+Use only the canonical files in `public/brand/chelth/`; never typeset the
+wordmark or draw the mark.
+
+- `BrandLogo` (`src/components/shared/brand-logo.tsx`) is the only way to show
+  the logo in the app: `primary` (light surfaces: home, auth), `reverse` (Navy
+  / Deep Teal surfaces), `monochrome`, `mark` (Shift Mark only: app header,
+  compact/mobile). Heights are clamped to the brand minimums (lockup 48 px ≈
+  140 px wide; mark 20 px). It renders a plain `<img>` with width/height
+  attributes: `next/image` emits an inline style that the strict CSP blocks,
+  and SVGs need no optimisation.
+- Browser icons (`src/app/layout.tsx` `metadata.icons`): `favicon.ico`,
+  `favicon-16x16.png`, `favicon-32x32.png`, `apple-touch-icon.png`.
+  `/favicon.ico` is rewritten to the canonical file (`next.config.ts`), so no
+  copy exists outside `public/brand/chelth/`.
+- Web manifest (`src/app/manifest.ts`, served at `/manifest.webmanifest`):
+  `icon-192x192`/`icon-512x512` (`any`) and `icon-maskable-192x192`/
+  `icon-maskable-512x512` (`maskable`); theme Deep Teal, background Off White.
+- E2E (`tests/e2e/foundation.spec.ts`) asserts every canonical asset is served
+  and that the head and manifest reference only these files.
 
 ## Spacing and layout
 

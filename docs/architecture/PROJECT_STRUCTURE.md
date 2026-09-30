@@ -26,7 +26,7 @@
 │   │   ├── ui/                   # owned primitives: Button, Input, Label, FormField,
 │   │   │                         # Badge, Card, Dialog, Spinner, LoadingState, ErrorState
 │   │   ├── layout/               # SkipLink, PageContainer (app shells later)
-│   │   └── shared/               # cross-feature composites (BrandMark)
+│   │   └── shared/               # cross-feature composites (BrandLogo)
 │   ├── config/
 │   │   ├── env.schema.ts         # pure Zod schemas + parsing (tested)
 │   │   ├── env.public.ts         # validated NEXT_PUBLIC_* values

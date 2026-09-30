@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 
 import { PageContainer } from "@/components/layout/page-container";
 import { MAIN_CONTENT_ID } from "@/components/layout/skip-link";
-import { BrandMark } from "@/components/shared/brand-mark";
+import { BrandLogo } from "@/components/shared/brand-logo";
 import { SignOutButton } from "@/features/identity";
 import { requireAuthIdentityOrRedirect } from "@/lib/auth/session";
 
@@ -19,7 +19,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       <header className="border-b border-border bg-surface">
         <PageContainer className="flex flex-wrap items-center justify-between gap-3 py-3">
           <Link href="/app" className="rounded-sm">
-            <BrandMark showDescriptor={false} />
+            <BrandLogo variant="mark" height={32} priority />
           </Link>
           <nav aria-label="Account" className="flex flex-wrap items-center gap-1 text-sm">
             <Link href="/app" className="rounded-md px-3 py-2 hover:bg-surface-muted">

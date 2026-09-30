@@ -1,43 +1,94 @@
 @import "tailwindcss";
+/*
+ * Chelth brand foundation (B3). src/styles/brand.css is the LOCKED source of
+ * truth for brand values (docs/brand/CHELTH-DESIGN-TOKENS.md). It is imported
+ * into the `base` layer so Tailwind utilities keep precedence over its
+ * element rules, and it is never edited here.
+ */
+@import "../styles/brand.css" layer(base);
 
 /*
  * CHELTH design tokens.
  * Documented in docs/architecture/DESIGN_SYSTEM.md. Components use the
- * semantic tokens (primary, surface, muted-foreground…), not raw brand values,
- * so the palette can evolve without touching components.
+ * semantic tokens (primary, surface, muted-foreground…), not raw brand values.
+ * Brand-equivalent tokens resolve to the brand.css variables (`@theme inline`),
+ * so there is exactly one place where brand values live.
  *
  * All text/background pairings below meet WCAG 2.2 AA (4.5:1 normal text).
- * Note: brand teal on mint is 3.94:1 — use `accent-soft-foreground` on mint.
+ * Where a locked brand value fails AA for its role, the previous accessible
+ * value is kept and recorded as brand drift for design review:
+ *   - Chelth Slate #657780 is 4.49:1 on Off White and 4.29:1 on Cloud, so
+ *     muted/subtle text keeps #475569 / #64748b;
+ *   - Chelth border #DDE5E3 is 1.28:1 on white, below the 3:1 required for
+ *     form-control boundaries, so input borders keep #64748b.
  */
-@theme {
-  /* Brand palette */
-  --color-brand-teal: #0f766e;
-  --color-brand-navy: #1e3a8a;
-  --color-brand-gray: #64748b;
-  --color-brand-mint: #b7e4d9;
-  --color-brand-offwhite: #f8fafc;
+@theme inline {
+  /* Brand palette (all from src/styles/brand.css) */
+  --color-chelth-teal: var(--chelth-teal);
+  --color-chelth-teal-dark: var(--chelth-teal-dark);
+  --color-chelth-navy: var(--chelth-navy);
+  --color-chelth-ink: var(--chelth-ink);
+  --color-chelth-slate: var(--chelth-slate);
+  --color-chelth-mint: var(--chelth-mint);
+  --color-chelth-mint-mist: var(--chelth-mint-mist);
+  --color-chelth-cloud: var(--chelth-cloud);
+  --color-chelth-off-white: var(--chelth-off-white);
+  --color-chelth-white: var(--chelth-white);
+  --color-chelth-border: var(--chelth-border);
+  --color-chelth-border-strong: var(--chelth-border-strong);
+  --color-chelth-success: var(--chelth-success);
+  --color-chelth-warning: var(--chelth-warning);
+  --color-chelth-critical: var(--chelth-critical);
+  --color-chelth-info: var(--chelth-info);
 
-  /* Semantic tokens */
-  --color-background: #f8fafc;
-  --color-surface: #ffffff;
-  --color-surface-muted: #f1f5f9;
-  --color-foreground: #0f172a;
+  /* Legacy brand aliases, now pointing at the locked values */
+  --color-brand-teal: var(--chelth-teal);
+  --color-brand-navy: var(--chelth-navy);
+  --color-brand-gray: var(--chelth-slate);
+  --color-brand-mint: var(--chelth-mint);
+  --color-brand-offwhite: var(--chelth-off-white);
+
+  /* Semantic tokens aligned to the brand */
+  --color-background: var(--chelth-off-white);
+  --color-surface: var(--chelth-white);
+  --color-surface-muted: var(--chelth-cloud);
+  --color-foreground: var(--chelth-ink);
+  --color-border: var(--chelth-border);
+
+  --color-primary: var(--chelth-teal); /* white text 6.32:1 */
+  --color-primary-hover: var(--chelth-teal-dark); /* white text 9.10:1 */
+  --color-primary-foreground: var(--chelth-white);
+
+  --color-secondary: var(--chelth-navy);
+  --color-secondary-hover: var(--chelth-ink);
+  --color-secondary-foreground: var(--chelth-white);
+
+  --color-accent-soft: var(--chelth-mint);
+  --color-accent-soft-foreground: var(--chelth-teal-dark); /* 6.22:1 on mint */
+
+  --color-focus-ring: var(--chelth-navy); /* 13.06:1 on white */
+
+  /* Typography: Inter for product/UI, Manrope for display/marketing */
+  --font-display: var(--chelth-font-display);
+
+  /* Elevation (the only approved shadows) */
+  --shadow-card: var(--chelth-shadow-default);
+  --shadow-elevated: var(--chelth-shadow-elevated);
+
+  /* Radii: brand 6 / 8 / 12, marketing maximum 16 */
+  --radius-sm: var(--chelth-radius-sm);
+  --radius-md: var(--chelth-radius-md);
+  --radius-lg: var(--chelth-radius-lg);
+  --radius-marketing: var(--chelth-radius-marketing);
+}
+
+@theme {
+  /* Accessible values retained where the brand value fails AA (see above) */
   --color-muted-foreground: #475569;
   --color-subtle-foreground: #64748b;
-  --color-border: #e2e8f0;
   --color-input-border: #64748b; /* 4.76:1 — meets 3:1 non-text contrast */
 
-  --color-primary: #0f766e;
-  --color-primary-hover: #115e59;
-  --color-primary-foreground: #ffffff;
-
-  --color-secondary: #1e3a8a;
-  --color-secondary-hover: #172554;
-  --color-secondary-foreground: #ffffff;
-
-  --color-accent-soft: #b7e4d9;
-  --color-accent-soft-foreground: #134e4a;
-
+  /* Semantic status colours: not yet aligned (brand drift list, B3 report) */
   --color-danger: #b91c1c;
   --color-danger-hover: #991b1b;
   --color-danger-foreground: #ffffff;
@@ -53,21 +104,21 @@
   --color-info-soft: #dbeafe;
   --color-info-soft-foreground: #1e3a8a;
 
-  --color-focus-ring: #1e3a8a;
-
   /* Typography */
   --font-sans:
     "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-
-  /* Radii */
-  --radius-sm: 0.25rem;
-  --radius-md: 0.5rem;
-  --radius-lg: 0.75rem;
 }
 
 @layer base {
   :root {
     color-scheme: light;
+    /*
+     * The fonts are self-hosted (@fontsource-variable, CSP font-src 'self') and
+     * register as "Inter Variable" / "Manrope Variable". Prepend those names
+     * to the brand font tokens so brand.css rules resolve to the loaded fonts.
+     */
+    --chelth-font-ui: "Inter Variable", "Inter", ui-sans-serif, system-ui, sans-serif;
+    --chelth-font-display: "Manrope Variable", "Manrope", ui-sans-serif, system-ui, sans-serif;
   }
 
   html {
