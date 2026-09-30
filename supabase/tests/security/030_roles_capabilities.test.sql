@@ -71,7 +71,7 @@ select is(pg_temp.rpc((select alice from ids), 'aal2', 'select authz.has_capabil
   'false', 'unknown capabilities are never granted');
 
 select is(pg_temp.count_as((select alice from ids), 'aal1', format('select * from public.my_capabilities(%L)', (select alpha from orgs))),
-  21, 'my_capabilities lists every held capability');
+  26, 'my_capabilities lists every held capability');
 select is(pg_temp.count_as((select alice from ids), 'aal1', format('select * from public.my_capabilities(%L) where not is_satisfied', (select alpha from orgs))),
   12, 'my_capabilities flags privileged capabilities needing step-up at AAL1');
 select is(pg_temp.count_as((select bob from ids), 'aal2', format('select * from public.my_capabilities(%L)', (select alpha from orgs))),

@@ -1,0 +1,316 @@
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import postgres from "postgres";
+
+import type { Database } from "@/types/database.types";
+
+import { uniqueEmail, waitForEmailLink } from "../support/mailpit";
+import { generateTotp } from "../support/totp";
+import { PASSWORD } from "./support";
+
+/**
+ * Arranges a staffing world through the PUBLIC API (real sign-up, real RPCs)
+ * so the E2E flows can concentrate on the shift/assignment UI. Owner-role
+ * access is limited to the local operator procedures (platform-admin grant,
+ * malware-scan result), exactly as in the integration suite. Local only.
+ */
+
+if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+  try {
+    process.loadEnvFile(".env.local");
+  } catch {
+    // CI exports the local stack environment instead.
+  }
+}
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "http://127.0.0.1:55321";
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+const DB_URL =
+  process.env.SUPABASE_DB_URL ?? "postgresql://postgres:postgres@127.0.0.1:55322/postgres";
+const PDF = new TextEncoder().encode("%PDF-1.4\n% Chelth E2E shift fixture\n%%EOF\n");
+
+type Client = SupabaseClient<Database>;
+export type Person = { client: Client; email: string; userId: string; name: string };
+
+function assertLocal() {
+  for (const url of [SUPABASE_URL, DB_URL]) {
+    const host = new URL(url).hostname;
+    if (host !== "127.0.0.1" && host !== "localhost")
+      throw new Error("Staffing fixture is local-only");
+  }
+}
+
+async function owner<T>(query: (sql: postgres.Sql) => Promise<T>): Promise<T> {
+  const sql = postgres(DB_URL, { max: 1 });
+  try {
+    return await query(sql);
+  } finally {
+    await sql.end();
+  }
+}
+
+async function run(promise: PromiseLike<{ error: unknown }>): Promise<void> {
+  const { error } = await promise;
+  if (error) throw error;
+}
+
+async function must<T>(promise: PromiseLike<{ data: T; error: unknown }>): Promise<NonNullable<T>> {
+  const { data, error } = await promise;
+  if (error) throw error;
+  if (data === null || data === undefined) throw new Error("no data");
+  return data;
+}
+
+export function isoDay(offsetDays: number): string {
+  return new Date(Date.now() + offsetDays * 86_400_000).toISOString().slice(0, 10);
+}
+
+async function person(label: string, name: string, email = uniqueEmail(label)): Promise<Person> {
+  const client = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+  await run(
+    client.auth.signUp({ email, password: PASSWORD, options: { data: { display_name: name } } }),
+  );
+  const link = await waitForEmailLink(email, "Confirm your CHELTH account");
+  const { data, error } = await client.auth.verifyOtp({
+    token_hash: link.searchParams.get("token_hash") ?? "",
+    type: "email",
+  });
+  if (error || !data.user) throw error ?? new Error("verification failed");
+  return { client, email, userId: data.user.id, name };
+}
+
+async function stepUp(who: Person) {
+  const enrolled = await must(
+    who.client.auth.mfa.enroll({ factorType: "totp", friendlyName: "e2e" }),
+  );
+  await run(
+    who.client.auth.mfa.challengeAndVerify({
+      factorId: enrolled.id,
+      code: generateTotp(enrolled.totp.secret),
+    }),
+  );
+}
+
+async function join(admin: Client, organisationId: string, role: string, who: Person) {
+  const issued = await must(
+    admin.rpc("create_organisation_invite", {
+      p_organisation_id: organisationId,
+      p_email: who.email,
+      p_role_key: role,
+    }),
+  );
+  await run(
+    who.client.rpc("accept_organisation_invite", { p_token: issued[0]?.invite_token ?? "" }),
+  );
+}
+
+async function activeCnaWorker(
+  admin: Client,
+  organisationId: string,
+  who: Person,
+): Promise<string> {
+  await join(admin, organisationId, "agency.healthcare_worker", who);
+  const rows = await must(
+    who.client.from("agency_workers").select("id").eq("agency_organisation_id", organisationId),
+  );
+  const workerId = rows[0]?.id ?? "";
+  await run(admin.rpc("set_agency_worker_status", { p_worker_id: workerId, p_status: "active" }));
+  await run(
+    admin.rpc("set_agency_worker_discipline", {
+      p_agency_worker_id: workerId,
+      p_discipline_key: "cna",
+      p_assigned: true,
+    }),
+  );
+  return workerId;
+}
+
+/** Credential with clean evidence, submitted, shared with and verified by the agency. */
+async function verifiedCredential(
+  who: Person,
+  admin: Client,
+  organisationId: string,
+  type: string,
+  expiry: string | null,
+  facilityId?: string,
+) {
+  const created = await must(
+    who.client.rpc("create_credential", {
+      p_credential_type_key: type,
+      p_issuing_authority: "Issuing Board",
+      p_issue_date: isoDay(-30),
+      ...(expiry ? { p_expiry_date: expiry } : {}),
+    }),
+  );
+  const credentialId = created[0]?.credential_id ?? "";
+  const versionId = created[0]?.credential_version_id ?? "";
+  const begun = await must(
+    who.client.rpc("begin_credential_document_upload", {
+      p_credential_version_id: versionId,
+      p_mime_type: "application/pdf",
+      p_size_bytes: PDF.byteLength,
+    }),
+  );
+  const documentId = begun[0]?.document_id ?? "";
+  const ticket = await must(
+    who.client.storage
+      .from("credential-documents")
+      .createSignedUploadUrl(begun[0]?.object_path ?? ""),
+  );
+  await run(
+    who.client.storage
+      .from("credential-documents")
+      .uploadToSignedUrl(ticket.path, ticket.token, PDF, { contentType: "application/pdf" }),
+  );
+  await run(
+    who.client.rpc("complete_credential_document_upload", {
+      p_document_id: documentId,
+      p_sha256: "c".repeat(64),
+      p_content_valid: true,
+    }),
+  );
+  await owner(
+    (sql) => sql`select internal.record_document_scan_result(${documentId}::uuid, 'clean')`,
+  );
+  await run(who.client.rpc("submit_credential_version", { p_credential_version_id: versionId }));
+  await run(
+    who.client.rpc("share_credential", {
+      p_credential_id: credentialId,
+      p_agency_organisation_id: organisationId,
+    }),
+  );
+  await run(
+    admin.rpc("record_credential_verification", {
+      p_credential_version_id: versionId,
+      p_agency_organisation_id: organisationId,
+      p_outcome: "verified",
+      ...(facilityId ? { p_agency_facility_id: facilityId } : {}),
+    }),
+  );
+}
+
+export type StaffingWorld = {
+  agencyName: string;
+  agencyId: string;
+  facilityOrgName: string;
+  facilityOrgId: string;
+  betaId: string;
+  scheduler: Person;
+  wendy: Person; // ready for Mercy
+  nina: Person; // missing Mercy's facility requirement
+  facilityAdmin: Person;
+  betaAdmin: Person;
+};
+
+export async function createStaffingWorld(tag: string): Promise<StaffingWorld> {
+  assertLocal();
+  const agencyName = `Shift Agency ${tag}`;
+  const facilityOrgName = `Mercy Health ${tag}`;
+  const [admin, betaAdmin, scheduler, wendy, nina, operator] = await Promise.all([
+    person("e2e-shift-admin", "Ada Admin"),
+    person("e2e-shift-beta", "Bea Beta"),
+    person("e2e-scheduler", "Sam Scheduler"),
+    person("e2e-wendy", "Wendy Ready"),
+    person("e2e-nina", "Nina Missing"),
+    person("e2e-operator", "Oscar Operator"),
+  ]);
+  const agencyId = await must(
+    admin.client.rpc("create_organisation", {
+      p_type: "agency",
+      p_name: agencyName,
+      p_slug: `shift-agency-${tag}-${Date.now().toString(36)}`,
+    }),
+  );
+  const betaId = await must(
+    betaAdmin.client.rpc("create_organisation", {
+      p_type: "agency",
+      p_name: `Beta Agency ${tag}`,
+      p_slug: `beta-agency-${tag}-${Date.now().toString(36)}`,
+    }),
+  );
+  await Promise.all([stepUp(admin), stepUp(operator)]);
+  await owner(
+    (sql) =>
+      sql`select internal.grant_platform_admin(${operator.userId}::uuid, 'E2E Operator', 'e2e fixture')`,
+  );
+
+  await join(admin.client, agencyId, "agency.scheduler", scheduler);
+  await activeCnaWorker(admin.client, agencyId, wendy);
+  await activeCnaWorker(admin.client, agencyId, nina);
+
+  const facilityId = await must(
+    admin.client.rpc("create_agency_facility", {
+      p_agency_organisation_id: agencyId,
+      p_name: "Mercy Rehab",
+      p_facility_type: "rehabilitation",
+      p_timezone: "America/New_York",
+    }),
+  );
+  await run(
+    admin.client.rpc("create_facility_location", {
+      p_facility_id: facilityId,
+      p_name: "Mercy Main",
+    }),
+  );
+  const relationshipId = await must(
+    admin.client.rpc("create_facility_relationship", { p_facility_id: facilityId }),
+  );
+  await run(
+    admin.client.rpc("set_facility_relationship_status", {
+      p_relationship_id: relationshipId,
+      p_status: "active",
+    }),
+  );
+  for (const [type, facility] of [
+    ["bls_certification", undefined],
+    ["facility_orientation", facilityId],
+  ] as const) {
+    await run(
+      admin.client.rpc("create_credential_requirement", {
+        p_agency_organisation_id: agencyId,
+        p_credential_type_key: type,
+        ...(facility ? { p_agency_facility_id: facility } : {}),
+      }),
+    );
+  }
+  await verifiedCredential(wendy, admin.client, agencyId, "bls_certification", isoDay(400));
+  await verifiedCredential(wendy, admin.client, agencyId, "facility_orientation", null, facilityId);
+  await verifiedCredential(nina, admin.client, agencyId, "bls_certification", isoDay(400));
+
+  const facilityAdminEmail = uniqueEmail("e2e-facility-admin");
+  const created = await must(
+    operator.client.rpc("platform_create_organisation", {
+      p_type: "facility",
+      p_name: facilityOrgName,
+      p_slug: `mercy-health-${tag}-${Date.now().toString(36)}`,
+      p_owner_email: facilityAdminEmail,
+    }),
+  );
+  const facilityOrgId = created[0]?.organisation_id ?? "";
+  const facilityAdmin = await person("e2e-facility-admin", "Fiona Facility", facilityAdminEmail);
+  await run(
+    facilityAdmin.client.rpc("accept_organisation_invite", {
+      p_token: created[0]?.invite_token ?? "",
+    }),
+  );
+  await run(
+    operator.client.rpc("platform_link_agency_facility", {
+      p_agency_facility_id: facilityId,
+      p_facility_organisation_id: facilityOrgId,
+    }),
+  );
+
+  return {
+    agencyName,
+    agencyId,
+    facilityOrgName,
+    facilityOrgId,
+    betaId,
+    scheduler,
+    wendy,
+    nina,
+    facilityAdmin,
+    betaAdmin,
+  };
+}

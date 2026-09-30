@@ -71,6 +71,7 @@ export async function adminWithVerifiedAgency(
   await page.getByRole("link", { name: "Verify now" }).click();
   await page.getByRole("link", { name: "Set one up" }).click();
   await enrolAuthenticator(page);
-  await expect(page).toHaveURL(new RegExp(`${organisationPath}$`));
+  // Enrolment + AAL2 refresh can be slow when the suite runs fully parallel.
+  await expect(page).toHaveURL(new RegExp(`${organisationPath}$`), { timeout: 20_000 });
   return organisationPath;
 }

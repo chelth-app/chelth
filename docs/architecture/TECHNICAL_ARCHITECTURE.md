@@ -213,6 +213,24 @@ The identity and authorization design is specified in
    Permissions-Policy.
 6. **Data minimisation in telemetry** — redacting structured logger.
 
+### Shift requests & assignments (P0-E5-S1)
+
+- One `shifts` entity (agency shifts and facility requests), stored lifecycle
+  draft/submitted/open/cancelled/completed, derived fill
+  ([SHIFT_DOMAIN_MODEL.md](SHIFT_DOMAIN_MODEL.md)); canonical UTC instants +
+  location timezone ([SHIFT_TIME_MODEL.md](SHIFT_TIME_MODEL.md)).
+- Assignments with explicit worker acceptance, structural capacity/duplicate/
+  cross-agency overlap guarantees ([ASSIGNMENT_DOMAIN_MODEL.md](ASSIGNMENT_DOMAIN_MODEL.md)).
+- One eligibility decision function calling the compliance engine for the
+  shift's facility, discipline and local dates; append-only decision records
+  ([ASSIGNMENT_ELIGIBILITY.md](ASSIGNMENT_ELIGIBILITY.md)).
+- Facility and worker access only through narrow projections
+  ([../security/SHIFT_CROSS_ORG_ACCESS.md](../security/SHIFT_CROSS_ORG_ACCESS.md)).
+- Notification hooks: `internal.notification_outbox` (transactional outbox; delivery later).
+- UI: `/shifts`, `/shifts/[shiftId]` (agency), `/my-shifts` (worker),
+  `/staffing-requests`, `/staffing-requests/[shiftId]` (facility); feature
+  module `src/features/shifts`, vocabulary `src/lib/domain/shifts.ts`.
+
 ### Content Security Policy
 
 `src/proxy.ts` generates a 128-bit nonce per request and sets:

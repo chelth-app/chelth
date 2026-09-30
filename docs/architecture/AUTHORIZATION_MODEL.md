@@ -25,42 +25,42 @@ Namespaced keys `<domain>.<action>` (lowercase, dot-separated), defined as
 reference rows by migration and mirrored in `src/lib/authz/vocabulary.ts`
 (drift-tested).
 
-| Capability                       | Privileged (AAL2) | Meaning                                                                |
-| -------------------------------- | :---------------: | ---------------------------------------------------------------------- |
-| `organisation.view`              |                   | See the organisation                                                   |
-| `organisation.manage`            |         ✔         | Organisation settings/status (reserved for owner roles)                |
-| `membership.view`                |                   | See members, their roles and profiles                                  |
-| `membership.invite`              |         ✔         | Issue, resend, revoke and list invitations                             |
-| `membership.manage`              |         ✔         | Suspend, reinstate, revoke memberships                                 |
-| `role.assign`                    |         ✔         | Assign and revoke roles                                                |
-| `audit.view`                     |         ✔         | Read the organisation audit history                                    |
-| `worker.view`                    |                   | View agency worker records (P0-E3-S3)                                  |
-| `worker.manage`                  |         ✔         | Change worker status and reference                                     |
-| `worker.notes.view`              |                   | Read internal notes about workers                                      |
-| `worker.notes.manage`            |         ✔         | Add internal notes about workers                                       |
-| `facility.view`                  |                   | View client facilities and locations                                   |
-| `facility.manage`                |         ✔         | Create/update client facilities and locations                          |
-| `relationship.view`              |                   | View agency–facility relationships                                     |
-| `relationship.manage`            |         ✔         | Create relationships and change their status                           |
-| `credential.view`                |                   | View shared credential metadata and this agency's decisions (P0-E4-S1) |
-| `credential.review`              |         ✔         | Open numbers and clean documents of shared credentials                 |
-| `credential.verify`              |         ✔         | Record verification decisions; share readiness with facilities         |
-| `credential.requirements.view`   |                   | View baseline and facility requirements                                |
-| `credential.requirements.manage` |         ✔         | Create, change and deactivate requirements                             |
-| `compliance.view`                |                   | View derived readiness and reasons                                     |
-| `credential.view`                |                   | View shared credential metadata and this agency's decisions (P0-E4-S1) |
-| `credential.review`              |         ✔         | Open numbers and clean documents of shared credentials                 |
-| `credential.verify`              |         ✔         | Record verification decisions; share readiness with facilities         |
-| `credential.requirements.view`   |                   | View baseline and facility requirements                                |
-| `credential.requirements.manage` |         ✔         | Create, change and deactivate requirements                             |
-| `compliance.view`                |                   | View derived readiness and reasons                                     |
+| Capability                       | Privileged (AAL2) | Meaning                                                                               |
+| -------------------------------- | :---------------: | ------------------------------------------------------------------------------------- |
+| `organisation.view`              |                   | See the organisation                                                                  |
+| `organisation.manage`            |         ✔         | Organisation settings/status (reserved for owner roles)                               |
+| `membership.view`                |                   | See members, their roles and profiles                                                 |
+| `membership.invite`              |         ✔         | Issue, resend, revoke and list invitations                                            |
+| `membership.manage`              |         ✔         | Suspend, reinstate, revoke memberships                                                |
+| `role.assign`                    |         ✔         | Assign and revoke roles                                                               |
+| `audit.view`                     |         ✔         | Read the organisation audit history                                                   |
+| `worker.view`                    |                   | View agency worker records (P0-E3-S3)                                                 |
+| `worker.manage`                  |         ✔         | Change worker status and reference                                                    |
+| `worker.notes.view`              |                   | Read internal notes about workers                                                     |
+| `worker.notes.manage`            |         ✔         | Add internal notes about workers                                                      |
+| `facility.view`                  |                   | View client facilities and locations                                                  |
+| `facility.manage`                |         ✔         | Create/update client facilities and locations                                         |
+| `relationship.view`              |                   | View agency–facility relationships                                                    |
+| `relationship.manage`            |         ✔         | Create relationships and change their status                                          |
+| `credential.view`                |                   | View shared credential metadata and this agency's decisions (P0-E4-S1)                |
+| `credential.review`              |         ✔         | Open numbers and clean documents of shared credentials                                |
+| `credential.verify`              |         ✔         | Record verification decisions; share readiness with facilities                        |
+| `credential.requirements.view`   |                   | View baseline and facility requirements                                               |
+| `credential.requirements.manage` |         ✔         | Create, change and deactivate requirements                                            |
+| `compliance.view`                |                   | View derived readiness and reasons                                                    |
+| `shift.view`                     |                   | View shifts and derived fill progress (P0-E5-S1); facility side via relationship only |
+| `shift.create`                   |                   | Create shifts for the agency's client facilities                                      |
+| `shift.manage`                   |                   | Open, update, cancel, complete shifts; internal shift notes                           |
+| `shift.request`                  |                   | Facility side: submit/withdraw staffing requests through a relationship               |
+| `assignment.view`                |                   | View assignments, decisions and live assignment readiness                             |
+| `assignment.manage`              |                   | Assign workers (server-gated) and cancel assignments                                  |
 
 Self-service identity actions (edit own name, enrol MFA, redeem an invitation
 addressed to you) are **identity-scoped**, not organisation capabilities, so
 there is no `identity.manage_self` row: they are authorised by being the
 identity (`auth.uid()`), enforced by RLS/column grants and RPC checks.
 
-Reserved namespaces for later stages (not created yet): `shift.*`, `assignment.*`, `timesheet.*`, `rate.*`, `invoice.*`,
+Reserved namespaces for later stages (not created yet): `timesheet.*`, `rate.*`, `invoice.*`,
 `payroll.*`. Each stage adds only the capabilities it implements, in its own
 migration, with role mappings.
 
@@ -90,12 +90,18 @@ compliance.view; scheduler — compliance.view; finance — none; healthcare
 worker — none (self-access is an identity rule); facility admin/scheduler —
 credential.view, effective only through the relationship projection.
 
-Credential & compliance capabilities (P0-E4-S1): admin — all six;
-credentialing officer — all six; operations manager — credential.view,
-requirements.view, compliance.view; recruiter — credential.view,
-compliance.view; scheduler — compliance.view; finance — none; healthcare
-worker — none (self-access is an identity rule); facility admin/scheduler —
-credential.view, effective only through the relationship projection.
+Shift & assignment capabilities (P0-E5-S1, none privileged — see below):
+admin, operations manager, scheduler — shift.view/create/manage,
+assignment.view/manage; recruiter, credentialing officer, finance — none
+(recruiting and credentialing do not schedule; billing is a later stage);
+healthcare worker — none (own assignments are an identity rule:
+`authz.is_own_active_worker`); facility admin/scheduler — shift.view,
+shift.request; facility supervisor — shift.view (who is coming). Facility
+capabilities are effective only through `authz.has_relationship_capability`.
+They are not AAL2-privileged: shift work is high-frequency operational work
+that changes no person, client record, commercial term or credential decision,
+and every assignment is independently gated server-side (compliance, tenancy,
+capacity, schedule).
 
 Least-privilege notes: `relationship.manage` (commercial state) is owner-only;
 recruiters do not see client data; finance does not see workers; credentialing
@@ -284,15 +290,20 @@ hid the button, or use a privileged key.
 
 ## 12. Error codes
 
-| SQLSTATE                    | App code                                                                           | Meaning                                                             |
-| --------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `CH400`                     | `VALIDATION_FAILED`                                                                | invalid input for the operation                                     |
-| `CH401`                     | `AUTH_REQUIRED`                                                                    | no active identity                                                  |
-| `CH402`                     | `MFA_REQUIRED`                                                                     | capability held, but session is not AAL2                            |
-| `CH403`                     | `FORBIDDEN`                                                                        | not permitted (also used for unknown targets — no existence oracle) |
-| `CH404`                     | `NOT_FOUND`                                                                        | target missing after authorization succeeded                        |
-| `CH409`                     | `INVALID_STATE_TRANSITION`                                                         | lifecycle rule violated                                             |
-| `CHW09` / `CHR09` / `CHF09` | `INVALID_WORKER_STATE` / `INVALID_RELATIONSHIP_STATE` / `INVALID_STATE_TRANSITION` | domain lifecycle rule violated                                      |
-| `CHW04` / `CHF04` / `CHR04` | `WORKER_NOT_FOUND` / `FACILITY_NOT_FOUND` / `RELATIONSHIP_NOT_FOUND`               | target missing after authorization                                  |
-| `CH429`                     | `RATE_LIMITED`                                                                     | throttled                                                           |
-| (empty result)              | `INVITE_INVALID`                                                                   | invitation cannot be redeemed (uniform)                             |
+| SQLSTATE                    | App code                                                                                                    | Meaning                                                                  |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `CH400`                     | `VALIDATION_FAILED`                                                                                         | invalid input for the operation                                          |
+| `CH401`                     | `AUTH_REQUIRED`                                                                                             | no active identity                                                       |
+| `CH402`                     | `MFA_REQUIRED`                                                                                              | capability held, but session is not AAL2                                 |
+| `CH403`                     | `FORBIDDEN`                                                                                                 | not permitted (also used for unknown targets — no existence oracle)      |
+| `CH404`                     | `NOT_FOUND`                                                                                                 | target missing after authorization succeeded                             |
+| `CH409`                     | `INVALID_STATE_TRANSITION`                                                                                  | lifecycle rule violated                                                  |
+| `CHW09` / `CHR09` / `CHF09` | `INVALID_WORKER_STATE` / `INVALID_RELATIONSHIP_STATE` / `INVALID_STATE_TRANSITION`                          | domain lifecycle rule violated                                           |
+| `CHW04` / `CHF04` / `CHR04` | `WORKER_NOT_FOUND` / `FACILITY_NOT_FOUND` / `RELATIONSHIP_NOT_FOUND`                                        | target missing after authorization                                       |
+| `CHS04` / `CHA04`           | `SHIFT_NOT_FOUND` / `ASSIGNMENT_NOT_FOUND`                                                                  | missing or not visible (no oracle)                                       |
+| `CHS09` / `CHA09`           | `SHIFT_NOT_OPEN` / `ASSIGNMENT_NOT_ACTIONABLE`                                                              | shift/assignment lifecycle rule violated                                 |
+| `CHS10` / `CHS11`           | `RELATIONSHIP_NOT_ACTIVE` / `FACILITY_LOCATION_INVALID`                                                     | relationship not active / location not of this facility                  |
+| `CHS12`–`CHS16`             | `DISCIPLINE_MISMATCH`, `WORKER_NOT_ACTIVE`, `WORKER_NOT_ELIGIBLE`, `WORKER_SCHEDULE_CONFLICT`, `SHIFT_FULL` | eligibility (acceptance re-check; capacity backstop)                     |
+| (decision row)              | `ASSIGNMENT_ALREADY_EXISTS` and the codes above                                                             | refused assignment returned as a recorded decision, mapped by the server |
+| `CH429`                     | `RATE_LIMITED`                                                                                              | throttled                                                                |
+| (empty result)              | `INVITE_INVALID`                                                                                            | invitation cannot be redeemed (uniform)                                  |

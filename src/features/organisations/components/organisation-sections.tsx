@@ -6,6 +6,9 @@ type OrganisationSectionsProps = {
   showFacilities: boolean;
   showCompliance: boolean;
   showMyCredentials: boolean;
+  showShifts: boolean;
+  showMyShifts: boolean;
+  showStaffingRequests: boolean;
 };
 
 const LINK_CLASS =
@@ -13,11 +16,46 @@ const LINK_CLASS =
 
 /** Section links for an organisation. Shown per capability (UI hint only). */
 export function OrganisationSections(props: OrganisationSectionsProps) {
-  const { organisationId, showWorkforce, showFacilities, showCompliance, showMyCredentials } =
-    props;
-  if (!showWorkforce && !showFacilities && !showCompliance && !showMyCredentials) return null;
+  const {
+    organisationId,
+    showWorkforce,
+    showFacilities,
+    showCompliance,
+    showMyCredentials,
+    showShifts,
+    showMyShifts,
+    showStaffingRequests,
+  } = props;
+  if (
+    !showWorkforce &&
+    !showFacilities &&
+    !showCompliance &&
+    !showMyCredentials &&
+    !showShifts &&
+    !showMyShifts &&
+    !showStaffingRequests
+  )
+    return null;
   return (
     <nav aria-label="Organisation sections" className="flex flex-wrap gap-2">
+      {showShifts ? (
+        <Link href={`/app/organisations/${organisationId}/shifts`} className={LINK_CLASS}>
+          Shifts
+        </Link>
+      ) : null}
+      {showStaffingRequests ? (
+        <Link
+          href={`/app/organisations/${organisationId}/staffing-requests`}
+          className={LINK_CLASS}
+        >
+          Staffing requests
+        </Link>
+      ) : null}
+      {showMyShifts ? (
+        <Link href={`/app/organisations/${organisationId}/my-shifts`} className={LINK_CLASS}>
+          My shifts
+        </Link>
+      ) : null}
       {showWorkforce ? (
         <Link href={`/app/organisations/${organisationId}/workforce`} className={LINK_CLASS}>
           Workforce

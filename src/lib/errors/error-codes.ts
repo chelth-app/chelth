@@ -119,6 +119,66 @@ export const ERROR_CODES = {
     status: 409,
     message: "This change is not allowed for the relationship's current status.",
   },
+  SHIFT_NOT_FOUND: {
+    kind: "not_found",
+    status: 404,
+    message: "That shift could not be found.",
+  },
+  SHIFT_NOT_OPEN: {
+    kind: "conflict",
+    status: 409,
+    message: "This shift is not open.",
+  },
+  RELATIONSHIP_NOT_ACTIVE: {
+    kind: "conflict",
+    status: 409,
+    message: "The agency–facility relationship is not active.",
+  },
+  FACILITY_LOCATION_INVALID: {
+    kind: "validation",
+    status: 400,
+    message: "Choose an active location of this facility.",
+  },
+  DISCIPLINE_MISMATCH: {
+    kind: "conflict",
+    status: 409,
+    message: "This worker does not hold the discipline the shift requires.",
+  },
+  WORKER_NOT_ACTIVE: {
+    kind: "conflict",
+    status: 409,
+    message: "This worker is not active.",
+  },
+  WORKER_NOT_ELIGIBLE: {
+    kind: "conflict",
+    status: 409,
+    message: "This worker is not compliant for this facility on the shift date.",
+  },
+  WORKER_SCHEDULE_CONFLICT: {
+    kind: "conflict",
+    status: 409,
+    message: "This worker has a scheduling conflict at that time.",
+  },
+  SHIFT_FULL: {
+    kind: "conflict",
+    status: 409,
+    message: "This shift is already fully staffed.",
+  },
+  ASSIGNMENT_ALREADY_EXISTS: {
+    kind: "conflict",
+    status: 409,
+    message: "This worker is already assigned to this shift.",
+  },
+  ASSIGNMENT_NOT_FOUND: {
+    kind: "not_found",
+    status: 404,
+    message: "That assignment could not be found.",
+  },
+  ASSIGNMENT_NOT_ACTIONABLE: {
+    kind: "conflict",
+    status: 409,
+    message: "This assignment can no longer be changed.",
+  },
   RATE_LIMITED: {
     kind: "rate_limited",
     status: 429,

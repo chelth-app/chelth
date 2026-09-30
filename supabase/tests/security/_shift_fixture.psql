@@ -1,0 +1,145 @@
+-- =============================================================================
+-- Shift/assignment world (include after _helpers.psql and _credential_helpers.psql).
+--
+--   Alpha Agency   alice admin · sam scheduler · rita recruiter · carl credentialing
+--                  workers: wendy (CNA), walt (CNA), nora (RN)
+--                  client facilities: Mercy Rehab (America/New_York, LINKED to Gamma),
+--                                     Riverside (America/Chicago, not linked)
+--   Beta Agency    bob admin · worker: wendy (CNA) — the SAME person as Alpha's wendy
+--                  client facility: Beta Client (UTC, LINKED to Delta)
+--   Gamma Health   fiona facility admin · fred facility supervisor
+--   Delta Care     dora facility admin
+--   erin           platform admin
+--
+--   Requirements: Alpha baseline BLS · Mercy adds facility orientation · Beta baseline BLS.
+--   Evidence:     wendy BLS valid 400 days, shared + verified by Alpha and Beta,
+--                 Mercy orientation verified · walt BLS expires in 40 days,
+--                 verified, no orientation · nora nothing.
+--   All relationships active; all workers active.
+-- =============================================================================
+
+create temp table ids as
+select
+  pg_temp.create_user('alice@example.test') as alice,
+  pg_temp.create_user('sam@example.test')   as sam,
+  pg_temp.create_user('rita@example.test')  as rita,
+  pg_temp.create_user('carl@example.test')  as carl,
+  pg_temp.create_user('bob@example.test')   as bob,
+  pg_temp.create_user('wendy@example.test') as wendy,
+  pg_temp.create_user('walt@example.test')  as walt,
+  pg_temp.create_user('nora@example.test')  as nora,
+  pg_temp.create_user('fiona@example.test') as fiona,
+  pg_temp.create_user('fred@example.test')  as fred,
+  pg_temp.create_user('dora@example.test')  as dora,
+  pg_temp.create_user('erin@example.test')  as erin;
+grant select on ids to authenticated, anon;
+
+create temp table orgs as
+select
+  pg_temp.create_org_as((select alice from ids), 'Alpha Agency', 'alpha-agency') as alpha,
+  pg_temp.create_org_as((select bob from ids),   'Beta Agency',  'beta-agency')  as beta,
+  pg_temp.create_facility_org('Gamma Health', 'gamma-health') as gamma,
+  pg_temp.create_facility_org('Delta Care', 'delta-care') as delta;
+grant select on orgs to authenticated, anon;
+
+select pg_temp.add_member((select alpha from orgs), (select sam from ids),   'agency.scheduler');
+select pg_temp.add_member((select alpha from orgs), (select rita from ids),  'agency.recruiter');
+select pg_temp.add_member((select alpha from orgs), (select carl from ids),  'agency.credentialing_officer');
+select pg_temp.add_member((select alpha from orgs), (select wendy from ids), 'agency.healthcare_worker');
+select pg_temp.add_member((select beta from orgs),  (select wendy from ids), 'agency.healthcare_worker');
+select pg_temp.add_member((select alpha from orgs), (select walt from ids),  'agency.healthcare_worker');
+select pg_temp.add_member((select alpha from orgs), (select nora from ids),  'agency.healthcare_worker');
+select pg_temp.add_member((select gamma from orgs), (select fiona from ids), 'facility.admin');
+select pg_temp.add_member((select gamma from orgs), (select fred from ids),  'facility.supervisor');
+select pg_temp.add_member((select delta from orgs), (select dora from ids),  'facility.admin');
+select internal.grant_platform_admin((select erin from ids), 'Test Operator', 'fixture');
+
+create temp table w as
+select pg_temp.worker_of((select alpha from orgs), (select wendy from ids)) as wendy,
+       pg_temp.worker_of((select beta from orgs),  (select wendy from ids)) as wendy_beta,
+       pg_temp.worker_of((select alpha from orgs), (select walt from ids))  as walt,
+       pg_temp.worker_of((select alpha from orgs), (select nora from ids))  as nora;
+grant select on w to authenticated, anon;
+update public.agency_workers set status = 'active' where id in (select unnest(array[wendy, wendy_beta, walt, nora]) from w);
+
+select pg_temp.exec_as((select alice from ids), 'aal2', format('select public.set_agency_worker_discipline(%L, ''cna'', true)', (select wendy from w)));
+select pg_temp.exec_as((select alice from ids), 'aal2', format('select public.set_agency_worker_discipline(%L, ''cna'', true)', (select walt from w)));
+select pg_temp.exec_as((select alice from ids), 'aal2', format('select public.set_agency_worker_discipline(%L, ''rn'', true)', (select nora from w)));
+select pg_temp.exec_as((select bob from ids), 'aal2', format('select public.set_agency_worker_discipline(%L, ''cna'', true)', (select wendy_beta from w)));
+
+create temp table f as
+select
+  pg_temp.scalar_as((select alice from ids), 'aal2', format('select public.create_agency_facility(%L, ''Mercy Rehab'', ''rehabilitation'', ''America/New_York'')', (select alpha from orgs)))::uuid as mercy,
+  pg_temp.scalar_as((select alice from ids), 'aal2', format('select public.create_agency_facility(%L, ''Riverside'', ''hospital'', ''America/Chicago'')', (select alpha from orgs)))::uuid as riverside,
+  pg_temp.scalar_as((select bob from ids), 'aal2', format('select public.create_agency_facility(%L, ''Beta Client'', ''clinic'', ''UTC'')', (select beta from orgs)))::uuid as beta_client;
+grant select on f to authenticated, anon;
+
+create temp table loc as
+select
+  pg_temp.scalar_as((select alice from ids), 'aal2', format('select public.create_facility_location(%L, ''Mercy Main'', ''America/New_York'')', (select mercy from f)))::uuid as mercy_main,
+  pg_temp.scalar_as((select alice from ids), 'aal2', format('select public.create_facility_location(%L, ''Mercy East'', ''America/New_York'')', (select mercy from f)))::uuid as mercy_east,
+  pg_temp.scalar_as((select alice from ids), 'aal2', format('select public.create_facility_location(%L, ''Riverside Main'', ''America/Chicago'')', (select riverside from f)))::uuid as riverside_main,
+  pg_temp.scalar_as((select bob from ids), 'aal2', format('select public.create_facility_location(%L, ''Beta Ward'', ''UTC'')', (select beta_client from f)))::uuid as beta_main;
+grant select on loc to authenticated, anon;
+
+create temp table rel as
+select
+  pg_temp.scalar_as((select alice from ids), 'aal2', format('select public.create_facility_relationship(%L)', (select mercy from f)))::uuid as mercy,
+  pg_temp.scalar_as((select alice from ids), 'aal2', format('select public.create_facility_relationship(%L)', (select riverside from f)))::uuid as riverside,
+  pg_temp.scalar_as((select bob from ids), 'aal2', format('select public.create_facility_relationship(%L)', (select beta_client from f)))::uuid as beta;
+grant select on rel to authenticated, anon;
+select pg_temp.exec_as((select alice from ids), 'aal2', format('select public.set_facility_relationship_status(%L, ''active'')', (select mercy from rel)));
+select pg_temp.exec_as((select alice from ids), 'aal2', format('select public.set_facility_relationship_status(%L, ''active'')', (select riverside from rel)));
+select pg_temp.exec_as((select bob from ids), 'aal2', format('select public.set_facility_relationship_status(%L, ''active'')', (select beta from rel)));
+select pg_temp.exec_as((select erin from ids), 'aal2', format('select public.platform_link_agency_facility(%L, %L)', (select mercy from f), (select gamma from orgs)));
+select pg_temp.exec_as((select erin from ids), 'aal2', format('select public.platform_link_agency_facility(%L, %L)', (select beta_client from f), (select delta from orgs)));
+
+-- Requirements
+select pg_temp.scalar_as((select alice from ids), 'aal2', format(
+  'select public.create_credential_requirement(%L, ''bls_certification'', null, null, true, 0, 30, null)', (select alpha from orgs)));
+select pg_temp.scalar_as((select alice from ids), 'aal2', format(
+  'select public.create_credential_requirement(%L, ''facility_orientation'', %L, null, true, 0, 30, null)', (select alpha from orgs), (select mercy from f)));
+select pg_temp.scalar_as((select bob from ids), 'aal2', format(
+  'select public.create_credential_requirement(%L, ''bls_certification'', null, null, true, 0, 30, null)', (select beta from orgs)));
+
+-- Evidence
+create temp table ev as
+select pg_temp.evidence((select wendy from ids), 'bls_certification', null, null, current_date - 30, current_date + 400) as wendy_bls,
+       pg_temp.evidence((select wendy from ids), 'facility_orientation', null, null, current_date - 5, null) as wendy_orientation,
+       pg_temp.evidence((select walt from ids), 'bls_certification', null, null, current_date - 300, current_date + 40) as walt_bls;
+grant select on ev to authenticated, anon;
+
+select pg_temp.share_credential((select wendy from ids), (select (wendy_bls ->> 'credential_id')::uuid from ev), (select alpha from orgs));
+select pg_temp.share_credential((select wendy from ids), (select (wendy_bls ->> 'credential_id')::uuid from ev), (select beta from orgs));
+select pg_temp.share_credential((select wendy from ids), (select (wendy_orientation ->> 'credential_id')::uuid from ev), (select alpha from orgs));
+select pg_temp.share_credential((select walt from ids), (select (walt_bls ->> 'credential_id')::uuid from ev), (select alpha from orgs));
+select pg_temp.verify((select alice from ids), (select (wendy_bls ->> 'credential_version_id')::uuid from ev), (select alpha from orgs));
+select pg_temp.verify((select bob from ids),   (select (wendy_bls ->> 'credential_version_id')::uuid from ev), (select beta from orgs));
+select pg_temp.verify((select alice from ids), (select (wendy_orientation ->> 'credential_version_id')::uuid from ev), (select alpha from orgs), 'verified', null, (select mercy from f));
+select pg_temp.verify((select alice from ids), (select (walt_bls ->> 'credential_version_id')::uuid from ev), (select alpha from orgs));
+
+-- -----------------------------------------------------------------------------
+-- Helpers
+-- -----------------------------------------------------------------------------
+-- Agency shift (create_shift) → id. p_day = days from today; times are local.
+create function pg_temp.shift(
+  p_user uuid, p_facility uuid, p_location uuid, p_day integer, p_start text, p_end text,
+  p_headcount integer default 1, p_open boolean default true, p_discipline text default 'cna'
+) returns uuid language sql as $$
+  select pg_temp.scalar_as(p_user, 'aal1', format(
+    'select public.create_shift(%L, %L, %L, %L::date, %L::time, %L::time, %s, null, null, %L)',
+    p_facility, p_location, p_discipline, current_date + p_day, p_start, p_end, p_headcount, p_open))::uuid
+$$;
+
+-- assign_worker_to_shift → the single result row as jsonb.
+create function pg_temp.assign(p_user uuid, p_shift uuid, p_worker uuid)
+returns jsonb language sql as $$
+  select pg_temp.query_as(p_user, 'aal1', format(
+    'select * from public.assign_worker_to_shift(%L, %L)', p_shift, p_worker)) -> 0
+$$;
+
+-- SQL text that runs p_sql as p_user (for throws_ok / lives_ok).
+create function pg_temp.as_sql(p_user uuid, p_sql text, p_aal text default 'aal1')
+returns text language sql as $$
+  select format('select pg_temp.exec_as(%L, %L, %L)', p_user, p_aal, p_sql)
+$$;

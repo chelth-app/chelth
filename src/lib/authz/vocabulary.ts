@@ -42,6 +42,12 @@ export const CAPABILITIES = {
   CREDENTIAL_REQUIREMENTS_VIEW: "credential.requirements.view",
   CREDENTIAL_REQUIREMENTS_MANAGE: "credential.requirements.manage",
   COMPLIANCE_VIEW: "compliance.view",
+  SHIFT_VIEW: "shift.view",
+  SHIFT_CREATE: "shift.create",
+  SHIFT_MANAGE: "shift.manage",
+  SHIFT_REQUEST: "shift.request",
+  ASSIGNMENT_VIEW: "assignment.view",
+  ASSIGNMENT_MANAGE: "assignment.manage",
 } as const;
 
 export type CapabilityKey = (typeof CAPABILITIES)[keyof typeof CAPABILITIES];
@@ -122,6 +128,21 @@ export const AUDIT_ACTIONS = {
   COMPLIANCE_SHARED: "compliance.shared",
   COMPLIANCE_SHARE_REVOKED: "compliance.share_revoked",
   COMPLIANCE_VIEWED_BY_FACILITY: "compliance.viewed_by_facility",
+  SHIFT_CREATED: "shift.created",
+  SHIFT_SUBMITTED: "shift.submitted",
+  SHIFT_OPENED: "shift.opened",
+  SHIFT_UPDATED: "shift.updated",
+  SHIFT_CANCELLED: "shift.cancelled",
+  SHIFT_COMPLETED: "shift.completed",
+  SHIFT_INTERNAL_NOTE_ADDED: "shift.internal_note_added",
+  SHIFT_ASSIGNMENTS_VIEWED_BY_FACILITY: "shift.assignments_viewed_by_facility",
+  ASSIGNMENT_CREATED: "assignment.created",
+  ASSIGNMENT_ACCEPTED: "assignment.accepted",
+  ASSIGNMENT_DECLINED: "assignment.declined",
+  ASSIGNMENT_CANCELLED: "assignment.cancelled",
+  ASSIGNMENT_REJECTED_BY_COMPLIANCE: "assignment.rejected_by_compliance",
+  ASSIGNMENT_REJECTED_BY_CONFLICT: "assignment.rejected_by_conflict",
+  ASSIGNMENT_REJECTED_BY_CAPACITY: "assignment.rejected_by_capacity",
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
@@ -174,6 +195,21 @@ const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   "compliance.shared": "Compliance shared with facility",
   "compliance.share_revoked": "Compliance sharing stopped",
   "compliance.viewed_by_facility": "Facility viewed shared compliance",
+  "shift.created": "Shift created",
+  "shift.submitted": "Staffing request submitted",
+  "shift.opened": "Shift opened",
+  "shift.updated": "Shift updated",
+  "shift.cancelled": "Shift cancelled",
+  "shift.completed": "Shift completed",
+  "shift.internal_note_added": "Internal shift note added",
+  "shift.assignments_viewed_by_facility": "Facility viewed assigned workers",
+  "assignment.created": "Worker assigned",
+  "assignment.accepted": "Assignment accepted",
+  "assignment.declined": "Assignment declined",
+  "assignment.cancelled": "Assignment cancelled",
+  "assignment.rejected_by_compliance": "Assignment refused (eligibility)",
+  "assignment.rejected_by_conflict": "Assignment refused (schedule conflict)",
+  "assignment.rejected_by_capacity": "Assignment refused (capacity)",
 };
 
 export function auditActionLabel(action: string): string {

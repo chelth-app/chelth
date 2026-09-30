@@ -66,13 +66,11 @@ All are pgTAP/integration tested.
 
 ## 5. Planned shares (design guidance)
 
-| Future resource         | Share with facility                                                                                                               | Notes                                                                         |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Shift requests / shifts | the facility's own shifts under the relationship                                                                                  | relationship_id on the row; `shift.view` / `shift.create` in the facility org |
-| Assigned worker details | name + the minimum operational fields for **assigned** shifts only                                                                | projection RPC; never the worker list; never notes                            |
-| Timesheets              | for the facility's shifts only                                                                                                    | `timesheet.approve` in the facility org; append-only approvals                |
-| Invoices                | invoices issued under the relationship                                                                                            | `invoice.view` in the facility org                                            |
-| Credential visibility   | only credentials the worker has consented to share for a placement, and only their verification status unless explicitly required | document access through signed URLs + access audit                            |
+| Future resource       | Share with facility                                                                                                               | Notes                                                          |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Timesheets            | for the facility's shifts only                                                                                                    | `timesheet.approve` in the facility org; append-only approvals |
+| Invoices              | invoices issued under the relationship                                                                                            | `invoice.view` in the facility org                             |
+| Credential visibility | only credentials the worker has consented to share for a placement, and only their verification status unless explicitly required | document access through signed URLs + access audit             |
 
 Each will ship with pgTAP tests proving: unrelated facility sees nothing;
 ended relationship shares nothing; facility cannot read agency tenant tables;
@@ -87,3 +85,15 @@ agency B cannot see agency A's shares.
 
 Revocation: removing the share, ending/suspending the relationship, or the
 facility member losing access each stop sharing immediately (tested).
+
+## 7. Shifts and assignments (implemented, P0-E5-S1)
+
+| Resource                                                                | Facility side sees                                                                  | Mechanism                                                                               |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Shifts under the relationship                                           | time, timezone, location, discipline, headcount, derived fill, status, instructions | `list_facility_shifts` (facility `shift.view`, non-ended relationship, drafts excluded) |
+| Staffing requests                                                       | submit / withdraw own submitted request                                             | `submit_facility_shift_request` (facility `shift.request`, ACTIVE relationship)         |
+| Who is coming                                                           | display name, discipline, assignment state, readiness indicator                     | `list_facility_shift_assignments` (audited `shift.assignments_viewed_by_facility`)      |
+| Internal notes, decisions, candidates, worker records, other facilities | **nothing**                                                                         | no policy path                                                                          |
+
+Details: [SHIFT_CROSS_ORG_ACCESS.md](SHIFT_CROSS_ORG_ACCESS.md). Cross-agency
+schedule conflicts reveal one generic bit to the assigning agency, nothing more.

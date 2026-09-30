@@ -55,8 +55,9 @@ blocking, not merely "action required".)
   the lowest rank is reported. A verified, valid version 1 keeps a worker
   compliant while the renewed version 2 awaits review.
 - **Dates.** Effective expiry = `expiry_date`, or `issue_date + validity_months`.
-  Valid _through_ the expiry date. Evaluated in UTC dates today; per-facility
-  time zones will apply when shifts carry local dates.
+  Valid _through_ the expiry date. Readiness views evaluate today's UTC date;
+  assignment evaluates every LOCAL calendar date the shift touches in the
+  location's timezone ([SHIFT_TIME_MODEL.md](SHIFT_TIME_MODEL.md)).
 - **Verification is per agency, per version.** Agency B never inherits Agency
   A's decision. A renewal never inherits an old decision.
 - **Latest decision** is by a monotonic sequence (timestamps can tie inside a
@@ -79,3 +80,15 @@ documents.
 Evaluation loops over requirements × candidate versions for one worker —
 small numbers. Bulk use (rota planning across hundreds of workers) will add a
 set-based variant; the reason-code contract stays the same.
+
+## 7. Discipline scope and assignment use (P0-E5-S1)
+
+`internal.evaluate_compliance(worker, facility, as_of, discipline)` is the
+discipline-scoped form: with a discipline it applies only requirements with no
+discipline or that discipline, and does not emit `DISCIPLINE_NOT_SET` (the
+assignment gate checks the discipline itself). The 3-argument form now
+delegates with `NULL` (all of the worker's disciplines), so there is still one
+implementation. The assignment boundary requires `ready` on every local shift
+date and records the reasons in an append-only decision
+([ASSIGNMENT_ELIGIBILITY.md](ASSIGNMENT_ELIGIBILITY.md)). Engine version tag
+recorded on decisions: `compliance-engine.p0-e5-s1`.

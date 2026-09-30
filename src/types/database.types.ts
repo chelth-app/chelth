@@ -328,6 +328,89 @@ export type Database = {
           },
         ]
       }
+      assignment_eligibility_decisions: {
+        Row: {
+          actor_membership_id: string
+          agency_organisation_id: string
+          agency_worker_id: string
+          assignment_id: string | null
+          block_reasons: Database["public"]["Enums"]["assignment_block_reason"][]
+          compliance_findings: Json
+          compliance_reasons: Database["public"]["Enums"]["compliance_reason"][]
+          decided_at: string
+          engine_version: string
+          evaluation_dates: string[]
+          id: string
+          outcome: Database["public"]["Enums"]["assignment_decision_outcome"]
+          readiness: Database["public"]["Enums"]["readiness_status"]
+          sequence: number
+          shift_id: string
+        }
+        Insert: {
+          actor_membership_id: string
+          agency_organisation_id: string
+          agency_worker_id: string
+          assignment_id?: string | null
+          block_reasons?: Database["public"]["Enums"]["assignment_block_reason"][]
+          compliance_findings?: Json
+          compliance_reasons?: Database["public"]["Enums"]["compliance_reason"][]
+          decided_at?: string
+          engine_version: string
+          evaluation_dates: string[]
+          id?: string
+          outcome: Database["public"]["Enums"]["assignment_decision_outcome"]
+          readiness: Database["public"]["Enums"]["readiness_status"]
+          sequence?: never
+          shift_id: string
+        }
+        Update: {
+          actor_membership_id?: string
+          agency_organisation_id?: string
+          agency_worker_id?: string
+          assignment_id?: string | null
+          block_reasons?: Database["public"]["Enums"]["assignment_block_reason"][]
+          compliance_findings?: Json
+          compliance_reasons?: Database["public"]["Enums"]["compliance_reason"][]
+          decided_at?: string
+          engine_version?: string
+          evaluation_dates?: string[]
+          id?: string
+          outcome?: Database["public"]["Enums"]["assignment_decision_outcome"]
+          readiness?: Database["public"]["Enums"]["readiness_status"]
+          sequence?: never
+          shift_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assignment_eligibility_decisi_actor_membership_id_agency_o_fkey"
+            columns: ["actor_membership_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id", "organisation_id"]
+          },
+          {
+            foreignKeyName: "assignment_eligibility_decisi_agency_worker_id_agency_orga_fkey"
+            columns: ["agency_worker_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "agency_workers"
+            referencedColumns: ["id", "agency_organisation_id"]
+          },
+          {
+            foreignKeyName: "assignment_eligibility_decisi_assignment_id_agency_organis_fkey"
+            columns: ["assignment_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "shift_assignments"
+            referencedColumns: ["id", "agency_organisation_id"]
+          },
+          {
+            foreignKeyName: "assignment_eligibility_decisi_shift_id_agency_organisation_fkey"
+            columns: ["shift_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "shifts"
+            referencedColumns: ["id", "agency_organisation_id"]
+          },
+        ]
+      }
       audit_events: {
         Row: {
           action: string
@@ -1451,6 +1534,331 @@ export type Database = {
         }
         Relationships: []
       }
+      shift_assignments: {
+        Row: {
+          accepted_at: string | null
+          agency_organisation_id: string
+          agency_worker_id: string
+          assigned_at: string
+          assigned_by_membership_id: string
+          cancellation_reason:
+            | Database["public"]["Enums"]["assignment_cancellation_reason"]
+            | null
+          cancelled_at: string | null
+          cancelled_by_profile_id: string | null
+          created_at: string
+          declined_at: string | null
+          end_at: string
+          id: string
+          period: unknown
+          profile_id: string
+          shift_id: string
+          start_at: string
+          status: Database["public"]["Enums"]["assignment_status"]
+          status_changed_at: string
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          agency_organisation_id: string
+          agency_worker_id: string
+          assigned_at?: string
+          assigned_by_membership_id: string
+          cancellation_reason?:
+            | Database["public"]["Enums"]["assignment_cancellation_reason"]
+            | null
+          cancelled_at?: string | null
+          cancelled_by_profile_id?: string | null
+          created_at?: string
+          declined_at?: string | null
+          end_at: string
+          id?: string
+          period?: unknown
+          profile_id: string
+          shift_id: string
+          start_at: string
+          status?: Database["public"]["Enums"]["assignment_status"]
+          status_changed_at?: string
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          agency_organisation_id?: string
+          agency_worker_id?: string
+          assigned_at?: string
+          assigned_by_membership_id?: string
+          cancellation_reason?:
+            | Database["public"]["Enums"]["assignment_cancellation_reason"]
+            | null
+          cancelled_at?: string | null
+          cancelled_by_profile_id?: string | null
+          created_at?: string
+          declined_at?: string | null
+          end_at?: string
+          id?: string
+          period?: unknown
+          profile_id?: string
+          shift_id?: string
+          start_at?: string
+          status?: Database["public"]["Enums"]["assignment_status"]
+          status_changed_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shift_assignments_agency_worker_id_agency_organisation_id__fkey"
+            columns: [
+              "agency_worker_id",
+              "agency_organisation_id",
+              "profile_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "agency_workers"
+            referencedColumns: ["id", "agency_organisation_id", "profile_id"]
+          },
+          {
+            foreignKeyName: "shift_assignments_assigned_by_membership_id_agency_organis_fkey"
+            columns: ["assigned_by_membership_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id", "organisation_id"]
+          },
+          {
+            foreignKeyName: "shift_assignments_cancelled_by_profile_id_fkey"
+            columns: ["cancelled_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_assignments_shift_id_agency_organisation_id_start_at_fkey"
+            columns: [
+              "shift_id",
+              "agency_organisation_id",
+              "start_at",
+              "end_at",
+            ]
+            isOneToOne: false
+            referencedRelation: "shifts"
+            referencedColumns: [
+              "id",
+              "agency_organisation_id",
+              "start_at",
+              "end_at",
+            ]
+          },
+        ]
+      }
+      shift_internal_notes: {
+        Row: {
+          agency_organisation_id: string
+          author_profile_id: string | null
+          body: string
+          created_at: string
+          id: string
+          shift_id: string
+        }
+        Insert: {
+          agency_organisation_id: string
+          author_profile_id?: string | null
+          body: string
+          created_at?: string
+          id?: string
+          shift_id: string
+        }
+        Update: {
+          agency_organisation_id?: string
+          author_profile_id?: string | null
+          body?: string
+          created_at?: string
+          id?: string
+          shift_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shift_internal_notes_author_profile_id_fkey"
+            columns: ["author_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_internal_notes_shift_id_agency_organisation_id_fkey"
+            columns: ["shift_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "shifts"
+            referencedColumns: ["id", "agency_organisation_id"]
+          },
+        ]
+      }
+      shifts: {
+        Row: {
+          agency_facility_id: string
+          agency_organisation_id: string
+          agency_organisation_type: Database["public"]["Enums"]["organisation_type"]
+          cancellation_reason:
+            | Database["public"]["Enums"]["shift_cancellation_reason"]
+            | null
+          cancelled_at: string | null
+          cancelled_by_profile_id: string | null
+          completed_at: string | null
+          created_at: string
+          created_by_membership_id: string
+          created_by_organisation_id: string
+          created_by_profile_id: string | null
+          discipline_key: string
+          end_at: string
+          external_reference: string | null
+          facility_location_id: string
+          id: string
+          instructions: string | null
+          opened_at: string | null
+          opened_by_profile_id: string | null
+          relationship_id: string
+          requested_headcount: number
+          source: Database["public"]["Enums"]["shift_source"]
+          start_at: string
+          status: Database["public"]["Enums"]["shift_status"]
+          status_changed_at: string
+          timezone: string
+          updated_at: string
+        }
+        Insert: {
+          agency_facility_id: string
+          agency_organisation_id: string
+          agency_organisation_type?: Database["public"]["Enums"]["organisation_type"]
+          cancellation_reason?:
+            | Database["public"]["Enums"]["shift_cancellation_reason"]
+            | null
+          cancelled_at?: string | null
+          cancelled_by_profile_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by_membership_id: string
+          created_by_organisation_id: string
+          created_by_profile_id?: string | null
+          discipline_key: string
+          end_at: string
+          external_reference?: string | null
+          facility_location_id: string
+          id?: string
+          instructions?: string | null
+          opened_at?: string | null
+          opened_by_profile_id?: string | null
+          relationship_id: string
+          requested_headcount: number
+          source: Database["public"]["Enums"]["shift_source"]
+          start_at: string
+          status: Database["public"]["Enums"]["shift_status"]
+          status_changed_at?: string
+          timezone: string
+          updated_at?: string
+        }
+        Update: {
+          agency_facility_id?: string
+          agency_organisation_id?: string
+          agency_organisation_type?: Database["public"]["Enums"]["organisation_type"]
+          cancellation_reason?:
+            | Database["public"]["Enums"]["shift_cancellation_reason"]
+            | null
+          cancelled_at?: string | null
+          cancelled_by_profile_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by_membership_id?: string
+          created_by_organisation_id?: string
+          created_by_profile_id?: string | null
+          discipline_key?: string
+          end_at?: string
+          external_reference?: string | null
+          facility_location_id?: string
+          id?: string
+          instructions?: string | null
+          opened_at?: string | null
+          opened_by_profile_id?: string | null
+          relationship_id?: string
+          requested_headcount?: number
+          source?: Database["public"]["Enums"]["shift_source"]
+          start_at?: string
+          status?: Database["public"]["Enums"]["shift_status"]
+          status_changed_at?: string
+          timezone?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shifts_agency_facility_id_agency_organisation_id_fkey"
+            columns: ["agency_facility_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "agency_facilities"
+            referencedColumns: ["id", "agency_organisation_id"]
+          },
+          {
+            foreignKeyName: "shifts_agency_organisation_id_agency_organisation_type_fkey"
+            columns: ["agency_organisation_id", "agency_organisation_type"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id", "type"]
+          },
+          {
+            foreignKeyName: "shifts_cancelled_by_profile_id_fkey"
+            columns: ["cancelled_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shifts_created_by_membership_id_created_by_organisation_id_fkey"
+            columns: ["created_by_membership_id", "created_by_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id", "organisation_id"]
+          },
+          {
+            foreignKeyName: "shifts_created_by_profile_id_fkey"
+            columns: ["created_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shifts_discipline_key_fkey"
+            columns: ["discipline_key"]
+            isOneToOne: false
+            referencedRelation: "disciplines"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "shifts_facility_location_id_agency_facility_id_fkey"
+            columns: ["facility_location_id", "agency_facility_id"]
+            isOneToOne: false
+            referencedRelation: "facility_locations"
+            referencedColumns: ["id", "agency_facility_id"]
+          },
+          {
+            foreignKeyName: "shifts_opened_by_profile_id_fkey"
+            columns: ["opened_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shifts_relationship_id_agency_organisation_id_agency_facil_fkey"
+            columns: [
+              "relationship_id",
+              "agency_organisation_id",
+              "agency_facility_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "agency_facility_relationships"
+            referencedColumns: [
+              "id",
+              "agency_organisation_id",
+              "agency_facility_id",
+            ]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -1463,13 +1871,33 @@ export type Database = {
           organisation_id: string
         }[]
       }
+      accept_shift_assignment: {
+        Args: { p_assignment_id: string }
+        Returns: undefined
+      }
       add_agency_worker_note: {
         Args: { p_body: string; p_worker_id: string }
+        Returns: string
+      }
+      add_shift_internal_note: {
+        Args: { p_body: string; p_shift_id: string }
         Returns: string
       }
       assign_membership_role: {
         Args: { p_membership_id: string; p_role_key: string }
         Returns: string
+      }
+      assign_worker_to_shift: {
+        Args: { p_agency_worker_id: string; p_shift_id: string }
+        Returns: {
+          assignment_id: string
+          block_reasons: Database["public"]["Enums"]["assignment_block_reason"][]
+          compliance_findings: Json
+          compliance_reasons: Database["public"]["Enums"]["compliance_reason"][]
+          decision_id: string
+          outcome: Database["public"]["Enums"]["assignment_decision_outcome"]
+          primary_reason: Database["public"]["Enums"]["assignment_block_reason"]
+        }[]
       }
       authorize_credential_document_access: {
         Args: { p_document_id: string; p_organisation_id?: string }
@@ -1488,6 +1916,20 @@ export type Database = {
           object_path: string
         }[]
       }
+      cancel_shift: {
+        Args: {
+          p_reason: Database["public"]["Enums"]["shift_cancellation_reason"]
+          p_shift_id: string
+        }
+        Returns: undefined
+      }
+      cancel_shift_assignment: {
+        Args: {
+          p_assignment_id: string
+          p_reason: Database["public"]["Enums"]["assignment_cancellation_reason"]
+        }
+        Returns: undefined
+      }
       complete_credential_document_upload: {
         Args: {
           p_content_valid: boolean
@@ -1496,6 +1938,7 @@ export type Database = {
         }
         Returns: Database["public"]["Enums"]["document_status"]
       }
+      complete_shift: { Args: { p_shift_id: string }; Returns: undefined }
       create_agency_facility: {
         Args: {
           p_address_line1?: string
@@ -1580,6 +2023,25 @@ export type Database = {
           invite_token: string
         }[]
       }
+      create_shift: {
+        Args: {
+          p_agency_facility_id: string
+          p_discipline_key: string
+          p_end_time: string
+          p_external_reference?: string
+          p_facility_location_id: string
+          p_instructions?: string
+          p_open?: boolean
+          p_requested_headcount: number
+          p_shift_date: string
+          p_start_time: string
+        }
+        Returns: string
+      }
+      decline_shift_assignment: {
+        Args: { p_assignment_id: string }
+        Returns: undefined
+      }
       evaluate_worker_compliance: {
         Args: {
           p_agency_facility_id?: string
@@ -1597,6 +2059,34 @@ export type Database = {
           severity: Database["public"]["Enums"]["compliance_severity"]
         }[]
       }
+      list_agency_shifts: {
+        Args: {
+          p_agency_facility_id?: string
+          p_from?: string
+          p_organisation_id: string
+          p_status?: Database["public"]["Enums"]["shift_status"]
+          p_to?: string
+        }
+        Returns: {
+          accepted_count: number
+          active_count: number
+          agency_facility_id: string
+          discipline_key: string
+          discipline_name: string
+          end_at: string
+          external_reference: string
+          facility_name: string
+          fill_state: string
+          location_name: string
+          relationship_status: Database["public"]["Enums"]["relationship_status"]
+          requested_headcount: number
+          shift_id: string
+          source: Database["public"]["Enums"]["shift_source"]
+          start_at: string
+          status: Database["public"]["Enums"]["shift_status"]
+          timezone: string
+        }[]
+      }
       list_agency_worker_credentials: {
         Args: { p_agency_worker_id: string }
         Returns: {
@@ -1611,6 +2101,92 @@ export type Database = {
           latest_version_number: number
           latest_version_status: Database["public"]["Enums"]["credential_version_status"]
           shared_at: string
+        }[]
+      }
+      list_assignment_readiness: {
+        Args: {
+          p_from?: string
+          p_organisation_id: string
+          p_shift_id?: string
+          p_until?: string
+        }
+        Returns: {
+          agency_worker_id: string
+          assignment_id: string
+          block_reasons: Database["public"]["Enums"]["assignment_block_reason"][]
+          compliance_findings: Json
+          compliance_reasons: Database["public"]["Enums"]["compliance_reason"][]
+          display_name: string
+          eligible: boolean
+          end_at: string
+          readiness: Database["public"]["Enums"]["readiness_status"]
+          relationship_active: boolean
+          shift_id: string
+          start_at: string
+          status: Database["public"]["Enums"]["assignment_status"]
+          timezone: string
+        }[]
+      }
+      list_facility_request_options: {
+        Args: { p_relationship_id: string }
+        Returns: {
+          facility_location_id: string
+          location_name: string
+          timezone: string
+        }[]
+      }
+      list_facility_shift_assignments: {
+        Args: { p_shift_id: string }
+        Returns: {
+          assignment_id: string
+          discipline_name: string
+          readiness: Database["public"]["Enums"]["readiness_status"]
+          status: Database["public"]["Enums"]["assignment_status"]
+          worker_display_name: string
+        }[]
+      }
+      list_facility_shifts: {
+        Args: { p_facility_organisation_id: string; p_shift_id?: string }
+        Returns: {
+          accepted_count: number
+          active_count: number
+          agency_name: string
+          cancellation_reason: Database["public"]["Enums"]["shift_cancellation_reason"]
+          discipline_key: string
+          discipline_name: string
+          end_at: string
+          external_reference: string
+          fill_state: string
+          instructions: string
+          location_name: string
+          relationship_id: string
+          relationship_status: Database["public"]["Enums"]["relationship_status"]
+          requested_headcount: number
+          shift_id: string
+          source: Database["public"]["Enums"]["shift_source"]
+          start_at: string
+          status: Database["public"]["Enums"]["shift_status"]
+          timezone: string
+        }[]
+      }
+      list_my_shift_assignments: {
+        Args: { p_organisation_id: string }
+        Returns: {
+          accepted_at: string
+          assigned_at: string
+          assignment_id: string
+          can_respond: boolean
+          cancellation_reason: Database["public"]["Enums"]["assignment_cancellation_reason"]
+          discipline_name: string
+          end_at: string
+          facility_name: string
+          instructions: string
+          location_name: string
+          shift_id: string
+          shift_status: Database["public"]["Enums"]["shift_status"]
+          start_at: string
+          status: Database["public"]["Enums"]["assignment_status"]
+          timezone: string
         }[]
       }
       list_organisation_invites: {
@@ -1648,6 +2224,20 @@ export type Database = {
           worker_display_name: string
         }[]
       }
+      list_shift_candidates: {
+        Args: { p_shift_id: string }
+        Returns: {
+          agency_worker_id: string
+          assignable: boolean
+          block_reasons: Database["public"]["Enums"]["assignment_block_reason"][]
+          compliance_findings: Json
+          compliance_reasons: Database["public"]["Enums"]["compliance_reason"][]
+          display_name: string
+          primary_reason: Database["public"]["Enums"]["assignment_block_reason"]
+          readiness: Database["public"]["Enums"]["readiness_status"]
+          worker_status: Database["public"]["Enums"]["worker_status"]
+        }[]
+      }
       my_capabilities: {
         Args: { p_organisation_id: string }
         Returns: {
@@ -1656,6 +2246,7 @@ export type Database = {
           is_satisfied: boolean
         }[]
       }
+      open_shift: { Args: { p_shift_id: string }; Returns: undefined }
       platform_create_organisation: {
         Args: {
           p_name: string
@@ -1806,6 +2397,20 @@ export type Database = {
         Args: { p_credential_version_id: string }
         Returns: undefined
       }
+      submit_facility_shift_request: {
+        Args: {
+          p_discipline_key: string
+          p_end_time: string
+          p_external_reference?: string
+          p_facility_location_id: string
+          p_instructions?: string
+          p_relationship_id: string
+          p_requested_headcount: number
+          p_shift_date: string
+          p_start_time: string
+        }
+        Returns: string
+      }
       update_agency_facility: {
         Args: {
           p_address_line1?: string
@@ -1838,6 +2443,20 @@ export type Database = {
         }
         Returns: undefined
       }
+      update_shift: {
+        Args: {
+          p_discipline_key: string
+          p_end_time: string
+          p_external_reference: string
+          p_facility_location_id: string
+          p_instructions: string
+          p_requested_headcount: number
+          p_shift_date: string
+          p_shift_id: string
+          p_start_time: string
+        }
+        Returns: undefined
+      }
       withdraw_credential: {
         Args: { p_credential_id: string }
         Returns: undefined
@@ -1860,6 +2479,22 @@ export type Database = {
       }
     }
     Enums: {
+      assignment_block_reason:
+        | "ASSIGNMENT_ALREADY_EXISTS"
+        | "SHIFT_FULL"
+        | "WORKER_NOT_ACTIVE"
+        | "DISCIPLINE_MISMATCH"
+        | "WORKER_NOT_ELIGIBLE"
+        | "WORKER_SCHEDULE_CONFLICT"
+      assignment_cancellation_reason:
+        | "shift_cancelled"
+        | "worker_unavailable"
+        | "compliance_change"
+        | "entered_in_error"
+        | "relationship_suspended"
+        | "other"
+      assignment_decision_outcome: "allowed" | "refused"
+      assignment_status: "assigned" | "accepted" | "declined" | "cancelled"
       compliance_reason:
         | "MET"
         | "EXPIRING_SOON"
@@ -1908,6 +2543,14 @@ export type Database = {
       readiness_status: "ready" | "action_required" | "not_eligible"
       relationship_status: "pending" | "active" | "suspended" | "ended"
       requirement_status: "active" | "inactive"
+      shift_cancellation_reason:
+        | "facility_cancelled"
+        | "staffing_no_longer_needed"
+        | "entered_in_error"
+        | "relationship_suspended"
+        | "other"
+      shift_source: "agency" | "facility"
+      shift_status: "draft" | "submitted" | "open" | "cancelled" | "completed"
       verification_outcome: "under_review" | "verified" | "rejected"
       verification_rejection_reason:
         | "document_illegible"
@@ -2050,6 +2693,24 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      assignment_block_reason: [
+        "ASSIGNMENT_ALREADY_EXISTS",
+        "SHIFT_FULL",
+        "WORKER_NOT_ACTIVE",
+        "DISCIPLINE_MISMATCH",
+        "WORKER_NOT_ELIGIBLE",
+        "WORKER_SCHEDULE_CONFLICT",
+      ],
+      assignment_cancellation_reason: [
+        "shift_cancelled",
+        "worker_unavailable",
+        "compliance_change",
+        "entered_in_error",
+        "relationship_suspended",
+        "other",
+      ],
+      assignment_decision_outcome: ["allowed", "refused"],
+      assignment_status: ["assigned", "accepted", "declined", "cancelled"],
       compliance_reason: [
         "MET",
         "EXPIRING_SOON",
@@ -2101,6 +2762,15 @@ export const Constants = {
       readiness_status: ["ready", "action_required", "not_eligible"],
       relationship_status: ["pending", "active", "suspended", "ended"],
       requirement_status: ["active", "inactive"],
+      shift_cancellation_reason: [
+        "facility_cancelled",
+        "staffing_no_longer_needed",
+        "entered_in_error",
+        "relationship_suspended",
+        "other",
+      ],
+      shift_source: ["agency", "facility"],
+      shift_status: ["draft", "submitted", "open", "cancelled", "completed"],
       verification_outcome: ["under_review", "verified", "rejected"],
       verification_rejection_reason: [
         "document_illegible",
