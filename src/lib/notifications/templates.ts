@@ -27,6 +27,9 @@ export const notificationTemplateSchema = z.object({
   upcomingShifts: z.number().int().nullish(),
   cancelledShifts: z.number().int().nullish(),
   flaggedAssignments: z.number().int().nullish(),
+  periodStart: z.iso.date().nullish(),
+  periodEnd: z.iso.date().nullish(),
+  reopened: z.boolean().nullish(),
 });
 export type NotificationTemplateData = z.infer<typeof notificationTemplateSchema>;
 
@@ -68,6 +71,19 @@ function expiry(data: NotificationTemplateData): string | null {
     timeStyle: "short",
     timeZoneName: "short",
   }).format(new Date(data.offerExpiresAt));
+}
+
+/** "Mar 2 – Mar 8, 2030" for a timesheet week (dates are calendar dates, not instants). */
+function period(data: NotificationTemplateData): string {
+  if (!data.periodStart || !data.periodEnd) return "a recent week";
+  const format = (value: string, withYear: boolean) =>
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "UTC",
+      month: "short",
+      day: "numeric",
+      ...(withYear ? { year: "numeric" } : {}),
+    }).format(new Date(`${value}T00:00:00Z`));
+  return `${format(data.periodStart, false)} – ${format(data.periodEnd, true)}`;
 }
 
 function content(event: NotificationEvent, data: NotificationTemplateData): Content {
@@ -232,6 +248,58 @@ function content(event: NotificationEvent, data: NotificationTemplateData): Cont
         cta: "View my shifts",
       };
     }
+    case "attendance_time_adjusted":
+      return {
+        subject: `Attendance time adjusted: ${facility}, ${date}`,
+        heading: "Your attendance time was adjusted",
+        paragraphs: [
+          `${agency} recorded a different time for the shift below, with a reason.`,
+          "Sign in to CHELTH to see the original time, the change and the reason.",
+        ],
+        details: shiftDetails(data),
+        cta: "View my shifts",
+      };
+    case "timesheet_submitted":
+      return {
+        subject: `Timesheet submitted: ${worker}, ${period(data)}`,
+        heading: "A timesheet is ready for review",
+        paragraphs: [`${worker} submitted their timesheet for ${period(data)}.`],
+        details: [],
+        cta: "Review timesheet",
+      };
+    case "timesheet_rejected":
+      return {
+        subject: `Timesheet returned: ${period(data)}`,
+        heading: data.reopened ? "Your timesheet was reopened" : "Your timesheet was returned",
+        paragraphs: [
+          `${agency} returned your timesheet for ${period(data)}.`,
+          "Sign in to CHELTH to see why, fix any times with a correction request, and submit it again.",
+        ],
+        details: [],
+        cta: "Open timesheet",
+      };
+    case "timesheet_facility_signoff_required":
+      return {
+        subject: `Timesheet entries to sign off: ${agency}, ${period(data)}`,
+        heading: "Timesheet entries need your sign-off",
+        paragraphs: [
+          `${agency} approved worked time at your facility for ${period(data)}.`,
+          "Sign in to CHELTH to sign off each entry or raise a discrepancy.",
+        ],
+        details: [],
+        cta: "Review entries",
+      };
+    case "timesheet_disputed":
+      return {
+        subject: `Timesheet discrepancy: ${worker}, ${period(data)}`,
+        heading: "A facility raised a timesheet discrepancy",
+        paragraphs: [
+          `A facility did not sign off an entry on ${worker}'s timesheet for ${period(data)}.`,
+          "Review the discrepancy in CHELTH.",
+        ],
+        details: [],
+        cta: "Review timesheet",
+      };
     case "relationship_suspended":
     case "relationship_ended": {
       const verb = event === "relationship_ended" ? "ended" : "suspended";

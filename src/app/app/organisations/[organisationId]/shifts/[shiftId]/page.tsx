@@ -43,6 +43,7 @@ import { CAPABILITIES } from "@/lib/authz";
 import {
   ATTENDANCE_EXCEPTION_LABELS,
   CORRECTION_REASON_LABELS,
+  describeCorrectionTarget,
   formatLocalClockTime,
   GEOFENCE_RESULT_LABELS,
 } from "@/lib/domain/attendance";
@@ -57,6 +58,7 @@ import {
   hasEnded,
   hasStarted,
   isActiveAssignment,
+  localDate,
   SHIFT_CANCELLATION_REASON_LABELS,
   SHIFT_OFFER_CLOSE_REASON_LABELS,
   SHIFT_SOURCE_LABELS,
@@ -470,7 +472,7 @@ export default async function ShiftPage({
                   >
                     <p>
                       <span className="font-medium">{worker}</span> asks to set the{" "}
-                      {correction.eventType === "clock_in" ? "clock-in" : "clock-out"} time to{" "}
+                      {describeCorrectionTarget(correction.eventType, correction.segment)} to{" "}
                       {formatLocalClockTime(correction.requestedTime, shift.timezone)} ·{" "}
                       {CORRECTION_REASON_LABELS[correction.reason]}
                     </p>
@@ -479,6 +481,8 @@ export default async function ShiftPage({
                         organisationId={organisationId}
                         correctionId={correction.id}
                         workerName={worker}
+                        timezone={shift.timezone}
+                        defaultDate={localDate(correction.requestedTime, shift.timezone)}
                       />
                     ) : null}
                   </li>

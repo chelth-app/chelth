@@ -45,3 +45,48 @@ terminal; corrections are never deleted.
 
 It is not a timesheet approval, pay adjustment or overtime decision. Those are
 later stages and will consume the effective (corrected) times.
+
+## 4. Hardening (P0-E6-S2)
+
+### Break times
+
+Requests and adjustments accept `break_start` / `break_end` with a break
+number (`p_segment`). A break time must fall between clock-in and clock-out;
+breaks are numbered in order; a break end needs a start (recorded or
+requested). Final consistency is checked by recalculating at approval
+(`CHT16`, nothing appended if out of order).
+
+### Reviewer-adjusted approval
+
+`review_attendance_correction(…, p_approved_time, p_adjustment_reason,
+p_note, p_confirm_revision)`:
+
+- `approved_as_requested` — the requested time is appended;
+- `approved_with_adjustment` — a **different** time, a required structured
+  reason (`facility_reported_time`, `supervisor_observation`,
+  `device_or_app_problem`, `worker_statement`, `break_not_recorded`, `other`)
+  and an optional note (≤ 500) shown to the worker. The worker is notified
+  (`attendance_time_adjusted`). No worker acknowledgment is required in this
+  stage; the worker sees the original, the request, the decision, the note and
+  the corrected time.
+
+### Reviewer-originated adjustment
+
+`adjust_attendance_time(attendance, event_type, time, reason, note, segment,
+confirm_revision)` (`attendance.review`, not own attendance) records an
+approved correction with origin `reviewer_adjustment` and appends the
+corrected event. Used for facility discrepancies and missing breaks.
+
+### Approved or locked timesheets
+
+If the attendance is on an `agency_approved` or `locked` timesheet, approval
+or adjustment is refused (`CHT22`) unless the reviewer confirms a revision
+and also holds `timesheet.approve`. The timesheet then gets a new revision
+awaiting re-approval ([TIMESHEET_APPROVAL_FLOW.md](TIMESHEET_APPROVAL_FLOW.md)).
+
+### History
+
+`list_attendance_history(attendance)` returns original events, requests,
+decisions (with approved time, adjustment reason, notes), corrected events
+and exceptions in order. The agency sees staff names; the worker sees their
+own history without staff names. Never coordinates.

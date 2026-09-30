@@ -122,6 +122,12 @@ export default async function OrganisationPage({
         showAttendance={
           organisation.type === "agency" && can(CAPABILITIES.ATTENDANCE_VIEW) !== "not_held"
         }
+        showTimesheets={
+          (organisation.type === "agency" &&
+            (can(CAPABILITIES.TIMESHEET_VIEW) !== "not_held" || myWorkerRecord !== null)) ||
+          (organisation.type === "facility" &&
+            can(CAPABILITIES.TIMESHEET_FACILITY_SIGNOFF) !== "not_held")
+        }
         showOperations={
           organisation.type === "agency" && can(CAPABILITIES.ASSIGNMENT_VIEW) !== "not_held"
         }

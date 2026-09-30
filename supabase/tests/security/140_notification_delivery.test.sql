@@ -189,7 +189,7 @@ select throws_ok(pg_temp.as_sql((select bob from ids), format('select * from pub
 
 -- Scheduler wiring (no clock waits: job logic is called directly elsewhere)
 select is((select array_agg(jobname order by jobname) from cron.job where jobname like 'chelth-%'),
-  array['chelth-attendance-scan', 'chelth-notification-kick', 'chelth-offer-expiry', 'chelth-readiness-scan'],
+  array['chelth-attendance-scan', 'chelth-location-evidence-purge', 'chelth-notification-kick', 'chelth-offer-expiry', 'chelth-readiness-scan'],
   'the scheduled jobs are defined by migration');
 
 select * from finish();

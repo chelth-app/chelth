@@ -52,6 +52,9 @@ export const CAPABILITIES = {
   ATTENDANCE_REVIEW: "attendance.review",
   ATTENDANCE_MANAGE_SETTINGS: "attendance.manage_settings",
   ATTENDANCE_LOCATION_VIEW: "attendance.location.view",
+  TIMESHEET_VIEW: "timesheet.view",
+  TIMESHEET_APPROVE: "timesheet.approve",
+  TIMESHEET_FACILITY_SIGNOFF: "timesheet.facility_signoff",
 } as const;
 
 export type CapabilityKey = (typeof CAPABILITIES)[keyof typeof CAPABILITIES];
@@ -171,6 +174,24 @@ export const AUDIT_ACTIONS = {
   ATTENDANCE_SETTINGS_UPDATED: "attendance.settings_updated",
   ATTENDANCE_GEOFENCE_UPDATED: "attendance.geofence_updated",
   ATTENDANCE_VIEWED_BY_FACILITY: "attendance.viewed_by_facility",
+  ATTENDANCE_BREAK_STARTED: "attendance.break_started",
+  ATTENDANCE_BREAK_ENDED: "attendance.break_ended",
+  ATTENDANCE_TIME_ADJUSTED: "attendance.time_adjusted",
+  ATTENDANCE_LOCATION_HOLD_PLACED: "attendance.location_hold_placed",
+  ATTENDANCE_LOCATION_HOLD_RELEASED: "attendance.location_hold_released",
+  ATTENDANCE_RETENTION_UPDATED: "attendance.retention_updated",
+  ATTENDANCE_LOCATION_PURGED: "attendance.location_purged",
+  TIMESHEET_SUBMITTED: "timesheet.submitted",
+  TIMESHEET_REJECTED: "timesheet.rejected",
+  TIMESHEET_AGENCY_APPROVED: "timesheet.agency_approved",
+  TIMESHEET_LOCKED: "timesheet.locked",
+  TIMESHEET_REOPENED: "timesheet.reopened",
+  TIMESHEET_REVISED: "timesheet.revised",
+  TIMESHEET_ENTRY_SIGNED_OFF: "timesheet.entry_signed_off",
+  TIMESHEET_ENTRY_DISPUTED: "timesheet.entry_disputed",
+  TIMESHEET_DISPUTE_RESOLVED: "timesheet.dispute_resolved",
+  TIMESHEET_SETTINGS_UPDATED: "timesheet.settings_updated",
+  TIMESHEET_VIEWED_BY_FACILITY: "timesheet.viewed_by_facility",
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
@@ -262,6 +283,24 @@ const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   "attendance.settings_updated": "Attendance rules changed",
   "attendance.geofence_updated": "Location geofence changed",
   "attendance.viewed_by_facility": "Facility viewed attendance",
+  "attendance.break_started": "Break started",
+  "attendance.break_ended": "Break ended",
+  "attendance.time_adjusted": "Attendance time adjusted by reviewer",
+  "attendance.location_hold_placed": "Location evidence placed on legal hold",
+  "attendance.location_hold_released": "Location evidence legal hold released",
+  "attendance.retention_updated": "Location evidence retention changed",
+  "attendance.location_purged": "Expired location evidence purged",
+  "timesheet.submitted": "Timesheet submitted",
+  "timesheet.rejected": "Timesheet returned to worker",
+  "timesheet.agency_approved": "Timesheet approved by agency",
+  "timesheet.locked": "Timesheet locked",
+  "timesheet.reopened": "Timesheet reopened",
+  "timesheet.revised": "Timesheet revised after attendance change",
+  "timesheet.entry_signed_off": "Timesheet entry signed off by facility",
+  "timesheet.entry_disputed": "Timesheet discrepancy raised by facility",
+  "timesheet.dispute_resolved": "Timesheet discrepancy answered",
+  "timesheet.settings_updated": "Timesheet week changed",
+  "timesheet.viewed_by_facility": "Facility viewed timesheet entries",
 };
 
 export function auditActionLabel(action: string): string {

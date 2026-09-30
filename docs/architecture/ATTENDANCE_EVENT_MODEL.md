@@ -48,3 +48,17 @@ event. Rejection appends nothing.
 - Agency `attendance.view` and the worker (own, live membership) may SELECT
   events; facilities cannot (they use the narrow projection).
 - Writes only through `SECURITY DEFINER` RPCs; `authenticated` has SELECT only.
+
+## 5. Breaks and corrected variants (P0-E6-S2)
+
+- New event types: `break_start`, `break_end`, `corrected_break_start`,
+  `corrected_break_end`. Break events use `segment` = break number; clock
+  events are constrained to segment 1.
+- Device events of all four device types have `occurred_at = recorded_at`.
+- `source = approved_correction` ⇔ the event type is any `corrected_*`.
+- One device `break_start` and one `break_end` per (attendance, segment).
+- Effective time per (type, segment): latest corrected event, else device
+  event (`internal.effective_event_time`).
+- Reviewer-originated adjustments are stored as approved corrections and
+  appended as corrected events like any other approval; the original event
+  always remains.

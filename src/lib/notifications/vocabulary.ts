@@ -23,6 +23,11 @@ export const NOTIFICATION_EVENTS = [
   "attendance_correction_requested",
   "attendance_correction_approved",
   "attendance_correction_rejected",
+  "timesheet_submitted",
+  "timesheet_rejected",
+  "timesheet_facility_signoff_required",
+  "timesheet_disputed",
+  "attendance_time_adjusted",
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
@@ -63,6 +68,11 @@ export const NOTIFICATION_CATEGORY: Record<NotificationEvent, "required" | "opti
   attendance_correction_requested: "required",
   attendance_correction_approved: "required",
   attendance_correction_rejected: "required",
+  timesheet_submitted: "required",
+  timesheet_rejected: "required",
+  timesheet_facility_signoff_required: "required",
+  timesheet_disputed: "required",
+  attendance_time_adjusted: "required",
 };
 
 export const NOTIFICATION_EVENT_LABELS: Record<NotificationEvent, string> = {
@@ -83,6 +93,11 @@ export const NOTIFICATION_EVENT_LABELS: Record<NotificationEvent, string> = {
   attendance_correction_requested: "Attendance correction requested",
   attendance_correction_approved: "Attendance correction approved",
   attendance_correction_rejected: "Attendance correction rejected",
+  timesheet_submitted: "Timesheet submitted",
+  timesheet_rejected: "Timesheet returned",
+  timesheet_facility_signoff_required: "Timesheet sign-off needed",
+  timesheet_disputed: "Timesheet discrepancy raised",
+  attendance_time_adjusted: "Attendance time adjusted",
 };
 
 /**

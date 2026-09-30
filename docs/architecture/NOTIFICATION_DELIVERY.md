@@ -144,3 +144,21 @@ attempts or scans do not repeat emails. Templates carry worker name, facility
 and local shift time only: **never coordinates, distances, refusal reasons or
 credential detail**. Worker emails explain how to request a correction.
 Facilities receive no attendance email.
+
+## 10. Timesheet events (P0-E6-S2)
+
+| Event                                 | Audience                                             | When                                                                            |
+| ------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `timesheet_submitted`                 | agency `timesheet.approve` holders                   | worker submits                                                                  |
+| `timesheet_rejected`                  | the worker                                           | agency returns or reopens a timesheet                                           |
+| `timesheet_facility_signoff_required` | linked facility `timesheet.facility_signoff` holders | agency approval; once per facility organisation (again after "times confirmed") |
+| `timesheet_disputed`                  | agency `timesheet.approve` holders                   | facility raises a discrepancy                                                   |
+| `attendance_time_adjusted`            | the worker                                           | a reviewer approves a different time or adjusts attendance                      |
+
+Routing: agency fan-out for `timesheet_*` uses `timesheet.approve`; facility
+fan-out for `timesheet_*` uses `timesheet.facility_signoff`. The template
+resolver (`subject_type = 'timesheet'`) returns agency name and period (plus
+the worker name for agency audiences only) and refuses facility rows unless
+the timesheet has an entry at that facility. Templates contain no times,
+totals, pay, notes or coordinates. Agency approval, sign-off and locking are
+shown in the app, not emailed (volume).

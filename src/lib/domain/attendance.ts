@@ -20,15 +20,32 @@ export type AttendanceExceptionResolution = Enums["attendance_exception_resoluti
 export type AttendanceCorrectionReason = Enums["attendance_correction_reason"];
 export type AttendanceCorrectionStatus = Enums["attendance_correction_status"];
 export type AttendanceCorrectionResolution = Enums["attendance_correction_resolution"];
+export type AttendanceCorrectionOrigin = Enums["attendance_correction_origin"];
+export type AttendanceAdjustmentReason = Enums["attendance_adjustment_reason"];
+export type LocationEvidenceState = Enums["location_evidence_state"];
 
 export const GEOFENCE_OUTSIDE_POLICIES = Constants.public.Enums.geofence_outside_policy;
 export const ATTENDANCE_CORRECTION_REASONS = Constants.public.Enums.attendance_correction_reason;
 export const ATTENDANCE_CORRECTION_RESOLUTIONS =
   Constants.public.Enums.attendance_correction_resolution;
+export const ATTENDANCE_ADJUSTMENT_REASONS = Constants.public.Enums.attendance_adjustment_reason;
+export type RejectionResolution = Exclude<
+  AttendanceCorrectionResolution,
+  "approved_as_requested" | "approved_with_adjustment"
+>;
 export const REJECTION_RESOLUTIONS = ATTENDANCE_CORRECTION_RESOLUTIONS.filter(
-  (resolution): resolution is Exclude<AttendanceCorrectionResolution, "approved_as_requested"> =>
-    resolution !== "approved_as_requested",
+  (resolution): resolution is RejectionResolution =>
+    resolution !== "approved_as_requested" && resolution !== "approved_with_adjustment",
 );
+
+/** Times a worker or reviewer can correct (breaks use a break number). */
+export const CORRECTABLE_EVENT_TYPES = [
+  "clock_in",
+  "clock_out",
+  "break_start",
+  "break_end",
+] as const;
+export type CorrectableEventType = (typeof CORRECTABLE_EVENT_TYPES)[number];
 
 /** Displayed state: open exceptions put a record in "needs review". */
 export type AttendanceState = AttendanceClockState | "needs_review";
@@ -43,6 +60,7 @@ export function deriveAttendanceState(
 export const ATTENDANCE_STATE_LABELS: Record<AttendanceState, string> = {
   not_started: "Not started",
   clocked_in: "Clocked in",
+  on_break: "On break",
   clocked_out: "Completed",
   needs_review: "Needs review",
 };
@@ -50,7 +68,42 @@ export const ATTENDANCE_STATE_LABELS: Record<AttendanceState, string> = {
 export const CLOCK_STATE_LABELS: Record<AttendanceClockState, string> = {
   not_started: "Not started",
   clocked_in: "Clocked in",
+  on_break: "On break",
   clocked_out: "Completed",
+};
+
+export const ATTENDANCE_EVENT_LABELS: Record<AttendanceEventType, string> = {
+  clock_in: "Clock-in",
+  clock_out: "Clock-out",
+  break_start: "Break start",
+  break_end: "Break end",
+  corrected_clock_in: "Corrected clock-in",
+  corrected_clock_out: "Corrected clock-out",
+  corrected_break_start: "Corrected break start",
+  corrected_break_end: "Corrected break end",
+};
+
+/** "clock-in time", "break 2 end time" — which time a correction is about. */
+export function describeCorrectionTarget(eventType: string, segment: number): string {
+  switch (eventType) {
+    case "clock_in":
+      return "clock-in time";
+    case "clock_out":
+      return "clock-out time";
+    case "break_start":
+      return `break ${segment} start time`;
+    case "break_end":
+      return `break ${segment} end time`;
+    default:
+      return "time";
+  }
+}
+
+export const CORRECTABLE_EVENT_LABELS: Record<CorrectableEventType, string> = {
+  clock_in: "Clock-in time",
+  clock_out: "Clock-out time",
+  break_start: "Break start",
+  break_end: "Break end",
 };
 
 /** What a facility or agency sees: a result, never coordinates. */
@@ -103,10 +156,45 @@ export const CORRECTION_STATUS_LABELS: Record<AttendanceCorrectionStatus, string
 
 export const CORRECTION_RESOLUTION_LABELS: Record<AttendanceCorrectionResolution, string> = {
   approved_as_requested: "Approved as requested",
+  approved_with_adjustment: "Approved with a different time",
   rejected_time_not_supported: "Time not supported",
   rejected_duplicate: "Duplicate request",
   rejected_other: "Other reason",
 };
+
+export const ADJUSTMENT_REASON_LABELS: Record<AttendanceAdjustmentReason, string> = {
+  facility_reported_time: "Facility reported the time",
+  supervisor_observation: "Supervisor observation",
+  device_or_app_problem: "Device or app problem",
+  worker_statement: "Worker statement",
+  break_not_recorded: "Break not recorded",
+  other: "Other",
+};
+
+export const CORRECTION_ORIGIN_LABELS: Record<AttendanceCorrectionOrigin, string> = {
+  worker_request: "Worker request",
+  reviewer_adjustment: "Reviewer adjustment",
+};
+
+export const EXCEPTION_RESOLUTION_LABELS: Record<AttendanceExceptionResolution, string> = {
+  clocked_in: "Worker clocked in",
+  clocked_out: "Worker clocked out",
+  correction_approved: "Correction approved",
+  correction_rejected: "Correction not approved",
+  acknowledged: "Acknowledged",
+  not_applicable: "Not applicable",
+  assignment_closed: "Assignment closed",
+  not_worked: "Not worked",
+};
+
+export const EVIDENCE_STATE_LABELS: Record<LocationEvidenceState, string> = {
+  retained: "Retained",
+  on_hold: "On legal hold",
+  purged: "Coordinates purged",
+};
+
+/** Retention of raw location evidence (ATTENDANCE_EVIDENCE_RETENTION.md). */
+export const EVIDENCE_RETENTION_BOUNDS = { min: 7, max: 365, default: 90 } as const;
 
 /** Documented defaults (docs/architecture/ATTENDANCE_DOMAIN_MODEL.md §4). */
 export const ATTENDANCE_DEFAULTS = {

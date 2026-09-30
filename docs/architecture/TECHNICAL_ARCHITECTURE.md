@@ -265,6 +265,27 @@ The identity and authorization design is specified in
   detail, clock in/out on `/my-shifts` (mobile-first). Code:
   `src/features/attendance`, vocabulary `src/lib/domain/attendance.ts`.
 
+### Timesheets & attendance review hardening (P0-E6-S2)
+
+- Weekly timesheets derived from attendance by one calculation
+  (`internal.effective_time`), synced on every attendance or assignment
+  change; worker submission, agency approval (immutable snapshots), per-entry
+  facility sign-off, revisions after post-approval changes
+  ([TIMESHEET_DOMAIN_MODEL.md](TIMESHEET_DOMAIN_MODEL.md),
+  [TIMESHEET_APPROVAL_FLOW.md](TIMESHEET_APPROVAL_FLOW.md),
+  [TIMESHEET_CALCULATION.md](TIMESHEET_CALCULATION.md)).
+- Breaks as attendance segments
+  ([ATTENDANCE_SEGMENTS_AND_BREAKS.md](ATTENDANCE_SEGMENTS_AND_BREAKS.md));
+  reviewer-adjusted corrections; full correction history.
+- Location evidence retention: pg_cron `chelth-location-evidence-purge`
+  daily, legal hold, AAL2 raw evidence viewer
+  ([../security/ATTENDANCE_EVIDENCE_RETENTION.md](../security/ATTENDANCE_EVIDENCE_RETENTION.md)).
+- Refused clock-in rate limit; deduplicated facility-view audit.
+- UI: `/timesheets` (worker, agency, facility audiences),
+  `/timesheets/[timesheetId]`, `/attendance/[attendanceId]` (history, review,
+  adjustment), `/attendance/[attendanceId]/evidence`; break buttons on
+  `/my-shifts`. Code: `src/features/timesheets`, `src/lib/domain/timesheets.ts`.
+
 ### Content Security Policy
 
 `src/proxy.ts` generates a 128-bit nonce per request and sets:

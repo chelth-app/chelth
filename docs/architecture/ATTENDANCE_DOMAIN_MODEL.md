@@ -146,3 +146,33 @@ Payroll, invoicing, rates, overtime, exports, billing, timesheet approval,
 continuous or background location, route tracking, live maps, biometrics,
 facial recognition. Multiple work segments per assignment are schema-ready
 (`segment`) but only segment 1 is used.
+
+## 12. Hardening (P0-E6-S2)
+
+- **Breaks**: clock state `on_break`; `start_break_assignment` /
+  `end_break_assignment` (server time, no location); clock-out is refused
+  while on a break (`CHT21`). See
+  [ATTENDANCE_SEGMENTS_AND_BREAKS.md](ATTENDANCE_SEGMENTS_AND_BREAKS.md).
+- **One calculation**: `internal.effective_time` computes effective times,
+  breaks, worked minutes, completeness and reasons; the projection refresh,
+  My Shifts and timesheets all use it
+  ([TIMESHEET_CALCULATION.md](TIMESHEET_CALCULATION.md)). Every refresh also
+  re-derives the assignment's timesheet entry.
+- **Not worked**: a reviewer can close a missed clock-in as `not_worked`
+  (only when there is no effective clock-in). The entry becomes a complete
+  zero-minute entry; no time is invented.
+- **Refused clock-in rate limit** (closes S1 F6): at most 10 committed
+  refusals per worker + assignment per 10-minute window. Beyond that the
+  attempt fails with `CH429` and writes nothing (no exception, no audit row,
+  no notification). Successful clock-ins never count.
+- **Facility view audit** (S1 F7): `attendance.viewed_by_facility` is written
+  once per viewer and shift per 15 minutes (`internal.record_audit_event_once`);
+  every distinct viewer is still recorded.
+- **Review UI**: `/attendance/[attendanceId]` shows the full history
+  (original events → requests → decisions → corrected events → exception
+  lifecycle, with reviewer names for the agency), open exceptions, the
+  reviewer-adjustment form and, for `attendance.location.view`, the raw
+  evidence viewer behind MFA step-up.
+- **Timesheets**: attendance feeds weekly timesheets
+  ([TIMESHEET_DOMAIN_MODEL.md](TIMESHEET_DOMAIN_MODEL.md)); a change to
+  attendance on an approved timesheet creates a new timesheet revision.

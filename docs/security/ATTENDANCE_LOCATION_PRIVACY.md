@@ -51,3 +51,19 @@ to reviewers without `attendance.location.view` and to facilities/workers;
 evidence reads need AAL2 and are audited; audit metadata has no coordinates.
 E2E Flow 3 (explanation before prompt) and Flow 5 (no coordinates on the
 facility page).
+
+## Retention and the evidence viewer (P0-E6-S2)
+
+- Raw coordinates are **temporary**: purged after the agency's retention
+  period (default 90 days, 7–365) unless under legal hold. The result
+  classification stays. Legal review of the period is required before
+  production. See [ATTENDANCE_EVIDENCE_RETENTION.md](ATTENDANCE_EVIDENCE_RETENTION.md).
+- The raw evidence viewer (`/attendance/[id]/evidence`) is available only to
+  `attendance.location.view` holders (agency admin by default) after MFA
+  step-up; every view is audited. It is labelled as device-reported evidence
+  that is **not proof of presence**, shows per clock action the result,
+  server and device times, accuracy, distance, radius and — while retained —
+  coordinates. Facilities never reach it.
+- Breaks never request a location.
+- Timesheets, approval snapshots, facility sign-offs and timesheet
+  notifications carry no coordinates.

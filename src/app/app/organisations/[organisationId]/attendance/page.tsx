@@ -16,17 +16,25 @@ import {
   listAgencyAttendance,
   listOpenExceptions,
   listPendingCorrections,
+  RetentionForm,
   reviewExceptionAction,
 } from "@/features/attendance";
 import { loadOrganisationPage, requireCapabilityOrNotFound } from "@/features/organisations";
+import { getTimesheetWeekStart, WeekStartForm } from "@/features/timesheets";
 import { CAPABILITIES } from "@/lib/authz";
 import {
   ATTENDANCE_EXCEPTION_LABELS,
   CORRECTION_REASON_LABELS,
+  describeCorrectionTarget,
   formatLocalClockTime,
   GEOFENCE_RESULT_LABELS,
 } from "@/lib/domain/attendance";
-import { formatShiftDate, formatShiftTimeRange, todayIsoDate } from "@/lib/domain/shifts";
+import {
+  formatShiftDate,
+  formatShiftTimeRange,
+  localDate,
+  todayIsoDate,
+} from "@/lib/domain/shifts";
 
 export const metadata: Metadata = { title: "Attendance" };
 
@@ -57,10 +65,15 @@ export default async function AttendancePage({
     listPendingCorrections(organisationId),
     listOpenExceptions(organisationId),
   ]);
-  const rules =
+  const [rules, weekStartsOn] =
     can(CAPABILITIES.ATTENDANCE_MANAGE_SETTINGS) === "granted"
-      ? await getAttendanceRules(organisationId)
-      : null;
+      ? await Promise.all([
+          getAttendanceRules(organisationId),
+          getTimesheetWeekStart(organisationId),
+        ])
+      : [null, 1];
+  const recordHref = (attendanceId: string) =>
+    `/app/organisations/${organisationId}/attendance/${attendanceId}` as const;
   const byAssignment = new Map(rows.map((row) => [row.assignmentId, row]));
 
   return (
@@ -135,7 +148,18 @@ export default async function AttendancePage({
                     key={row.assignmentId}
                     className="border-b border-border align-top last:border-0"
                   >
-                    <td className="px-3 py-2 font-medium">{row.workerName ?? "Worker"}</td>
+                    <td className="px-3 py-2 font-medium">
+                      {row.attendanceId ? (
+                        <Link
+                          href={recordHref(row.attendanceId)}
+                          className="text-primary underline underline-offset-4"
+                        >
+                          {row.workerName ?? "Worker"}
+                        </Link>
+                      ) : (
+                        (row.workerName ?? "Worker")
+                      )}
+                    </td>
                     <td className="px-3 py-2">
                       <Link
                         href={`/app/organisations/${organisationId}/shifts/${row.shiftId}`}
@@ -207,7 +231,7 @@ export default async function AttendancePage({
                 >
                   <p>
                     <span className="font-medium">{worker}</span> asks to set the{" "}
-                    {correction.eventType === "clock_in" ? "clock-in" : "clock-out"} time to{" "}
+                    {describeCorrectionTarget(correction.eventType, correction.segment)} to{" "}
                     <span className="font-medium">
                       {formatLocalClockTime(correction.requestedTime, row?.timezone ?? "UTC")}
                     </span>
@@ -217,13 +241,21 @@ export default async function AttendancePage({
                   {correction.note ? (
                     <p className="text-muted-foreground">“{correction.note}”</p>
                   ) : null}
-                  {canReview ? (
+                  {canReview && row ? (
                     <CorrectionReviewForms
                       organisationId={organisationId}
                       correctionId={correction.id}
                       workerName={worker}
+                      timezone={row.timezone}
+                      defaultDate={localDate(correction.requestedTime, row.timezone)}
                     />
                   ) : null}
+                  <Link
+                    href={recordHref(correction.attendanceId)}
+                    className="w-fit text-xs text-primary underline underline-offset-4"
+                  >
+                    Open attendance record
+                  </Link>
                 </li>
               );
             })}
@@ -279,6 +311,20 @@ export default async function AttendancePage({
                         accessibleLabel={`Dismiss ${ATTENDANCE_EXCEPTION_LABELS[exception.type]}`}
                         variant="ghost"
                       />
+                      {exception.type === "missed_clock_in" ? (
+                        <InlineActionForm
+                          action={reviewExceptionAction}
+                          fields={{
+                            organisationId,
+                            exceptionId: exception.id,
+                            status: "resolved",
+                            resolution: "not_worked",
+                          }}
+                          label="Mark not worked"
+                          accessibleLabel={`Mark not worked: ${row?.workerName ?? "worker"}`}
+                          variant="ghost"
+                        />
+                      ) : null}
                     </span>
                   ) : null}
                 </li>
@@ -298,6 +344,17 @@ export default async function AttendancePage({
             per facility location.
           </p>
           <AttendanceSettingsForm organisationId={organisationId} rules={rules} />
+          <h3 className="pt-2 text-base font-semibold">Location evidence retention</h3>
+          <p className="max-w-2xl text-sm text-muted-foreground">
+            Raw coordinates from clock actions are purged after this period unless a legal hold
+            applies. Confirm the period with your legal adviser before production use.
+          </p>
+          <RetentionForm organisationId={organisationId} retentionDays={rules.retentionDays} />
+          <h3 className="pt-2 text-base font-semibold">Timesheet week</h3>
+          <p className="max-w-2xl text-sm text-muted-foreground">
+            Timesheets are weekly. The week start is fixed once the first timesheet exists.
+          </p>
+          <WeekStartForm organisationId={organisationId} weekStartsOn={weekStartsOn} />
         </section>
       ) : null}
     </>
