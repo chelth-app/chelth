@@ -234,6 +234,20 @@ export const AUDIT_ACTIONS = {
   INVOICE_VOIDED: "invoice.voided",
   INVOICE_EXPORT_CREATED: "invoice.export_created",
   INVOICE_EXPORT_DOWNLOADED: "invoice.export_downloaded",
+  PAYROLL_ADJUSTMENT_CREATED: "payroll.adjustment_created",
+  PAYROLL_ADJUSTMENT_REVIEWED: "payroll.adjustment_reviewed",
+  PAYROLL_ADJUSTMENT_APPROVED: "payroll.adjustment_approved",
+  PAYROLL_ADJUSTMENT_LOCKED: "payroll.adjustment_locked",
+  PAYROLL_ADJUSTMENT_EXPORTED: "payroll.adjustment_exported",
+  PAYROLL_ADJUSTMENT_CANCELLED: "payroll.adjustment_cancelled",
+  INVOICE_ADJUSTMENT_CREATED: "invoice.adjustment_created",
+  INVOICE_ADJUSTMENT_REVIEWED: "invoice.adjustment_reviewed",
+  INVOICE_ADJUSTMENT_APPROVED: "invoice.adjustment_approved",
+  INVOICE_ADJUSTMENT_LOCKED: "invoice.adjustment_locked",
+  INVOICE_ADJUSTMENT_EXPORTED: "invoice.adjustment_exported",
+  INVOICE_ADJUSTMENT_VOIDED: "invoice.adjustment_voided",
+  FINANCIAL_MAKER_CHECKER_UPDATED: "financial.maker_checker_updated",
+  FINANCIAL_ACTION_DENIED: "financial.action_denied",
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
@@ -373,6 +387,20 @@ const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   "invoice.voided": "Invoice draft voided",
   "invoice.export_created": "Invoice draft document generated",
   "invoice.export_downloaded": "Invoice draft document downloaded",
+  "payroll.adjustment_created": "Payroll adjustment prepared",
+  "payroll.adjustment_reviewed": "Payroll adjustment reviewed",
+  "payroll.adjustment_approved": "Payroll adjustment approved",
+  "payroll.adjustment_locked": "Payroll adjustment locked",
+  "payroll.adjustment_exported": "Payroll adjustment exported",
+  "payroll.adjustment_cancelled": "Payroll adjustment cancelled",
+  "invoice.adjustment_created": "Invoice adjustment draft prepared",
+  "invoice.adjustment_reviewed": "Invoice adjustment draft reviewed",
+  "invoice.adjustment_approved": "Invoice adjustment draft approved",
+  "invoice.adjustment_locked": "Invoice adjustment draft locked",
+  "invoice.adjustment_exported": "Invoice adjustment draft exported",
+  "invoice.adjustment_voided": "Invoice adjustment draft voided",
+  "financial.maker_checker_updated": "Second-approver rule changed",
+  "financial.action_denied": "Financial action refused",
 };
 
 export function auditActionLabel(action: string): string {

@@ -68,3 +68,47 @@ export const voidInvoiceDraftSchema = z.object({
 });
 
 export const exportIdSchema = z.uuid();
+
+export const makerCheckerSchema = z.object({
+  organisationId,
+  required: z.enum(["true", "false"]).transform((value) => value === "true"),
+});
+
+// -----------------------------------------------------------------------------
+// Adjustments (identifiers only — deltas come from immutable pricing)
+// -----------------------------------------------------------------------------
+
+export const createPayrollAdjustmentSchema = z.object({
+  organisationId,
+  timesheetId: z.uuid(),
+});
+
+export const payrollAdjustmentStepSchema = z.object({
+  organisationId,
+  adjustmentId: z.uuid(),
+  step: z.enum(["review", "approve", "lock", "export"]),
+});
+
+export const cancelPayrollAdjustmentSchema = z.object({
+  organisationId,
+  adjustmentId: z.uuid(),
+  reason,
+});
+
+export const createInvoiceAdjustmentSchema = z.object({
+  organisationId,
+  timesheetId: z.uuid(),
+  relationshipId: z.uuid(),
+});
+
+export const invoiceAdjustmentStepSchema = z.object({
+  organisationId,
+  adjustmentId: z.uuid(),
+  step: z.enum(["review", "approve", "lock", "export_csv", "export_pdf"]),
+});
+
+export const voidInvoiceAdjustmentSchema = z.object({
+  organisationId,
+  adjustmentId: z.uuid(),
+  reason,
+});

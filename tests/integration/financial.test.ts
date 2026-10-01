@@ -115,6 +115,13 @@ describe("payroll preparation & invoice drafting (P0-E7-S2)", () => {
     return identity.client.rpc("download_financial_export", { p_export_id: exportId });
   }
 
+  /** Refusals are returned (and audited) by the database, not raised. */
+  async function deniedReason(identity: TestIdentity, exportId: string) {
+    const { data, error } = await download(identity, exportId);
+    if (error) throw error;
+    return data[0]?.denied_reason ?? null;
+  }
+
   beforeAll(async () => {
     [admin, betaAdmin] = await Promise.all([signUpVerified("fn-alpha"), signUpVerified("fn-beta")]);
     alphaId = await createAgency(admin, "Alpha Finance Staffing");
@@ -251,9 +258,9 @@ describe("payroll preparation & invoice drafting (P0-E7-S2)", () => {
     expect(view.data).toHaveLength(1);
     await run(finance.client.rpc("review_payroll_batch", { p_batch_id: batchId }));
     const approve = await opsManager.client.rpc("approve_payroll_batch", { p_batch_id: batchId });
-    expect(approve.error?.code).toBe("CH403");
+    expect(approve.data?.[0]).toEqual({ outcome: "denied", reason_code: "NOT_PERMITTED" });
     const scheduled = await scheduler.client.rpc("approve_payroll_batch", { p_batch_id: batchId });
-    expect(scheduled.error?.code).toBe("CHY06");
+    expect(scheduled.data?.[0]).toEqual({ outcome: "denied", reason_code: "NOT_FOUND" });
   });
 
   it("approve → lock → export: a deterministic CSV with a verifiable checksum", async () => {
@@ -300,11 +307,11 @@ describe("payroll preparation & invoice drafting (P0-E7-S2)", () => {
       }),
     );
     const id = exp?.financial_export_id ?? "";
-    expect((await download(betaAdmin, id)).error?.code).toBe("CHY08");
-    expect((await download(w("wendy").identity, id)).error?.code).toBe("CHY08");
-    expect((await download(gammaAdmin, id)).error?.code).toBe("CHY08");
-    expect((await download(scheduler, id)).error?.code).toBe("CHY08");
-    expect((await download(opsManager, id)).error?.code).toBe("CH403");
+    expect(await deniedReason(betaAdmin, id)).toBe("NOT_FOUND");
+    expect(await deniedReason(w("wendy").identity, id)).toBe("NOT_FOUND");
+    expect(await deniedReason(gammaAdmin, id)).toBe("NOT_FOUND");
+    expect(await deniedReason(scheduler, id)).toBe("NOT_FOUND");
+    expect(await deniedReason(opsManager, id)).toBe("NOT_PERMITTED");
     const tables = await w("wendy").identity.client.from("financial_exports").select("id");
     expect(tables.data).toEqual([]);
   });
@@ -317,7 +324,7 @@ describe("payroll preparation & invoice drafting (P0-E7-S2)", () => {
       }),
     );
     const id = exp?.financial_export_id ?? "";
-    expect((await download(finance2, id)).error).toBeNull();
+    expect(await deniedReason(finance2, id)).toBeNull();
     const [membership] = await must(
       admin.client
         .from("organisation_memberships")
@@ -331,7 +338,7 @@ describe("payroll preparation & invoice drafting (P0-E7-S2)", () => {
         p_status: "suspended",
       }),
     );
-    expect((await download(finance2, id)).error?.code).toBe("CHY08");
+    expect(await deniedReason(finance2, id)).toBe("NOT_FOUND");
   });
 
   it("export bytes are not reachable directly by any API role", async () => {
@@ -418,6 +425,20 @@ describe("payroll preparation & invoice drafting (P0-E7-S2)", () => {
         p_expected_revision: 2,
       }),
     );
+    // A later rate version ($44.00 / $60.00 from day 2) makes revision 2 financially different.
+    const [card] = await must(
+      finance.client.from("rate_cards").select("id").eq("agency_organisation_id", alphaId),
+    );
+    const later = await must(
+      finance.client.rpc("create_rate_version", {
+        p_rate_card_id: card?.id ?? "",
+        p_currency: "USD",
+        p_pay_rate_minor: 4400,
+        p_bill_rate_minor: 6000,
+        p_effective_from: addDays(ps, 2),
+      }),
+    );
+    await run(finance.client.rpc("activate_rate_version", { p_version_id: later }));
     await price(sheets.wendy ?? "", 2);
 
     const [batch] = await must(finance.client.rpc("get_payroll_batch", { p_batch_id: batchId }));

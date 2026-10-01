@@ -171,12 +171,12 @@ update public.payroll_batches set status = 'cancelled', cancelled_at = now(), ca
 select throws_ok(pg_temp.as_sql((select finn from fin), format('select public.approve_payroll_batch(%L)', (select id from b)), 'aal2'),
   'CHY04', null, 'a batch is reviewed before approval');
 select pg_temp.exec_as((select finn from fin), 'aal1', format('select public.review_payroll_batch(%L)', (select id from b)));
-select throws_ok(pg_temp.as_sql((select finn from fin), format('select public.approve_payroll_batch(%L)', (select id from b))),
-  'CH402', null, 'approval requires AAL2');
-select throws_ok(pg_temp.as_sql((select olive from fin), format('select public.approve_payroll_batch(%L)', (select id from b)), 'aal2'),
-  'CH403', null, 'the operations manager cannot approve');
-select throws_ok(pg_temp.as_sql((select sam from ids), format('select public.approve_payroll_batch(%L)', (select id from b)), 'aal2'),
-  'CHY06', null, 'G. a scheduler cannot approve payroll (not even see it)');
+select is(pg_temp.query_as((select finn from fin), 'aal1', format('select * from public.approve_payroll_batch(%L)', (select id from b))) -> 0 ->> 'reason_code',
+  'MFA_REQUIRED', 'approval requires AAL2 (denied and audited)');
+select is(pg_temp.query_as((select olive from fin), 'aal2', format('select * from public.approve_payroll_batch(%L)', (select id from b))) -> 0 ->> 'reason_code',
+  'NOT_PERMITTED', 'the operations manager cannot approve (denied and audited)');
+select is(pg_temp.query_as((select sam from ids), 'aal2', format('select * from public.approve_payroll_batch(%L)', (select id from b))) -> 0 ->> 'reason_code',
+  'NOT_FOUND', 'G. a scheduler cannot approve payroll (not even see it) (denied and audited)');
 select lives_ok(pg_temp.as_sql((select finn from fin), format('select public.approve_payroll_batch(%L)', (select id from b)), 'aal2'),
   'finance approves at AAL2');
 select throws_ok(pg_temp.as_sql((select finn from fin), format('select public.create_payroll_export(%L)', (select id from b)), 'aal2'),
@@ -247,16 +247,16 @@ select is((select convert_from(decode(pg_temp.query_as((select finn from fin), '
   'V. finance downloads the exact bytes at AAL2');
 select is((select count(*)::int from public.audit_events where action = 'payroll.export_downloaded' and target_id = (select id from e1)), 1,
   'V. the download is audited');
-select throws_ok(pg_temp.as_sql((select finn from fin), format('select * from public.download_financial_export(%L)', (select id from e1))),
-  'CH402', null, 'V. downloading requires AAL2');
-select throws_ok(pg_temp.as_sql((select olive from fin), format('select * from public.download_financial_export(%L)', (select id from e1)), 'aal2'),
-  'CH403', null, 'V. view-only members cannot download');
-select throws_ok(pg_temp.as_sql((select bob from ids), format('select * from public.download_financial_export(%L)', (select id from e1)), 'aal2'),
-  'CHY08', null, 'V. another agency cannot download (no oracle)');
-select throws_ok(pg_temp.as_sql((select wendy from ids), format('select * from public.download_financial_export(%L)', (select id from e1))),
-  'CHY08', null, 'V. a worker cannot download');
-select throws_ok(pg_temp.as_sql((select fiona from ids), format('select * from public.download_financial_export(%L)', (select id from e1)), 'aal2'),
-  'CHY08', null, 'V. a facility cannot download');
+select is(pg_temp.query_as((select finn from fin), 'aal1', format('select * from public.download_financial_export(%L)', (select id from e1))) -> 0 ->> 'denied_reason',
+  'MFA_REQUIRED', 'V. downloading requires AAL2 (denied and audited)');
+select is(pg_temp.query_as((select olive from fin), 'aal2', format('select * from public.download_financial_export(%L)', (select id from e1))) -> 0 ->> 'denied_reason',
+  'NOT_PERMITTED', 'V. view-only members cannot download (denied and audited)');
+select is(pg_temp.query_as((select bob from ids), 'aal2', format('select * from public.download_financial_export(%L)', (select id from e1))) -> 0 ->> 'denied_reason',
+  'NOT_FOUND', 'V. another agency cannot download (no oracle) (denied and audited)');
+select is(pg_temp.query_as((select wendy from ids), 'aal1', format('select * from public.download_financial_export(%L)', (select id from e1))) -> 0 ->> 'denied_reason',
+  'NOT_FOUND', 'V. a worker cannot download (denied and audited)');
+select is(pg_temp.query_as((select fiona from ids), 'aal2', format('select * from public.download_financial_export(%L)', (select id from e1))) -> 0 ->> 'denied_reason',
+  'NOT_FOUND', 'V. a facility cannot download (denied and audited)');
 
 -- A / C / E / X. Reads
 select is(pg_temp.count_as((select bob from ids), 'aal2', 'select * from public.payroll_batches'), 0, 'A. another agency reads no payroll batches');
@@ -316,6 +316,9 @@ select throws_ok(pg_temp.as_sql((select fiona from ids), format('select * from p
 select pg_temp.exec_as((select alice from ids), 'aal1', format('select public.reopen_timesheet(%L, ''approved_in_error'')', (select wendy from ts)));
 select pg_temp.outcome_as((select wendy from ids), format('select * from public.submit_timesheet(%L)', (select wendy from ts)));
 select pg_temp.outcome_as((select alice from ids), format('select * from public.approve_timesheet(%L, 2)', (select wendy from ts)));
+-- Revision 2 is priced after a later rate version ($44.00 / $60.00 from day 2): a material change on day 2.
+select pg_temp.exec_as((select finn from fin), 'aal2', format('select public.activate_rate_version(public.create_rate_version(%L, ''USD'', 4400, 6000, %L))',
+  (select riverside from rc), (select ps from per) + 2));
 select pg_temp.query_as((select finn from fin), 'aal1', format('select * from public.price_timesheet(%L, 2)', (select wendy from ts)));
 
 select is((select count(*)::int from internal.payroll_source_lines((select alpha from orgs)) where timesheet_revision = 1), 0,
@@ -350,8 +353,8 @@ select is((select array_agg(distinct timesheet_revision) from public.invoice_dra
            where invoice_draft_id = (select id from d2) and timesheet_id = (select wendy from ts)), array[2],
   'the corrected revision is drafted after the void releases the earlier lines');
 select pg_temp.exec_as((select finn from fin), 'aal1', format('select public.review_invoice_draft(%L)', (select id from d2)));
-select throws_ok(pg_temp.as_sql((select finn from fin), format('select public.approve_invoice_draft(%L)', (select id from d2))),
-  'CH402', null, 'invoice approval requires AAL2');
+select is(pg_temp.query_as((select finn from fin), 'aal1', format('select * from public.approve_invoice_draft(%L)', (select id from d2))) -> 0 ->> 'reason_code',
+  'MFA_REQUIRED', 'invoice approval requires AAL2 (denied and audited)');
 select pg_temp.exec_as((select finn from fin), 'aal2', format('select public.approve_invoice_draft(%L)', (select id from d2)));
 select pg_temp.exec_as((select finn from fin), 'aal2', format('select public.lock_invoice_draft(%L)', (select id from d2)));
 
@@ -384,8 +387,8 @@ select ok((select convert_from(content, 'UTF8') !~ '(,4250,|,34000,|,32088,|,106
 select is((select file_name from public.financial_exports where id = (select id from x2)),
   (select reference || '-DRAFT-INVOICE.csv' from public.invoice_drafts where id = (select id from d2)), 'the file name marks it a draft invoice');
 select is(pg_temp.count_as((select fiona from ids), 'aal2', 'select * from public.financial_exports'), 0, 'U. facilities cannot see invoice exports');
-select throws_ok(pg_temp.as_sql((select wendy from ids), format('select * from public.download_financial_export(%L)', (select id from x1))),
-  'CHY08', null, 'U. a worker cannot download a draft invoice');
+select is(pg_temp.query_as((select wendy from ids), 'aal1', format('select * from public.download_financial_export(%L)', (select id from x1))) -> 0 ->> 'denied_reason',
+  'NOT_FOUND', 'U. a worker cannot download a draft invoice (denied and audited)');
 select is((select count(*)::int from public.audit_events where action in ('invoice.draft_created', 'invoice.draft_approved',
            'invoice.draft_locked', 'invoice.export_created', 'invoice.voided')), 7, 'invoice steps are audited');
 
@@ -394,7 +397,7 @@ select is((select count(*)::int from public.audit_events where action in ('invoi
 -- ---------------------------------------------------------------------------
 select is((select array_agg((x ->> 'state') || ':' || (x ->> 'line_count') order by x ->> 'state') from jsonb_array_elements(pg_temp.query_as(
            (select finn from fin), 'aal1', format('select * from public.financial_reconciliation(%L, ''pay'')', (select alpha from orgs)))) x),
-  array['adjustment_required:2', 'exported:3'], 'payroll reconciliation: 3 exported, 2 held for adjustment');
+  array['adjustment_required:1', 'exported:3'], 'payroll reconciliation: 3 exported, 1 changed line awaiting adjustment');
 select is((select array_agg((x ->> 'state') || ':' || (x ->> 'line_count') order by x ->> 'state') from jsonb_array_elements(pg_temp.query_as(
            (select finn from fin), 'aal1', format('select * from public.financial_reconciliation(%L, ''bill'')', (select alpha from orgs)))) x),
   array['exported:3'], 'invoice reconciliation: 3 exported');

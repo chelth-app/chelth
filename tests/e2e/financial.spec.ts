@@ -82,6 +82,7 @@ test.describe.serial("payroll preparation and invoice drafting", () => {
   let finance: Person;
   let riverside: { facilityId: string; locationId: string; relationshipId: string };
   let tiaSheet: string;
+  let rateCardId: string;
   let batchPath: string;
   let draftPath: string;
   let exportId: string;
@@ -177,13 +178,14 @@ test.describe.serial("payroll preparation and invoice drafting", () => {
       p_status: "active",
     });
     riverside = { facilityId, locationId, relationshipId };
-    const cardId = await must(
+    rateCardId = await must(
       world.admin.client.rpc("create_rate_card", {
         p_organisation_id: world.agencyId,
         p_discipline_key: "cna",
         p_relationship_id: relationshipId,
       }),
     );
+    const cardId = rateCardId;
     const versionId = await must(
       world.admin.client.rpc("create_rate_version", {
         p_rate_card_id: cardId,
@@ -364,6 +366,17 @@ test.describe.serial("payroll preparation and invoice drafting", () => {
         p_expected_revision: 2,
       }),
     );
+    // A later rate version ($44.00 / $60.00 from day 2) makes revision 2 a real financial change.
+    const later = await must(
+      world.admin.client.rpc("create_rate_version", {
+        p_rate_card_id: rateCardId,
+        p_currency: "USD",
+        p_pay_rate_minor: 4400,
+        p_bill_rate_minor: 6000,
+        p_effective_from: addDays(ps, 2),
+      }),
+    );
+    await ok(world.admin.client.rpc("activate_rate_version", { p_version_id: later }));
     await must(
       world.admin.client.rpc("price_timesheet", {
         p_timesheet_id: tiaSheet,

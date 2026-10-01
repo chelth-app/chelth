@@ -12,7 +12,12 @@ import {
   IssuesTable,
   listPayrollBatches,
   listPayrollIssues,
+  listPayrollAdjustmentCandidates,
+  listPayrollAdjustments,
   listPayrollWork,
+  MakerCheckerForm,
+  PayrollAdjustmentCandidates,
+  PayrollAdjustmentsTable,
   PayrollStatusBadge,
   ReconciliationTable,
 } from "@/features/financial";
@@ -33,7 +38,7 @@ import { formatPeriod, formatWorkedMinutes } from "@/lib/domain/timesheets";
 
 export const metadata: Metadata = { title: "Payroll" };
 
-const TABLE_REGION = "overflow-x-auto rounded-lg border border-border bg-surface";
+const TABLE_REGION = "relative overflow-x-auto rounded-lg border border-border bg-surface";
 const TH = "px-3 py-2 font-medium";
 
 /**
@@ -49,13 +54,16 @@ export default async function PayrollPage({
   const { organisationId, organisation, can } = context;
   if (organisation.type !== "agency") notFound();
 
-  const [settings, work, issues, batches, reconciliation] = await Promise.all([
-    getFinancialSettings(organisationId),
-    listPayrollWork(organisationId),
-    listPayrollIssues(organisationId),
-    listPayrollBatches(organisationId),
-    getReconciliation(organisationId, "pay"),
-  ]);
+  const [settings, work, issues, batches, reconciliation, candidates, adjustments] =
+    await Promise.all([
+      getFinancialSettings(organisationId),
+      listPayrollWork(organisationId),
+      listPayrollIssues(organisationId),
+      listPayrollBatches(organisationId),
+      getReconciliation(organisationId, "pay"),
+      listPayrollAdjustmentCandidates(organisationId),
+      listPayrollAdjustments(organisationId),
+    ]);
   const canPrepare = can(CAPABILITIES.PAYROLL_PREPARE) === "granted";
   const approve = can(CAPABILITIES.PAYROLL_APPROVE);
   const settingsEditable = approve === "granted" && can(CAPABILITIES.INVOICE_APPROVE) === "granted";
@@ -111,6 +119,23 @@ export default async function PayrollPage({
             showFacility={false}
           />
         )}
+      </section>
+
+      <section aria-labelledby="payroll-adjustments-heading" className="flex flex-col gap-3">
+        <h2 id="payroll-adjustments-heading" className="text-lg font-semibold">
+          Adjustments
+        </h2>
+        <p className="max-w-2xl text-sm text-muted-foreground">
+          When locked work is revised, the original batch never changes. The difference between the
+          last accounted revision and the new priced revision is prepared as a separate adjustment.
+          An adjustment is not a payment.
+        </p>
+        <PayrollAdjustmentCandidates
+          rows={candidates}
+          organisationId={organisationId}
+          canPrepare={canPrepare}
+        />
+        <PayrollAdjustmentsTable rows={adjustments} organisationId={organisationId} />
       </section>
 
       <section aria-labelledby="payroll-ready-heading" className="flex flex-col gap-3">
@@ -308,6 +333,10 @@ export default async function PayrollPage({
             anchorDate={settings.payrollAnchorDate}
             payrollPrefix={settings.payrollReferencePrefix}
             invoicePrefix={settings.invoiceReferencePrefix}
+          />
+          <MakerCheckerForm
+            organisationId={organisationId}
+            required={settings.makerCheckerRequired}
           />
         </section>
       ) : null}
