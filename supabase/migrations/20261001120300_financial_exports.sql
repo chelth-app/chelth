@@ -280,7 +280,6 @@ declare
   v_digits smallint;
   v_rows_per_page constant integer := 40;
   v_pages integer;
-  v_page integer;
   v_y integer;
   v_stream text;
   v_objects text[] := array[]::text[];
@@ -289,7 +288,6 @@ declare
   v_offsets integer[] := array[]::integer[];
   v_xref text;
   l record;
-  i integer;
 begin
   select * into d from public.invoice_drafts x where x.id = p_draft_id;
   select c.minor_unit_digits into v_digits from public.currencies c where c.code = d.currency;
@@ -300,7 +298,7 @@ begin
   v_objects := v_objects || '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>'::text;
   v_objects := v_objects || '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>'::text;
 
-  for v_page in 1 .. v_pages loop
+  for v_page_index in 1 .. v_pages loop
     v_stream := internal.pdf_line('F2', 18, 40, 750, 'DRAFT INVOICE')
       || internal.pdf_line('F1', 8, 40, 736, 'Internal draft for review. Not a tax invoice. Not a request for payment. '
                                              || 'No tax has been calculated.')
@@ -323,7 +321,7 @@ begin
       select x.* from public.invoice_draft_lines x
       where x.invoice_draft_id = p_draft_id
       order by x.line_number
-      offset (v_page - 1) * v_rows_per_page limit v_rows_per_page
+      offset (v_page_index - 1) * v_rows_per_page limit v_rows_per_page
     loop
       v_stream := v_stream
         || internal.pdf_line('F1', 8, 40, v_y, l.work_date::text)
@@ -335,7 +333,7 @@ begin
         || internal.pdf_line('F1', 8, 530, v_y, internal.minor_to_decimal(l.bill_amount_minor, v_digits));
       v_y := v_y - 13;
     end loop;
-    if v_page = v_pages then
+    if v_page_index = v_pages then
       v_stream := v_stream
         || internal.pdf_line('F2', 9, 40, v_y - 12, 'Draft total (bill side, before any tax): '
                              || internal.minor_to_decimal(d.total_bill_minor, v_digits) || ' '
@@ -344,24 +342,24 @@ begin
     end if;
     v_stream := v_stream
       || internal.pdf_line('F1', 8, 40, 30, 'DRAFT INVOICE ' || internal.pdf_text(d.reference)
-                                            || ' - page ' || v_page || ' of ' || v_pages);
+                                            || ' - page ' || v_page_index || ' of ' || v_pages);
     -- page object, then its content stream
-    v_kids := v_kids || (5 + (v_page - 1) * 2)::text || ' 0 R ';
+    v_kids := v_kids || (5 + (v_page_index - 1) * 2)::text || ' 0 R ';
     v_objects := v_objects || ('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R '
-                               || '/F2 4 0 R >> >> /Contents ' || (6 + (v_page - 1) * 2)::text || ' 0 R >>');
+                               || '/F2 4 0 R >> >> /Contents ' || (6 + (v_page_index - 1) * 2)::text || ' 0 R >>');
     v_objects := v_objects || ('<< /Length ' || octet_length(v_stream) || ' >>' || E'\nstream\n' || v_stream
                                || 'endstream');
   end loop;
   v_objects[2] := '<< /Type /Pages /Kids [ ' || v_kids || '] /Count ' || v_pages || ' >>';
 
   v_doc := E'%PDF-1.4\n';
-  for i in 1 .. cardinality(v_objects) loop
+  for v_object_index in 1 .. cardinality(v_objects) loop
     v_offsets := v_offsets || octet_length(v_doc);
-    v_doc := v_doc || i::text || E' 0 obj\n' || v_objects[i] || E'\nendobj\n';
+    v_doc := v_doc || v_object_index::text || E' 0 obj\n' || v_objects[v_object_index] || E'\nendobj\n';
   end loop;
   v_xref := 'xref' || E'\n' || '0 ' || (cardinality(v_objects) + 1)::text || E'\n' || E'0000000000 65535 f \n';
-  for i in 1 .. cardinality(v_offsets) loop
-    v_xref := v_xref || lpad(v_offsets[i]::text, 10, '0') || E' 00000 n \n';
+  for v_offset_index in 1 .. cardinality(v_offsets) loop
+    v_xref := v_xref || lpad(v_offsets[v_offset_index]::text, 10, '0') || E' 00000 n \n';
   end loop;
   return convert_to(v_doc || v_xref || 'trailer' || E'\n' || '<< /Size ' || (cardinality(v_objects) + 1)::text
                     || ' /Root 1 0 R >>' || E'\nstartxref\n' || octet_length(v_doc)::text || E'\n%%EOF\n', 'UTF8');
