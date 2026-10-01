@@ -1,0 +1,823 @@
+CHELTH — P0-E7-S2 PAYROLL PREPARATION & INVOICE DRAFTING
+Stage report · 2026-10-01 · branch p0-e7-s2-payroll-invoices (from e5f4c0b, uncommitted)
+
+======================================================================
+1. EXECUTIVE SUMMARY
+======================================================================
+This stage adds the non-executing financial preparation layer on top of
+the immutable pricing snapshots from P0-E7-S1.
+
+  - Payroll periods: weekly or biweekly, calendar DATES with no timezone.
+  - Payroll batches: draft → reviewed → approved → locked → exported, or
+    cancelled before lock. There is never a "paid" state.
+  - Invoice drafts: draft → reviewed → approved → locked → exported, or
+    voided. There is never a sent, paid or overdue state.
+  - Deterministic CSV exports for both, plus a DRAFT INVOICE PDF.
+  - Export integrity and access: SHA-256 checksums, a private byte store,
+    audited same-origin downloads.
+  - Reconciliation states, and "Adjustment required" handling for revisions
+    made after lock.
+
+Lines are copied, never recomputed, from priced lines. A composite FK binds
+every copied value to its immutable source. One-document-per-line is
+enforced structurally by claim tables, and was proven under real concurrency.
+
+Nothing pays, taxes, sends, collects, posts or integrates.
+
+All validation passes. No HIGH or CRITICAL findings are open.
+
+======================================================================
+2. DOMAIN BOUNDARY
+======================================================================
+In scope: preparing payroll data, drafting internal invoices, generic exports.
+
+Out of scope (not implemented, by design):
+  - payroll execution;
+  - ACH, direct deposit, bank transfers or bank files;
+  - tax calculation, withholding or filing;
+  - benefits, deductions, garnishments, payslips;
+  - payment collection, card payments, Stripe, payment links;
+  - QuickBooks, Xero or any accounting/GL integration;
+  - remittance, claims, factoring, collections.
+
+Legal boundaries are documented in PAYROLL_PREPARATION_MODEL §6:
+  - preparation, not running payroll;
+  - drafting, not collecting payment;
+  - no tax;
+  - no compliance guarantee;
+  - generic exports are not certified integrations;
+  - retention needs legal review.
+
+======================================================================
+3. PAYROLL PERIOD MODEL
+======================================================================
+agency_financial_settings:
+  - payroll_period_type: weekly | biweekly;
+  - payroll_week_starts_on: ISO weekday, checked against the anchor;
+  - payroll_anchor_date: DATE;
+  - reference prefixes.
+
+Default when unset: weekly, starting on the agency's timesheet week start
+(Monday unless configured).
+
+Period of a facility-local work date d:
+  start = d − (((d − anchor) mod L) + L) mod L, with L = 7 or 14.
+This is pure date arithmetic; no timezone is involved.
+
+payroll_periods rows are created on first use. An exclusion constraint
+(btree_gist) forbids overlapping periods per agency, so a settings change
+can never overlap used history (CHY05). A batch must start on a period
+boundary (CHY05).
+
+Settings are changed with set_agency_financial_settings, which requires
+payroll.approve and invoice.approve (AAL2) and is audited.
+
+======================================================================
+4. PAYROLL BATCH SCHEMA
+======================================================================
+payroll_batches:
+  - agency, period (composite FK to payroll_periods), currency;
+  - reference PAY-YYYY-NNNNNN;
+  - status;
+  - line and worker counts, regular and overtime minutes, total_pay_minor
+    (bigint);
+  - created/reviewed/approved/locked/cancelled by (membership composite
+    FKs) and at; exported_at; cancel_reason; status_changed_at.
+
+Checks: status-dependent stamps, reference format.
+
+A deferred constraint trigger proves at commit that the totals (count,
+workers, minutes, pay) equal the sum of the lines.
+
+Related tables: payroll_batch_lines (§5), payroll_line_claims (§16),
+payroll_batch_history (append-only).
+
+Worker totals are derived from the immutable lines
+(list_payroll_batch_workers).
+
+======================================================================
+5. PAYROLL LINE SOURCE
+======================================================================
+Each payroll_batch_line stores:
+  - source ids: priced line, priced timesheet, timesheet, revision, entry,
+    worker, profile, facility, relationship;
+  - discipline and work_date (facility-local);
+  - regular and overtime minutes;
+  - pay_rate_minor, pay_amount_minor, calculation_version;
+  - display snapshots: worker reference and name, facility, discipline.
+
+One composite FK covers all copied values and points to the new unique key
+priced_timesheet_lines_payroll_source_key. A line therefore cannot hold a
+value its source lacks, even when written by the owner (pgTAP J/L, 23503).
+
+Eligibility:
+  - the priced line is the current revision of a LOCKED timesheet;
+  - it is unclaimed;
+  - no other revision of that timesheet is claimed.
+
+Lines are append-only. They can be inserted only while the batch is being
+created (draft, same transaction).
+
+======================================================================
+6. PAYROLL LIFECYCLE
+======================================================================
+draft → reviewed → approved → locked → exported. Cancelled is reachable
+from draft, reviewed or approved, and only before lock.
+
+  prepare  create_payroll_batch(agency, period_start, currency)  payroll.prepare
+  review   review_payroll_batch                                   payroll.prepare
+  approve  approve_payroll_batch                                  payroll.approve (AAL2)
+  lock     lock_payroll_batch                                     payroll.approve (AAL2)
+  export   create_payroll_export                                  payroll.export (AAL2)
+  cancel   cancel_payroll_batch(reason)                           payroll.prepare
+                                                                  (payroll.approve once approved)
+
+Cancelling releases the batch's lines; the cancelled batch keeps its lines
+as history.
+
+Every step:
+  - appends to payroll_batch_history;
+  - is audited.
+
+A trigger enforces the transitions (CHY04).
+
+======================================================================
+7. PAYROLL APPROVAL & LOCK
+======================================================================
+Approve requires reviewed status; lock requires approved status. Both fail
+closed (CHY02) while any line's source is superseded or its timesheet is
+no longer locked.
+
+After lock, protect_payroll_batch:
+  - refuses any content change (CHY03);
+  - allows only locked → exported;
+  - writes each stamp once.
+
+In addition:
+  - lines refuse UPDATE, DELETE and TRUNCATE;
+  - claims cannot be released (CHY03);
+  - batches are never deleted.
+
+Same-user prepare/approve is allowed (see §33).
+
+======================================================================
+8. PAYROLL EXPORT
+======================================================================
+The CSV is rendered in the database from the locked batch lines. Columns
+are exactly as specified:
+
+  batch_reference, worker_reference, worker_name, period_start,
+  period_end, work_date, facility, discipline, regular_minutes,
+  overtime_minutes, pay_rate_minor, pay_amount_minor, currency
+
+Format:
+  - RFC 4180, UTF-8 without BOM, CRLF;
+  - text quoted; integers and dates bare;
+  - ordered by line number.
+
+Behaviour:
+  - Only locked or exported batches can be exported.
+  - The first export moves the batch to exported.
+  - Re-exports are numbered and byte-identical.
+
+The export snapshot (financial_exports) records:
+  - format and export version (1);
+  - row count, total, currency;
+  - SHA-256 and byte size;
+  - file_ref;
+  - generated at/by;
+  - source status at export.
+
+The bytes are stored privately (§21).
+
+======================================================================
+9. EXPORT CHECKSUM
+======================================================================
+SHA-256 (pgcrypto digest) is computed over the exact stored bytes at
+generation. It is then re-verified:
+
+  - by trigger on file insert;
+  - by download_financial_export before returning;
+  - by the route (node:crypto, timing-safe) before streaming.
+
+Any mismatch fails closed. The checksum is shown in the UI (short form plus
+full value) and included in audit metadata.
+
+Determinism is tested in pgTAP, integration (re-export gives an equal
+checksum) and E2E (the downloaded file's SHA-256 equals the displayed
+checksum).
+
+======================================================================
+10. INVOICE DRAFT SCHEMA
+======================================================================
+invoice_drafts:
+  - agency, relationship and facility (composite FK to the relationship);
+  - week (period_start/end, check +6), currency;
+  - reference INV-DRAFT-YYYY-NNNNNN;
+  - status;
+  - line count, total priced minutes, total_bill_minor;
+  - agency and facility name snapshots;
+  - lifecycle stamps, void_reason.
+
+A deferred totals check applies, as for batches.
+
+Related tables: invoice_draft_lines, invoice_line_claims,
+invoice_draft_history.
+
+Numbering: an agency-configurable prefix plus a monotonic per-agency/year
+sequence. This is an internal draft reference; legal invoice numbering is
+deferred.
+
+======================================================================
+11. INVOICE LINE SOURCE
+======================================================================
+Each line copies only bill-side values: priced minutes, bill regular and
+overtime minutes, bill_rate_minor, bill_amount_minor, revision and
+calculation version.
+
+Two FKs bind it:
+  - a composite FK to priced_timesheet_lines_invoice_source_key;
+  - (priced_timesheet_id, agency, period, currency) to priced_timesheets,
+    which proves the line's week is the draft's week.
+
+The invoice tables have NO pay or margin column (pgTAP K checks
+information_schema). Pay data therefore cannot be stored, projected or
+exported for a facility document.
+
+Eligibility mirrors payroll; the adjustment hold is per (timesheet,
+relationship).
+
+======================================================================
+12. INVOICE LIFECYCLE
+======================================================================
+draft → reviewed → approved → locked → exported. Voided is reachable from
+any of these states.
+
+  - Review: invoice.prepare.
+  - Approve and lock: invoice.approve (AAL2).
+  - Export (csv | pdf): invoice.export (AAL2).
+  - Void: invoice.prepare before approval, invoice.approve after it. A
+    reason is required.
+
+Voiding never changes the lines or totals; it releases the claims.
+
+There is no sent, paid or overdue state.
+
+======================================================================
+13. INVOICE APPROVAL & LOCK
+======================================================================
+This is identical to payroll:
+  - approve and lock fail closed while a source is superseded (CHY02);
+  - after lock, contents are immutable (CHY03);
+  - only locked → exported and → voided are allowed (CHY04);
+  - lines are append-only.
+
+======================================================================
+14. INVOICE EXPORT
+======================================================================
+CSV columns are exactly as specified:
+
+  invoice_draft_reference, facility, relationship_reference,
+  period_start, period_end, work_date, worker_reference, worker_name,
+  discipline, priced_minutes, bill_rate_minor, bill_amount_minor, currency
+
+relationship_reference is the relationship id.
+
+PDF:
+  - minimal PDF 1.4 with built-in Helvetica only;
+  - titled "DRAFT INVOICE" on every page;
+  - states "Not a tax invoice. Not a request for payment. No tax has been
+    calculated.";
+  - all text escaped;
+  - no links, scripts, annotations, embedded files or remote resources
+    (pgTAP).
+
+Both files are named <reference>-DRAFT-INVOICE.(csv|pdf). Neither contains
+pay values (pgTAP U, integration, E2E 4).
+
+======================================================================
+15. CURRENCY & MONEY
+======================================================================
+  - Integer minor units (bigint) throughout. There is no floating point in
+    SQL, exports or tests.
+  - A document has exactly one currency, enforced by composite FKs from
+    lines to the document and to the priced source.
+  - Totals are sums of copied line amounts; there is no re-rounding.
+
+Money tests:
+  - batch total = Σ priced pay totals;
+  - draft total = Σ priced bill totals;
+  - each line equals its source line (pgTAP, integration).
+
+Worked case: 480 + 453 + 240 min at $42.50 / $58.00 gives
+  - pay  $340.00 + $320.88 + $170.00 = $830.88;
+  - bill $464.00 + $437.90 + $232.00 = $1,133.90.
+
+======================================================================
+16. DUPLICATE PREVENTION
+======================================================================
+Structural:
+  - payroll_line_claims and invoice_line_claims each have the priced line
+    id as PRIMARY KEY;
+  - a claim is composite-FK-bound to its document line;
+  - claims are insertable only during preparation;
+  - they are deletable only when the document is cancelled or voided.
+
+Preparation runs under a per-agency transaction advisory lock. A unique
+violation maps to CHY10.
+
+Tests:
+  - pgTAP N/O: an owner-level duplicate claim gives 23505; re-preparing
+    gives CHY01/CHY09.
+  - Integration: two finance users run Promise.all; exactly one batch wins
+    and the other gets CHY01/CHY10, with 3 claims all belonging to one
+    batch. The same holds for invoice drafts.
+
+======================================================================
+17. REVISION / ADJUSTMENT HANDLING
+======================================================================
+Only the current revision of a locked timesheet is eligible; a superseded
+priced revision is never "current" (pgTAP R).
+
+When work already in a document gets a new revision:
+  - Open document (draft, reviewed, approved): flagged SOURCE_SUPERSEDED.
+    Approve and lock fail closed; the user cancels or voids and prepares
+    again.
+  - Locked or exported document: flagged "Adjustment required". The
+    document is unchanged — lines, totals, history and export bytes alike
+    (pgTAP S, integration, E2E 7). The newer revision is held back from
+    ordinary preparation, so there is no double pay or bill. The queue
+    references the earlier documents, e.g. "PAY-2026-000002 (exported)",
+    and whether the new revision is priced.
+
+Adjustment documents themselves are deferred (§34).
+
+======================================================================
+18. RECONCILIATION
+======================================================================
+financial_reconciliation(agency, 'pay' | 'bill') returns, per state and
+currency, the line count, minutes and amount.
+
+States: unprepared, adjustment_required, drafted (draft/reviewed),
+approved (approved/locked), exported.
+
+Shown on /payroll and /invoices. Documented in FINANCIAL_RECONCILIATION.md.
+
+======================================================================
+19. CAPABILITIES
+======================================================================
+New capabilities: payroll.view, payroll.prepare, payroll.approve*,
+payroll.export*, invoice.view, invoice.prepare, invoice.approve*,
+invoice.export*. Those marked * are privileged and need AAL2.
+
+  - Admin and finance hold all 8.
+  - The operations manager holds payroll.view and invoice.view only.
+  - Scheduler, recruiter, credentialing, worker and all facility roles hold
+    none (pgTAP).
+  - No financial_exports.view exists: export metadata follows *.view, and
+    downloads need *.export.
+
+AAL2 decision: approval freezes money, and export moves bulk personal and
+financial data out of the system. View and prepare are internal and
+reversible.
+
+Totals: admin now holds 44 capabilities, 19 of them privileged.
+
+======================================================================
+20. RLS ARCHITECTURE
+======================================================================
+Every new public table has RLS enabled, a SELECT grant only, and a policy
+of authz.has_capability(agency, payroll.view | invoice.view). It is
+deny-by-default and agency-only.
+
+  - Workers, facilities and platform admins have no path (pgTAP C–F, X).
+  - Writes happen only through SECURITY DEFINER RPCs with
+    search_path = ''.
+  - Projections re-check capability and return not-found (CHY06, CHY07,
+    CHY08) to non-viewers, so there is no existence oracle.
+  - internal.* helpers are executable by no API role.
+  - The 000 baseline allow-list now includes the 30 new public RPCs.
+
+======================================================================
+21. FILE SECURITY
+======================================================================
+Bytes live in internal.financial_export_files:
+  - private schema, RLS on;
+  - no policies, no grants;
+  - append-only;
+  - checksum- and size-verified on insert.
+
+There is no Supabase Storage object and no signed URL.
+
+Downloads go through POST /app/exports/[exportId]/download:
+  - same-origin only (403 otherwise);
+  - signed-in only (401 otherwise).
+
+The route calls download_financial_export, which:
+  - checks *.export for the export's own agency at AAL2;
+  - applies a rate limit;
+  - re-verifies the checksum;
+  - writes the audit row (payroll.export_downloaded /
+    invoice.export_downloaded).
+
+The route then re-verifies the SHA-256 and streams the file with:
+  - an attachment disposition;
+  - Cache-Control no-store;
+  - nosniff;
+  - an allow-listed content type and a validated file name.
+
+Tested:
+  - wrong tenant, worker, facility, scheduler: not found;
+  - view-only member: CH403;
+  - AAL1: CH402;
+  - suspended member: refused;
+  - signed out: 401;
+  - cross-site: 403;
+  - download audit row present.
+
+"Expired URL" does not apply: no URL is minted, so every download is
+re-authorised at request time. See FINANCIAL_EXPORT_SECURITY.md.
+
+======================================================================
+22. STRUCTURAL INTEGRITY
+======================================================================
+Composite FKs:
+  - line → document (agency, period, currency [, relationship, facility]);
+  - line → priced line (all copied values);
+  - invoice line → priced timesheet week;
+  - claim → line;
+  - document → period and memberships;
+  - export → document (agency, period, currency).
+
+Triggers:
+  - lifecycle and immutability on documents;
+  - append-only on lines, history, periods, exports and files;
+  - claim insert/delete guards;
+  - deferred totals equal Σ lines.
+
+Exclusion constraint: non-overlapping payroll periods.
+
+New supporting unique keys:
+  - two on priced_timesheet_lines;
+  - priced_timesheets (id, agency, period, currency);
+  - agency_workers (id, agency, profile).
+
+No merged migration was edited.
+
+======================================================================
+23. AUDIT CHANGES
+======================================================================
+Required actions:
+  - payroll.batch_created, payroll.batch_approved, payroll.batch_locked;
+  - payroll.export_created, payroll.export_downloaded;
+  - invoice.draft_created, invoice.draft_approved, invoice.draft_locked;
+  - invoice.export_created, invoice.export_downloaded;
+  - invoice.voided.
+
+Also recorded:
+  - payroll.settings_updated;
+  - payroll.batch_reviewed, payroll.batch_cancelled;
+  - invoice.draft_reviewed.
+
+Metadata contains references, counts, totals, currency, format and
+checksum; never names or file contents. All actions were added to
+AUDIT_ACTIONS with labels.
+
+======================================================================
+24. NOTIFICATIONS
+======================================================================
+None, by design: UI queues only, needs-attention first, on /payroll and
+/invoices. This keeps amounts and pay data out of email.
+NOTIFICATION_DELIVERY §12 documents the decision.
+
+======================================================================
+25. PAYROLL UI
+======================================================================
+/app/organisations/[id]/payroll (payroll.view; agency only), in order:
+
+  1. Needs attention: adjustments with document references, batches blocked
+     by revised work, locked work not yet priced (link to pricing).
+  2. Priced work not yet in a batch, by period and currency, with a
+     "Prepare batch" button (held rows show "Adjustment required").
+  3. Payroll batches: counts by state, then a dense table with
+     attention-flagged rows first.
+  4. Reconciliation.
+  5. Payroll settings (approve-capable users only).
+
+The legal boundary is stated in the header. A step-up notice appears for
+approval and export.
+
+/payroll/[batchId]:
+  - status and attention badges, plus a banner explaining adjustment or
+    blocked state;
+  - exact totals;
+  - a single next-step button per state, and cancel with a reason;
+  - exports table;
+  - worker totals;
+  - lines with source revision ("Now revision N" when superseded) linking
+    to the priced timesheet;
+  - history.
+
+Design: dense tables; calm surfaces; teal only for the primary action and
+approved/locked badges; tokens only; Manrope/Inter via existing typography.
+Desktop and mobile were checked with axe in E2E. No logo changes.
+
+======================================================================
+26. INVOICE UI
+======================================================================
+/app/organisations/[id]/invoices (invoice.view):
+  - "Blocked and needs attention";
+  - billable work grouped by facility (one table per facility relationship,
+    by week and currency), with "Create draft";
+  - invoice drafts by state;
+  - reconciliation.
+
+/invoices/[draftId]:
+  - labelled "Draft invoice — internal, not sent";
+  - bill total (before any tax);
+  - next step, void with reason;
+  - draft documents (PDF and CSV);
+  - lines with bill rate and amount only;
+  - history.
+
+No pay or margin appears anywhere (E2E 4).
+
+Export download UX (both pages):
+  - file name, format, version, export number, size;
+  - generated time and who generated it;
+  - row count and total;
+  - SHA-256 (short and full);
+  - source status at export and now, with the attention badge;
+  - an audited Download button.
+
+======================================================================
+27. SECURITY TESTS
+======================================================================
+supabase/tests/security/240_payroll_invoices.test.sql has 117 assertions
+covering A–Z:
+
+  A/B  another agency cannot read batches or drafts, nor fetch by id
+  C/D  workers read no payroll or invoice tables or projections
+  E/F  facilities read no payroll, exports, drafts or billable work
+  G/H  a scheduler cannot prepare or approve
+  I    finance is limited to its own agency
+  J/K  lines exactly equal immutable priced lines (pay / bill side); a
+       tampered line fails the FK even as owner; invoice tables have no pay
+       or margin columns
+  L/M  RPC signatures accept identifiers only
+  N/O  re-preparation and owner-level duplicate claims are refused
+  P/Q  locked content, status rollback, line edits, claim release, cancel
+       and delete are all refused
+  R/S  a superseded revision is never current; the new revision is held; the
+       old batch, its export bytes and its references are unchanged
+  T/U  export bytes are unreachable by API roles; facilities see no exports;
+       invoice CSV has no pay values
+  V    download needs AAL2 and *.export; tenant, worker and facility get
+       not-found; downloads are audited
+  W    formula injection (= + - @ TAB, leading spaces, full-width) plus
+       commas, quotes, newlines, empty values and non-ASCII
+  X    a platform admin has no path
+  Y    search_path is pinned
+  Z    anon holds nothing; there are no direct inserts or updates
+
+The suite also covers periods, settings at AAL2, the lifecycle at AAL2,
+history, determinism, reference formats, PDF marking and safety, and
+reconciliation.
+
+Updated baselines:
+  - 000: 30 new RPCs in the allow-list;
+  - 030: privileged list, 44/19 counts.
+
+======================================================================
+28. CONCURRENCY TESTS
+======================================================================
+tests/integration/financial.test.ts:
+  - Two finance users call create_payroll_batch for the same period at the
+    same time: exactly one succeeds and the other gets CHY01/CHY10. There
+    are 3 claims, all on the winning batch.
+  - The same holds for create_invoice_draft (finance and admin): exactly
+    one draft.
+
+Structural backstop: claim PKs (pgTAP N/O).
+
+======================================================================
+29. INTEGRATION TESTS
+======================================================================
+tests/integration/financial.test.ts has 10 tests against the real local
+stack:
+  - concurrency (payroll);
+  - exact money;
+  - the operations manager can view but not approve; a scheduler cannot
+    see;
+  - approve, lock, export: deterministic CSV, header, checksum verified
+    with node:crypto, numbered re-exports, audit rows;
+  - download refusals: tenant, worker, facility, scheduler, view-only;
+  - a suspended member is refused;
+  - the private byte table is unreachable;
+  - invoice: concurrency, bill-only projections, CSV and PDF exports with
+    no pay values, PDF header and marking;
+  - facility and cross-agency isolation;
+  - a revision after lock: both documents intact and flagged; work held;
+    the issue references the old document; all stored bytes still match
+    their checksums.
+
+Also updated:
+  - identity-and-organisations: privileged list;
+  - vocabulary drift: capability keys, which match.
+
+======================================================================
+30. E2E TESTS
+======================================================================
+tests/e2e/financial.spec.ts runs on desktop and mobile Chromium (12
+tests), with axe on each UI flow:
+
+  1  Finance steps up, sees $830.88 of priced work, prepares a batch,
+     checks worker totals ($660.88 / $170.00), then reviews, approves and
+     locks it.
+  2  Export CSV: the exports table shows file, rows, total, checksum,
+     "At export: locked" and the generator. The downloaded file's SHA-256
+     equals the displayed checksum, and the header is exact.
+  3  Billable work grouped by facility gives a draft; the $1,133.90 total is
+     shown; it is reviewed, approved and locked.
+  4  Draft lines show only the $58.00/h bill rate and no pay values; the CSV
+     download contains no pay columns or values; the PDF export is listed.
+  5/6 Worker, scheduler and facility admin get 404 on /payroll, /invoices,
+     batch and draft detail, and on facility-org paths; download POST gives
+     404. Signed out gives 401; cross-site gives 403.
+  7  After a new priced revision, the batch shows "Adjustment required", the
+     same $830.88 and "Now revision 2". The payroll queue references
+     "PAY-… (exported)". The draft is flagged with its total unchanged.
+
+The fixture gained agencyMember() so a real agency.finance user can be
+created with TOTP.
+
+======================================================================
+31. EXPORT TESTS
+======================================================================
+  - Commas, quotes, newlines, non-ASCII, empty fields and formula
+    injection: pgTAP W (csv_text and the real export with a hostile name
+    and reference).
+  - Deterministic checksum: pgTAP, integration, E2E.
+  - Unit tests (tests/unit/lib/financial.test.ts, 13):
+      * checksum and size verification fails closed;
+      * file-name and header-injection refusal;
+      * content-type allow-list;
+      * same-origin checks;
+      * schemas strip client amounts;
+      * prefix rules;
+      * exact column lists.
+  - Money: exact equality with the sources (§15).
+
+======================================================================
+32. SECURITY FINDINGS
+======================================================================
+No CRITICAL or HIGH findings.
+
+Reviewed and addressed during the stage:
+  - [MEDIUM, fixed] The first error-code choice (CHF*) collided with the
+    existing facility codes CHF04/CHF09. Financial codes moved to CHY01–10.
+  - [MEDIUM, by design] Download denials are raised errors, so they are not
+    audited (credential documents audit denials). Successes are audited
+    with the checksum. Listed in §33.
+  - [LOW] Same-user maker/checker is allowed (one person can prepare,
+    approve and lock). Every step is attributed in history and audit.
+    Listed in §33.
+  - [LOW] Non-Latin characters degrade to "?" in the PDF; the CSV keeps
+    them exactly.
+
+Secrets: none were found or introduced. The service-role key is not used;
+the bundle check passes.
+
+======================================================================
+33. KNOWN LIMITATIONS
+======================================================================
+  - No adjustment or supplementary documents. A revision after lock is
+    flagged and held; the difference is handled outside Chelth, using the
+    shown references.
+  - There is no segregation-of-duties enforcement between preparer and
+    approver.
+  - Denied download attempts are not audited.
+  - PDF text supports Latin-1 only.
+  - The invoice relationship_reference is the relationship UUID; there is
+    no human relationship code.
+  - A batch covers all eligible lines of a period and currency; there is no
+    per-worker selection.
+  - A settings change that would overlap used periods is refused rather
+    than migrated.
+  - Export bytes are held in Postgres. Fine for CSV/PDF at current scale;
+    object storage may be needed for very large exports.
+  - Retention of financial records and exports is indefinite pending legal
+    review.
+
+======================================================================
+34. DEFERRED ITEMS
+======================================================================
+  - Adjustment and credit-note documents referencing earlier
+    batches/drafts.
+  - Maker/checker policy option.
+  - Legal invoice numbering and issuing (outside this product boundary
+    until decided).
+  - Tax, payroll provider or accounting integrations (explicitly out of
+    scope).
+  - Count-only finance reminders.
+  - Audited denials.
+  - Unicode PDF fonts.
+  - Per-jurisdiction retention schedule.
+  - Canonical agency timezone (carried from S1A).
+
+======================================================================
+35. MIGRATION LIST
+======================================================================
+New (7):
+  20261001120000_financial_vocabulary.sql
+      capabilities, enums, settings, period/reference helpers
+  20261001120100_payroll_tables.sql
+      periods, batches, lines, claims, history, source keys
+  20261001120200_invoice_tables.sql
+      drafts, lines, claims, history, source keys
+  20261001120300_financial_exports.sql
+      export records, private file store, CSV/PDF renderers
+  20261001120400_payroll_rpcs.sql
+  20261001120500_invoice_rpcs.sql
+  20261001120600_financial_export_rpcs.sql
+      export, download, list, reconciliation
+
+No merged migration was edited. Total: 54 migration files.
+
+======================================================================
+36. BUILD VALIDATION
+======================================================================
+Final state: database reset from empty. Every step passed in one
+sequential run.
+
+  npm run format:check        PASS
+  npm run lint                PASS
+  npm run typecheck           PASS
+  npm test                    PASS (23 files, 268 tests)
+  npm run build               PASS
+  npm run check:bundle        PASS (57 browser files, no secrets)
+  npx playwright test         PASS (124 passed, 2 skipped by design)
+  npm run check:migrations    PASS (54 files)
+  supabase db reset           PASS
+  supabase db lint            PASS (no schema errors)
+  supabase test db            PASS (26 files, 1,240 assertions)
+  npm run test:integration    PASS (13 files, 104 tests)
+  npm run db:types            PASS (no drift after regeneration)
+
+The skips are the existing desktop-only keyboard tests on mobile.
+
+Completion gate (§75): all validations pass; no unresolved HIGH or
+CRITICAL findings; the brand QA gate was checked:
+  - no logo change;
+  - tokens only;
+  - teal reserved for primary actions and the approved/locked state;
+  - dense tables;
+  - outcome-led, non-AI copy;
+  - mobile hierarchy verified in E2E with axe.
+
+======================================================================
+37. GIT STATUS
+======================================================================
+Branch p0-e7-s2-payroll-invoices, from e5f4c0b (P0-E7-S1A). Nothing is
+committed or pushed.
+
+New:
+  - 7 migrations;
+  - pgTAP 240;
+  - integration financial.test.ts;
+  - E2E financial.spec.ts;
+  - unit financial.test.ts;
+  - src/features/financial (schemas, queries, actions, export-file,
+    components, index);
+  - src/lib/domain/financial.ts;
+  - pages: payroll, payroll/[batchId], invoices, invoices/[draftId];
+  - route app/exports/[exportId]/download;
+  - 6 docs;
+  - this report.
+
+Modified:
+  - authz vocabulary, error codes and mapping;
+  - organisation sections and page (Payroll and Invoices links);
+  - database types;
+  - pgTAP 000 and 030;
+  - integration identity-and-organisations;
+  - E2E staffing fixture (agencyMember);
+  - 6 docs: PRICING_ENGINE, PRICING_SNAPSHOT_MODEL, AUTHORIZATION_MODEL,
+    SECURITY_INVARIANTS (55–59), TECHNICAL_ARCHITECTURE,
+    NOTIFICATION_DELIVERY.
+
+The shared local stack was coordinated with peer sessions chelth-87 and
+chelth-d8; they stayed off it.
+
+======================================================================
+38. RECOMMENDED NEXT STAGE
+======================================================================
+P0-E7-S3: Financial adjustments and controls.
+  - Adjustment batches and drafts (deltas against the earlier locked
+    revision, referencing the original documents).
+  - An optional maker/checker policy.
+  - Audited denials.
+  - A finance dashboard of reconciliation across periods.
+
+Alternatively, P0-E8 (worker-facing pay visibility), once the agency
+decides what workers may see.

@@ -132,6 +132,12 @@ export default async function OrganisationPage({
         showPricing={
           organisation.type === "agency" && can(CAPABILITIES.PRICING_VIEW) !== "not_held"
         }
+        showPayroll={
+          organisation.type === "agency" && can(CAPABILITIES.PAYROLL_VIEW) !== "not_held"
+        }
+        showInvoices={
+          organisation.type === "agency" && can(CAPABILITIES.INVOICE_VIEW) !== "not_held"
+        }
         showOperations={
           organisation.type === "agency" && can(CAPABILITIES.ASSIGNMENT_VIEW) !== "not_held"
         }

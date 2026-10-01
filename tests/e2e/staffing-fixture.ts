@@ -439,3 +439,17 @@ export async function attachClockInEvidence(assignmentId: string): Promise<strin
     return row?.attendance_id ?? "";
   });
 }
+
+/** A new member of the world's agency with one role; optionally enrolled for step-up (TOTP). */
+export async function agencyMember(
+  world: StaffingWorld,
+  label: string,
+  name: string,
+  role: string,
+  withAuthenticator = false,
+): Promise<Person> {
+  const who = await person(label, name);
+  await join(world.admin.client, world.agencyId, role, who);
+  if (withAuthenticator) await stepUp(who);
+  return who;
+}

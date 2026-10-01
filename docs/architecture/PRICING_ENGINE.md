@@ -60,3 +60,16 @@ Worked examples (tested):
   stores the applied version ids **and** applied values.
 - Pricing never marks anything paid or billed, creates payroll, invoices,
   ledger entries or payments.
+
+## 4. Downstream consumers (P0-E7-S2)
+
+Payroll preparation and invoice drafting consume priced lines **only**:
+
+- They never call the engine.
+- They never read rates.
+- They never recompute.
+
+Only the **current** priced revision of a **locked** timesheet is eligible.
+A newer revision of work already in a locked document is held back as
+"Adjustment required" ([FINANCIAL_RECONCILIATION.md](FINANCIAL_RECONCILIATION.md)).
+Pricing itself still marks nothing as paid or billed.

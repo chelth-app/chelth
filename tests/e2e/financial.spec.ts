@@ -1,0 +1,392 @@
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
+
+import AxeBuilder from "@axe-core/playwright";
+import { type Browser, expect, type Page, test } from "@playwright/test";
+
+import { zonedLocalToInstant } from "@/lib/domain/attendance";
+
+import { generateTotp } from "../support/totp";
+import {
+  agencyMember,
+  arrangePastWork,
+  createStaffingWorld,
+  type Person,
+  type StaffingWorld,
+} from "./staffing-fixture";
+import { signIn } from "./support";
+
+const A11Y_TAGS = ["wcag2a", "wcag2aa", "wcag22aa"];
+const AFTER_ACTION = { timeout: 20_000 };
+const TZ = "America/New_York";
+
+async function expectNoA11yViolations(page: Page) {
+  const results = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
+  expect(results.violations).toEqual([]);
+}
+
+async function must<T>(promise: PromiseLike<{ data: T; error: unknown }>): Promise<NonNullable<T>> {
+  const { data, error } = await promise;
+  if (error) throw error;
+  if (data === null || data === undefined) throw new Error("no data");
+  return data;
+}
+
+function at(date: string, time: string): string {
+  const instant = zonedLocalToInstant(date, time, TZ);
+  if (!instant) throw new Error("bad local time");
+  return instant;
+}
+
+function addDays(date: string, days: number): string {
+  const value = new Date(`${date}T00:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+}
+
+/** Monday two weeks back: a closed period under the default week start. */
+function closedPeriodStart(): string {
+  const date = new Date(Date.now() - 14 * 86_400_000);
+  const isoDow = date.getUTCDay() === 0 ? 7 : date.getUTCDay();
+  date.setUTCDate(date.getUTCDate() - (isoDow - 1));
+  return date.toISOString().slice(0, 10);
+}
+
+async function ok(promise: PromiseLike<{ error: unknown }>): Promise<void> {
+  const { error } = await promise;
+  if (error) throw error;
+}
+
+async function signedIn(browser: Browser, email: string): Promise<Page> {
+  const page = await (await browser.newContext({ acceptDownloads: true })).newPage();
+  await signIn(page, email);
+  await expect(page).toHaveURL(/\/app$/, AFTER_ACTION);
+  return page;
+}
+
+async function downloadedText(page: Page, button: ReturnType<Page["getByRole"]>) {
+  const [download] = await Promise.all([page.waitForEvent("download"), button.click()]);
+  const file = await download.path();
+  const bytes = await readFile(file);
+  return {
+    name: download.suggestedFilename(),
+    text: bytes.toString("utf8"),
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+  };
+}
+
+test.describe.serial("payroll preparation and invoice drafting", () => {
+  test.setTimeout(240_000);
+
+  let world: StaffingWorld;
+  let finance: Person;
+  let riverside: { facilityId: string; locationId: string; relationshipId: string };
+  let tiaSheet: string;
+  let batchPath: string;
+  let draftPath: string;
+  let exportId: string;
+  const ps = closedPeriodStart();
+
+  function person(key: string) {
+    const who = world.extra[key];
+    if (!who) throw new Error(`unknown worker ${key}`);
+    return who;
+  }
+
+  async function workedWeek(
+    key: string,
+    shifts: { day: number; start: string; end: string; out?: string }[],
+  ): Promise<string> {
+    let assignmentId = "";
+    for (const shift of shifts) {
+      const date = addDays(ps, shift.day);
+      assignmentId = (
+        await arrangePastWork(world, {
+          worker: person(key),
+          facilityId: riverside.facilityId,
+          locationId: riverside.locationId,
+          startAt: at(date, shift.start),
+          endAt: at(date, shift.end),
+          events: [
+            { type: "clock_in", at: at(date, shift.start) },
+            { type: "clock_out", at: at(date, shift.out ?? shift.end) },
+          ],
+        })
+      ).assignmentId;
+    }
+    const [entry] = await must(
+      world.admin.client
+        .from("timesheet_entries")
+        .select("timesheet_id")
+        .eq("assignment_id", assignmentId),
+    );
+    const timesheetId = entry?.timesheet_id ?? "";
+    await must(person(key).client.rpc("submit_timesheet", { p_timesheet_id: timesheetId }));
+    await must(
+      world.admin.client.rpc("approve_timesheet", {
+        p_timesheet_id: timesheetId,
+        p_expected_revision: 1,
+      }),
+    );
+    await must(
+      world.admin.client.rpc("price_timesheet", {
+        p_timesheet_id: timesheetId,
+        p_expected_revision: 1,
+      }),
+    );
+    return timesheetId;
+  }
+
+  /** Finance in the browser, stepped up to AAL2 through the real verify page. */
+  async function steppedUpFinance(browser: Browser, path: string): Promise<Page> {
+    const page = await signedIn(browser, finance.email);
+    await page.goto(path);
+    await page.getByRole("link", { name: "Verify now" }).click();
+    await page.getByLabel("Authentication code").fill(generateTotp(finance.totpSecret ?? ""));
+    await page.getByRole("button", { name: "Verify" }).click();
+    await expect(page).toHaveURL(new RegExp(`${path}$`), AFTER_ACTION);
+    return page;
+  }
+
+  test.beforeAll(async ({}, testInfo) => {
+    testInfo.setTimeout(240_000);
+    world = await createStaffingWorld(`fn-${testInfo.project.name.split("-")[0] ?? "e2e"}`, [
+      { key: "tia", name: "Tia Payroll", blsExpiryDays: 400 },
+      { key: "bo", name: "Bo Payroll", blsExpiryDays: 400 },
+    ]);
+    finance = await agencyMember(world, "e2e-finance", "Fay Finance", "agency.finance", true);
+    const facilityId = await must(
+      world.admin.client.rpc("create_agency_facility", {
+        p_agency_organisation_id: world.agencyId,
+        p_name: "Riverside Clinic",
+        p_facility_type: "clinic",
+        p_timezone: TZ,
+      }),
+    );
+    const locationId = await must(
+      world.admin.client.rpc("create_facility_location", {
+        p_facility_id: facilityId,
+        p_name: "Riverside Ward",
+      }),
+    );
+    const relationshipId = await must(
+      world.admin.client.rpc("create_facility_relationship", { p_facility_id: facilityId }),
+    );
+    await world.admin.client.rpc("set_facility_relationship_status", {
+      p_relationship_id: relationshipId,
+      p_status: "active",
+    });
+    riverside = { facilityId, locationId, relationshipId };
+    const cardId = await must(
+      world.admin.client.rpc("create_rate_card", {
+        p_organisation_id: world.agencyId,
+        p_discipline_key: "cna",
+        p_relationship_id: relationshipId,
+      }),
+    );
+    const versionId = await must(
+      world.admin.client.rpc("create_rate_version", {
+        p_rate_card_id: cardId,
+        p_currency: "USD",
+        p_pay_rate_minor: 4250,
+        p_bill_rate_minor: 5800,
+        p_effective_from: addDays(ps, -30),
+      }),
+    );
+    await ok(world.admin.client.rpc("activate_rate_version", { p_version_id: versionId }));
+    tiaSheet = await workedWeek("tia", [
+      { day: 1, start: "09:00", end: "17:00" },
+      { day: 2, start: "09:00", end: "17:00", out: "16:33" },
+    ]);
+    await workedWeek("bo", [{ day: 3, start: "09:00", end: "13:00" }]);
+  });
+
+  test("Flow 1: finance prepares a payroll batch, reviews exact totals, approves and locks it", async ({
+    browser,
+  }) => {
+    const path = `/app/organisations/${world.agencyId}/payroll`;
+    const page = await steppedUpFinance(browser, path);
+    const work = page.getByRole("region", { name: "Unprepared payroll work" });
+    await expect(work).toContainText("$830.88");
+    await work.getByRole("button", { name: /^Prepare payroll batch for/ }).click();
+    await expect(page).toHaveURL(/\/payroll\/[0-9a-f-]{36}$/, AFTER_ACTION);
+    batchPath = new URL(page.url()).pathname;
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(/^PAY-\d{4}-\d{6}$/);
+    await expect(page.getByText("$830.88").first()).toBeVisible();
+    const workers = page.getByRole("region", { name: "Worker totals table" });
+    await expect(workers).toContainText("Tia Payroll");
+    await expect(workers).toContainText("$660.88");
+    await expect(workers).toContainText("Bo Payroll");
+    await expect(workers).toContainText("$170.00");
+    await page.getByRole("button", { name: "Mark reviewed" }).click();
+    await page.getByRole("button", { name: "Approve batch" }).click();
+    await page.getByRole("button", { name: "Lock batch" }).click();
+    await expect(page.getByText("A locked batch never changes.")).toBeVisible(AFTER_ACTION);
+    await expect(page.getByText("Locked", { exact: true }).first()).toBeVisible();
+    await expectNoA11yViolations(page);
+    await page.context().close();
+  });
+
+  test("Flow 2: the locked batch is exported to CSV and the export shows its checksum", async ({
+    browser,
+  }) => {
+    const page = await steppedUpFinance(browser, batchPath);
+    await page.getByRole("button", { name: "Export CSV" }).click();
+    const exports = page.getByRole("region", { name: "Payroll exports" });
+    await expect(exports).toContainText(/PAY-\d{4}-\d{6}\.csv/, AFTER_ACTION);
+    await expect(exports).toContainText("At export: locked");
+    await expect(exports).toContainText("Fay Finance");
+    await expect(exports).toContainText("$830.88");
+    const checksum = (await exports.locator("details code").first().textContent()) ?? "";
+    expect(checksum).toMatch(/^[0-9a-f]{64}$/);
+    const file = await downloadedText(
+      page,
+      exports.getByRole("button", { name: /^Download PAY-.*\(export 1\)$/ }),
+    );
+    expect(file.sha256).toBe(checksum);
+    expect(file.name).toMatch(/^PAY-\d{4}-\d{6}\.csv$/);
+    expect(file.text.split("\r\n")[0]).toBe(
+      "batch_reference,worker_reference,worker_name,period_start,period_end,work_date,facility,discipline,regular_minutes,overtime_minutes,pay_rate_minor,pay_amount_minor,currency",
+    );
+    expect(file.text).toContain(",34000,");
+    await expect(page.getByText("Exported", { exact: true }).first()).toBeVisible();
+    const exportRows = await must(
+      finance.client
+        .from("financial_exports")
+        .select("id")
+        .eq(
+          "source_reference",
+          (await page.getByRole("heading", { level: 1 }).textContent()) ?? "",
+        ),
+    );
+    exportId = exportRows[0]?.id ?? "";
+    await expectNoA11yViolations(page);
+    await page.context().close();
+  });
+
+  test("Flow 3: billable work by facility becomes an approved, locked draft invoice", async ({
+    browser,
+  }) => {
+    const path = `/app/organisations/${world.agencyId}/invoices`;
+    const page = await steppedUpFinance(browser, path);
+    const billable = page.getByRole("region", { name: "Billable work for Riverside Clinic" });
+    await expect(billable).toContainText("$1,133.90");
+    await billable
+      .getByRole("button", { name: /^Create invoice draft for Riverside Clinic/ })
+      .click();
+    await expect(page).toHaveURL(/\/invoices\/[0-9a-f-]{36}$/, AFTER_ACTION);
+    draftPath = new URL(page.url()).pathname;
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(/^INV-DRAFT-\d{4}-\d{6}$/);
+    await expect(page.getByText("Draft invoice — internal, not sent")).toBeVisible();
+    await expect(page.getByText("$1,133.90").first()).toBeVisible();
+    await page.getByRole("button", { name: "Mark reviewed" }).click();
+    await page.getByRole("button", { name: "Approve draft" }).click();
+    await page.getByRole("button", { name: "Lock draft" }).click();
+    await expect(page.getByRole("button", { name: "Export draft PDF" })).toBeVisible(AFTER_ACTION);
+    await expectNoA11yViolations(page);
+    await page.context().close();
+  });
+
+  test("Flow 4: the draft invoice is exported and shows no pay values", async ({ browser }) => {
+    const page = await steppedUpFinance(browser, draftPath);
+    const lines = page.getByRole("region", { name: "Invoice draft lines" });
+    await expect(lines).toContainText("$58.00/h");
+    await expect(lines).not.toContainText("$42.50");
+    await expect(page.getByText(/\$660\.88|\$340\.00|\$320\.88/)).toHaveCount(0);
+    await page.getByRole("button", { name: "Export draft CSV" }).click();
+    const exports = page.getByRole("region", { name: "Invoice draft exports" });
+    await expect(exports).toContainText(/-DRAFT-INVOICE\.csv/, AFTER_ACTION);
+    const csv = await downloadedText(
+      page,
+      exports.getByRole("button", { name: /^Download INV-DRAFT-.*\.csv \(export 1\)$/ }),
+    );
+    expect(csv.text.split("\r\n")[0]).toContain("bill_amount_minor");
+    expect(csv.text).not.toMatch(/pay_|,4250,|,34000,|,32088,|,17000,/);
+    await page.getByRole("button", { name: "Export draft PDF" }).click();
+    await expect(exports).toContainText(/-DRAFT-INVOICE\.pdf/, AFTER_ACTION);
+    await expectNoA11yViolations(page);
+    await page.context().close();
+  });
+
+  test("Flow 5 & 6: workers, schedulers and facilities cannot reach payroll or invoices", async ({
+    browser,
+    request,
+  }) => {
+    const paths = [
+      `/app/organisations/${world.agencyId}/payroll`,
+      `/app/organisations/${world.agencyId}/invoices`,
+      batchPath,
+      draftPath,
+    ];
+    for (const who of [person("tia"), world.scheduler, world.facilityAdmin]) {
+      const page = await signedIn(browser, who.email);
+      for (const path of paths) {
+        expect((await page.goto(path))?.status(), `${who.email} ${path}`).toBe(404);
+      }
+      const download = await page.request.post(`/app/exports/${exportId}/download`, {
+        headers: { origin: new URL(page.url()).origin },
+      });
+      expect(download.status(), `${who.email} download`).toBe(404);
+      await page.context().close();
+    }
+    const facility = await signedIn(browser, world.facilityAdmin.email);
+    for (const path of [
+      `/app/organisations/${world.facilityOrgId}/payroll`,
+      `/app/organisations/${world.facilityOrgId}/invoices`,
+    ]) {
+      expect((await facility.goto(path))?.status(), path).toBe(404);
+    }
+    await facility.context().close();
+    // Signed out, or cross-site: refused before any data is read.
+    const anonymous = await request.post(`/app/exports/${exportId}/download`, {
+      headers: { origin: "http://localhost:3100" },
+    });
+    expect(anonymous.status()).toBe(401);
+    const crossSite = await request.post(`/app/exports/${exportId}/download`, {
+      headers: { origin: "https://attacker.example" },
+    });
+    expect(crossSite.status()).toBe(403);
+  });
+
+  test("Flow 7: a new priced revision leaves the locked batch intact and flags an adjustment", async ({
+    browser,
+  }) => {
+    await ok(
+      world.admin.client.rpc("reopen_timesheet", {
+        p_timesheet_id: tiaSheet,
+        p_reason: "approved_in_error",
+      }),
+    );
+    await must(person("tia").client.rpc("submit_timesheet", { p_timesheet_id: tiaSheet }));
+    await must(
+      world.admin.client.rpc("approve_timesheet", {
+        p_timesheet_id: tiaSheet,
+        p_expected_revision: 2,
+      }),
+    );
+    await must(
+      world.admin.client.rpc("price_timesheet", {
+        p_timesheet_id: tiaSheet,
+        p_expected_revision: 2,
+      }),
+    );
+
+    const page = await signedIn(browser, finance.email);
+    await page.goto(batchPath);
+    await expect(page.getByText("Adjustment required").first()).toBeVisible();
+    await expect(page.getByText(/This batch stays exactly as approved/)).toBeVisible();
+    await expect(page.getByText("$830.88").first()).toBeVisible();
+    await expect(page.getByRole("region", { name: "Payroll lines" })).toContainText(
+      "Now revision 2",
+    );
+    await page.goto(`/app/organisations/${world.agencyId}/payroll`);
+    const issues = page.getByRole("region", { name: "Payroll issues" });
+    await expect(issues).toContainText("Adjustment required");
+    await expect(issues).toContainText(/PAY-\d{4}-\d{6} \(exported\)/);
+    await page.goto(draftPath);
+    await expect(page.getByText("Adjustment required").first()).toBeVisible();
+    await expect(page.getByText("$1,133.90").first()).toBeVisible();
+    await expectNoA11yViolations(page);
+    await page.context().close();
+  });
+});

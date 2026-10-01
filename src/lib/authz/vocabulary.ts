@@ -59,6 +59,14 @@ export const CAPABILITIES = {
   RATES_MANAGE: "rates.manage",
   PRICING_VIEW: "pricing.view",
   PRICING_RUN: "pricing.run",
+  PAYROLL_VIEW: "payroll.view",
+  PAYROLL_PREPARE: "payroll.prepare",
+  PAYROLL_APPROVE: "payroll.approve",
+  PAYROLL_EXPORT: "payroll.export",
+  INVOICE_VIEW: "invoice.view",
+  INVOICE_PREPARE: "invoice.prepare",
+  INVOICE_APPROVE: "invoice.approve",
+  INVOICE_EXPORT: "invoice.export",
 } as const;
 
 export type CapabilityKey = (typeof CAPABILITIES)[keyof typeof CAPABILITIES];
@@ -211,6 +219,21 @@ export const AUDIT_ACTIONS = {
   PRICING_REPRICED_FOR_REVISION: "pricing.repriced_for_revision",
   SHIFT_CLASSIFICATION_SET: "shift.classification_set",
   TIMESHEET_SIGNOFF_NOT_REQUIRED: "timesheet.signoff_not_required",
+  PAYROLL_SETTINGS_UPDATED: "payroll.settings_updated",
+  PAYROLL_BATCH_CREATED: "payroll.batch_created",
+  PAYROLL_BATCH_REVIEWED: "payroll.batch_reviewed",
+  PAYROLL_BATCH_APPROVED: "payroll.batch_approved",
+  PAYROLL_BATCH_LOCKED: "payroll.batch_locked",
+  PAYROLL_BATCH_CANCELLED: "payroll.batch_cancelled",
+  PAYROLL_EXPORT_CREATED: "payroll.export_created",
+  PAYROLL_EXPORT_DOWNLOADED: "payroll.export_downloaded",
+  INVOICE_DRAFT_CREATED: "invoice.draft_created",
+  INVOICE_DRAFT_REVIEWED: "invoice.draft_reviewed",
+  INVOICE_DRAFT_APPROVED: "invoice.draft_approved",
+  INVOICE_DRAFT_LOCKED: "invoice.draft_locked",
+  INVOICE_VOIDED: "invoice.voided",
+  INVOICE_EXPORT_CREATED: "invoice.export_created",
+  INVOICE_EXPORT_DOWNLOADED: "invoice.export_downloaded",
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
@@ -335,6 +358,21 @@ const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   "pricing.repriced_for_revision": "New timesheet revision priced",
   "shift.classification_set": "Shift classification set",
   "timesheet.signoff_not_required": "Facility sign-off no longer required",
+  "payroll.settings_updated": "Payroll period settings changed",
+  "payroll.batch_created": "Payroll batch prepared",
+  "payroll.batch_reviewed": "Payroll batch reviewed",
+  "payroll.batch_approved": "Payroll batch approved",
+  "payroll.batch_locked": "Payroll batch locked",
+  "payroll.batch_cancelled": "Payroll batch cancelled",
+  "payroll.export_created": "Payroll export generated",
+  "payroll.export_downloaded": "Payroll export downloaded",
+  "invoice.draft_created": "Invoice draft prepared",
+  "invoice.draft_reviewed": "Invoice draft reviewed",
+  "invoice.draft_approved": "Invoice draft approved",
+  "invoice.draft_locked": "Invoice draft locked",
+  "invoice.voided": "Invoice draft voided",
+  "invoice.export_created": "Invoice draft document generated",
+  "invoice.export_downloaded": "Invoice draft document downloaded",
 };
 
 export function auditActionLabel(action: string): string {

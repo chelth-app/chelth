@@ -392,6 +392,57 @@ export const ERROR_CODES = {
     status: 404,
     message: "That pricing record could not be found.",
   },
+  PAYROLL_NOTHING_TO_PREPARE: {
+    kind: "conflict",
+    status: 409,
+    message: "No priced work is ready for this payroll period and currency.",
+  },
+  FINANCIAL_SOURCE_SUPERSEDED: {
+    kind: "conflict",
+    status: 409,
+    message:
+      "Some included work has been revised since this was prepared. Cancel it and prepare it again.",
+  },
+  FINANCIAL_DOCUMENT_LOCKED: {
+    kind: "conflict",
+    status: 409,
+    message: "This record is locked and cannot be changed.",
+  },
+  INVALID_FINANCIAL_TRANSITION: {
+    kind: "conflict",
+    status: 409,
+    message: "This step is not available in the current status. Refresh and try again.",
+  },
+  PAYROLL_PERIOD_INVALID: {
+    kind: "validation",
+    status: 400,
+    message: "Choose the start date of a payroll period that does not overlap an existing one.",
+  },
+  PAYROLL_BATCH_NOT_FOUND: {
+    kind: "not_found",
+    status: 404,
+    message: "That payroll batch could not be found.",
+  },
+  INVOICE_DRAFT_NOT_FOUND: {
+    kind: "not_found",
+    status: 404,
+    message: "That invoice draft could not be found.",
+  },
+  FINANCIAL_EXPORT_NOT_FOUND: {
+    kind: "not_found",
+    status: 404,
+    message: "That export could not be found.",
+  },
+  INVOICE_NOTHING_TO_DRAFT: {
+    kind: "conflict",
+    status: 409,
+    message: "No billable priced work is ready for this facility, week and currency.",
+  },
+  FINANCIAL_LINE_ALREADY_INCLUDED: {
+    kind: "conflict",
+    status: 409,
+    message: "Some of this work was just included elsewhere. Refresh and try again.",
+  },
   RATE_LIMITED: {
     kind: "rate_limited",
     status: 429,

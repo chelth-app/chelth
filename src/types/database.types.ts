@@ -233,6 +233,54 @@ export type Database = {
           },
         ]
       }
+      agency_financial_settings: {
+        Row: {
+          agency_organisation_id: string
+          invoice_reference_prefix: string
+          payroll_anchor_date: string
+          payroll_period_type: Database["public"]["Enums"]["payroll_period_type"]
+          payroll_reference_prefix: string
+          payroll_week_starts_on: number
+          updated_at: string
+          updated_by_profile_id: string | null
+        }
+        Insert: {
+          agency_organisation_id: string
+          invoice_reference_prefix?: string
+          payroll_anchor_date: string
+          payroll_period_type?: Database["public"]["Enums"]["payroll_period_type"]
+          payroll_reference_prefix?: string
+          payroll_week_starts_on: number
+          updated_at?: string
+          updated_by_profile_id?: string | null
+        }
+        Update: {
+          agency_organisation_id?: string
+          invoice_reference_prefix?: string
+          payroll_anchor_date?: string
+          payroll_period_type?: Database["public"]["Enums"]["payroll_period_type"]
+          payroll_reference_prefix?: string
+          payroll_week_starts_on?: number
+          updated_at?: string
+          updated_by_profile_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agency_financial_settings_agency_organisation_id_fkey"
+            columns: ["agency_organisation_id"]
+            isOneToOne: true
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agency_financial_settings_updated_by_profile_id_fkey"
+            columns: ["updated_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agency_timesheet_settings: {
         Row: {
           agency_organisation_id: string
@@ -1711,6 +1759,564 @@ export type Database = {
         }
         Relationships: []
       }
+      financial_exports: {
+        Row: {
+          agency_organisation_id: string
+          byte_size: number
+          content_type: string
+          currency: string
+          export_number: number
+          export_version: number
+          file_name: string
+          file_ref: string | null
+          format: string
+          generated_at: string
+          generated_by_membership_id: string
+          id: string
+          invoice_draft_id: string | null
+          payroll_batch_id: string | null
+          period_end: string
+          period_start: string
+          row_count: number
+          sha256: string
+          source_reference: string
+          source_status: string
+          source_type: string
+          total_minor: number
+        }
+        Insert: {
+          agency_organisation_id: string
+          byte_size: number
+          content_type: string
+          currency: string
+          export_number: number
+          export_version: number
+          file_name: string
+          file_ref?: string | null
+          format: string
+          generated_at?: string
+          generated_by_membership_id: string
+          id?: string
+          invoice_draft_id?: string | null
+          payroll_batch_id?: string | null
+          period_end: string
+          period_start: string
+          row_count: number
+          sha256: string
+          source_reference: string
+          source_status: string
+          source_type: string
+          total_minor: number
+        }
+        Update: {
+          agency_organisation_id?: string
+          byte_size?: number
+          content_type?: string
+          currency?: string
+          export_number?: number
+          export_version?: number
+          file_name?: string
+          file_ref?: string | null
+          format?: string
+          generated_at?: string
+          generated_by_membership_id?: string
+          id?: string
+          invoice_draft_id?: string | null
+          payroll_batch_id?: string | null
+          period_end?: string
+          period_start?: string
+          row_count?: number
+          sha256?: string
+          source_reference?: string
+          source_status?: string
+          source_type?: string
+          total_minor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_exports_generated_by_membership_id_agency_organi_fkey"
+            columns: ["generated_by_membership_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id", "organisation_id"]
+          },
+          {
+            foreignKeyName: "financial_exports_invoice_draft_id_agency_organisation_id__fkey"
+            columns: [
+              "invoice_draft_id",
+              "agency_organisation_id",
+              "period_start",
+              "period_end",
+              "currency",
+            ]
+            isOneToOne: false
+            referencedRelation: "invoice_drafts"
+            referencedColumns: [
+              "id",
+              "agency_organisation_id",
+              "period_start",
+              "period_end",
+              "currency",
+            ]
+          },
+          {
+            foreignKeyName: "financial_exports_payroll_batch_id_agency_organisation_id__fkey"
+            columns: [
+              "payroll_batch_id",
+              "agency_organisation_id",
+              "period_start",
+              "period_end",
+              "currency",
+            ]
+            isOneToOne: false
+            referencedRelation: "payroll_batches"
+            referencedColumns: [
+              "id",
+              "agency_organisation_id",
+              "period_start",
+              "period_end",
+              "currency",
+            ]
+          },
+        ]
+      }
+      invoice_draft_history: {
+        Row: {
+          action: string
+          actor_membership_id: string
+          agency_organisation_id: string
+          from_status:
+            | Database["public"]["Enums"]["invoice_draft_status"]
+            | null
+          id: string
+          invoice_draft_id: string
+          note: string | null
+          occurred_at: string
+          to_status: Database["public"]["Enums"]["invoice_draft_status"]
+        }
+        Insert: {
+          action: string
+          actor_membership_id: string
+          agency_organisation_id: string
+          from_status?:
+            | Database["public"]["Enums"]["invoice_draft_status"]
+            | null
+          id?: string
+          invoice_draft_id: string
+          note?: string | null
+          occurred_at?: string
+          to_status: Database["public"]["Enums"]["invoice_draft_status"]
+        }
+        Update: {
+          action?: string
+          actor_membership_id?: string
+          agency_organisation_id?: string
+          from_status?:
+            | Database["public"]["Enums"]["invoice_draft_status"]
+            | null
+          id?: string
+          invoice_draft_id?: string
+          note?: string | null
+          occurred_at?: string
+          to_status?: Database["public"]["Enums"]["invoice_draft_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_draft_history_actor_membership_id_agency_organisat_fkey"
+            columns: ["actor_membership_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id", "organisation_id"]
+          },
+          {
+            foreignKeyName: "invoice_draft_history_invoice_draft_id_agency_organisation_fkey"
+            columns: ["invoice_draft_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "invoice_drafts"
+            referencedColumns: ["id", "agency_organisation_id"]
+          },
+        ]
+      }
+      invoice_draft_lines: {
+        Row: {
+          agency_facility_id: string
+          agency_organisation_id: string
+          agency_worker_id: string
+          bill_amount_minor: number
+          bill_overtime_minutes: number
+          bill_rate_minor: number
+          bill_regular_minutes: number
+          calculation_version: number
+          currency: string
+          discipline_key: string
+          discipline_name: string
+          entry_id: string
+          id: string
+          invoice_draft_id: string
+          line_number: number
+          period_end: string
+          period_start: string
+          priced_line_id: string
+          priced_minutes: number
+          priced_timesheet_id: string
+          profile_id: string
+          relationship_id: string
+          timesheet_id: string
+          timesheet_revision: number
+          work_date: string
+          worker_name: string
+          worker_reference: string | null
+        }
+        Insert: {
+          agency_facility_id: string
+          agency_organisation_id: string
+          agency_worker_id: string
+          bill_amount_minor: number
+          bill_overtime_minutes: number
+          bill_rate_minor: number
+          bill_regular_minutes: number
+          calculation_version: number
+          currency: string
+          discipline_key: string
+          discipline_name: string
+          entry_id: string
+          id?: string
+          invoice_draft_id: string
+          line_number: number
+          period_end: string
+          period_start: string
+          priced_line_id: string
+          priced_minutes: number
+          priced_timesheet_id: string
+          profile_id: string
+          relationship_id: string
+          timesheet_id: string
+          timesheet_revision: number
+          work_date: string
+          worker_name: string
+          worker_reference?: string | null
+        }
+        Update: {
+          agency_facility_id?: string
+          agency_organisation_id?: string
+          agency_worker_id?: string
+          bill_amount_minor?: number
+          bill_overtime_minutes?: number
+          bill_rate_minor?: number
+          bill_regular_minutes?: number
+          calculation_version?: number
+          currency?: string
+          discipline_key?: string
+          discipline_name?: string
+          entry_id?: string
+          id?: string
+          invoice_draft_id?: string
+          line_number?: number
+          period_end?: string
+          period_start?: string
+          priced_line_id?: string
+          priced_minutes?: number
+          priced_timesheet_id?: string
+          profile_id?: string
+          relationship_id?: string
+          timesheet_id?: string
+          timesheet_revision?: number
+          work_date?: string
+          worker_name?: string
+          worker_reference?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_draft_lines_invoice_draft_id_agency_organisation_i_fkey"
+            columns: [
+              "invoice_draft_id",
+              "agency_organisation_id",
+              "relationship_id",
+              "agency_facility_id",
+              "period_start",
+              "period_end",
+              "currency",
+            ]
+            isOneToOne: false
+            referencedRelation: "invoice_drafts"
+            referencedColumns: [
+              "id",
+              "agency_organisation_id",
+              "relationship_id",
+              "agency_facility_id",
+              "period_start",
+              "period_end",
+              "currency",
+            ]
+          },
+          {
+            foreignKeyName: "invoice_draft_lines_priced_line_id_priced_timesheet_id_age_fkey"
+            columns: [
+              "priced_line_id",
+              "priced_timesheet_id",
+              "agency_organisation_id",
+              "timesheet_id",
+              "timesheet_revision",
+              "entry_id",
+              "agency_worker_id",
+              "profile_id",
+              "agency_facility_id",
+              "relationship_id",
+              "discipline_key",
+              "work_date",
+              "currency",
+              "priced_minutes",
+              "bill_regular_minutes",
+              "bill_overtime_minutes",
+              "bill_rate_minor",
+              "bill_amount_minor",
+              "calculation_version",
+            ]
+            isOneToOne: false
+            referencedRelation: "priced_timesheet_lines"
+            referencedColumns: [
+              "id",
+              "priced_timesheet_id",
+              "agency_organisation_id",
+              "timesheet_id",
+              "timesheet_revision",
+              "entry_id",
+              "agency_worker_id",
+              "profile_id",
+              "agency_facility_id",
+              "relationship_id",
+              "discipline_key",
+              "local_date",
+              "currency",
+              "priced_minutes",
+              "bill_regular_minutes",
+              "bill_overtime_minutes",
+              "bill_rate_minor",
+              "bill_amount_minor",
+              "calculation_version",
+            ]
+          },
+          {
+            foreignKeyName: "invoice_draft_lines_priced_timesheet_id_agency_organisatio_fkey"
+            columns: [
+              "priced_timesheet_id",
+              "agency_organisation_id",
+              "period_start",
+              "period_end",
+              "currency",
+            ]
+            isOneToOne: false
+            referencedRelation: "priced_timesheets"
+            referencedColumns: [
+              "id",
+              "agency_organisation_id",
+              "period_start",
+              "period_end",
+              "currency",
+            ]
+          },
+        ]
+      }
+      invoice_drafts: {
+        Row: {
+          agency_facility_id: string
+          agency_name: string
+          agency_organisation_id: string
+          approved_at: string | null
+          approved_by_membership_id: string | null
+          created_at: string
+          created_by_membership_id: string
+          currency: string
+          exported_at: string | null
+          facility_name: string
+          id: string
+          line_count: number
+          locked_at: string | null
+          locked_by_membership_id: string | null
+          period_end: string
+          period_start: string
+          reference: string
+          relationship_id: string
+          reviewed_at: string | null
+          reviewed_by_membership_id: string | null
+          status: Database["public"]["Enums"]["invoice_draft_status"]
+          status_changed_at: string
+          total_bill_minor: number
+          total_priced_minutes: number
+          void_reason: string | null
+          voided_at: string | null
+          voided_by_membership_id: string | null
+        }
+        Insert: {
+          agency_facility_id: string
+          agency_name: string
+          agency_organisation_id: string
+          approved_at?: string | null
+          approved_by_membership_id?: string | null
+          created_at?: string
+          created_by_membership_id: string
+          currency: string
+          exported_at?: string | null
+          facility_name: string
+          id?: string
+          line_count: number
+          locked_at?: string | null
+          locked_by_membership_id?: string | null
+          period_end: string
+          period_start: string
+          reference: string
+          relationship_id: string
+          reviewed_at?: string | null
+          reviewed_by_membership_id?: string | null
+          status?: Database["public"]["Enums"]["invoice_draft_status"]
+          status_changed_at?: string
+          total_bill_minor: number
+          total_priced_minutes: number
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by_membership_id?: string | null
+        }
+        Update: {
+          agency_facility_id?: string
+          agency_name?: string
+          agency_organisation_id?: string
+          approved_at?: string | null
+          approved_by_membership_id?: string | null
+          created_at?: string
+          created_by_membership_id?: string
+          currency?: string
+          exported_at?: string | null
+          facility_name?: string
+          id?: string
+          line_count?: number
+          locked_at?: string | null
+          locked_by_membership_id?: string | null
+          period_end?: string
+          period_start?: string
+          reference?: string
+          relationship_id?: string
+          reviewed_at?: string | null
+          reviewed_by_membership_id?: string | null
+          status?: Database["public"]["Enums"]["invoice_draft_status"]
+          status_changed_at?: string
+          total_bill_minor?: number
+          total_priced_minutes?: number
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by_membership_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_drafts_approved_by_membership_id_agency_organisati_fkey"
+            columns: ["approved_by_membership_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id", "organisation_id"]
+          },
+          {
+            foreignKeyName: "invoice_drafts_created_by_membership_id_agency_organisatio_fkey"
+            columns: ["created_by_membership_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id", "organisation_id"]
+          },
+          {
+            foreignKeyName: "invoice_drafts_currency_fkey"
+            columns: ["currency"]
+            isOneToOne: false
+            referencedRelation: "currencies"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "invoice_drafts_locked_by_membership_id_agency_organisation_fkey"
+            columns: ["locked_by_membership_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id", "organisation_id"]
+          },
+          {
+            foreignKeyName: "invoice_drafts_relationship_id_agency_organisation_id_agen_fkey"
+            columns: [
+              "relationship_id",
+              "agency_organisation_id",
+              "agency_facility_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "agency_facility_relationships"
+            referencedColumns: [
+              "id",
+              "agency_organisation_id",
+              "agency_facility_id",
+            ]
+          },
+          {
+            foreignKeyName: "invoice_drafts_reviewed_by_membership_id_agency_organisati_fkey"
+            columns: ["reviewed_by_membership_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id", "organisation_id"]
+          },
+          {
+            foreignKeyName: "invoice_drafts_voided_by_membership_id_agency_organisation_fkey"
+            columns: ["voided_by_membership_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id", "organisation_id"]
+          },
+        ]
+      }
+      invoice_line_claims: {
+        Row: {
+          agency_organisation_id: string
+          claimed_at: string
+          invoice_draft_id: string
+          invoice_draft_line_id: string
+          priced_line_id: string
+          timesheet_id: string
+          timesheet_revision: number
+        }
+        Insert: {
+          agency_organisation_id: string
+          claimed_at?: string
+          invoice_draft_id: string
+          invoice_draft_line_id: string
+          priced_line_id: string
+          timesheet_id: string
+          timesheet_revision: number
+        }
+        Update: {
+          agency_organisation_id?: string
+          claimed_at?: string
+          invoice_draft_id?: string
+          invoice_draft_line_id?: string
+          priced_line_id?: string
+          timesheet_id?: string
+          timesheet_revision?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_line_claims_invoice_draft_line_id_invoice_draft_id_fkey"
+            columns: [
+              "invoice_draft_line_id",
+              "invoice_draft_id",
+              "agency_organisation_id",
+              "priced_line_id",
+              "timesheet_id",
+              "timesheet_revision",
+            ]
+            isOneToOne: false
+            referencedRelation: "invoice_draft_lines"
+            referencedColumns: [
+              "id",
+              "invoice_draft_id",
+              "agency_organisation_id",
+              "priced_line_id",
+              "timesheet_id",
+              "timesheet_revision",
+            ]
+          },
+        ]
+      }
       jurisdictions: {
         Row: {
           code: string
@@ -2158,6 +2764,463 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organisation_memberships"
             referencedColumns: ["id", "organisation_id"]
+          },
+        ]
+      }
+      payroll_batch_history: {
+        Row: {
+          action: string
+          actor_membership_id: string
+          agency_organisation_id: string
+          from_status:
+            | Database["public"]["Enums"]["payroll_batch_status"]
+            | null
+          id: string
+          note: string | null
+          occurred_at: string
+          payroll_batch_id: string
+          to_status: Database["public"]["Enums"]["payroll_batch_status"]
+        }
+        Insert: {
+          action: string
+          actor_membership_id: string
+          agency_organisation_id: string
+          from_status?:
+            | Database["public"]["Enums"]["payroll_batch_status"]
+            | null
+          id?: string
+          note?: string | null
+          occurred_at?: string
+          payroll_batch_id: string
+          to_status: Database["public"]["Enums"]["payroll_batch_status"]
+        }
+        Update: {
+          action?: string
+          actor_membership_id?: string
+          agency_organisation_id?: string
+          from_status?:
+            | Database["public"]["Enums"]["payroll_batch_status"]
+            | null
+          id?: string
+          note?: string | null
+          occurred_at?: string
+          payroll_batch_id?: string
+          to_status?: Database["public"]["Enums"]["payroll_batch_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_batch_history_actor_membership_id_agency_organisat_fkey"
+            columns: ["actor_membership_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id", "organisation_id"]
+          },
+          {
+            foreignKeyName: "payroll_batch_history_payroll_batch_id_agency_organisation_fkey"
+            columns: ["payroll_batch_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_batches"
+            referencedColumns: ["id", "agency_organisation_id"]
+          },
+        ]
+      }
+      payroll_batch_lines: {
+        Row: {
+          agency_facility_id: string
+          agency_organisation_id: string
+          agency_worker_id: string
+          calculation_version: number
+          currency: string
+          discipline_key: string
+          discipline_name: string
+          entry_id: string
+          facility_name: string
+          id: string
+          line_number: number
+          overtime_minutes: number
+          pay_amount_minor: number
+          pay_rate_minor: number
+          payroll_batch_id: string
+          period_end: string
+          period_start: string
+          priced_line_id: string
+          priced_timesheet_id: string
+          profile_id: string
+          regular_minutes: number
+          relationship_id: string
+          timesheet_id: string
+          timesheet_revision: number
+          work_date: string
+          worker_name: string
+          worker_reference: string | null
+        }
+        Insert: {
+          agency_facility_id: string
+          agency_organisation_id: string
+          agency_worker_id: string
+          calculation_version: number
+          currency: string
+          discipline_key: string
+          discipline_name: string
+          entry_id: string
+          facility_name: string
+          id?: string
+          line_number: number
+          overtime_minutes: number
+          pay_amount_minor: number
+          pay_rate_minor: number
+          payroll_batch_id: string
+          period_end: string
+          period_start: string
+          priced_line_id: string
+          priced_timesheet_id: string
+          profile_id: string
+          regular_minutes: number
+          relationship_id: string
+          timesheet_id: string
+          timesheet_revision: number
+          work_date: string
+          worker_name: string
+          worker_reference?: string | null
+        }
+        Update: {
+          agency_facility_id?: string
+          agency_organisation_id?: string
+          agency_worker_id?: string
+          calculation_version?: number
+          currency?: string
+          discipline_key?: string
+          discipline_name?: string
+          entry_id?: string
+          facility_name?: string
+          id?: string
+          line_number?: number
+          overtime_minutes?: number
+          pay_amount_minor?: number
+          pay_rate_minor?: number
+          payroll_batch_id?: string
+          period_end?: string
+          period_start?: string
+          priced_line_id?: string
+          priced_timesheet_id?: string
+          profile_id?: string
+          regular_minutes?: number
+          relationship_id?: string
+          timesheet_id?: string
+          timesheet_revision?: number
+          work_date?: string
+          worker_name?: string
+          worker_reference?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_batch_lines_agency_worker_id_agency_organisation_i_fkey"
+            columns: [
+              "agency_worker_id",
+              "agency_organisation_id",
+              "profile_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "agency_workers"
+            referencedColumns: ["id", "agency_organisation_id", "profile_id"]
+          },
+          {
+            foreignKeyName: "payroll_batch_lines_payroll_batch_id_agency_organisation_i_fkey"
+            columns: [
+              "payroll_batch_id",
+              "agency_organisation_id",
+              "period_start",
+              "period_end",
+              "currency",
+            ]
+            isOneToOne: false
+            referencedRelation: "payroll_batches"
+            referencedColumns: [
+              "id",
+              "agency_organisation_id",
+              "period_start",
+              "period_end",
+              "currency",
+            ]
+          },
+          {
+            foreignKeyName: "payroll_batch_lines_priced_line_id_priced_timesheet_id_age_fkey"
+            columns: [
+              "priced_line_id",
+              "priced_timesheet_id",
+              "agency_organisation_id",
+              "timesheet_id",
+              "timesheet_revision",
+              "entry_id",
+              "agency_worker_id",
+              "profile_id",
+              "agency_facility_id",
+              "relationship_id",
+              "discipline_key",
+              "work_date",
+              "currency",
+              "regular_minutes",
+              "overtime_minutes",
+              "pay_rate_minor",
+              "pay_amount_minor",
+              "calculation_version",
+            ]
+            isOneToOne: false
+            referencedRelation: "priced_timesheet_lines"
+            referencedColumns: [
+              "id",
+              "priced_timesheet_id",
+              "agency_organisation_id",
+              "timesheet_id",
+              "timesheet_revision",
+              "entry_id",
+              "agency_worker_id",
+              "profile_id",
+              "agency_facility_id",
+              "relationship_id",
+              "discipline_key",
+              "local_date",
+              "currency",
+              "pay_regular_minutes",
+              "pay_overtime_minutes",
+              "pay_rate_minor",
+              "pay_amount_minor",
+              "calculation_version",
+            ]
+          },
+        ]
+      }
+      payroll_batches: {
+        Row: {
+          agency_organisation_id: string
+          approved_at: string | null
+          approved_by_membership_id: string | null
+          cancel_reason: string | null
+          cancelled_at: string | null
+          cancelled_by_membership_id: string | null
+          created_at: string
+          created_by_membership_id: string
+          currency: string
+          exported_at: string | null
+          id: string
+          line_count: number
+          locked_at: string | null
+          locked_by_membership_id: string | null
+          payroll_period_id: string
+          period_end: string
+          period_start: string
+          reference: string
+          reviewed_at: string | null
+          reviewed_by_membership_id: string | null
+          status: Database["public"]["Enums"]["payroll_batch_status"]
+          status_changed_at: string
+          total_overtime_minutes: number
+          total_pay_minor: number
+          total_regular_minutes: number
+          worker_count: number
+        }
+        Insert: {
+          agency_organisation_id: string
+          approved_at?: string | null
+          approved_by_membership_id?: string | null
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by_membership_id?: string | null
+          created_at?: string
+          created_by_membership_id: string
+          currency: string
+          exported_at?: string | null
+          id?: string
+          line_count: number
+          locked_at?: string | null
+          locked_by_membership_id?: string | null
+          payroll_period_id: string
+          period_end: string
+          period_start: string
+          reference: string
+          reviewed_at?: string | null
+          reviewed_by_membership_id?: string | null
+          status?: Database["public"]["Enums"]["payroll_batch_status"]
+          status_changed_at?: string
+          total_overtime_minutes: number
+          total_pay_minor: number
+          total_regular_minutes: number
+          worker_count: number
+        }
+        Update: {
+          agency_organisation_id?: string
+          approved_at?: string | null
+          approved_by_membership_id?: string | null
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by_membership_id?: string | null
+          created_at?: string
+          created_by_membership_id?: string
+          currency?: string
+          exported_at?: string | null
+          id?: string
+          line_count?: number
+          locked_at?: string | null
+          locked_by_membership_id?: string | null
+          payroll_period_id?: string
+          period_end?: string
+          period_start?: string
+          reference?: string
+          reviewed_at?: string | null
+          reviewed_by_membership_id?: string | null
+          status?: Database["public"]["Enums"]["payroll_batch_status"]
+          status_changed_at?: string
+          total_overtime_minutes?: number
+          total_pay_minor?: number
+          total_regular_minutes?: number
+          worker_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_batches_approved_by_membership_id_agency_organisat_fkey"
+            columns: ["approved_by_membership_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id", "organisation_id"]
+          },
+          {
+            foreignKeyName: "payroll_batches_cancelled_by_membership_id_agency_organisa_fkey"
+            columns: ["cancelled_by_membership_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id", "organisation_id"]
+          },
+          {
+            foreignKeyName: "payroll_batches_created_by_membership_id_agency_organisati_fkey"
+            columns: ["created_by_membership_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id", "organisation_id"]
+          },
+          {
+            foreignKeyName: "payroll_batches_currency_fkey"
+            columns: ["currency"]
+            isOneToOne: false
+            referencedRelation: "currencies"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "payroll_batches_locked_by_membership_id_agency_organisatio_fkey"
+            columns: ["locked_by_membership_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id", "organisation_id"]
+          },
+          {
+            foreignKeyName: "payroll_batches_payroll_period_id_agency_organisation_id_p_fkey"
+            columns: [
+              "payroll_period_id",
+              "agency_organisation_id",
+              "period_start",
+              "period_end",
+            ]
+            isOneToOne: false
+            referencedRelation: "payroll_periods"
+            referencedColumns: [
+              "id",
+              "agency_organisation_id",
+              "period_start",
+              "period_end",
+            ]
+          },
+          {
+            foreignKeyName: "payroll_batches_reviewed_by_membership_id_agency_organisat_fkey"
+            columns: ["reviewed_by_membership_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id", "organisation_id"]
+          },
+        ]
+      }
+      payroll_line_claims: {
+        Row: {
+          agency_organisation_id: string
+          claimed_at: string
+          payroll_batch_id: string
+          payroll_batch_line_id: string
+          priced_line_id: string
+          timesheet_id: string
+          timesheet_revision: number
+        }
+        Insert: {
+          agency_organisation_id: string
+          claimed_at?: string
+          payroll_batch_id: string
+          payroll_batch_line_id: string
+          priced_line_id: string
+          timesheet_id: string
+          timesheet_revision: number
+        }
+        Update: {
+          agency_organisation_id?: string
+          claimed_at?: string
+          payroll_batch_id?: string
+          payroll_batch_line_id?: string
+          priced_line_id?: string
+          timesheet_id?: string
+          timesheet_revision?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_line_claims_payroll_batch_line_id_payroll_batch_id_fkey"
+            columns: [
+              "payroll_batch_line_id",
+              "payroll_batch_id",
+              "agency_organisation_id",
+              "priced_line_id",
+              "timesheet_id",
+              "timesheet_revision",
+            ]
+            isOneToOne: false
+            referencedRelation: "payroll_batch_lines"
+            referencedColumns: [
+              "id",
+              "payroll_batch_id",
+              "agency_organisation_id",
+              "priced_line_id",
+              "timesheet_id",
+              "timesheet_revision",
+            ]
+          },
+        ]
+      }
+      payroll_periods: {
+        Row: {
+          agency_organisation_id: string
+          created_at: string
+          id: string
+          period_end: string
+          period_start: string
+          period_type: Database["public"]["Enums"]["payroll_period_type"]
+        }
+        Insert: {
+          agency_organisation_id: string
+          created_at?: string
+          id?: string
+          period_end: string
+          period_start: string
+          period_type: Database["public"]["Enums"]["payroll_period_type"]
+        }
+        Update: {
+          agency_organisation_id?: string
+          created_at?: string
+          id?: string
+          period_end?: string
+          period_start?: string
+          period_type?: Database["public"]["Enums"]["payroll_period_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_periods_agency_organisation_id_fkey"
+            columns: ["agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -4023,6 +5086,14 @@ export type Database = {
         }
         Returns: string
       }
+      approve_invoice_draft: {
+        Args: { p_draft_id: string }
+        Returns: undefined
+      }
+      approve_payroll_batch: {
+        Args: { p_batch_id: string }
+        Returns: undefined
+      }
       approve_timesheet: {
         Args: { p_expected_revision: number; p_timesheet_id: string }
         Returns: {
@@ -4062,6 +5133,10 @@ export type Database = {
           document_id: string
           object_path: string
         }[]
+      }
+      cancel_payroll_batch: {
+        Args: { p_batch_id: string; p_reason: string }
+        Returns: undefined
       }
       cancel_shift: {
         Args: {
@@ -4191,6 +5266,19 @@ export type Database = {
         Args: { p_facility_id: string }
         Returns: string
       }
+      create_invoice_draft: {
+        Args: {
+          p_currency: string
+          p_organisation_id: string
+          p_period_start: string
+          p_relationship_id: string
+        }
+        Returns: string
+      }
+      create_invoice_export: {
+        Args: { p_draft_id: string; p_format: string }
+        Returns: string
+      }
       create_organisation: {
         Args: {
           p_name: string
@@ -4219,6 +5307,15 @@ export type Database = {
         }
         Returns: string
       }
+      create_payroll_batch: {
+        Args: {
+          p_currency: string
+          p_organisation_id: string
+          p_period_start: string
+        }
+        Returns: string
+      }
+      create_payroll_export: { Args: { p_batch_id: string }; Returns: string }
       create_rate_card: {
         Args: {
           p_classification?: Database["public"]["Enums"]["shift_classification"]
@@ -4272,6 +5369,16 @@ export type Database = {
         Args: { p_version_id: string }
         Returns: undefined
       }
+      download_financial_export: {
+        Args: { p_export_id: string }
+        Returns: {
+          byte_size: number
+          content_base64: string
+          content_type: string
+          file_name: string
+          sha256: string
+        }[]
+      }
       end_break_assignment: {
         Args: { p_assignment_id: string }
         Returns: {
@@ -4306,6 +5413,89 @@ export type Database = {
           p_sign_off: boolean
         }
         Returns: Database["public"]["Enums"]["timesheet_status"]
+      }
+      financial_reconciliation: {
+        Args: { p_organisation_id: string; p_side: string }
+        Returns: {
+          amount_minor: number
+          currency: string
+          line_count: number
+          minutes: number
+          state: string
+        }[]
+      }
+      get_agency_financial_settings: {
+        Args: { p_organisation_id: string }
+        Returns: {
+          configured: boolean
+          invoice_reference_prefix: string
+          payroll_anchor_date: string
+          payroll_period_type: Database["public"]["Enums"]["payroll_period_type"]
+          payroll_reference_prefix: string
+          payroll_week_starts_on: number
+        }[]
+      }
+      get_invoice_draft: {
+        Args: { p_draft_id: string }
+        Returns: {
+          agency_facility_id: string
+          agency_organisation_id: string
+          approved_at: string
+          approved_by_name: string
+          attention: string
+          created_at: string
+          created_by_name: string
+          currency: string
+          exported_at: string
+          facility_name: string
+          invoice_draft_id: string
+          line_count: number
+          locked_at: string
+          locked_by_name: string
+          period_end: string
+          period_start: string
+          reference: string
+          relationship_id: string
+          reviewed_at: string
+          reviewed_by_name: string
+          status: Database["public"]["Enums"]["invoice_draft_status"]
+          total_bill_minor: number
+          total_priced_minutes: number
+          void_reason: string
+          voided_at: string
+          voided_by_name: string
+        }[]
+      }
+      get_payroll_batch: {
+        Args: { p_batch_id: string }
+        Returns: {
+          agency_organisation_id: string
+          approved_at: string
+          approved_by_name: string
+          attention: string
+          cancel_reason: string
+          cancelled_at: string
+          cancelled_by_name: string
+          created_at: string
+          created_by_name: string
+          currency: string
+          exported_at: string
+          line_count: number
+          locked_at: string
+          locked_by_name: string
+          payroll_batch_id: string
+          period_end: string
+          period_start: string
+          period_type: Database["public"]["Enums"]["payroll_period_type"]
+          reference: string
+          reviewed_at: string
+          reviewed_by_name: string
+          status: Database["public"]["Enums"]["payroll_batch_status"]
+          total_overtime_minutes: number
+          total_pay_minor: number
+          total_regular_minutes: number
+          worker_count: number
+        }[]
       }
       get_priced_timesheet: {
         Args: { p_priced_timesheet_id: string }
@@ -4554,6 +5744,23 @@ export type Database = {
           state: Database["public"]["Enums"]["location_evidence_state"]
         }[]
       }
+      list_billable_work: {
+        Args: { p_organisation_id: string }
+        Returns: {
+          adjustment_required: boolean
+          agency_facility_id: string
+          currency: string
+          facility_name: string
+          line_count: number
+          period_end: string
+          period_start: string
+          relationship_id: string
+          relationship_status: string
+          total_bill_minor: number
+          total_priced_minutes: number
+          worker_count: number
+        }[]
+      }
       list_facility_request_options: {
         Args: { p_relationship_id: string }
         Returns: {
@@ -4660,6 +5867,97 @@ export type Database = {
           timezone: string
           worked_minutes: number
           worker_display_name: string
+        }[]
+      }
+      list_financial_exports: {
+        Args: { p_source_id: string; p_source_type: string }
+        Returns: {
+          byte_size: number
+          currency: string
+          export_number: number
+          export_version: number
+          file_name: string
+          file_ref: string
+          financial_export_id: string
+          format: string
+          generated_at: string
+          generated_by_name: string
+          row_count: number
+          sha256: string
+          source_attention: string
+          source_reference: string
+          source_status_at_export: string
+          source_status_now: string
+          total_minor: number
+        }[]
+      }
+      list_invoice_draft_history: {
+        Args: { p_draft_id: string }
+        Returns: {
+          action: string
+          actor_name: string
+          from_status: Database["public"]["Enums"]["invoice_draft_status"]
+          note: string
+          occurred_at: string
+          to_status: Database["public"]["Enums"]["invoice_draft_status"]
+        }[]
+      }
+      list_invoice_draft_lines: {
+        Args: { p_draft_id: string }
+        Returns: {
+          bill_amount_minor: number
+          bill_overtime_minutes: number
+          bill_rate_minor: number
+          bill_regular_minutes: number
+          current_revision: number
+          discipline_name: string
+          line_number: number
+          priced_minutes: number
+          superseded: boolean
+          timesheet_id: string
+          timesheet_revision: number
+          work_date: string
+          worker_name: string
+          worker_reference: string
+        }[]
+      }
+      list_invoice_drafts: {
+        Args: {
+          p_organisation_id: string
+          p_status?: Database["public"]["Enums"]["invoice_draft_status"]
+        }
+        Returns: {
+          attention: string
+          created_at: string
+          created_by_name: string
+          currency: string
+          export_count: number
+          facility_name: string
+          invoice_draft_id: string
+          line_count: number
+          period_end: string
+          period_start: string
+          reference: string
+          relationship_id: string
+          status: Database["public"]["Enums"]["invoice_draft_status"]
+          total_bill_minor: number
+          total_priced_minutes: number
+        }[]
+      }
+      list_invoice_issues: {
+        Args: { p_organisation_id: string }
+        Returns: {
+          current_revision: number
+          document_references: string[]
+          facility_name: string
+          invoice_draft_id: string
+          issue_code: string
+          new_revision_priced: boolean
+          period_end: string
+          period_start: string
+          prepared_revision: number
+          timesheet_id: string
+          worker_name: string
         }[]
       }
       list_location_evidence_holds: {
@@ -4789,6 +6087,102 @@ export type Database = {
           relationship_id: string
           relationship_started_at: string
           relationship_status: Database["public"]["Enums"]["relationship_status"]
+        }[]
+      }
+      list_payroll_batch_history: {
+        Args: { p_batch_id: string }
+        Returns: {
+          action: string
+          actor_name: string
+          from_status: Database["public"]["Enums"]["payroll_batch_status"]
+          note: string
+          occurred_at: string
+          to_status: Database["public"]["Enums"]["payroll_batch_status"]
+        }[]
+      }
+      list_payroll_batch_lines: {
+        Args: { p_batch_id: string }
+        Returns: {
+          agency_worker_id: string
+          calculation_version: number
+          current_revision: number
+          discipline_name: string
+          facility_name: string
+          line_number: number
+          overtime_minutes: number
+          pay_amount_minor: number
+          pay_rate_minor: number
+          priced_timesheet_id: string
+          regular_minutes: number
+          superseded: boolean
+          timesheet_id: string
+          timesheet_revision: number
+          work_date: string
+          worker_name: string
+          worker_reference: string
+        }[]
+      }
+      list_payroll_batch_workers: {
+        Args: { p_batch_id: string }
+        Returns: {
+          agency_worker_id: string
+          line_count: number
+          overtime_minutes: number
+          regular_minutes: number
+          total_pay_minor: number
+          worker_name: string
+          worker_reference: string
+        }[]
+      }
+      list_payroll_batches: {
+        Args: {
+          p_organisation_id: string
+          p_status?: Database["public"]["Enums"]["payroll_batch_status"]
+        }
+        Returns: {
+          attention: string
+          created_at: string
+          created_by_name: string
+          currency: string
+          export_count: number
+          line_count: number
+          payroll_batch_id: string
+          period_end: string
+          period_start: string
+          reference: string
+          status: Database["public"]["Enums"]["payroll_batch_status"]
+          total_pay_minor: number
+          worker_count: number
+        }[]
+      }
+      list_payroll_issues: {
+        Args: { p_organisation_id: string }
+        Returns: {
+          current_revision: number
+          document_references: string[]
+          issue_code: string
+          new_revision_priced: boolean
+          payroll_batch_id: string
+          period_end: string
+          period_start: string
+          prepared_revision: number
+          timesheet_id: string
+          worker_name: string
+        }[]
+      }
+      list_payroll_work: {
+        Args: { p_organisation_id: string }
+        Returns: {
+          adjustment_required: boolean
+          currency: string
+          line_count: number
+          period_end: string
+          period_start: string
+          timesheet_count: number
+          total_overtime_minutes: number
+          total_pay_minor: number
+          total_regular_minutes: number
+          worker_count: number
         }[]
       }
       list_priced_timesheet_lines: {
@@ -4971,6 +6365,8 @@ export type Database = {
           revision: number
         }[]
       }
+      lock_invoice_draft: { Args: { p_draft_id: string }; Returns: undefined }
+      lock_payroll_batch: { Args: { p_batch_id: string }; Returns: undefined }
       my_capabilities: {
         Args: { p_organisation_id: string }
         Returns: {
@@ -5158,6 +6554,8 @@ export type Database = {
         }
         Returns: undefined
       }
+      review_invoice_draft: { Args: { p_draft_id: string }; Returns: undefined }
+      review_payroll_batch: { Args: { p_batch_id: string }; Returns: undefined }
       revoke_credential_share: {
         Args: { p_share_id: string }
         Returns: undefined
@@ -5191,6 +6589,16 @@ export type Database = {
         Args: {
           p_facility_id: string
           p_status: Database["public"]["Enums"]["facility_status"]
+        }
+        Returns: undefined
+      }
+      set_agency_financial_settings: {
+        Args: {
+          p_invoice_reference_prefix?: string
+          p_organisation_id: string
+          p_payroll_anchor_date: string
+          p_payroll_period_type: Database["public"]["Enums"]["payroll_period_type"]
+          p_payroll_reference_prefix?: string
         }
         Returns: undefined
       }
@@ -5356,6 +6764,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      void_invoice_draft: {
+        Args: { p_draft_id: string; p_reason: string }
+        Returns: undefined
+      }
       withdraw_credential: {
         Args: { p_credential_id: string }
         Returns: undefined
@@ -5518,12 +6930,27 @@ export type Database = {
         | "unavailable"
       invite_delivery_status: "not_attempted" | "sent" | "failed" | "skipped"
       invite_status: "pending" | "accepted" | "revoked"
+      invoice_draft_status:
+        | "draft"
+        | "reviewed"
+        | "approved"
+        | "locked"
+        | "exported"
+        | "voided"
       jurisdiction_level: "country" | "subdivision"
       location_evidence_state: "retained" | "purged" | "on_hold"
       membership_status: "active" | "suspended" | "revoked"
       organisation_status: "active" | "suspended" | "archived"
       organisation_type: "agency" | "facility"
       overtime_mode: "none" | "weekly_threshold"
+      payroll_batch_status:
+        | "draft"
+        | "reviewed"
+        | "approved"
+        | "locked"
+        | "exported"
+        | "cancelled"
+      payroll_period_type: "weekly" | "biweekly"
       pricing_side: "pay" | "bill"
       profile_status: "active" | "suspended"
       rate_version_status: "draft" | "active" | "discarded"
@@ -5892,12 +7319,29 @@ export const Constants = {
       ],
       invite_delivery_status: ["not_attempted", "sent", "failed", "skipped"],
       invite_status: ["pending", "accepted", "revoked"],
+      invoice_draft_status: [
+        "draft",
+        "reviewed",
+        "approved",
+        "locked",
+        "exported",
+        "voided",
+      ],
       jurisdiction_level: ["country", "subdivision"],
       location_evidence_state: ["retained", "purged", "on_hold"],
       membership_status: ["active", "suspended", "revoked"],
       organisation_status: ["active", "suspended", "archived"],
       organisation_type: ["agency", "facility"],
       overtime_mode: ["none", "weekly_threshold"],
+      payroll_batch_status: [
+        "draft",
+        "reviewed",
+        "approved",
+        "locked",
+        "exported",
+        "cancelled",
+      ],
+      payroll_period_type: ["weekly", "biweekly"],
       pricing_side: ["pay", "bill"],
       profile_status: ["active", "suspended"],
       rate_version_status: ["draft", "active", "discarded"],
