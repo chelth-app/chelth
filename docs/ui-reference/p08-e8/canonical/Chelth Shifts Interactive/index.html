@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chelth Shifts — Locked Interactive Reference</title>
+<style>
+:root{--canvas-w:1448;--canvas-h:1086;--panel-start:1081;--panel-width:367}
+*{box-sizing:border-box} html,body{margin:0;min-height:100%;background:#eef8f5}
+body{display:grid;place-items:start center}
+.prototype{position:relative;width:min(100vw,1448px);aspect-ratio:1448/1086;overflow:hidden;background:#f7fbfa}
+.main-view{position:absolute;inset:0 auto 0 0;width:calc(var(--panel-start)/var(--canvas-w)*100%);overflow:hidden;transition:width .26s ease}
+.prototype.panel-closed .main-view{width:100%}
+.main-view img{position:absolute;inset:0 auto 0 0;width:calc(100%*var(--canvas-w)/var(--panel-start));height:100%;object-fit:fill;object-position:left top;max-width:none;user-select:none;pointer-events:none;transition:width .26s ease}
+.prototype.panel-closed .main-view img{width:100%;object-fit:fill}
+.detail-panel{position:absolute;top:0;right:0;width:calc(var(--panel-width)/var(--canvas-w)*100%);height:100%;overflow:hidden;transform:translateX(0);transition:transform .26s ease,opacity .18s ease;opacity:1;z-index:20;background:#f8fbfa}
+.prototype.panel-closed .detail-panel{transform:translateX(100%);opacity:0;pointer-events:none}
+.detail-panel img{position:absolute;top:0;left:calc(-1*var(--panel-start)/var(--panel-width)*100%);width:calc(var(--canvas-w)/var(--panel-width)*100%);height:100%;object-fit:fill;max-width:none;user-select:none;pointer-events:none}
+.hotspot{position:absolute;z-index:40;border:0;padding:0;margin:0;background:transparent;cursor:pointer}
+.hotspot:focus-visible{outline:3px solid rgba(18,107,103,.5);outline-offset:1px;border-radius:5px}
+#listTab{left:14.85%;top:35.2%;width:7%;height:3.65%}
+#calendarTab{left:21.85%;top:35.2%;width:7.9%;height:3.65%}
+#closePanel{right:1.25%;top:11.35%;width:3.1%;height:4%}
+#reopenPanel{right:0;top:9%;width:2.4%;height:82%;display:none}
+.prototype.panel-closed #reopenPanel{display:block}
+.list-hit{left:14.8%;width:59.7%;height:4.1%}
+.list-hit.r1{top:44.6%}.list-hit.r2{top:48.8%}.list-hit.r3{top:53%}.list-hit.r4{top:57.2%}.list-hit.r5{top:61.4%}.list-hit.r6{top:65.6%}.list-hit.r7{top:69.8%}.list-hit.r8{top:74%}.list-hit.r9{top:78.2%}.list-hit.r10{top:82.4%}.list-hit.r11{top:86.6%}.list-hit.r12{top:90.8%}
+.calendar-hit{width:6.45%;height:6.6%}
+.calendar-hit.c1{left:25.75%;top:28.3%}.calendar-hit.c2{left:32.55%;top:28.3%}.calendar-hit.c3{left:39.35%;top:28.3%}.calendar-hit.c4{left:46.15%;top:28.3%}.calendar-hit.c5{left:52.95%;top:28.3%}
+.calendar-hit.c6{left:25.75%;top:39%}.calendar-hit.c7{left:39.35%;top:39%}.calendar-hit.c8{left:46.15%;top:39%}.calendar-hit.c9{left:59.75%;top:39%}
+.calendar-hit.c10{left:32.55%;top:50.3%}.calendar-hit.c11{left:46.15%;top:50.3%}.calendar-hit.c12{left:66.55%;top:50.3%}
+.calendar-hit.c13{left:25.75%;top:61.5%}.calendar-hit.c14{left:39.35%;top:61.5%}.calendar-hit.c15{left:52.95%;top:61.5%}
+.view-hotspots{display:none}.view-hotspots.active{display:block}
+@media(prefers-reduced-motion:reduce){.main-view,.main-view img,.detail-panel{transition:none}}
+</style>
+</head>
+<body>
+<main class="prototype" id="prototype" aria-label="Chelth locked shifts list and calendar reference">
+  <div class="main-view"><img id="mainImage" src="assets/chelth-shifts-list-locked.png" alt="Chelth Shifts list view"></div>
+  <aside class="detail-panel" id="detailPanel" aria-label="Shift details panel"><img id="panelImage" src="assets/chelth-shifts-list-locked.png" alt=""></aside>
+  <button id="listTab" class="hotspot" type="button" aria-label="Switch to list view"></button>
+  <button id="calendarTab" class="hotspot" type="button" aria-label="Switch to calendar view"></button>
+  <button id="closePanel" class="hotspot" type="button" aria-label="Close shift details"></button>
+  <button id="reopenPanel" class="hotspot" type="button" aria-label="Reopen shift details"></button>
+
+  <div id="listHotspots" class="view-hotspots active" aria-hidden="false">
+    <button class="hotspot list-hit r1" type="button"></button><button class="hotspot list-hit r2" type="button"></button><button class="hotspot list-hit r3" type="button"></button><button class="hotspot list-hit r4" type="button"></button><button class="hotspot list-hit r5" type="button"></button><button class="hotspot list-hit r6" type="button"></button><button class="hotspot list-hit r7" type="button"></button><button class="hotspot list-hit r8" type="button"></button><button class="hotspot list-hit r9" type="button"></button><button class="hotspot list-hit r10" type="button"></button><button class="hotspot list-hit r11" type="button"></button><button class="hotspot list-hit r12" type="button"></button>
+  </div>
+
+  <div id="calendarHotspots" class="view-hotspots" aria-hidden="true">
+    <button class="hotspot calendar-hit c1" type="button"></button><button class="hotspot calendar-hit c2" type="button"></button><button class="hotspot calendar-hit c3" type="button"></button><button class="hotspot calendar-hit c4" type="button"></button><button class="hotspot calendar-hit c5" type="button"></button><button class="hotspot calendar-hit c6" type="button"></button><button class="hotspot calendar-hit c7" type="button"></button><button class="hotspot calendar-hit c8" type="button"></button><button class="hotspot calendar-hit c9" type="button"></button><button class="hotspot calendar-hit c10" type="button"></button><button class="hotspot calendar-hit c11" type="button"></button><button class="hotspot calendar-hit c12" type="button"></button><button class="hotspot calendar-hit c13" type="button"></button><button class="hotspot calendar-hit c14" type="button"></button><button class="hotspot calendar-hit c15" type="button"></button>
+  </div>
+</main>
+<script>
+(()=>{
+ const root=document.getElementById('prototype'),mainImage=document.getElementById('mainImage'),panelImage=document.getElementById('panelImage'),detailPanel=document.getElementById('detailPanel'),listHotspots=document.getElementById('listHotspots'),calendarHotspots=document.getElementById('calendarHotspots');
+ const LIST="assets/chelth-shifts-list-locked.png",CAL="assets/chelth-shifts-calendar-locked.png"; let view='list';
+ function sync(){const src=view==='list'?LIST:CAL;mainImage.src=src;panelImage.src=src;mainImage.alt=view==='list'?'Chelth Shifts list view':'Chelth Shifts calendar view'}
+ function openPanel(){root.classList.remove('panel-closed');detailPanel.setAttribute('aria-hidden','false')}
+ function closePanel(){root.classList.add('panel-closed');detailPanel.setAttribute('aria-hidden','true')}
+ function setView(next){if(!['list','calendar'].includes(next))return;view=next;sync();const isList=view==='list';listHotspots.classList.toggle('active',isList);calendarHotspots.classList.toggle('active',!isList);listHotspots.setAttribute('aria-hidden',String(!isList));calendarHotspots.setAttribute('aria-hidden',String(isList))}
+ document.getElementById('listTab').addEventListener('click',()=>setView('list'));
+ document.getElementById('calendarTab').addEventListener('click',()=>setView('calendar'));
+ document.getElementById('closePanel').addEventListener('click',closePanel);
+ document.getElementById('reopenPanel').addEventListener('click',openPanel);
+ document.querySelectorAll('.list-hit,.calendar-hit').forEach(el=>el.addEventListener('click',openPanel));
+ root.addEventListener('keydown',e=>{if(e.key==='Escape')closePanel()});
+ sync();openPanel();
+})();
+</script>
+</body></html>

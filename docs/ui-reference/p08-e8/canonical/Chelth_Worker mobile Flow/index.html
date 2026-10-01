@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chelth Worker Mobile Flow — Locked Interactive Reference</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:#eef8f5}
+body{display:grid;place-items:start center}
+.prototype{
+  position:relative;
+  width:min(100vw,1448px);
+  aspect-ratio:1448/1086;
+  overflow:hidden;
+  background:#f8fbfa;
+}
+.prototype img{
+  position:absolute; inset:0; width:100%; height:100%; object-fit:fill;
+  user-select:none; pointer-events:none;
+}
+.hotspot{
+  position:absolute; z-index:20; border:0; background:transparent; margin:0; padding:0; cursor:pointer;
+}
+.hotspot:focus-visible{
+  outline:3px solid rgba(18,107,103,.55);
+  outline-offset:1px;
+  border-radius:8px;
+}
+.toast{
+  position:absolute;
+  left:50%; bottom:2%;
+  transform:translateX(-50%) translateY(14px);
+  z-index:40; padding:10px 14px;
+  border-radius:8px;
+  background:rgba(23,39,45,.94); color:#fff;
+  font:600 12px/1.35 Inter,Arial,sans-serif;
+  opacity:0; pointer-events:none;
+  transition:.18s ease;
+  box-shadow:0 8px 20px rgba(0,0,0,.14);
+}
+.toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
+@media(prefers-reduced-motion:reduce){.toast{transition:none}}
+
+/* Phone 1 - My Shifts */
+#todayTab{left:6.2%; top:37.1%; width:6.4%; height:3.2%}
+#upcomingTab{left:12.7%; top:37.1%; width:9.0%; height:3.2%}
+#pastTab{left:21.7%; top:37.1%; width:6.2%; height:3.2%}
+#viewShiftDetails{left:5.4%; top:62.6%; width:20.3%; height:4.0%}
+#nextShiftCard{left:4.8%; top:44.2%; width:22.1%; height:19.0%}
+#upcomingShift1{left:4.8%; top:70.7%; width:22.2%; height:8.2%}
+#upcomingShift2{left:4.8%; top:79.2%; width:22.2%; height:8.2%}
+#bottomNavHome{left:7.0%; top:92.8%; width:4.4%; height:4.2%}
+#bottomNavShifts{left:13.1%; top:92.8%; width:4.7%; height:4.2%}
+#bottomNavTimesheets{left:19.1%; top:92.8%; width:6.6%; height:4.2%}
+#bottomNavMore{left:25.5%; top:92.8%; width:3.8%; height:4.2%}
+
+/* Phone 2 - Shift Details */
+#shiftBack{left:29.2%; top:28.8%; width:3.0%; height:3.8%}
+#callFacility{left:44.7%; top:55.8%; width:2.8%; height:3.3%}
+#checkInFromDetails{left:29.3%; top:89.2%; width:18.3%; height:4.0%}
+#facilityMap{left:30.1%; top:59.8%; width:17.1%; height:7.8%}
+
+/* Phone 3 - Check In / Out */
+#checkInNow{left:53.4%; top:61.4%; width:18.2%; height:4.2%}
+#checkOutBtn{left:53.3%; top:88.7%; width:18.2%; height:3.9%}
+#locationPanel{left:53.8%; top:49.3%; width:17.2%; height:10.6%}
+#checkedInState{left:53.7%; top:68.6%; width:17.2%; height:14.7%}
+
+/* Phone 4 - Timesheet */
+#submitTimesheet{left:77.3%; top:89.2%; width:18.2%; height:4.0%}
+#workedTimePanel{left:77.8%; top:46.8%; width:17.2%; height:30.4%}
+#notesField{left:78.2%; top:78.6%; width:16.6%; height:7.4%}
+</style>
+</head>
+<body>
+<main class="prototype" aria-label="Chelth Worker Mobile Flow locked reference">
+  <img src="assets/chelth-worker-mobile-flow-locked.png" alt="Chelth Worker Mobile Flow visual with My Shifts, Shift Details, Check-In/Check-Out, and Timesheet Handoff">
+
+  <button id="todayTab" class="hotspot" data-action="Show Today shifts"></button>
+  <button id="upcomingTab" class="hotspot" data-action="Show Upcoming shifts"></button>
+  <button id="pastTab" class="hotspot" data-action="Show Past shifts"></button>
+  <button id="viewShiftDetails" class="hotspot" data-action="Open Shift Details for next shift"></button>
+  <button id="nextShiftCard" class="hotspot" data-action="Open next shift"></button>
+  <button id="upcomingShift1" class="hotspot" data-action="Open upcoming shift — Maple Grove Hospital"></button>
+  <button id="upcomingShift2" class="hotspot" data-action="Open upcoming shift — Sunridge Care Center"></button>
+  <button id="bottomNavHome" class="hotspot" data-action="Go to worker home"></button>
+  <button id="bottomNavShifts" class="hotspot" data-action="Go to My Shifts"></button>
+  <button id="bottomNavTimesheets" class="hotspot" data-action="Go to Timesheets"></button>
+  <button id="bottomNavMore" class="hotspot" data-action="Open More menu"></button>
+
+  <button id="shiftBack" class="hotspot" data-action="Back to My Shifts"></button>
+  <button id="callFacility" class="hotspot" data-action="Call facility contact — Sarah Mitchell"></button>
+  <button id="checkInFromDetails" class="hotspot" data-action="Start Check-In flow"></button>
+  <button id="facilityMap" class="hotspot" data-action="Open facility map and directions"></button>
+
+  <button id="checkInNow" class="hotspot" data-action="Check In now — capture time and location"></button>
+  <button id="checkOutBtn" class="hotspot" data-action="Check Out — capture end time and location"></button>
+  <button id="locationPanel" class="hotspot" data-action="Review geofence verification details"></button>
+  <button id="checkedInState" class="hotspot" data-action="View checked-in shift status"></button>
+
+  <button id="submitTimesheet" class="hotspot" data-action="Submit prefilled timesheet"></button>
+  <button id="workedTimePanel" class="hotspot" data-action="Review worked time imported from attendance"></button>
+  <button id="notesField" class="hotspot" data-action="Add optional shift note"></button>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</main>
+<script>
+(() => {
+  const toast = document.getElementById('toast');
+  let timer;
+  function feedback(message){
+    clearTimeout(timer);
+    toast.textContent = message;
+    toast.classList.add('show');
+    timer = setTimeout(() => toast.classList.remove('show'), 1450);
+  }
+  document.querySelectorAll('[data-action]').forEach(el => {
+    el.addEventListener('click', () => feedback(el.dataset.action));
+  });
+})();
+</script>
+</body>
+</html>

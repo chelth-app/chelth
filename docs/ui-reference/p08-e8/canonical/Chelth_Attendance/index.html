@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chelth Attendance — Locked Interactive Reference</title>
+<style>
+:root{
+  --canvas-w:1536;
+  --canvas-h:1024;
+  --panel-start:1222;
+  --panel-width:314;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:#eef8f5}
+body{display:grid;place-items:start center}
+.prototype{
+  position:relative;
+  width:min(100vw,1536px);
+  aspect-ratio:1536/1024;
+  overflow:hidden;
+  background:#f8fbfa;
+}
+.main-view{
+  position:absolute;
+  inset:0 auto 0 0;
+  width:calc(var(--panel-start)/var(--canvas-w)*100%);
+  overflow:hidden;
+  transition:width .26s ease;
+}
+.prototype.panel-closed .main-view{width:100%}
+.main-view img{
+  position:absolute;
+  inset:0 auto 0 0;
+  width:calc(100%*var(--canvas-w)/var(--panel-start));
+  height:100%;
+  object-fit:fill;
+  object-position:left top;
+  max-width:none;
+  user-select:none;
+  pointer-events:none;
+  transition:width .26s ease;
+}
+.prototype.panel-closed .main-view img{
+  width:100%;
+  object-fit:fill;
+}
+.detail-panel{
+  position:absolute;
+  top:0;right:0;
+  width:calc(var(--panel-width)/var(--canvas-w)*100%);
+  height:100%;
+  overflow:hidden;
+  z-index:20;
+  transform:translateX(0);
+  opacity:1;
+  transition:transform .26s ease,opacity .18s ease;
+  background:#f8fbfa;
+}
+.prototype.panel-closed .detail-panel{
+  transform:translateX(100%);
+  opacity:0;
+  pointer-events:none;
+}
+.detail-panel img{
+  position:absolute;
+  top:0;
+  left:calc(-1*var(--panel-start)/var(--panel-width)*100%);
+  width:calc(var(--canvas-w)/var(--panel-width)*100%);
+  height:100%;
+  object-fit:fill;
+  max-width:none;
+  user-select:none;
+  pointer-events:none;
+}
+.hotspot{
+  position:absolute;
+  z-index:40;
+  border:0;
+  margin:0;
+  padding:0;
+  background:transparent;
+  cursor:pointer;
+}
+.hotspot:focus-visible{
+  outline:3px solid rgba(18,107,103,.5);
+  outline-offset:1px;
+  border-radius:6px;
+}
+
+/* Drawer */
+#closePanel{right:1.25%;top:11.5%;width:3%;height:4%}
+#reopenPanel{right:0;top:9%;width:2.2%;height:82%;display:none}
+.prototype.panel-closed #reopenPanel{display:block}
+
+/* Header filters */
+#dateFilter{left:56.1%;top:10.1%;width:12.9%;height:4.25%}
+#statusFilter{left:69.7%;top:10.1%;width:9.6%;height:4.25%}
+
+/* KPI cards */
+.kpi{top:17.2%;height:11.8%}
+#checkedIn{left:16.6%;width:15.6%}
+#lateMissing{left:32.6%;width:15.6%}
+#geofenceIssues{left:48.7%;width:15.7%}
+#completedToday{left:64.8%;width:14.4%}
+
+/* Today's Attendance */
+#viewAllAttendance{left:51.0%;top:31.0%;width:8.5%;height:3.6%}
+.att-row{left:16.6%;width:43.3%;height:4.2%}
+.att-row.r1{top:38.4%}.att-row.r2{top:42.6%}.att-row.r3{top:46.8%}.att-row.r4{top:51.0%}
+.att-row.r5{top:55.2%}.att-row.r6{top:59.4%}.att-row.r7{top:63.6%}.att-row.r8{top:67.8%}
+
+/* Exceptions */
+#viewAllExceptions{left:73.2%;top:31.0%;width:6.2%;height:3.6%}
+.exception{left:61.3%;width:18.0%;height:6.2%}
+.exception.e1{top:35.5%}.exception.e2{top:41.7%}.exception.e3{top:47.9%}.exception.e4{top:54.1%}
+
+/* Check-in verification */
+#verificationRange{left:72.9%;top:59.0%;width:6.1%;height:3.6%}
+
+/* Recent activity */
+#viewAllActivity{left:51.9%;top:70.2%;width:7.4%;height:3.4%}
+.activity{left:16.7%;width:43.0%;height:4.2%}
+.activity.a1{top:77.5%}.activity.a2{top:81.7%}.activity.a3{top:85.9%}.activity.a4{top:90.1%}.activity.a5{top:94.3%}
+
+/* Drawer actions */
+#approveOverride{left:81.3%;top:84.1%;width:8.8%;height:4.8%}
+#messageWorker{left:90.0%;top:84.1%;width:8.0%;height:4.8%}
+#viewShift{left:81.3%;top:89.5%;width:8.7%;height:4.8%}
+#markResolved{left:90.0%;top:89.5%;width:8.0%;height:4.8%}
+#mapBlock{left:81.1%;top:61.8%;width:17.0%;height:19.0%}
+
+.toast{
+  position:absolute;
+  left:50%;
+  bottom:1.8%;
+  transform:translateX(-50%) translateY(14px);
+  z-index:60;
+  padding:10px 14px;
+  border-radius:8px;
+  background:rgba(23,39,45,.94);
+  color:#fff;
+  font:600 12px/1.3 Inter,Arial,sans-serif;
+  opacity:0;
+  pointer-events:none;
+  transition:.18s ease;
+  box-shadow:0 8px 20px rgba(0,0,0,.14);
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+@media(prefers-reduced-motion:reduce){
+  .main-view,.main-view img,.detail-panel,.toast{transition:none}
+}
+</style>
+</head>
+<body>
+<main class="prototype" id="prototype" aria-label="Chelth Attendance locked interaction reference">
+  <div class="main-view"><img src="assets/chelth-attendance-locked.png" alt="Chelth Attendance dashboard"></div>
+  <aside class="detail-panel" id="detailPanel" aria-label="Attendance Details panel"><img src="assets/chelth-attendance-locked.png" alt=""></aside>
+
+  <button id="closePanel" class="hotspot" type="button" aria-label="Close attendance details"></button>
+  <button id="reopenPanel" class="hotspot" type="button" aria-label="Reopen attendance details"></button>
+
+  <button id="dateFilter" class="hotspot" data-action="Change attendance date"></button>
+  <button id="statusFilter" class="hotspot" data-action="Filter attendance by status"></button>
+
+  <button id="checkedIn" class="hotspot kpi" data-action="Filter: Checked In Now"></button>
+  <button id="lateMissing" class="hotspot kpi" data-action="Filter: Late / Missing Check-Ins"></button>
+  <button id="geofenceIssues" class="hotspot kpi" data-action="Filter: Geofence Issues"></button>
+  <button id="completedToday" class="hotspot kpi" data-action="Filter: Completed Today"></button>
+
+  <button id="viewAllAttendance" class="hotspot" data-action="View all attendance records"></button>
+  <button class="hotspot att-row r1" data-action="Open attendance details"></button>
+  <button class="hotspot att-row r2" data-action="Open attendance details"></button>
+  <button class="hotspot att-row r3" data-action="Open attendance details"></button>
+  <button class="hotspot att-row r4" data-action="Open attendance details"></button>
+  <button class="hotspot att-row r5" data-action="Open attendance details"></button>
+  <button class="hotspot att-row r6" data-action="Open attendance details"></button>
+  <button class="hotspot att-row r7" data-action="Open attendance details"></button>
+  <button class="hotspot att-row r8" data-action="Open attendance details"></button>
+
+  <button id="viewAllExceptions" class="hotspot" data-action="View all attendance exceptions"></button>
+  <button class="hotspot exception e1" data-action="Open exception details"></button>
+  <button class="hotspot exception e2" data-action="Open exception details"></button>
+  <button class="hotspot exception e3" data-action="Open exception details"></button>
+  <button class="hotspot exception e4" data-action="Open exception details"></button>
+
+  <button id="verificationRange" class="hotspot" data-action="Change verification reporting period"></button>
+
+  <button id="viewAllActivity" class="hotspot" data-action="View all attendance activity"></button>
+  <button class="hotspot activity a1" data-action="Open attendance activity"></button>
+  <button class="hotspot activity a2" data-action="Open attendance activity"></button>
+  <button class="hotspot activity a3" data-action="Open attendance activity"></button>
+  <button class="hotspot activity a4" data-action="Open attendance activity"></button>
+  <button class="hotspot activity a5" data-action="Open attendance activity"></button>
+
+  <button id="mapBlock" class="hotspot" data-action="Open attendance location verification map"></button>
+  <button id="approveOverride" class="hotspot" data-action="Approve attendance override"></button>
+  <button id="messageWorker" class="hotspot" data-action="Message worker about attendance"></button>
+  <button id="viewShift" class="hotspot" data-action="Open linked shift"></button>
+  <button id="markResolved" class="hotspot" data-action="Mark attendance exception resolved"></button>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</main>
+<script>
+(() => {
+  const root = document.getElementById('prototype');
+  const panel = document.getElementById('detailPanel');
+  const toast = document.getElementById('toast');
+  let timer;
+
+  function openPanel(){
+    root.classList.remove('panel-closed');
+    panel.setAttribute('aria-hidden','false');
+  }
+  function closePanel(){
+    root.classList.add('panel-closed');
+    panel.setAttribute('aria-hidden','true');
+  }
+  function feedback(message){
+    clearTimeout(timer);
+    toast.textContent = message;
+    toast.classList.add('show');
+    timer = setTimeout(()=>toast.classList.remove('show'),1400);
+  }
+
+  document.getElementById('closePanel').addEventListener('click',closePanel);
+  document.getElementById('reopenPanel').addEventListener('click',openPanel);
+
+  document.querySelectorAll('.att-row,.exception,.activity').forEach(el=>{
+    el.addEventListener('click',()=>{openPanel();feedback(el.dataset.action);});
+  });
+
+  document.querySelectorAll('[data-action]').forEach(el=>{
+    if(el.classList.contains('att-row')||el.classList.contains('exception')||el.classList.contains('activity')) return;
+    el.addEventListener('click',()=>feedback(el.dataset.action));
+  });
+
+  root.addEventListener('keydown',e=>{if(e.key==='Escape')closePanel()});
+})();
+</script>
+</body>
+</html>
