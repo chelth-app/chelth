@@ -102,6 +102,13 @@ select pg_temp.scalar_as((select alice from ids), 'aal2', format(
 select pg_temp.scalar_as((select bob from ids), 'aal2', format(
   'select public.create_credential_requirement(%L, ''bls_certification'', null, null, true, 0, 30, null)', (select beta from orgs)));
 
+-- Requirements are effective from the UTC date by default. Shift dates are
+-- facility-LOCAL, so near midnight UTC a shift's local date can precede the
+-- requirement's start. Backdate the fixture's requirements (owner arrangement)
+-- so evaluations never depend on the time of day the suite runs.
+update public.credential_requirements set effective_from = current_date - 30
+where agency_organisation_id in (select alpha from orgs union all select beta from orgs);
+
 -- Evidence
 create temp table ev as
 select pg_temp.evidence((select wendy from ids), 'bls_certification', null, null, current_date - 30, current_date + 400) as wendy_bls,

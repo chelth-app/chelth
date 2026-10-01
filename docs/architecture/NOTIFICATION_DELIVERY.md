@@ -162,3 +162,11 @@ the worker name for agency audiences only) and refuses facility rows unless
 the timesheet has an entry at that facility. Templates contain no times,
 totals, pay, notes or coordinates. Agency approval, sign-off and locking are
 shown in the app, not emailed (volume).
+
+## 11. Pricing (P0-E7-S1)
+
+`pricing_blocked_missing_rate` — agency `pricing.run` holders (never the
+person who ran pricing), once per blocked timesheet revision (the
+`pricing_blocks` row is the deduplication key). Content: worker name and
+week only; no rates, amounts or currencies. Link: `/pricing`. Ready-to-price
+timesheets are a UI queue, not an email.

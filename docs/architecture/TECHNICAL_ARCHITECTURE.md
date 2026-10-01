@@ -286,6 +286,23 @@ The identity and authorization design is specified in
   adjustment), `/attendance/[attendanceId]/evidence`; break buttons on
   `/my-shifts`. Code: `src/features/timesheets`, `src/lib/domain/timesheets.ts`.
 
+### Pay & bill rate foundations (P0-E7-S1)
+
+- A separate financial domain: versioned rate cards (pay and bill,
+  effective-dated, one currency, integer minor units), rounding and overtime
+  policies, and one pricing engine that prices **locked** timesheet revisions
+  into immutable snapshots ([RATE_CARD_MODEL.md](RATE_CARD_MODEL.md),
+  [PRICING_ENGINE.md](PRICING_ENGINE.md),
+  [PRICING_SNAPSHOT_MODEL.md](PRICING_SNAPSHOT_MODEL.md),
+  [ROUNDING_POLICY.md](ROUNDING_POLICY.md),
+  [OVERTIME_POLICY_FOUNDATION.md](OVERTIME_POLICY_FOUNDATION.md)).
+- Shift classification (regular/evening/night/weekend) as a controlled,
+  frozen-once-open attribute used for rate selection.
+- S7: ending a relationship releases pending facility sign-offs.
+- UI: `/rates`, `/pricing`, `/pricing/[pricedTimesheetId]`. Code:
+  `src/features/pricing`, `src/lib/domain/pricing.ts`.
+- No payroll, tax, invoicing, payments, exports or accounting integration.
+
 ### Content Security Policy
 
 `src/proxy.ts` generates a 128-bit nonce per request and sets:

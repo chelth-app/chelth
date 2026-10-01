@@ -1,0 +1,807 @@
+CHELTH — P0-E7-S1 PAY & BILL RATE FOUNDATIONS
+Stage report · 2026-10-01 · branch p0-e7-s1-pay-bill-rates (uncommitted)
+
+======================================================================
+1. EXECUTIVE SUMMARY
+======================================================================
+Chelth now has a pricing truth layer. Money consumes locked operational
+evidence, and history never depends on current configuration.
+
+  - Versioned rate cards. Each scope is agency + (one facility
+    relationship, or all facilities) + discipline + (shift type, or any).
+    Pay and bill rates are hourly, effective-dated and independent of each
+    other. Each version has one ISO 4217 currency, and every amount is an
+    integer in minor units.
+  - Rate versions:
+      * drafts can be edited;
+      * activation freezes the terms;
+      * a later version supersedes an earlier one only from its start date;
+      * overlapping active periods are impossible (exclusion constraint).
+  - One pricing engine prices a LOCKED timesheet revision from its
+    immutable approval snapshot, with exact integer arithmetic. It applies:
+      * rate precedence;
+      * per-entry rounding (off by default);
+      * weekly overtime per side (off by default).
+    The result is an immutable record with one currency.
+  - Missing, ambiguous or mixed-currency rates fail closed:
+      * nothing is priced;
+      * the timesheet appears in a "Needs attention" queue;
+      * finance is notified once.
+  - Repricing a revision is idempotent. A new locked revision gets a new
+    record, and old records stay. Later rate changes never alter priced
+    history: each line stores the applied version ids and the applied
+    values.
+  - Finance surfaces:
+      * /rates (Current, Upcoming and Superseded versions, plus policies);
+      * /pricing (Needs attention, Ready for pricing, Priced);
+      * a priced timesheet detail page explaining every amount.
+  - Least privilege:
+      * rates.manage needs AAL2;
+      * schedulers, facilities and workers see no pay, margin or pricing.
+  - S7 from P0-E6-S2 is closed. Ending a relationship releases pending
+    facility sign-offs, and a timesheet with nothing left pending locks.
+    History and audit record the transition.
+  - Validation: all 13 checks pass. Counts:
+      * pgTAP: 24 files, 1,098 assertions (A–Z covered);
+      * unit: 247 tests;
+      * integration: 90 tests;
+      * end-to-end: 110 passed, 2 skipped (desktop-only keyboard tests).
+  - Security: no open HIGH or CRITICAL finding.
+
+Not built, as instructed:
+  - payroll, payslips, ACH or bank files;
+  - tax, withholding, benefits or deductions;
+  - reimbursements or expenses;
+  - invoices or payment collection;
+  - Stripe, QuickBooks, Xero, GL postings or exports;
+  - automated payment or billing.
+
+======================================================================
+2. FINANCIAL DOMAIN BOUNDARY
+======================================================================
+Pricing tables are separate:
+  - currencies;
+  - rate_cards and rate_card_versions;
+  - rounding_policy_versions and overtime_policy_versions;
+  - priced_timesheets and priced_timesheet_lines;
+  - pricing_blocks.
+
+No pay or bill column was added to attendance_events, assignment_attendance,
+shifts, shift_assignments or timesheet_entries.
+
+Operational tables gained only:
+  - shifts.classification: a controlled operational attribute used to
+    select a rate;
+  - composite unique keys that priced lines reference.
+
+Pricing reads operational data; it never writes it.
+
+======================================================================
+3. RATE CARD SCHEMA
+======================================================================
+currencies
+  Code (^[A-Z]{3}$), name, minor_unit_digits and active flag. Seeded:
+  USD, CAD, GBP, EUR, AUD, NZD. Rows are immutable.
+
+rate_cards
+  Columns:
+    - agency;
+    - relationship_id (NULL = all facilities);
+    - discipline_key (FK to disciplines);
+    - classification (NULL = any);
+    - created_by_membership_id.
+  One card per scope (UNIQUE NULLS NOT DISTINCT). Cards are never updated
+  or deleted.
+
+rate_card_versions
+  Columns:
+    - card, version, status (draft | active | discarded);
+    - currency;
+    - pay_rate_minor and bill_rate_minor (bigint, 1 – 100,000,000);
+    - effective_from, effective_to (inclusive), superseded_from;
+    - generated effective_period;
+    - created, activated and discarded by and at.
+  Constraints:
+    - EXCLUDE (card =, effective_period &&) WHERE active;
+    - a transition trigger:
+        * drafts are editable;
+        * active versions are frozen except a one-time superseded_from;
+        * discarded versions are frozen;
+        * no delete or truncate.
+
+======================================================================
+4. RATE SCOPE & PRECEDENCE
+======================================================================
+Resolution uses the work's relationship, the shift's discipline and
+classification, and the entry's local work date.
+
+  1 relationship + discipline + classification
+  2 relationship + discipline (any classification)
+  3 all facilities + discipline + classification
+  4 all facilities + discipline (any classification)
+
+The first tier with a matching card decides:
+  - If that card has no active version for the date:
+    RATE_NOT_CONFIGURED. There is no fallback to a broader card.
+  - If more than one match exists at a tier: RATE_AMBIGUOUS. The unique
+    scope and the exclusion constraint already make this structurally
+    impossible.
+
+The applied tier is stored on every line. Worker names and free text are
+never keys.
+
+======================================================================
+5. PAY VS BILL SEPARATION
+======================================================================
+Pay and bill are separate columns, entered separately and never derived
+from each other. Each has:
+  - its own overtime policy;
+  - its own regular and overtime minute split;
+  - its own amount.
+
+Margin (bill − pay) is derived for finance display only and is never
+stored.
+
+======================================================================
+6. MONEY REPRESENTATION
+======================================================================
+Integer minor units (bigint) throughout. For example, $42.50/h is 4250.
+
+  - UI input is parsed exactly by concatenating digits (parseMajorToMinor);
+    no floating point is involved.
+  - Display builds an exact decimal string and formats it with the
+    currency's own Intl.NumberFormat rules.
+  - Zero and negative rates are rejected, so "missing" can never be
+    confused with "free".
+
+======================================================================
+7. CURRENCY MODEL
+======================================================================
+One currency per version, enforced against active rows in currencies.
+There is no FX.
+
+A priced timesheet has exactly one currency, guaranteed in two ways:
+  - priced lines carry the FK (priced_timesheet_id, currency);
+  - mixed currencies across entries block pricing with
+    RATE_CURRENCY_MISMATCH.
+
+======================================================================
+8. EFFECTIVE DATING
+======================================================================
+A version applies to [effective_from, min(effective_to + 1,
+superseded_from)) on the entry's LOCAL work date.
+
+  - Future versions can be scheduled.
+  - Activating a version that starts inside an existing open-ended (or
+    later-ending) version supersedes that version from the new start.
+  - A version starting on or before an existing active version's start is
+    refused (CHM12), as is one that would leave part of an existing
+    version ambiguous. History is never rewritten.
+  - The UI shows derived phases: Draft, Current, Upcoming, Superseded,
+    Ended, Discarded.
+
+======================================================================
+9. RATE VERSIONING
+======================================================================
+Versions are numbered per card. Lifecycle: draft → active, or
+draft → discarded.
+
+  - Drafts are edited through update_rate_version_draft, which is
+    audited as rate.updated_draft.
+  - New terms require a new version.
+  - All administration requires rates.manage at AAL2.
+  - Audit actions:
+      * rate.card_created, rate.created, rate.updated_draft;
+      * rate.discarded, rate.activated, rate.superseded.
+    Metadata carries ids, currency, minor-unit values and dates only.
+
+======================================================================
+10. SHIFT CLASSIFICATION
+======================================================================
+Enum values: regular | evening | night | weekend. Default: regular.
+
+  - Existing and new shifts are regular unless set.
+  - set_shift_classification (shift.manage) works while the shift is draft
+    or submitted. A trigger then fixes the value once the shift is open.
+  - It is shown on the shift page and editable before opening.
+  - It is never inferred from labels.
+  - Differential stacking is not implemented.
+
+======================================================================
+11. PRICING SNAPSHOT MODEL
+======================================================================
+priced_timesheets (unique per timesheet + revision)
+  - approval FK (approval, timesheet, revision);
+  - worker, period, currency;
+  - totals (raw minutes, priced minutes, overtime minutes per side, pay,
+    bill);
+  - pay and bill overtime policy versions (the FK includes a constant
+    side column);
+  - calculation version;
+  - priced_by and priced_at.
+
+priced_timesheet_lines
+  Source:
+    - entry, assignment, shift, worker, relationship, facility;
+    - discipline, classification, local date.
+  Minutes: raw, priced, and the pay/bill regular and overtime split.
+  Applied:
+    - card, version, precedence;
+    - currency, pay rate, bill rate;
+    - rounding version, mode and increment;
+    - overtime fraction per side.
+  Also: amounts and calculation version.
+
+Both tables refuse UPDATE, DELETE and TRUNCATE for every role.
+
+======================================================================
+12. PRICING ENGINE
+======================================================================
+internal.price_timesheet_revision(timesheet, expected_revision) is the
+only implementation; public.price_timesheet (pricing.run) calls it. Steps:
+
+  1. Lock the timesheet. Require locked status (CHM07) and the expected
+     revision (CHM08).
+  2. Return an existing record for this revision ('existing').
+  3. Read the current approval snapshot.
+  4. Per entry, in chronological order:
+       - resolve the rate;
+       - check the currency;
+       - apply rounding;
+       - apply overtime;
+       - compute amounts.
+  5. If there are issues:
+       - write pricing_blocks;
+       - audit pricing.failed;
+       - notify once;
+       - return 'blocked' with the issues.
+  6. Otherwise:
+       - insert the header and lines;
+       - resolve the block;
+       - audit pricing.created (and pricing.repriced_for_revision for a
+         later revision).
+
+No frontend pricing math exists. Pricing has no payroll, invoicing or
+ledger side effects.
+
+======================================================================
+13. WORKED-MINUTE SOURCE
+======================================================================
+Raw minutes come only from the approval snapshot of the locked revision,
+using worked_minutes per entry.
+
+  - Each snapshot entry is cross-checked against the locked
+    timesheet_entries row (same worked minutes and revision). Any
+    divergence fails with CHM08.
+  - Live attendance, scheduled hours and client input are never used.
+  - Not-worked (0-minute) entries are not priced.
+
+pgTAP check S asserts that priced raw minutes equal the approval total.
+
+======================================================================
+14. ROUNDING POLICY
+======================================================================
+Default: none.
+
+  - Versioned agency policy: none, or nearest 5, 6, 10 or 15 minutes.
+  - The policy in force on the work date applies.
+  - Rounding is per timesheet entry, half up:
+    round_half_up(raw / N) × N. For example, 455 at 10 minutes gives 460;
+    453 at 15 minutes gives 450.
+  - Both raw_minutes and priced_minutes are stored. Source minutes are
+    never changed.
+  - One rounding applies to both pay and bill (documented).
+
+======================================================================
+15. OVERTIME POLICY FOUNDATION
+======================================================================
+Implemented, but off unless configured.
+
+  - Separate pay and bill policies.
+  - A weekly threshold (60–10,080 minutes) and an exact multiplier
+    fraction of at least 1×.
+  - The week is the timesheet period. The policy in force on the period's
+    first day applies.
+  - Priced minutes accumulate in chronological order:
+    regular = max(0, min(priced, threshold − counted)).
+  - Documented as not legal advice. No jurisdictional rules are built in;
+    daily overtime, tiers and regular-rate methods are deferred.
+
+======================================================================
+16. CALCULATION ARITHMETIC
+======================================================================
+Calculation version 1:
+
+  round_half_up(a/b) = (2a + b) div (2b)
+  amount = round_half_up(rate × (regular × den + overtime × num) / (60 × den))
+
+Each line is rounded once to the minor unit; totals are sums of lines.
+
+Tested examples:
+  - 480 min × $42.50 = $340.00.
+  - 480 min × $58.00 = $464.00.
+  - 453 min × $42.50 = 1,925,250 / 60 = 32,087.5, rounded half up to
+    $320.88.
+  - 453 min × $58.00 = $437.90.
+  - Totals: $660.88 pay, $901.90 bill.
+  - Revision 2 with rounding to 15 minutes, pay overtime after 10 h at
+    1.5×, and a new rate of $44.00 from day 2:
+      pay $451.00 (45100 = 4400 × (120×2 + 330×3) / 120);
+      bill $450.00.
+
+======================================================================
+17. PRICING REVISION MODEL
+======================================================================
+Pricing is unique per (timesheet, revision); repricing returns the
+existing record. When a timesheet is reopened and locked again, the new
+revision is priced as a new record:
+
+  - the old record stays;
+  - the UI marks it "Superseded by revision N";
+  - the event is audited as pricing.repriced_for_revision.
+
+Pricing an old revision fails with CHM08.
+
+======================================================================
+18. MISSING / AMBIGUOUS RATE HANDLING
+======================================================================
+Any of these blocks the whole timesheet:
+  - RATE_NOT_CONFIGURED;
+  - RATE_AMBIGUOUS;
+  - RATE_CURRENCY_MISMATCH.
+
+When blocked:
+  - nothing is priced; there is no zero, no guess and no partial pricing;
+  - pricing_blocks holds the issues per entry (date, discipline,
+    classification, code) and counts attempts;
+  - /pricing "Needs attention" lists the issues with a link to Rates;
+  - "Price again" works once a rate exists, and the block is resolved,
+    not deleted.
+
+======================================================================
+19. RELATIONSHIP-END S7 RESOLUTION
+======================================================================
+A trigger fires when agency_facility_relationships.status becomes ended,
+on any path. It runs internal.release_facility_signoffs. For each
+agency_approved timesheet with that relationship's entries still pending:
+
+  - the timesheet is locked FOR UPDATE (after the relationship row, which
+    the status change already holds);
+  - those entries become not_required;
+  - timesheet_history records facility_signoff_not_required, reason
+    relationship_ended;
+  - the change is audited as timesheet.signoff_not_required, with counts;
+  - if nothing is left pending or disputed, the timesheet locks.
+
+Concurrency and authority:
+  - facility_decide_timesheet_entry now takes the relationship lock
+    (FOR SHARE) before the timesheet lock;
+  - it is refused once the relationship has ended (CHP12);
+  - an agency answering an open dispute on an ended relationship makes
+    the entry not_required, not pending.
+
+Historical decisions remain. No manual reopen is needed. Tested in pgTAP,
+integration and E2E.
+
+======================================================================
+20. CAPABILITIES
+======================================================================
+  rates.view    admin, finance, ops manager
+  rates.manage  admin, finance (AAL2)
+  pricing.view  admin, finance, ops manager
+  pricing.run   admin, finance
+
+Scheduler, recruiter, credentialing officer, healthcare worker and all
+facility roles hold none.
+
+pricing.run is not AAL2: it is deterministic, idempotent and audited, and
+cannot inject any value. Totals:
+  - admin now holds 36 capabilities;
+  - 15 capabilities are privileged.
+
+======================================================================
+21. RLS ARCHITECTURE
+======================================================================
+Every new table is deny-by-default:
+  - RLS on;
+  - authenticated holds SELECT only;
+  - no anon access.
+
+Read access:
+  - rate tables and policies: rates.view;
+  - priced tables and blocks: pricing.view;
+  - currencies: readable reference data.
+
+Facilities, workers and platform admins have no path. All writes go
+through SECURITY DEFINER functions with an empty search_path. The public
+function allow-list now has 124 entries.
+
+======================================================================
+22. STRUCTURAL INTEGRITY
+======================================================================
+Composite foreign keys:
+  - card → (organisation, agency type);
+  - card → (relationship, agency);
+  - version → (card, agency);
+  - header → (timesheet, agency, worker, person);
+  - header → (approval, timesheet, revision);
+  - line → header (id, agency, timesheet, revision) and (id, currency);
+  - line → timesheet entry (id, timesheet, assignment, shift, worker,
+    person, relationship, facility);
+  - line → shift (id, agency, discipline, classification);
+  - line → relationship (id, agency, facility);
+  - line → card (id, agency, discipline);
+  - line → version (id, card, agency) and (id, currency, pay, bill), which
+    binds the exact applied terms;
+  - overtime policy FKs include the side.
+
+Triggers:
+  - card scope must cover the line;
+  - version and policy transitions;
+  - classification fixed once a shift is open.
+
+Checks:
+  - minute splits (regular + overtime = priced);
+  - rounding and overtime field pairs.
+
+======================================================================
+23. AUDIT CHANGES
+======================================================================
+New actions (all labelled in vocabulary.ts):
+  - rate.card_created, rate.created, rate.updated_draft, rate.discarded,
+    rate.activated, rate.superseded;
+  - pricing.rounding_policy_created, pricing.overtime_policy_created,
+    pricing.policy_activated, pricing.policy_discarded;
+  - pricing.created, pricing.failed, pricing.repriced_for_revision;
+  - shift.classification_set;
+  - timesheet.signoff_not_required.
+
+Metadata contains ids, codes, currency, dates and minor-unit values only.
+
+======================================================================
+24. NOTIFICATIONS
+======================================================================
+pricing_blocked_missing_rate:
+  - goes to pricing.run holders, never the person who ran pricing;
+  - is sent once per blocked revision;
+  - contains the worker and week, with no amounts;
+  - links to /pricing.
+
+Ready-to-price is a UI queue, not an email.
+
+======================================================================
+25. RATE UI
+======================================================================
+/app/organisations/[id]/rates (rates.view):
+  - A dense table per rate card: version, phase badge, applicable dates,
+    pay/h, bill/h and currency.
+  - Activate and Discard on drafts.
+  - "New version" per card.
+  - "Add a rate": scope plus a draft version.
+  - A rounding and overtime policy table with draft forms, and the
+    legal-responsibility note.
+  - Cards are keyset-paginated.
+  - Changes require MFA step-up, prompted in place.
+
+Shift page: shows the shift type, editable while the shift is draft or
+submitted.
+
+======================================================================
+26. PRICING OPERATIONS UI
+======================================================================
+/app/organisations/[id]/pricing (pricing.view) has three keyset-paginated
+tabs:
+  - Needs attention: issues per entry, Price again, link to Rates;
+  - Ready for pricing: Price;
+  - Priced: pay, bill and superseded revisions.
+
+/pricing/[pricedTimesheetId] shows:
+  - totals (worked, priced, pay, bill, derived margin);
+  - per line: date, facility, discipline, shift type, raw and priced
+    minutes, overtime minutes, pay and bill rate, pay and bill amount,
+    applied rate version, tier, rounding and overtime;
+  - the calculation note.
+
+Amounts use currency-aware formatting. The layout uses tables and stays
+calm: no charts and no decorative effects.
+
+======================================================================
+27. SECURITY TESTS
+======================================================================
+pgTAP 210_rates (46 assertions) and 220_pricing (44 assertions), plus
+updated 000, 030, 180 (default attendance day) and _shift_fixture
+(requirements backdated, P4).
+
+  A  Agency A cannot read Agency B rates (table + RPC) .......... 210
+  B  …or pricing (table + RPC) .................................. 220
+  C  Facility reads no pay rates ................................ 210
+  D  Facility reads no pricing tables ........................... 220
+  E  Worker reads no rates/pricing; cannot price ........... 210/220
+  F  Scheduler cannot manage rates (or see them) ................ 210
+  G  Finance manages only own agency; needs AAL2 ................ 210
+  H  Active versions frozen; never deleted ...................... 210
+  I  Overlaps refused (RPC and exclusion constraint) ............ 210
+  J  Missing rate fails closed (no partial pricing) ............. 220
+  K  Duplicate scope impossible; ambiguity prevented ............ 210
+  L  No client minutes (pricing takes id + revision only) ....... 220
+  M  No client amounts (no write grant) ......................... 220
+  N  Only locked timesheets priced .............................. 220
+  O  Revision mismatch refused .................................. 220
+  P  Existing pricing unchanged after a rate change ............. 220
+  Q  New revision gets a new record; old kept ................... 220
+  R  Priced lines and headers immutable ......................... 220
+  S  Raw minutes equal the approval snapshot .................... 220
+  T  Pay ≠ bill, stored independently ....................... 210/220
+  U  Currency mismatch blocked .................................. 220
+  V  Relationship end releases pending sign-offs, locks ......... 220
+  W  Ended facility has no decision authority or view ........... 220
+  X  Platform admin has no tenant rate/pricing path ......... 210/220
+  Y  Pinned search_path on every function ....................... 000
+  Z  No anon; no direct financial writes .................. 000/210/220
+
+Also tested:
+  - rounding half-up and exact cents;
+  - overtime edges (not reached, inside an entry, exact threshold,
+    after the threshold);
+  - classification fixed once open;
+  - policy validation and single active policy per start date;
+  - idempotency;
+  - notification dedupe;
+  - precedence 2 vs 4.
+
+Full suite: 24 files, 1,098 assertions, PASS.
+
+======================================================================
+28. INTEGRATION TESTS
+======================================================================
+tests/integration/pricing.test.ts (6 tests):
+  1. Finance creates and activates a rate; it is current. A scheduler is
+     refused.
+  2. A locked timesheet is priced exactly (66088 / 90190; lines
+     34000/46400 and 32088/43790). Pricing is idempotent.
+  3. A later rate change leaves history alone; later work uses the new
+     rate (17600 / 24000).
+  4. A new revision gets its own record. A stale revision is refused
+     (CHM08).
+  5. S7: relationship end → locked, history entry, facility refused
+     (CHP12). Then a missing rate → blocked, queued, nothing priced.
+  6. Other tenant, facility, worker and scheduler see no rates or pricing.
+     Timesheet projections carry no money.
+
+Updated identity-and-organisations for the new privileged capability.
+
+Full suite: 11 files, 90 tests, PASS. This includes the P0-E6-S1 late
+clock-in test, which now passes at any time of day (P9).
+
+======================================================================
+29. E2E TESTS
+======================================================================
+tests/e2e/pricing.spec.ts runs on desktop and mobile (14 tests):
+  Flow 1  Admin steps up (real TOTP), creates a rate, activates it; it
+          shows as Current with $42.50/h and $58.00/h. Includes an axe
+          check.
+  Flow 2  "Ready for pricing" → Price → detail shows $340.00, $464.00,
+          $320.88, $437.90 and totals $660.88 / $901.90. Includes an axe
+          check.
+  Flow 3  A missing rate moves the timesheet to "Needs attention" with
+          "No active rate for this work" and a link to Rates. After a rate
+          is added, "Price again" gives $160.00 / $220.00.
+  Flow 4  A future version is Upcoming; the current version stays at
+          $42.50/h.
+  Flow 5  Facility: rates and pricing routes return 404 (agency and own
+          org); no money on its timesheet page.
+  Flow 6  Worker: rates, pricing and detail routes return 404; no money
+          on their timesheet.
+  Flow 7  Facility sees the pending entry; the relationship ends; the
+          timesheet is Locked; history shows "Facility sign-off no longer
+          required (relationship ended)"; the facility queue is empty.
+
+Full suite: 110 passed, 2 skipped, 0 failed (3.4 min) on a freshly
+restarted and reset stack, run after midnight UTC (the time window that
+exposed P4 and P9). The skips are the existing desktop-only keyboard tests
+on mobile.
+
+======================================================================
+30. FINANCIAL CALCULATION TESTS
+======================================================================
+Arithmetic (pgTAP 210/220, integration, E2E, unit):
+  - 480 and 453 minutes against $42.50 / $58.00, with exact half-cent
+    rounding;
+  - totals;
+  - the agency-wide rate (240 min → $160.00 / $220.00).
+
+Rounding:
+  - none (default);
+  - nearest 15 (453 → 450);
+  - the halfway case (455 at 10 → 460);
+  - per-entry boundary: each entry is rounded separately, in revision 2.
+
+Overtime:
+  - threshold not reached;
+  - crossed inside an entry (330 of 450 minutes);
+  - exact threshold;
+  - after the threshold;
+  - pay and bill independent (bill had no policy);
+  - a rate version change within the week (entry 1 at v1, entry 2 at v2).
+
+Other:
+  - Overnight shifts are a single entry (S2 tests); rounding applies to
+    the entry as a whole.
+  - Money parsing and formatting are exact (unit tests):
+      "1.15" → 115;
+      "123456789.99" → 12345678999;
+      CA$ and £ formatting.
+
+======================================================================
+31. SECURITY FINDINGS
+======================================================================
+Reviewed:
+  - cross-tenant pricing IDOR;
+  - pay-rate leak to facilities or workers;
+  - scheduler privilege escalation;
+  - mutable historical rates;
+  - ambiguous resolution and missing-rate fallback;
+  - float arithmetic;
+  - client-submitted amounts or minutes;
+  - pricing from unlocked timesheets;
+  - pricing racing a revision;
+  - post-lock mutation;
+  - timesheet/pricing divergence;
+  - S7;
+  - service-role exposure (bundle scan OK; none used);
+  - direct writes.
+
+  ID  Sev     Status     Finding
+  P1  MEDIUM  CLOSED     (S2 S7) Pending sign-offs stuck after a
+                         relationship ended. Now released by a trigger;
+                         tested.
+  P2  LOW     FIXED      The rate projection reported the open end of a
+                         version as the date "infinity", which crashed the
+                         Rates page. Now returns null; E2E covers it.
+  P3  LOW     FIXED      The facility could, in theory, record a sign-off
+                         while the relationship was ending. The decision
+                         now takes the relationship lock first and is
+                         refused once ended.
+  P4  LOW     OPEN       Pre-existing since P0-E4: credential requirements
+     (pre-existing)      default effective_from to the UTC current_date.
+                         Shift dates are facility-local, so a requirement
+                         created in the US evening does not yet apply to
+                         that night's shift. The pgTAP fixture is
+                         backdated so the suite no longer depends on the
+                         time of day; found because two P0-E6-S1
+                         assertions failed just after midnight UTC on the
+                         committed S2 schema as well. Fix: make the
+                         effective date explicit, or derive it in the
+                         agency's local time.
+  P9  LOW     FIXED      Pre-existing since P0-E6-S1: with no dates
+     (pre-existing)      chosen, the agency attendance list meant "shift
+                         local date = UTC date". In the US evening that is
+                         already tomorrow, so shifts in progress were
+                         missing. The default is now today in each
+                         facility's timezone plus any shift in progress
+                         (migration 20261001100500, pgTAP 180, page
+                         default). Found by the same midnight-UTC run.
+  P5  LOW     ACCEPTED   Backdated activation: a new version may start in
+                         the past and supersede the current one from that
+                         date. Already priced revisions are unaffected;
+                         unpriced locked revisions use the new rate. This
+                         is audited and intended for contract amendments.
+  P6  INFO    ACCEPTED   pricing.run is not AAL2. It is deterministic,
+                         idempotent and audited, with no value input.
+  P7  INFO    ACCEPTED   The operations manager can read pay rates and
+                         priced amounts (rates.view and pricing.view). This
+                         follows the recommended least-privilege mapping;
+                         it is configurable later.
+  P8  INFO    DOCUMENTED The overtime week is the timesheet week, which
+                         may differ from a statutory workweek. The policy
+                         is not legal advice.
+
+No open CRITICAL or HIGH finding. The completion gate is met.
+
+======================================================================
+32. KNOWN LIMITATIONS
+======================================================================
+  - Rates are hourly only. There is no flat, daily, per diem, mileage,
+    bonus, holiday, call-back or differential stacking.
+  - One rounding policy for both pay and bill, per entry only.
+  - Overtime is weekly-threshold only, with one tier.
+  - Currencies with non-2-digit minor units are not seeded. The model
+    supports the digit count; the UI parser assumes 2.
+  - No CSV rate import.
+  - No worker pay visibility.
+  - No facility bill visibility.
+  - A rate cannot be ended early without a new version or a gap: active
+    terms are frozen by design.
+  - Entries with 0 worked minutes ("not worked") are not priced.
+
+======================================================================
+33. DEFERRED ITEMS
+======================================================================
+  - Payroll preparation and export from priced snapshots.
+  - Invoice drafting from bill-side lines.
+  - Worker pay statements.
+  - Additional rule types (flat, differential, holiday, per diem) and
+    more overtime policy types (daily, tiers, regular-rate).
+  - Facility-facing bill confirmation.
+  - Explicit, local-date requirement effective dates (finding P4).
+  - Margin reporting.
+  - Rate import with validation.
+
+======================================================================
+34. MIGRATION LIST
+======================================================================
+New migrations (unmerged):
+  20261001100000_pricing_vocabulary.sql
+  20261001100100_rate_tables.sql
+  20261001100200_pricing_tables.sql
+  20261001100300_rate_rpcs.sql
+  20261001100400_pricing_engine.sql
+  20261001100500_attendance_local_today.sql   (P0-E6-S1 default-day fix, P9)
+
+No merged migration was edited (the attendance and sign-off functions are
+redefined in new migrations). Total: 46 migration files. No new
+scheduled job.
+
+======================================================================
+35. BUILD VALIDATION
+======================================================================
+  npm run format:check        PASS
+  npm run lint                PASS
+  npm run typecheck           PASS
+  npm test                    PASS (21 files, 247 tests)
+  npm run build               PASS
+  npm run check:bundle        PASS (56 browser files, no secrets)
+  npx playwright test         PASS (110 passed, 2 skipped by design)
+  npm run check:migrations    PASS (46 files)
+  supabase db reset           PASS
+  supabase db lint            PASS (no schema errors)
+  supabase test db            PASS (24 files, 1,098 assertions)
+  npm run test:integration    PASS (11 files, 90 tests)
+  npm run db:types            PASS (no drift after regeneration)
+
+======================================================================
+36. GIT STATUS
+======================================================================
+Branch p0-e7-s1-pay-bill-rates, created from 8363f6c (P0-E6-S2).
+Nothing is committed or pushed.
+
+New:
+  - 5 migrations;
+  - pgTAP 210 and 220;
+  - src/features/pricing and src/lib/domain/pricing.ts;
+  - the /rates, /pricing and /pricing/[pricedTimesheetId] routes;
+  - integration and E2E pricing tests, and unit pricing tests;
+  - 6 docs;
+  - this report.
+
+Modified:
+  - pgTAP 000, 030, 180 and _shift_fixture;
+  - the agency attendance page (facility-local default day);
+  - authz vocabulary, error codes and normalisation;
+  - notification vocabulary and templates;
+  - the timesheets domain;
+  - shifts queries and the shift page;
+  - organisation page and sections;
+  - database types;
+  - identity-and-organisations integration test;
+  - 6 docs.
+
+The shared local stack was coordinated with the other Chelth sessions:
+they stayed off it during this stage.
+
+======================================================================
+37. RECOMMENDED NEXT STAGE
+======================================================================
+P0-E7-S2: Payroll preparation and invoice drafting. Read-only exports and
+draft documents built strictly from priced snapshots:
+  - pay periods;
+  - payroll-ready line exports with checksums;
+  - draft invoices per facility relationship from bill-side lines;
+  - approval and locking of exports.
+
+Still no payment execution or accounting integration.
+
+Before that:
+  - fix finding P4 (local-date requirement effectiveness);
+  - decide worker pay visibility;
+  - decide whether operations managers keep pricing.view.

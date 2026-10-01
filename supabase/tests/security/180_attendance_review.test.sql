@@ -11,7 +11,7 @@ begin;
 \ir _shift_fixture.psql
 \ir _attendance_helpers.psql
 
-select plan(52);
+select plan(53);
 
 -- Missed clock-in: accepted, started 40 minutes ago, never clocked.
 -- Missed clock-out: clocked in 10 h ago, shift ended 2 h ago.
@@ -193,5 +193,9 @@ select throws_ok(pg_temp.as_sql((select alice from ids), format(
 select throws_ok(pg_temp.as_sql(null, format('select * from public.list_my_attendance(%L)', (select alpha from orgs))),
   '42501', null, 'X. anon cannot call attendance RPCs');
 
+select ok(exists (select 1 from jsonb_array_elements(pg_temp.query_as((select alice from ids), 'aal1',
+  format('select assignment_id from public.list_agency_attendance(%L)', (select alpha from orgs)))) r
+  where (r ->> 'assignment_id')::uuid = (select missed_in from p)),
+  'the default attendance view is facility-local today plus shifts in progress (never the UTC date)');
 select * from finish();
 rollback;

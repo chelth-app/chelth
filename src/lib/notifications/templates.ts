@@ -300,6 +300,17 @@ function content(event: NotificationEvent, data: NotificationTemplateData): Cont
         details: [],
         cta: "Review timesheet",
       };
+    case "pricing_blocked_missing_rate":
+      return {
+        subject: `Pricing blocked: ${worker}, ${period(data)}`,
+        heading: "A locked timesheet could not be priced",
+        paragraphs: [
+          `${worker}'s timesheet for ${period(data)} needs a rate that is not configured.`,
+          "Open pricing in CHELTH to see which work is missing a rate.",
+        ],
+        details: [],
+        cta: "Open pricing",
+      };
     case "relationship_suspended":
     case "relationship_ended": {
       const verb = event === "relationship_ended" ? "ended" : "suspended";

@@ -84,3 +84,26 @@ A locked or approved timesheet never changes silently:
   timesheet to the worker as a new revision.
 
 Every step is in `timesheet_history` and the audit log (codes only).
+
+## 5. Relationship ended while sign-off is pending (P0-E7-S1, closes S2 S7)
+
+When a relationship becomes `ended` (any path), a trigger on
+`agency_facility_relationships` runs `internal.release_facility_signoffs`:
+
+- for each `agency_approved` timesheet with entries of that relationship still
+  `pending` (locked `FOR UPDATE`, after the relationship row the status
+  change already holds): those entries become `not_required`;
+- each release is recorded in `timesheet_history`
+  (`facility_signoff_not_required`, reason `relationship_ended`) and audited
+  (`timesheet.signoff_not_required` with counts);
+- if nothing is left `pending` or `disputed`, the timesheet locks
+  (history + audit) — no manual reopen or re-approval;
+- earlier facility decisions stay as they were; nothing is deleted.
+
+Facility decisions now take the relationship lock (`FOR SHARE`) before the
+timesheet lock and are refused once the relationship has ended (`CHP12`), so
+a sign-off and an ending cannot interleave. An open discrepancy on an ended
+relationship is answered by the agency ("times confirmed"): the entry then
+becomes `not_required` instead of returning to the facility, and the
+timesheet locks if complete. Approval already treats ended relationships as
+`not_required`.

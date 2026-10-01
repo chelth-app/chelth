@@ -107,6 +107,7 @@ describe("organisations, capabilities and AAL2", () => {
       "membership.invite",
       "membership.manage",
       "organisation.manage",
+      "rates.manage",
       "relationship.manage",
       "role.assign",
       "worker.manage",

@@ -1592,6 +1592,27 @@ export type Database = {
           },
         ]
       }
+      currencies: {
+        Row: {
+          active: boolean
+          code: string
+          minor_unit_digits: number
+          name: string
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          minor_unit_digits: number
+          name: string
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          minor_unit_digits?: number
+          name?: string
+        }
+        Relationships: []
+      }
       disciplines: {
         Row: {
           is_active: boolean
@@ -2061,6 +2082,85 @@ export type Database = {
           },
         ]
       }
+      overtime_policy_versions: {
+        Row: {
+          activated_at: string | null
+          activated_by_membership_id: string | null
+          agency_organisation_id: string
+          agency_organisation_type: Database["public"]["Enums"]["organisation_type"]
+          created_at: string
+          created_by_membership_id: string
+          discarded_at: string | null
+          effective_from: string
+          id: string
+          mode: Database["public"]["Enums"]["overtime_mode"]
+          multiplier_denominator: number | null
+          multiplier_numerator: number | null
+          side: Database["public"]["Enums"]["pricing_side"]
+          status: Database["public"]["Enums"]["rate_version_status"]
+          version: number
+          weekly_threshold_minutes: number | null
+        }
+        Insert: {
+          activated_at?: string | null
+          activated_by_membership_id?: string | null
+          agency_organisation_id: string
+          agency_organisation_type?: Database["public"]["Enums"]["organisation_type"]
+          created_at?: string
+          created_by_membership_id: string
+          discarded_at?: string | null
+          effective_from: string
+          id?: string
+          mode: Database["public"]["Enums"]["overtime_mode"]
+          multiplier_denominator?: number | null
+          multiplier_numerator?: number | null
+          side: Database["public"]["Enums"]["pricing_side"]
+          status?: Database["public"]["Enums"]["rate_version_status"]
+          version: number
+          weekly_threshold_minutes?: number | null
+        }
+        Update: {
+          activated_at?: string | null
+          activated_by_membership_id?: string | null
+          agency_organisation_id?: string
+          agency_organisation_type?: Database["public"]["Enums"]["organisation_type"]
+          created_at?: string
+          created_by_membership_id?: string
+          discarded_at?: string | null
+          effective_from?: string
+          id?: string
+          mode?: Database["public"]["Enums"]["overtime_mode"]
+          multiplier_denominator?: number | null
+          multiplier_numerator?: number | null
+          side?: Database["public"]["Enums"]["pricing_side"]
+          status?: Database["public"]["Enums"]["rate_version_status"]
+          version?: number
+          weekly_threshold_minutes?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "overtime_policy_versions_activated_by_membership_id_agency_fkey"
+            columns: ["activated_by_membership_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id", "organisation_id"]
+          },
+          {
+            foreignKeyName: "overtime_policy_versions_agency_organisation_id_agency_org_fkey"
+            columns: ["agency_organisation_id", "agency_organisation_type"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id", "type"]
+          },
+          {
+            foreignKeyName: "overtime_policy_versions_created_by_membership_id_agency_o_fkey"
+            columns: ["created_by_membership_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id", "organisation_id"]
+          },
+        ]
+      }
       platform_admins: {
         Row: {
           grant_reason: string
@@ -2102,6 +2202,444 @@ export type Database = {
           },
         ]
       }
+      priced_timesheet_lines: {
+        Row: {
+          agency_facility_id: string
+          agency_organisation_id: string
+          agency_worker_id: string
+          assignment_id: string
+          bill_amount_minor: number
+          bill_overtime_denominator: number | null
+          bill_overtime_minutes: number
+          bill_overtime_numerator: number | null
+          bill_rate_minor: number
+          bill_regular_minutes: number
+          calculation_version: number
+          classification: Database["public"]["Enums"]["shift_classification"]
+          currency: string
+          discipline_key: string
+          entry_id: string
+          id: string
+          line_number: number
+          local_date: string
+          pay_amount_minor: number
+          pay_overtime_denominator: number | null
+          pay_overtime_minutes: number
+          pay_overtime_numerator: number | null
+          pay_rate_minor: number
+          pay_regular_minutes: number
+          priced_minutes: number
+          priced_timesheet_id: string
+          profile_id: string
+          rate_card_id: string
+          rate_precedence: number
+          rate_version_id: string
+          raw_minutes: number
+          relationship_id: string
+          rounding_increment_minutes: number | null
+          rounding_mode: Database["public"]["Enums"]["rounding_mode"]
+          rounding_policy_version_id: string | null
+          shift_id: string
+          timesheet_id: string
+          timesheet_revision: number
+        }
+        Insert: {
+          agency_facility_id: string
+          agency_organisation_id: string
+          agency_worker_id: string
+          assignment_id: string
+          bill_amount_minor: number
+          bill_overtime_denominator?: number | null
+          bill_overtime_minutes: number
+          bill_overtime_numerator?: number | null
+          bill_rate_minor: number
+          bill_regular_minutes: number
+          calculation_version: number
+          classification: Database["public"]["Enums"]["shift_classification"]
+          currency: string
+          discipline_key: string
+          entry_id: string
+          id?: string
+          line_number: number
+          local_date: string
+          pay_amount_minor: number
+          pay_overtime_denominator?: number | null
+          pay_overtime_minutes: number
+          pay_overtime_numerator?: number | null
+          pay_rate_minor: number
+          pay_regular_minutes: number
+          priced_minutes: number
+          priced_timesheet_id: string
+          profile_id: string
+          rate_card_id: string
+          rate_precedence: number
+          rate_version_id: string
+          raw_minutes: number
+          relationship_id: string
+          rounding_increment_minutes?: number | null
+          rounding_mode: Database["public"]["Enums"]["rounding_mode"]
+          rounding_policy_version_id?: string | null
+          shift_id: string
+          timesheet_id: string
+          timesheet_revision: number
+        }
+        Update: {
+          agency_facility_id?: string
+          agency_organisation_id?: string
+          agency_worker_id?: string
+          assignment_id?: string
+          bill_amount_minor?: number
+          bill_overtime_denominator?: number | null
+          bill_overtime_minutes?: number
+          bill_overtime_numerator?: number | null
+          bill_rate_minor?: number
+          bill_regular_minutes?: number
+          calculation_version?: number
+          classification?: Database["public"]["Enums"]["shift_classification"]
+          currency?: string
+          discipline_key?: string
+          entry_id?: string
+          id?: string
+          line_number?: number
+          local_date?: string
+          pay_amount_minor?: number
+          pay_overtime_denominator?: number | null
+          pay_overtime_minutes?: number
+          pay_overtime_numerator?: number | null
+          pay_rate_minor?: number
+          pay_regular_minutes?: number
+          priced_minutes?: number
+          priced_timesheet_id?: string
+          profile_id?: string
+          rate_card_id?: string
+          rate_precedence?: number
+          rate_version_id?: string
+          raw_minutes?: number
+          relationship_id?: string
+          rounding_increment_minutes?: number | null
+          rounding_mode?: Database["public"]["Enums"]["rounding_mode"]
+          rounding_policy_version_id?: string | null
+          shift_id?: string
+          timesheet_id?: string
+          timesheet_revision?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "priced_timesheet_lines_entry_id_timesheet_id_assignment_id_fkey"
+            columns: [
+              "entry_id",
+              "timesheet_id",
+              "assignment_id",
+              "shift_id",
+              "agency_worker_id",
+              "profile_id",
+              "relationship_id",
+              "agency_facility_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "timesheet_entries"
+            referencedColumns: [
+              "id",
+              "timesheet_id",
+              "assignment_id",
+              "shift_id",
+              "agency_worker_id",
+              "profile_id",
+              "relationship_id",
+              "agency_facility_id",
+            ]
+          },
+          {
+            foreignKeyName: "priced_timesheet_lines_priced_timesheet_id_agency_organisa_fkey"
+            columns: [
+              "priced_timesheet_id",
+              "agency_organisation_id",
+              "timesheet_id",
+              "timesheet_revision",
+            ]
+            isOneToOne: false
+            referencedRelation: "priced_timesheets"
+            referencedColumns: [
+              "id",
+              "agency_organisation_id",
+              "timesheet_id",
+              "timesheet_revision",
+            ]
+          },
+          {
+            foreignKeyName: "priced_timesheet_lines_priced_timesheet_id_currency_fkey"
+            columns: ["priced_timesheet_id", "currency"]
+            isOneToOne: false
+            referencedRelation: "priced_timesheets"
+            referencedColumns: ["id", "currency"]
+          },
+          {
+            foreignKeyName: "priced_timesheet_lines_rate_card_id_agency_organisation_id_fkey"
+            columns: [
+              "rate_card_id",
+              "agency_organisation_id",
+              "discipline_key",
+            ]
+            isOneToOne: false
+            referencedRelation: "rate_cards"
+            referencedColumns: [
+              "id",
+              "agency_organisation_id",
+              "discipline_key",
+            ]
+          },
+          {
+            foreignKeyName: "priced_timesheet_lines_rate_version_id_currency_pay_rate_m_fkey"
+            columns: [
+              "rate_version_id",
+              "currency",
+              "pay_rate_minor",
+              "bill_rate_minor",
+            ]
+            isOneToOne: false
+            referencedRelation: "rate_card_versions"
+            referencedColumns: [
+              "id",
+              "currency",
+              "pay_rate_minor",
+              "bill_rate_minor",
+            ]
+          },
+          {
+            foreignKeyName: "priced_timesheet_lines_rate_version_id_rate_card_id_agency_fkey"
+            columns: [
+              "rate_version_id",
+              "rate_card_id",
+              "agency_organisation_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "rate_card_versions"
+            referencedColumns: ["id", "rate_card_id", "agency_organisation_id"]
+          },
+          {
+            foreignKeyName: "priced_timesheet_lines_relationship_id_agency_organisation_fkey"
+            columns: [
+              "relationship_id",
+              "agency_organisation_id",
+              "agency_facility_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "agency_facility_relationships"
+            referencedColumns: [
+              "id",
+              "agency_organisation_id",
+              "agency_facility_id",
+            ]
+          },
+          {
+            foreignKeyName: "priced_timesheet_lines_rounding_policy_version_id_agency_o_fkey"
+            columns: ["rounding_policy_version_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "rounding_policy_versions"
+            referencedColumns: ["id", "agency_organisation_id"]
+          },
+          {
+            foreignKeyName: "priced_timesheet_lines_shift_id_agency_organisation_id_dis_fkey"
+            columns: [
+              "shift_id",
+              "agency_organisation_id",
+              "discipline_key",
+              "classification",
+            ]
+            isOneToOne: false
+            referencedRelation: "shifts"
+            referencedColumns: [
+              "id",
+              "agency_organisation_id",
+              "discipline_key",
+              "classification",
+            ]
+          },
+        ]
+      }
+      priced_timesheets: {
+        Row: {
+          agency_organisation_id: string
+          agency_worker_id: string
+          approval_id: string
+          bill_overtime_policy_version_id: string | null
+          bill_side: Database["public"]["Enums"]["pricing_side"] | null
+          calculation_version: number
+          currency: string
+          id: string
+          line_count: number
+          pay_overtime_policy_version_id: string | null
+          pay_side: Database["public"]["Enums"]["pricing_side"] | null
+          period_end: string
+          period_start: string
+          priced_at: string
+          priced_by_membership_id: string
+          profile_id: string
+          timesheet_id: string
+          timesheet_revision: number
+          total_bill_minor: number
+          total_bill_overtime_minutes: number
+          total_pay_minor: number
+          total_pay_overtime_minutes: number
+          total_priced_minutes: number
+          total_raw_minutes: number
+        }
+        Insert: {
+          agency_organisation_id: string
+          agency_worker_id: string
+          approval_id: string
+          bill_overtime_policy_version_id?: string | null
+          bill_side?: Database["public"]["Enums"]["pricing_side"] | null
+          calculation_version: number
+          currency: string
+          id?: string
+          line_count: number
+          pay_overtime_policy_version_id?: string | null
+          pay_side?: Database["public"]["Enums"]["pricing_side"] | null
+          period_end: string
+          period_start: string
+          priced_at?: string
+          priced_by_membership_id: string
+          profile_id: string
+          timesheet_id: string
+          timesheet_revision: number
+          total_bill_minor: number
+          total_bill_overtime_minutes: number
+          total_pay_minor: number
+          total_pay_overtime_minutes: number
+          total_priced_minutes: number
+          total_raw_minutes: number
+        }
+        Update: {
+          agency_organisation_id?: string
+          agency_worker_id?: string
+          approval_id?: string
+          bill_overtime_policy_version_id?: string | null
+          bill_side?: Database["public"]["Enums"]["pricing_side"] | null
+          calculation_version?: number
+          currency?: string
+          id?: string
+          line_count?: number
+          pay_overtime_policy_version_id?: string | null
+          pay_side?: Database["public"]["Enums"]["pricing_side"] | null
+          period_end?: string
+          period_start?: string
+          priced_at?: string
+          priced_by_membership_id?: string
+          profile_id?: string
+          timesheet_id?: string
+          timesheet_revision?: number
+          total_bill_minor?: number
+          total_bill_overtime_minutes?: number
+          total_pay_minor?: number
+          total_pay_overtime_minutes?: number
+          total_priced_minutes?: number
+          total_raw_minutes?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "priced_timesheets_approval_id_timesheet_id_timesheet_revis_fkey"
+            columns: ["approval_id", "timesheet_id", "timesheet_revision"]
+            isOneToOne: false
+            referencedRelation: "timesheet_approvals"
+            referencedColumns: ["id", "timesheet_id", "revision"]
+          },
+          {
+            foreignKeyName: "priced_timesheets_bill_overtime_policy_version_id_agency_o_fkey"
+            columns: [
+              "bill_overtime_policy_version_id",
+              "agency_organisation_id",
+              "bill_side",
+            ]
+            isOneToOne: false
+            referencedRelation: "overtime_policy_versions"
+            referencedColumns: ["id", "agency_organisation_id", "side"]
+          },
+          {
+            foreignKeyName: "priced_timesheets_currency_fkey"
+            columns: ["currency"]
+            isOneToOne: false
+            referencedRelation: "currencies"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "priced_timesheets_pay_overtime_policy_version_id_agency_or_fkey"
+            columns: [
+              "pay_overtime_policy_version_id",
+              "agency_organisation_id",
+              "pay_side",
+            ]
+            isOneToOne: false
+            referencedRelation: "overtime_policy_versions"
+            referencedColumns: ["id", "agency_organisation_id", "side"]
+          },
+          {
+            foreignKeyName: "priced_timesheets_priced_by_membership_id_agency_organisat_fkey"
+            columns: ["priced_by_membership_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id", "organisation_id"]
+          },
+          {
+            foreignKeyName: "priced_timesheets_timesheet_id_agency_organisation_id_agen_fkey"
+            columns: [
+              "timesheet_id",
+              "agency_organisation_id",
+              "agency_worker_id",
+              "profile_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "timesheets"
+            referencedColumns: [
+              "id",
+              "agency_organisation_id",
+              "agency_worker_id",
+              "profile_id",
+            ]
+          },
+        ]
+      }
+      pricing_blocks: {
+        Row: {
+          agency_organisation_id: string
+          attempts: number
+          first_blocked_at: string
+          issues: Json
+          last_attempt_at: string
+          resolved_at: string | null
+          timesheet_id: string
+          timesheet_revision: number
+        }
+        Insert: {
+          agency_organisation_id: string
+          attempts?: number
+          first_blocked_at?: string
+          issues: Json
+          last_attempt_at?: string
+          resolved_at?: string | null
+          timesheet_id: string
+          timesheet_revision: number
+        }
+        Update: {
+          agency_organisation_id?: string
+          attempts?: number
+          first_blocked_at?: string
+          issues?: Json
+          last_attempt_at?: string
+          resolved_at?: string | null
+          timesheet_id?: string
+          timesheet_revision?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pricing_blocks_timesheet_id_agency_organisation_id_fkey"
+            columns: ["timesheet_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "timesheets"
+            referencedColumns: ["id", "agency_organisation_id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -2125,6 +2663,163 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      rate_card_versions: {
+        Row: {
+          activated_at: string | null
+          activated_by_membership_id: string | null
+          agency_organisation_id: string
+          bill_rate_minor: number
+          created_at: string
+          created_by_membership_id: string
+          currency: string
+          discarded_at: string | null
+          effective_from: string
+          effective_period: unknown
+          effective_to: string | null
+          id: string
+          pay_rate_minor: number
+          rate_card_id: string
+          status: Database["public"]["Enums"]["rate_version_status"]
+          superseded_from: string | null
+          version: number
+        }
+        Insert: {
+          activated_at?: string | null
+          activated_by_membership_id?: string | null
+          agency_organisation_id: string
+          bill_rate_minor: number
+          created_at?: string
+          created_by_membership_id: string
+          currency: string
+          discarded_at?: string | null
+          effective_from: string
+          effective_period?: unknown
+          effective_to?: string | null
+          id?: string
+          pay_rate_minor: number
+          rate_card_id: string
+          status?: Database["public"]["Enums"]["rate_version_status"]
+          superseded_from?: string | null
+          version: number
+        }
+        Update: {
+          activated_at?: string | null
+          activated_by_membership_id?: string | null
+          agency_organisation_id?: string
+          bill_rate_minor?: number
+          created_at?: string
+          created_by_membership_id?: string
+          currency?: string
+          discarded_at?: string | null
+          effective_from?: string
+          effective_period?: unknown
+          effective_to?: string | null
+          id?: string
+          pay_rate_minor?: number
+          rate_card_id?: string
+          status?: Database["public"]["Enums"]["rate_version_status"]
+          superseded_from?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rate_card_versions_activated_by_membership_id_agency_organ_fkey"
+            columns: ["activated_by_membership_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id", "organisation_id"]
+          },
+          {
+            foreignKeyName: "rate_card_versions_created_by_membership_id_agency_organis_fkey"
+            columns: ["created_by_membership_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id", "organisation_id"]
+          },
+          {
+            foreignKeyName: "rate_card_versions_currency_fkey"
+            columns: ["currency"]
+            isOneToOne: false
+            referencedRelation: "currencies"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "rate_card_versions_rate_card_id_agency_organisation_id_fkey"
+            columns: ["rate_card_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "rate_cards"
+            referencedColumns: ["id", "agency_organisation_id"]
+          },
+        ]
+      }
+      rate_cards: {
+        Row: {
+          agency_organisation_id: string
+          agency_organisation_type: Database["public"]["Enums"]["organisation_type"]
+          classification:
+            | Database["public"]["Enums"]["shift_classification"]
+            | null
+          created_at: string
+          created_by_membership_id: string
+          discipline_key: string
+          id: string
+          relationship_id: string | null
+        }
+        Insert: {
+          agency_organisation_id: string
+          agency_organisation_type?: Database["public"]["Enums"]["organisation_type"]
+          classification?:
+            | Database["public"]["Enums"]["shift_classification"]
+            | null
+          created_at?: string
+          created_by_membership_id: string
+          discipline_key: string
+          id?: string
+          relationship_id?: string | null
+        }
+        Update: {
+          agency_organisation_id?: string
+          agency_organisation_type?: Database["public"]["Enums"]["organisation_type"]
+          classification?:
+            | Database["public"]["Enums"]["shift_classification"]
+            | null
+          created_at?: string
+          created_by_membership_id?: string
+          discipline_key?: string
+          id?: string
+          relationship_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rate_cards_agency_organisation_id_agency_organisation_type_fkey"
+            columns: ["agency_organisation_id", "agency_organisation_type"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id", "type"]
+          },
+          {
+            foreignKeyName: "rate_cards_created_by_membership_id_agency_organisation_id_fkey"
+            columns: ["created_by_membership_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id", "organisation_id"]
+          },
+          {
+            foreignKeyName: "rate_cards_discipline_key_fkey"
+            columns: ["discipline_key"]
+            isOneToOne: false
+            referencedRelation: "disciplines"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "rate_cards_relationship_id_agency_organisation_id_fkey"
+            columns: ["relationship_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "agency_facility_relationships"
+            referencedColumns: ["id", "agency_organisation_id"]
+          },
+        ]
       }
       relationship_worker_compliance_shares: {
         Row: {
@@ -2237,6 +2932,76 @@ export type Database = {
           organisation_type?: Database["public"]["Enums"]["organisation_type"]
         }
         Relationships: []
+      }
+      rounding_policy_versions: {
+        Row: {
+          activated_at: string | null
+          activated_by_membership_id: string | null
+          agency_organisation_id: string
+          agency_organisation_type: Database["public"]["Enums"]["organisation_type"]
+          created_at: string
+          created_by_membership_id: string
+          discarded_at: string | null
+          effective_from: string
+          id: string
+          increment_minutes: number | null
+          mode: Database["public"]["Enums"]["rounding_mode"]
+          status: Database["public"]["Enums"]["rate_version_status"]
+          version: number
+        }
+        Insert: {
+          activated_at?: string | null
+          activated_by_membership_id?: string | null
+          agency_organisation_id: string
+          agency_organisation_type?: Database["public"]["Enums"]["organisation_type"]
+          created_at?: string
+          created_by_membership_id: string
+          discarded_at?: string | null
+          effective_from: string
+          id?: string
+          increment_minutes?: number | null
+          mode: Database["public"]["Enums"]["rounding_mode"]
+          status?: Database["public"]["Enums"]["rate_version_status"]
+          version: number
+        }
+        Update: {
+          activated_at?: string | null
+          activated_by_membership_id?: string | null
+          agency_organisation_id?: string
+          agency_organisation_type?: Database["public"]["Enums"]["organisation_type"]
+          created_at?: string
+          created_by_membership_id?: string
+          discarded_at?: string | null
+          effective_from?: string
+          id?: string
+          increment_minutes?: number | null
+          mode?: Database["public"]["Enums"]["rounding_mode"]
+          status?: Database["public"]["Enums"]["rate_version_status"]
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rounding_policy_versions_activated_by_membership_id_agency_fkey"
+            columns: ["activated_by_membership_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id", "organisation_id"]
+          },
+          {
+            foreignKeyName: "rounding_policy_versions_agency_organisation_id_agency_org_fkey"
+            columns: ["agency_organisation_id", "agency_organisation_type"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id", "type"]
+          },
+          {
+            foreignKeyName: "rounding_policy_versions_created_by_membership_id_agency_o_fkey"
+            columns: ["created_by_membership_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisation_memberships"
+            referencedColumns: ["id", "organisation_id"]
+          },
+        ]
       }
       shift_assignments: {
         Row: {
@@ -2498,6 +3263,7 @@ export type Database = {
             | null
           cancelled_at: string | null
           cancelled_by_profile_id: string | null
+          classification: Database["public"]["Enums"]["shift_classification"]
           completed_at: string | null
           created_at: string
           created_by_membership_id: string
@@ -2529,6 +3295,7 @@ export type Database = {
             | null
           cancelled_at?: string | null
           cancelled_by_profile_id?: string | null
+          classification?: Database["public"]["Enums"]["shift_classification"]
           completed_at?: string | null
           created_at?: string
           created_by_membership_id: string
@@ -2560,6 +3327,7 @@ export type Database = {
             | null
           cancelled_at?: string | null
           cancelled_by_profile_id?: string | null
+          classification?: Database["public"]["Enums"]["shift_classification"]
           completed_at?: string | null
           created_at?: string
           created_by_membership_id?: string
@@ -3231,6 +3999,10 @@ export type Database = {
           primary_reason: Database["public"]["Enums"]["assignment_block_reason"]
         }[]
       }
+      activate_rate_version: {
+        Args: { p_version_id: string }
+        Returns: undefined
+      }
       add_agency_worker_note: {
         Args: { p_body: string; p_worker_id: string }
         Returns: string
@@ -3434,6 +4206,47 @@ export type Database = {
           invite_token: string
         }[]
       }
+      create_overtime_policy: {
+        Args: {
+          p_effective_from: string
+          p_mode: Database["public"]["Enums"]["overtime_mode"]
+          p_multiplier_denominator?: number
+          p_multiplier_numerator?: number
+          p_organisation_id: string
+          p_side: Database["public"]["Enums"]["pricing_side"]
+          p_weekly_threshold_minutes?: number
+        }
+        Returns: string
+      }
+      create_rate_card: {
+        Args: {
+          p_classification?: Database["public"]["Enums"]["shift_classification"]
+          p_discipline_key: string
+          p_organisation_id: string
+          p_relationship_id?: string
+        }
+        Returns: string
+      }
+      create_rate_version: {
+        Args: {
+          p_bill_rate_minor: number
+          p_currency: string
+          p_effective_from: string
+          p_effective_to?: string
+          p_pay_rate_minor: number
+          p_rate_card_id: string
+        }
+        Returns: string
+      }
+      create_rounding_policy: {
+        Args: {
+          p_effective_from: string
+          p_increment_minutes?: number
+          p_mode: Database["public"]["Enums"]["rounding_mode"]
+          p_organisation_id: string
+        }
+        Returns: string
+      }
       create_shift: {
         Args: {
           p_agency_facility_id: string
@@ -3454,6 +4267,10 @@ export type Database = {
         Returns: undefined
       }
       decline_shift_offer: { Args: { p_offer_id: string }; Returns: undefined }
+      discard_rate_version: {
+        Args: { p_version_id: string }
+        Returns: undefined
+      }
       end_break_assignment: {
         Args: { p_assignment_id: string }
         Returns: {
@@ -3488,6 +4305,30 @@ export type Database = {
           p_sign_off: boolean
         }
         Returns: Database["public"]["Enums"]["timesheet_status"]
+      }
+      get_priced_timesheet: {
+        Args: { p_priced_timesheet_id: string }
+        Returns: {
+          agency_organisation_id: string
+          calculation_version: number
+          currency: string
+          current_revision: number
+          line_count: number
+          period_end: string
+          period_start: string
+          priced_at: string
+          priced_by_name: string
+          priced_timesheet_id: string
+          timesheet_id: string
+          timesheet_revision: number
+          total_bill_minor: number
+          total_bill_overtime_minutes: number
+          total_pay_minor: number
+          total_pay_overtime_minutes: number
+          total_priced_minutes: number
+          total_raw_minutes: number
+          worker_name: string
+        }[]
       }
       get_timesheet: {
         Args: { p_timesheet_id: string }
@@ -3949,6 +4790,83 @@ export type Database = {
           relationship_status: Database["public"]["Enums"]["relationship_status"]
         }[]
       }
+      list_priced_timesheet_lines: {
+        Args: { p_priced_timesheet_id: string }
+        Returns: {
+          bill_amount_minor: number
+          bill_overtime_denominator: number
+          bill_overtime_minutes: number
+          bill_overtime_numerator: number
+          bill_rate_minor: number
+          bill_regular_minutes: number
+          classification: Database["public"]["Enums"]["shift_classification"]
+          currency: string
+          discipline_name: string
+          entry_id: string
+          facility_name: string
+          line_number: number
+          local_date: string
+          pay_amount_minor: number
+          pay_overtime_denominator: number
+          pay_overtime_minutes: number
+          pay_overtime_numerator: number
+          pay_rate_minor: number
+          pay_regular_minutes: number
+          priced_minutes: number
+          rate_precedence: number
+          rate_version: number
+          rate_version_id: string
+          raw_minutes: number
+          rounding_increment_minutes: number
+          rounding_mode: Database["public"]["Enums"]["rounding_mode"]
+          shift_id: string
+        }[]
+      }
+      list_pricing_queue: {
+        Args: {
+          p_after_id?: string
+          p_after_period?: string
+          p_limit?: number
+          p_organisation_id: string
+          p_state: string
+        }
+        Returns: {
+          currency: string
+          current_revision: number
+          entry_count: number
+          facilities: string[]
+          issues: Json
+          period_end: string
+          period_start: string
+          priced_at: string
+          priced_timesheet_id: string
+          revision: number
+          state: string
+          timesheet_id: string
+          total_bill_minor: number
+          total_pay_minor: number
+          worked_minutes: number
+          worker_name: string
+        }[]
+      }
+      list_rate_cards: {
+        Args: {
+          p_after_created_at?: string
+          p_after_id?: string
+          p_limit?: number
+          p_organisation_id: string
+        }
+        Returns: {
+          classification: Database["public"]["Enums"]["shift_classification"]
+          created_at: string
+          discipline_key: string
+          discipline_name: string
+          facility_name: string
+          rate_card_id: string
+          relationship_id: string
+          versions: Json
+        }[]
+      }
       list_relationship_affected_shifts: {
         Args: { p_organisation_id: string }
         Returns: {
@@ -4136,6 +5054,14 @@ export type Database = {
           role_name: string
         }[]
       }
+      price_timesheet: {
+        Args: { p_expected_revision: number; p_timesheet_id: string }
+        Returns: {
+          issues: Json
+          outcome: string
+          priced_timesheet_id: string
+        }[]
+      }
       rebuild_timesheet: {
         Args: { p_timesheet_id: string }
         Returns: undefined
@@ -4316,6 +5242,20 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_pricing_policy_status: {
+        Args: {
+          p_policy_id: string
+          p_status: Database["public"]["Enums"]["rate_version_status"]
+        }
+        Returns: undefined
+      }
+      set_shift_classification: {
+        Args: {
+          p_classification: Database["public"]["Enums"]["shift_classification"]
+          p_shift_id: string
+        }
+        Returns: undefined
+      }
       share_credential: {
         Args: { p_agency_organisation_id: string; p_credential_id: string }
         Returns: string
@@ -4386,6 +5326,17 @@ export type Database = {
           p_must_be_verified: boolean
           p_requirement_id: string
           p_status: Database["public"]["Enums"]["requirement_status"]
+        }
+        Returns: undefined
+      }
+      update_rate_version_draft: {
+        Args: {
+          p_bill_rate_minor: number
+          p_currency: string
+          p_effective_from: string
+          p_effective_to?: string
+          p_pay_rate_minor: number
+          p_version_id: string
         }
         Returns: undefined
       }
@@ -4570,10 +5521,14 @@ export type Database = {
       membership_status: "active" | "suspended" | "revoked"
       organisation_status: "active" | "suspended" | "archived"
       organisation_type: "agency" | "facility"
+      overtime_mode: "none" | "weekly_threshold"
+      pricing_side: "pay" | "bill"
       profile_status: "active" | "suspended"
+      rate_version_status: "draft" | "active" | "discarded"
       readiness_status: "ready" | "action_required" | "not_eligible"
       relationship_status: "pending" | "active" | "suspended" | "ended"
       requirement_status: "active" | "inactive"
+      rounding_mode: "none" | "nearest"
       shift_cancellation_reason:
         | "facility_cancelled"
         | "staffing_no_longer_needed"
@@ -4581,6 +5536,7 @@ export type Database = {
         | "relationship_suspended"
         | "other"
         | "relationship_ended"
+      shift_classification: "regular" | "evening" | "night" | "weekend"
       shift_offer_close_reason:
         | "shift_filled"
         | "shift_cancelled"
@@ -4618,6 +5574,7 @@ export type Database = {
         | "locked"
         | "reopened"
         | "revised"
+        | "facility_signoff_not_required"
       timesheet_rejection_reason:
         | "attendance_incorrect"
         | "missing_information"
@@ -4938,10 +5895,14 @@ export const Constants = {
       membership_status: ["active", "suspended", "revoked"],
       organisation_status: ["active", "suspended", "archived"],
       organisation_type: ["agency", "facility"],
+      overtime_mode: ["none", "weekly_threshold"],
+      pricing_side: ["pay", "bill"],
       profile_status: ["active", "suspended"],
+      rate_version_status: ["draft", "active", "discarded"],
       readiness_status: ["ready", "action_required", "not_eligible"],
       relationship_status: ["pending", "active", "suspended", "ended"],
       requirement_status: ["active", "inactive"],
+      rounding_mode: ["none", "nearest"],
       shift_cancellation_reason: [
         "facility_cancelled",
         "staffing_no_longer_needed",
@@ -4950,6 +5911,7 @@ export const Constants = {
         "other",
         "relationship_ended",
       ],
+      shift_classification: ["regular", "evening", "night", "weekend"],
       shift_offer_close_reason: [
         "shift_filled",
         "shift_cancelled",
@@ -4991,6 +5953,7 @@ export const Constants = {
         "locked",
         "reopened",
         "revised",
+        "facility_signoff_not_required",
       ],
       timesheet_rejection_reason: [
         "attendance_incorrect",

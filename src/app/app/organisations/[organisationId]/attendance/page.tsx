@@ -29,12 +29,7 @@ import {
   formatLocalClockTime,
   GEOFENCE_RESULT_LABELS,
 } from "@/lib/domain/attendance";
-import {
-  formatShiftDate,
-  formatShiftTimeRange,
-  localDate,
-  todayIsoDate,
-} from "@/lib/domain/shifts";
+import { formatShiftDate, formatShiftTimeRange, localDate } from "@/lib/domain/shifts";
 
 export const metadata: Metadata = { title: "Attendance" };
 
@@ -57,11 +52,12 @@ export default async function AttendancePage({
 
   const raw = await searchParams;
   const range = attendanceRangeSchema.parse({ from: first(raw.from), to: first(raw.to) });
-  const from = range.from ?? todayIsoDate();
+  // No dates chosen: "today" in each facility's own timezone (never the UTC date).
+  const from = range.from;
   const to = range.to ?? from;
   const canReview = can(CAPABILITIES.ATTENDANCE_REVIEW) === "granted";
   const [rows, corrections, exceptions] = await Promise.all([
-    listAgencyAttendance(organisationId, { from, to }),
+    listAgencyAttendance(organisationId, from ? { from, to } : {}),
     listPendingCorrections(organisationId),
     listOpenExceptions(organisationId),
   ]);
@@ -94,12 +90,12 @@ export default async function AttendancePage({
 
       <form method="get" className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="attendance-from">From</Label>
-          <Input id="attendance-from" name="from" type="date" defaultValue={from} />
+          <Label htmlFor="attendance-from">From (empty: today at each facility)</Label>
+          <Input id="attendance-from" name="from" type="date" defaultValue={from ?? ""} />
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="attendance-to">To (up to 7 days)</Label>
-          <Input id="attendance-to" name="to" type="date" defaultValue={to} />
+          <Input id="attendance-to" name="to" type="date" defaultValue={to ?? ""} />
         </div>
         <Button type="submit" variant="outline">
           Show

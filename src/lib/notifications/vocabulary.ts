@@ -28,6 +28,7 @@ export const NOTIFICATION_EVENTS = [
   "timesheet_facility_signoff_required",
   "timesheet_disputed",
   "attendance_time_adjusted",
+  "pricing_blocked_missing_rate",
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
@@ -73,6 +74,7 @@ export const NOTIFICATION_CATEGORY: Record<NotificationEvent, "required" | "opti
   timesheet_facility_signoff_required: "required",
   timesheet_disputed: "required",
   attendance_time_adjusted: "required",
+  pricing_blocked_missing_rate: "required",
 };
 
 export const NOTIFICATION_EVENT_LABELS: Record<NotificationEvent, string> = {
@@ -98,6 +100,7 @@ export const NOTIFICATION_EVENT_LABELS: Record<NotificationEvent, string> = {
   timesheet_facility_signoff_required: "Timesheet sign-off needed",
   timesheet_disputed: "Timesheet discrepancy raised",
   attendance_time_adjusted: "Attendance time adjusted",
+  pricing_blocked_missing_rate: "Pricing blocked: rate missing",
 };
 
 /**

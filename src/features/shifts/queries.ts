@@ -1,4 +1,5 @@
 import "server-only";
+import type { ShiftClassification } from "@/lib/domain/pricing";
 
 import type { ComplianceReason, ReadinessStatus } from "@/lib/domain/credentials";
 import {
@@ -145,6 +146,7 @@ export type AgencyShiftDetail = {
   externalReference: string | null;
   instructions: string | null;
   cancellationReason: ShiftCancellationReason | null;
+  classification: ShiftClassification;
 };
 
 export async function getAgencyShift(
@@ -155,7 +157,7 @@ export async function getAgencyShift(
   const { data: shift, error } = await supabase
     .from("shifts")
     .select(
-      "id, agency_facility_id, facility_location_id, relationship_id, discipline_key, start_at, end_at, timezone, requested_headcount, status, source, external_reference, instructions, cancellation_reason",
+      "id, agency_facility_id, facility_location_id, relationship_id, discipline_key, start_at, end_at, timezone, requested_headcount, status, source, external_reference, instructions, cancellation_reason, classification",
     )
     .eq("agency_organisation_id", organisationId)
     .eq("id", shiftId)
@@ -199,6 +201,7 @@ export async function getAgencyShift(
     externalReference: shift.external_reference,
     instructions: shift.instructions,
     cancellationReason: shift.cancellation_reason,
+    classification: shift.classification,
   };
 }
 

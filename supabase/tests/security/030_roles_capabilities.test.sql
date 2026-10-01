@@ -46,7 +46,7 @@ select is(
   (select array_agg(key order by key) from public.capabilities where is_privileged),
   array['attendance.location.view', 'attendance.manage_settings', 'audit.view', 'credential.requirements.manage', 'credential.review', 'credential.verify',
         'facility.manage', 'membership.invite', 'membership.manage', 'organisation.manage',
-        'relationship.manage', 'role.assign', 'worker.manage', 'worker.notes.manage'],
+        'rates.manage', 'relationship.manage', 'role.assign', 'worker.manage', 'worker.notes.manage'],
   'administrative capabilities are privileged (AAL2)');
 
 -- ---------------------------------------------------------------------------
@@ -71,9 +71,9 @@ select is(pg_temp.rpc((select alice from ids), 'aal2', 'select authz.has_capabil
   'false', 'unknown capabilities are never granted');
 
 select is(pg_temp.count_as((select alice from ids), 'aal1', format('select * from public.my_capabilities(%L)', (select alpha from orgs))),
-  32, 'my_capabilities lists every held capability');
+  36, 'my_capabilities lists every held capability');
 select is(pg_temp.count_as((select alice from ids), 'aal1', format('select * from public.my_capabilities(%L) where not is_satisfied', (select alpha from orgs))),
-  14, 'my_capabilities flags privileged capabilities needing step-up at AAL1');
+  15, 'my_capabilities flags privileged capabilities needing step-up at AAL1');
 select is(pg_temp.count_as((select bob from ids), 'aal2', format('select * from public.my_capabilities(%L)', (select alpha from orgs))),
   0, 'my_capabilities is empty for non-members');
 
