@@ -445,10 +445,19 @@ describe("financial adjustments & controls (P0-E7-S3)", () => {
         .eq("action", "financial.action_denied")
         .eq("target_id", adjustment2),
     );
-    expect(denials.map((row) => row.metadata).sort()).toEqual([
-      { attempted_action: "payroll.adjustment_approve", reason_code: "MAKER_CHECKER" },
-      { attempted_action: "payroll.adjustment_approve", reason_code: "NOT_PERMITTED" },
-    ]);
+    // Audit rows have no defined order: sort by stable scalar fields, never by object.
+    type Denial = { attempted_action: string; reason_code: string };
+    const byActionThenReason = (a: Denial, b: Denial) =>
+      a.attempted_action.localeCompare(b.attempted_action) ||
+      a.reason_code.localeCompare(b.reason_code);
+    const recorded = denials.map((row) => row.metadata as Denial).sort(byActionThenReason);
+    expect(recorded).toHaveLength(2);
+    expect(recorded).toEqual(
+      [
+        { attempted_action: "payroll.adjustment_approve", reason_code: "NOT_PERMITTED" },
+        { attempted_action: "payroll.adjustment_approve", reason_code: "MAKER_CHECKER" },
+      ].sort(byActionThenReason),
+    );
   });
 
   it("maker/checker off again restores the original workflow", async () => {
