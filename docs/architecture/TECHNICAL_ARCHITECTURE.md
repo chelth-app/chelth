@@ -303,6 +303,26 @@ The identity and authorization design is specified in
   `src/features/pricing`, `src/lib/domain/pricing.ts`.
 - No payroll, tax, invoicing, payments, exports or accounting integration.
 
+### Payroll preparation & invoice drafting (P0-E7-S2)
+
+- Payroll periods (weekly/biweekly, dates), payroll batches and invoice
+  drafts built only from immutable priced lines, with composite-FK-bound
+  copies, claim tables for one-document-per-line, lock-then-immutable
+  lifecycles, append-only history and adjustment flags for later revisions
+  ([PAYROLL_PREPARATION_MODEL.md](PAYROLL_PREPARATION_MODEL.md),
+  [INVOICE_DRAFT_MODEL.md](INVOICE_DRAFT_MODEL.md),
+  [FINANCIAL_RECONCILIATION.md](FINANCIAL_RECONCILIATION.md)).
+- Deterministic database-rendered CSV/PDF exports with SHA-256 and a private
+  byte store, downloaded through an audited, same-origin POST route
+  ([FINANCIAL_EXPORT_MODEL.md](FINANCIAL_EXPORT_MODEL.md),
+  [PAYROLL_EXPORT_MODEL.md](PAYROLL_EXPORT_MODEL.md),
+  [../security/FINANCIAL_EXPORT_SECURITY.md](../security/FINANCIAL_EXPORT_SECURITY.md)).
+- UI: `/payroll`, `/payroll/[batchId]`, `/invoices`, `/invoices/[draftId]`;
+  route `POST /app/exports/[exportId]/download`. Code:
+  `src/features/financial`, `src/lib/domain/financial.ts`.
+- No payroll execution, tax, payments, invoice sending, accounting or bank
+  integrations.
+
 ### Content Security Policy
 
 `src/proxy.ts` generates a 128-bit nonce per request and sets:

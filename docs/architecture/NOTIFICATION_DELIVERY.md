@@ -170,3 +170,16 @@ person who ran pricing), once per blocked timesheet revision (the
 `pricing_blocks` row is the deduplication key). Content: worker name and
 week only; no rates, amounts or currencies. Link: `/pricing`. Ready-to-price
 timesheets are a UI queue, not an email.
+
+## 12. Payroll and invoices (P0-E7-S2)
+
+There are **no** notification events. All finance work surfaces as UI
+queues, ordered needs-attention first:
+
+- `/payroll`: adjustments, batches blocked by revised work, work not yet
+  priced, unprepared periods;
+- `/invoices`: the same for drafts.
+
+This keeps amounts, references and personal pay data out of email entirely.
+Future reminders (for example "3 periods ready to prepare") should carry
+counts and links only.
