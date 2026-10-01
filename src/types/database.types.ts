@@ -1235,7 +1235,7 @@ export type Database = {
           created_by_profile_id?: string | null
           credential_type_key: string
           discipline_key?: string | null
-          effective_from?: string
+          effective_from: string
           effective_until?: string | null
           expiry_warning_days?: number
           id?: string
@@ -4160,6 +4160,7 @@ export type Database = {
           p_agency_organisation_id: string
           p_credential_type_key: string
           p_discipline_key?: string
+          p_effective_from: string
           p_expiry_warning_days?: number
           p_jurisdiction_code?: string
           p_minimum_validity_days?: number
@@ -5321,6 +5322,7 @@ export type Database = {
       }
       update_credential_requirement: {
         Args: {
+          p_effective_until?: string
           p_expiry_warning_days: number
           p_minimum_validity_days: number
           p_must_be_verified: boolean

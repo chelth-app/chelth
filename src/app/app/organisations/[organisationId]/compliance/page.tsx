@@ -79,6 +79,7 @@ export default async function CompliancePage({
             jurisdictions={jurisdictions.filter(
               (jurisdiction) => jurisdiction.level === "subdivision",
             )}
+            effectiveFromHint="Choose the calendar date it applies from. Each shift is checked against its facility's local date."
           />
         </section>
       ) : null}

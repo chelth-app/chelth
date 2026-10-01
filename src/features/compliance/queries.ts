@@ -66,6 +66,9 @@ export type Requirement = {
   expiryWarningDays: number;
   jurisdictionCode: string | null;
   status: RequirementStatus;
+  /** Calendar dates (YYYY-MM-DD), never instants. */
+  effectiveFrom: string;
+  effectiveUntil: string | null;
 };
 
 /** Baseline (facilityId omitted) or one facility's requirements. */
@@ -77,7 +80,7 @@ export async function listRequirements(
   let query = supabase
     .from("credential_requirements")
     .select(
-      "id, agency_facility_id, credential_type_key, discipline_key, must_be_verified, minimum_validity_days, expiry_warning_days, jurisdiction_code, status",
+      "id, agency_facility_id, credential_type_key, discipline_key, must_be_verified, minimum_validity_days, expiry_warning_days, jurisdiction_code, status, effective_from, effective_until",
     )
     .eq("agency_organisation_id", organisationId)
     .order("status")
@@ -97,6 +100,8 @@ export async function listRequirements(
     expiryWarningDays: row.expiry_warning_days,
     jurisdictionCode: row.jurisdiction_code,
     status: row.status,
+    effectiveFrom: row.effective_from,
+    effectiveUntil: row.effective_until,
   }));
 }
 

@@ -26,6 +26,7 @@ import {
   must,
   run,
   workerIdAt,
+  isoDay,
 } from "./support/staffing";
 
 /**
@@ -115,6 +116,7 @@ describe("timesheets (P0-E6-S2)", () => {
     );
     await run(
       admin.client.rpc("create_credential_requirement", {
+        p_effective_from: isoDay(-30),
         p_agency_organisation_id: alphaId,
         p_credential_type_key: "bls_certification",
       }),

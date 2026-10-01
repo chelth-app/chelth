@@ -59,7 +59,7 @@ create function pg_temp.requirement(p_user uuid, p_org uuid, p_type text, p_faci
   p_discipline text default null, p_min integer default 0, p_jurisdiction text default null)
 returns uuid language sql as $$
   select pg_temp.scalar_as(p_user, 'aal2', format(
-    'select public.create_credential_requirement(%L, %L, %L, %L, true, %s, 30, %L)',
+    'select public.create_credential_requirement(%L, %L, current_date - 30, %L, %L, true, %s, 30, %L)',
     p_org, p_type, p_facility, p_discipline, p_min, p_jurisdiction))::uuid
 $$;
 

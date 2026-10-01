@@ -287,6 +287,7 @@ export async function createStaffingWorld(
   ] as const) {
     await run(
       admin.client.rpc("create_credential_requirement", {
+        p_effective_from: isoDay(-30),
         p_agency_organisation_id: agencyId,
         p_credential_type_key: type,
         ...(facility ? { p_agency_facility_id: facility } : {}),

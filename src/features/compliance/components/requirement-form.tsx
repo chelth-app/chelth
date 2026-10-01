@@ -18,6 +18,13 @@ type RequirementFormProps = {
   credentialTypes: (Option & { scope: "person" | "facility" })[];
   disciplines: Option[];
   jurisdictions: { code: string; name: string }[];
+  /**
+   * Facility-scoped: the facility's local date. Agency-wide: omitted — Chelth has
+   * no agency timezone, so the user chooses the date explicitly.
+   */
+  defaultEffectiveFrom?: string;
+  /** Shown with the field, e.g. "Mercy Rehab local date (America/New_York)". */
+  effectiveFromHint: string;
 };
 
 export function RequirementForm({
@@ -26,6 +33,8 @@ export function RequirementForm({
   credentialTypes,
   disciplines,
   jurisdictions,
+  defaultEffectiveFrom,
+  effectiveFromHint,
 }: RequirementFormProps) {
   const [state, formAction] = useActionState(createRequirementAction, null);
   // Facility-specific types (e.g. orientation) can only be required by a facility.
@@ -37,6 +46,15 @@ export function RequirementForm({
     <form action={formAction} className="grid max-w-3xl gap-3 sm:grid-cols-3" noValidate>
       <input type="hidden" name="organisationId" value={organisationId} />
       {facilityId ? <input type="hidden" name="facilityId" value={facilityId} /> : null}
+      <FormField
+        id={`${prefix}-effective-from`}
+        label="Effective from"
+        description={effectiveFromHint}
+        required
+        errors={fieldErrorsFor(state, "effectiveFrom")}
+      >
+        <Input name="effectiveFrom" type="date" defaultValue={defaultEffectiveFrom ?? ""} />
+      </FormField>
       <FormField
         id={`${prefix}-type`}
         label="Credential"

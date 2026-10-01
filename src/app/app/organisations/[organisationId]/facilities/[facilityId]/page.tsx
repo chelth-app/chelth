@@ -25,6 +25,7 @@ import {
 } from "@/features/organisations";
 import { GeofenceForm, listLocationGeofences } from "@/features/attendance";
 import { listRequirements, RequirementForm, RequirementsTable } from "@/features/compliance";
+import { localCalendarDate } from "@/lib/domain/credentials";
 import { listCredentialTypes, listDisciplines, listJurisdictions } from "@/features/credentials";
 import { CAPABILITIES } from "@/lib/authz";
 import {
@@ -205,6 +206,7 @@ export default async function FacilityPage({
             }
             canManage={canManageRequirements}
             label={`${facility.name} credential requirements`}
+            defaultLastDay={localCalendarDate(facility.timezone)}
           />
           {canManageRequirements && facility.status !== "archived" ? (
             <RequirementForm
@@ -215,6 +217,8 @@ export default async function FacilityPage({
               jurisdictions={jurisdictions.filter(
                 (jurisdiction) => jurisdiction.level === "subdivision",
               )}
+              defaultEffectiveFrom={localCalendarDate(facility.timezone)}
+              effectiveFromHint={`Defaults to today at ${facility.name} (${facility.timezone}).`}
             />
           ) : null}
         </section>

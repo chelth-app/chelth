@@ -30,6 +30,8 @@ test.describe("credentials and compliance", () => {
     await page
       .getByRole("combobox", { name: "Credential" })
       .selectOption({ label: "Basic Life Support (BLS)" });
+    // Agency-wide requirements have no timezone default: the date is chosen explicitly.
+    await page.getByLabel("Effective from").fill(isoDate(-1));
     await page.getByRole("button", { name: "Add requirement" }).click();
     await expect(page.getByRole("list", { name: "Agency baseline requirements" })).toContainText(
       "Basic Life Support (BLS)",

@@ -89,3 +89,11 @@ recruiting and scheduling.
 this agency, readiness at this agency with reasons, add credential (with an
 explicit "share with this agency" choice), upload, submit, renew, stop
 sharing, withdraw, and every agency's decisions about the credential.
+
+## Requirement effective dates (P0-E7-S1A)
+
+Requirement `effective_from` / `effective_until` are explicit calendar dates
+(no UTC default). See
+[COMPLIANCE_ENGINE.md](COMPLIANCE_ENGINE.md#requirement-dates-are-local-calendar-dates-p0-e7-s1a).
+Date values cross the API as `YYYY-MM-DD` strings and are never converted to
+instants.
