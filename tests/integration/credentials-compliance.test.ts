@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { CREDENTIAL_DOCUMENT_BUCKET } from "@/lib/domain/credentials";
 
 import { uniqueEmail } from "../support/mailpit";
+import { isoDay } from "./support/staffing";
 import {
   ownerQuery,
   signUpVerified,
@@ -143,11 +144,13 @@ describe("credentials & compliance (P0-E4-S1)", () => {
     }
 
     const requirement = await admin.client.rpc("create_credential_requirement", {
+      p_effective_from: isoDay(-30),
       p_agency_organisation_id: alphaId,
       p_credential_type_key: "bls_certification",
     });
     if (requirement.error) throw requirement.error;
     const betaRequirement = await betaAdmin.client.rpc("create_credential_requirement", {
+      p_effective_from: isoDay(-30),
       p_agency_organisation_id: betaId,
       p_credential_type_key: "bls_certification",
     });
@@ -297,6 +300,7 @@ describe("credentials & compliance (P0-E4-S1)", () => {
     });
     if (facility.error) throw facility.error;
     const requirement = await admin.client.rpc("create_credential_requirement", {
+      p_effective_from: isoDay(-30),
       p_agency_organisation_id: alphaId,
       p_credential_type_key: "facility_orientation",
       p_agency_facility_id: facility.data,

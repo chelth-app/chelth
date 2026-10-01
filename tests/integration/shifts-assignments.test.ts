@@ -124,6 +124,7 @@ describe("shift requests & assignments (P0-E5-S1)", () => {
     ] as const) {
       await run(
         client.rpc("create_credential_requirement", {
+          p_effective_from: isoDay(-30),
           p_agency_organisation_id: organisationId,
           p_credential_type_key: "bls_certification",
           p_expiry_warning_days: 7,

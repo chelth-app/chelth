@@ -9,8 +9,12 @@ const optionalUuid = z
   .transform((value) => (value ? value : undefined))
   .pipe(uuid.optional());
 
+/** A calendar date exactly as entered (YYYY-MM-DD); never converted to an instant. */
+const calendarDate = (message: string) => z.iso.date({ error: message });
+
 export const createRequirementSchema = z.object({
   organisationId: uuid,
+  effectiveFrom: calendarDate("Choose the date this requirement applies from."),
   facilityId: optionalUuid,
   credentialTypeKey: z.enum(CREDENTIAL_TYPES, { error: "Choose a credential type." }),
   disciplineKey: z
@@ -32,15 +36,29 @@ export const createRequirementSchema = z.object({
     .transform((value) => (value ? value : undefined)),
 });
 
-export const updateRequirementSchema = z.object({
-  organisationId: uuid,
-  facilityId: optionalUuid,
-  requirementId: uuid,
-  mustBeVerified: z.enum(["true", "false"]).transform((value) => value === "true"),
-  minimumValidityDays: z.coerce.number().int().min(0).max(730),
-  expiryWarningDays: z.coerce.number().int().min(0).max(365),
-  status: z.enum(REQUIREMENT_STATUSES),
-});
+export const updateRequirementSchema = z
+  .object({
+    organisationId: uuid,
+    facilityId: optionalUuid,
+    requirementId: uuid,
+    mustBeVerified: z.enum(["true", "false"]).transform((value) => value === "true"),
+    minimumValidityDays: z.coerce.number().int().min(0).max(730),
+    expiryWarningDays: z.coerce.number().int().min(0).max(365),
+    status: z.enum(REQUIREMENT_STATUSES),
+    effectiveUntil: z
+      .union([z.literal(""), z.iso.date()])
+      .optional()
+      .transform((value) => (value ? value : undefined)),
+  })
+  .superRefine((value, ctx) => {
+    if (value.status === "inactive" && !value.effectiveUntil) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["effectiveUntil"],
+        message: "Choose the last day this requirement applies.",
+      });
+    }
+  });
 
 export const disciplineSchema = z.object({
   organisationId: uuid,

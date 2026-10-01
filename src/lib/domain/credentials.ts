@@ -141,3 +141,26 @@ export function contentMatchesMimeType(bytes: Uint8Array, mimeType: DocumentMime
       return startsWith([0xff, 0xd8, 0xff]);
   }
 }
+
+/**
+ * The calendar date (YYYY-MM-DD) at `at` in an IANA timezone. Used to default
+ * date fields for facility-scoped requirements to the facility's local "today".
+ * Agency-wide requirements have no timezone in Chelth, so no default is derived.
+ */
+export function localCalendarDate(timezone: string, at: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(at);
+  const value = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  return `${value("year")}-${value("month")}-${value("day")}`;
+}
+
+/** "Mar 11, 2030" for a calendar date, without shifting it through any timezone. */
+export function formatCalendarDate(date: string): string {
+  return new Intl.DateTimeFormat("en-US", { timeZone: "UTC", dateStyle: "medium" }).format(
+    new Date(`${date}T00:00:00Z`),
+  );
+}

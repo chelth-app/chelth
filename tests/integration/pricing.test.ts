@@ -18,6 +18,7 @@ import {
   must,
   run,
   workerIdAt,
+  isoDay,
 } from "./support/staffing";
 
 /**
@@ -137,6 +138,7 @@ describe("pay & bill rates and pricing (P0-E7-S1)", () => {
     await stepUpToAal2(finance);
     await run(
       admin.client.rpc("create_credential_requirement", {
+        p_effective_from: isoDay(-30),
         p_agency_organisation_id: alphaId,
         p_credential_type_key: "bls_certification",
       }),

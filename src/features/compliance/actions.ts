@@ -32,6 +32,7 @@ export async function createRequirementAction(
     const { error } = await supabase.rpc("create_credential_requirement", {
       p_agency_organisation_id: input.organisationId,
       p_credential_type_key: input.credentialTypeKey,
+      p_effective_from: input.effectiveFrom,
       ...(input.facilityId ? { p_agency_facility_id: input.facilityId } : {}),
       ...(input.disciplineKey ? { p_discipline_key: input.disciplineKey } : {}),
       p_must_be_verified: input.mustBeVerified,
@@ -59,6 +60,7 @@ export async function updateRequirementAction(
       p_minimum_validity_days: input.minimumValidityDays,
       p_expiry_warning_days: input.expiryWarningDays,
       p_status: input.status,
+      ...(input.effectiveUntil ? { p_effective_until: input.effectiveUntil } : {}),
     });
     if (error) throw error;
     revalidatePath(requirementsPath(input.organisationId, input.facilityId));

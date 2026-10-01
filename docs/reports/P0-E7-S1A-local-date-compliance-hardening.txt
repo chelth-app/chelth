@@ -1,0 +1,307 @@
+CHELTH — P0-E7-S1A LOCAL-DATE COMPLIANCE EFFECTIVENESS HARDENING
+Stage report · 2026-10-01 · branch p0-e7-s1a-local-date-compliance (uncommitted)
+
+Narrow hardening patch. No payroll, invoicing, pricing, UI redesign or
+unrelated refactor.
+
+======================================================================
+1. ROOT CAUSE
+======================================================================
+Audit of the full path before any change found four places where the
+database's UTC calendar decided requirement effectiveness:
+
+  1. credential_requirements.effective_from: `not null default
+     current_date` (migration 20260930110300, line 108).
+     create_credential_requirement had no date parameter and never
+     supplied one, so every requirement started on the UTC date. The UI
+     form had no date field and the server action sent none.
+  2. update_credential_requirement deactivation set
+     effective_until = current_date, which is also UTC.
+  3. The readiness "today" views defaulted to the UTC date:
+       - evaluate_worker_compliance and worker_readiness used
+         p_as_of default current_date;
+       - list_shared_worker_compliance (facility-facing) passed
+         current_date.
+
+The canonical comparison is correct. internal.evaluate_compliance checks
+effective_from <= p_as_of <= effective_until, and assignment eligibility
+passes each facility-LOCAL shift date (20260930120400 line 123).
+
+So a requirement created in the US evening (after midnight UTC, before
+local midnight) started on the UTC "tomorrow". It was not in force for
+that local day's shifts.
+
+Timezone availability:
+  - Facilities, locations and shifts have IANA timezones.
+  - Organisations (agencies) have NONE.
+
+======================================================================
+2. PREVIOUS BEHAVIOUR
+======================================================================
+Example: at 20:00 in Chicago on day D, it is 01:00 UTC on D + 1.
+
+  - A facility requirement created at that moment got effective_from =
+    D + 1.
+  - A shift on local day D was evaluated on D, so the new requirement did
+    not apply.
+  - Deactivation recorded the UTC date as the last day.
+
+This was reproduced in P0-E7-S1, when two attendance assertions failed
+just after midnight UTC on committed code.
+
+======================================================================
+3. NEW DATE SEMANTICS
+======================================================================
+Requirement effective_from and effective_until are explicit calendar
+DATES chosen by the caller.
+
+  - The database has no default.
+  - The create API requires p_effective_from (CH400 if null; plausible
+    range 2000–2099).
+  - Deactivation requires p_effective_until (on or after
+    effective_from). It is refused when not deactivating.
+  - Values cross the API as YYYY-MM-DD strings. They are never converted
+    to instants, and the browser locale cannot change them: the date
+    input's value is posted unchanged and validated as an ISO date.
+
+UTC current_date no longer determines when any new requirement applies.
+
+======================================================================
+4. FACILITY-SCOPED REQUIREMENTS
+======================================================================
+The facility page defaults "Effective from" to the facility's local date,
+computed deterministically from the facility's IANA timezone
+(localCalendarDate). The field is visible, editable and labelled
+"Defaults to today at <facility> (<timezone>)".
+
+  - "Deactivate" defaults "Last day it applies" to the same local date.
+  - The stored value remains a DATE.
+  - The timezone is the facility's own, and the facility must belong to
+    the agency (CH403 otherwise).
+
+======================================================================
+5. AGENCY-WIDE REQUIREMENTS
+======================================================================
+Chelth has no trustworthy agency timezone, so no default is derived.
+
+  - The baseline form shows "Effective from" EMPTY and required, with the
+    hint "Choose the calendar date it applies from. Each shift is checked
+    against its facility's local date."
+  - The API refuses a missing date (CH400).
+  - There is no form of the function without a date (42883).
+  - Deactivation on the agency page requires a chosen last day.
+
+======================================================================
+6. DATABASE CHANGES
+======================================================================
+Migration 20261001110000_local_date_requirements.sql:
+
+  - Drops the default on credential_requirements.effective_from (stays
+    NOT NULL).
+  - create_credential_requirement(org, type, p_effective_from date
+    [required, 3rd], facility, discipline, …). The old signature is
+    dropped.
+  - update_credential_requirement(…, p_effective_until date default
+    null). Required when deactivating. The old signature is dropped.
+  - New helpers:
+      * internal.local_date_at(timezone, instant): pure;
+      * internal.compliance_as_of(as_of, facility): explicit date, else
+        facility-local today, else UTC (agency-wide display only).
+  - evaluate_worker_compliance and worker_readiness: p_as_of default
+    null, resolved through compliance_as_of. list_shared_worker_compliance
+    uses the facility's local date.
+  - Audit metadata now includes effective_from and effective_until (dates
+    only).
+  - Authorization and capabilities are unchanged:
+    credential.requirements.manage at AAL2.
+
+======================================================================
+7. COMPLIANCE ENGINE VERIFICATION
+======================================================================
+internal.evaluate_compliance was NOT changed or duplicated.
+
+  - Assignment eligibility still evaluates each facility-local shift date.
+  - Proven by pgTAP case I and the integration test: a Chicago 20:00–23:00
+    shift on D (UTC D + 1) ignores a requirement effective D + 1 and
+    applies one effective D.
+  - The engine excludes inactive requirements for all dates (status gate).
+    effective_until is the recorded last day.
+
+======================================================================
+8. UI CHANGES
+======================================================================
+  - The requirement form has an explicit "Effective from" date field:
+    pre-filled on facility pages, required and empty on the agency
+    baseline page.
+  - The requirements list shows "From <date>[ to <date>]", formatted
+    without shifting through any timezone.
+  - "Deactivate" is now a small disclosure with "Last day it applies".
+  - No redesign: existing components, brand tokens and layout.
+
+======================================================================
+9. HISTORICAL DATA TREATMENT
+======================================================================
+Existing credential_requirements rows were NOT rewritten. Dates produced
+by the old UTC default remain as historical facts: there is no evidence
+they are corrupt, only that they may be one day later than a local-date
+choice would have been.
+
+This stage changes future creation and deactivation only. pgTAP F checks
+that later edits never change effective_from.
+
+======================================================================
+10. SECURITY TESTS
+======================================================================
+pgTAP 230_local_date_requirements (25 assertions, deterministic: fixed
+instants and dates, no wall clock):
+
+  A  New York 02:30 UTC Mar 12 → local Mar 11.
+  B  Chicago 04:30 UTC → Mar 11; 05:30 UTC → Mar 12.
+     Facility "today" = local date; an explicit date wins.
+  C  A facility requirement is effective on its local date; the stored
+     DATE is exactly as supplied.
+  D  It is not effective on the previous local date.
+  E  It is effective exactly from effective_from.
+  F  Edits never change effective_from.
+  G  No column default:
+       - the owner cannot insert without a date (23502);
+       - there is no API form without a date (42883);
+       - an agency-wide null date is refused (CH400).
+  H  Refused:
+       - another agency's facility for scoping (CH403);
+       - another agency creating requirements here (CH403);
+       - borrowing another agency's facility timezone for a readiness
+         date (CH403).
+  I  Exact failure window: the evening Chicago shift is evaluated on its
+     local date.
+  J  Refused:
+       - malformed date (22008);
+       - implausible date (CH400);
+       - scheduler (CH403);
+       - direct insert (42501);
+       - deactivation without a last day, or a last day before
+         effective_from (CH400).
+
+Updated: 000 (signatures), 100 and _shift_fixture (explicit dates). The
+P0-E7-S1 backdating workaround in the fixture has been removed.
+
+======================================================================
+11. INTEGRATION TESTS
+======================================================================
+tests/integration/local-date-requirements.test.ts (4 tests, real local
+stack, fixed future date D, no wall-clock dependence):
+
+  1. A Chicago 20:00–23:00 shift on D has UTC date D + 1:
+       - a requirement effective D + 1 → assignment allowed;
+       - after deactivating it (explicit last day) and creating one
+         effective D → assignment refused with MISSING_CREDENTIAL.
+  2. Readiness on explicit dates: D − 1 ready, D not ready.
+  3. Stored dates are exactly as supplied; a null date is refused (CH400).
+  4. Cross-tenant facility and timezone use is refused (CH403).
+
+Six existing integration suites and the E2E fixture now pass explicit
+effective dates.
+
+======================================================================
+12. E2E
+======================================================================
+tests/e2e/local-date-requirements.spec.ts (desktop + mobile):
+
+  1. The admin steps up and opens a Chicago facility.
+  2. "Effective from" is visible and pre-filled with the facility-local
+     date, with the hint.
+  3. The admin adds an orientation requirement; the list shows
+     "From <date>".
+  4. Readiness on that local date is not ready, and on the previous date
+     is ready.
+
+Also updated: credentials-compliance.spec.ts now fills the agency-wide
+"Effective from" date explicitly.
+
+======================================================================
+13. MIGRATION LIST
+======================================================================
+New: 20261001110000_local_date_requirements.sql
+
+No merged migration was edited. Total: 47 migration files.
+
+======================================================================
+14. BUILD VALIDATION
+======================================================================
+Final state: database reset from empty, stack restarted. Run at
+01:00–01:25 UTC, i.e. inside the US-evening window where UTC is already
+the next day.
+
+  npm run format:check        PASS
+  npm run lint                PASS
+  npm run typecheck           PASS
+  npm test                    PASS (22 files, 255 tests)
+  npm run build               PASS
+  npm run check:bundle        PASS (56 browser files, no secrets)
+  npx playwright test         PASS (112 passed, 2 skipped by design)
+  npm run check:migrations    PASS (47 files)
+  supabase db reset           PASS
+  supabase db lint            PASS (no schema errors)
+  supabase test db            PASS (25 files, 1,123 assertions)
+  npm run test:integration    PASS (12 files, 94 tests)
+  npm run db:types            PASS (no drift after regeneration)
+
+The skips are the existing desktop-only keyboard tests on mobile.
+
+credentials-compliance.spec.ts was updated: the agency baseline step now
+fills the required "Effective from" date. That is the intended new
+behaviour for agency-wide requirements. Its first run failed for exactly
+that reason; after the update the full suite passed.
+
+======================================================================
+15. GIT STATUS
+======================================================================
+Branch p0-e7-s1a-local-date-compliance, from 50e6dd4 (P0-E7-S1).
+Nothing is committed or pushed.
+
+New:
+  - the migration;
+  - pgTAP 230;
+  - integration test, E2E spec and unit test for local dates;
+  - DeactivateRequirementForm;
+  - this report.
+
+Modified:
+  - compliance actions, schemas, queries, requirement form and table;
+  - facility and compliance pages;
+  - the credentials domain (localCalendarDate, formatCalendarDate);
+  - database types;
+  - pgTAP 000, 100 and _shift_fixture;
+  - six integration tests and the E2E staffing fixture (explicit
+    dates);
+  - three docs: COMPLIANCE_ENGINE, FACILITY_CREDENTIAL_REQUIREMENTS and
+    CREDENTIAL_DOMAIN_MODEL.
+
+The shared local stack was coordinated with the other Chelth sessions:
+they stayed off it during this stage.
+
+======================================================================
+16. REMAINING RISKS
+======================================================================
+  - Agency-wide "readiness today" views with no facility still evaluate
+    on the UTC date. This is display only: assignment always uses
+    facility-local dates. It is documented, because Chelth has no agency
+    timezone. Adding a canonical agency timezone (or always passing an
+    explicit date) would remove it.
+  - Historical requirements created under the old default may start one
+    day later than intended. They were deliberately not rewritten; an
+    agency can create a corrected requirement if needed.
+  - Other date fields elsewhere (credential issue and expiry dates,
+    "today" checks such as issue-date-not-in-future) still use
+    current_date. They were outside this narrow stage, and none decides
+    requirement effectiveness.
+
+======================================================================
+17. RECOMMENDED NEXT STAGE
+======================================================================
+P0-E7-S2: Payroll preparation and invoice drafting from priced snapshots
+(as recommended in P0-E7-S1).
+
+Optionally first: a short audit of the remaining current_date uses
+(credential dates) against facility-local semantics, and a decision on a
+canonical agency timezone.
