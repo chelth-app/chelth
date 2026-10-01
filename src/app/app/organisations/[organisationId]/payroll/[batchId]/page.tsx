@@ -30,7 +30,7 @@ import { formatPeriod, formatWorkedMinutes } from "@/lib/domain/timesheets";
 export const metadata: Metadata = { title: "Payroll batch" };
 
 const idSchema = z.uuid();
-const TABLE_REGION = "overflow-x-auto rounded-lg border border-border bg-surface";
+const TABLE_REGION = "relative overflow-x-auto rounded-lg border border-border bg-surface";
 const TH = "px-3 py-2 font-medium";
 const dateFormat = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",

@@ -8,8 +8,12 @@ import {
   createInvoiceDraftAction,
   getReconciliation,
   InvoiceStatusBadge,
+  InvoiceAdjustmentCandidates,
+  InvoiceAdjustmentsTable,
   IssuesTable,
   listBillableWork,
+  listInvoiceAdjustmentCandidates,
+  listInvoiceAdjustments,
   listInvoiceDrafts,
   listInvoiceIssues,
   ReconciliationTable,
@@ -26,7 +30,7 @@ import { formatPeriod, formatWorkedMinutes } from "@/lib/domain/timesheets";
 
 export const metadata: Metadata = { title: "Invoices" };
 
-const TABLE_REGION = "overflow-x-auto rounded-lg border border-border bg-surface";
+const TABLE_REGION = "relative overflow-x-auto rounded-lg border border-border bg-surface";
 const TH = "px-3 py-2 font-medium";
 
 /**
@@ -42,11 +46,13 @@ export default async function InvoicesPage({
   const { organisationId, organisation, can } = context;
   if (organisation.type !== "agency") notFound();
 
-  const [work, issues, drafts, reconciliation] = await Promise.all([
+  const [work, issues, drafts, reconciliation, candidates, adjustments] = await Promise.all([
     listBillableWork(organisationId),
     listInvoiceIssues(organisationId),
     listInvoiceDrafts(organisationId),
     getReconciliation(organisationId, "bill"),
+    listInvoiceAdjustmentCandidates(organisationId),
+    listInvoiceAdjustments(organisationId),
   ]);
   const canPrepare = can(CAPABILITIES.INVOICE_PREPARE) === "granted";
   const approve = can(CAPABILITIES.INVOICE_APPROVE);
@@ -96,6 +102,23 @@ export default async function InvoicesPage({
             showFacility
           />
         )}
+      </section>
+
+      <section aria-labelledby="invoice-adjustments-heading" className="flex flex-col gap-3">
+        <h2 id="invoice-adjustments-heading" className="text-lg font-semibold">
+          Adjustments
+        </h2>
+        <p className="max-w-2xl text-sm text-muted-foreground">
+          When billed work is revised after a draft is locked, the draft never changes. The
+          bill-side difference is prepared as a separate adjustment draft: an additional charge or a
+          credit. Adjustment drafts are internal and are not sent.
+        </p>
+        <InvoiceAdjustmentCandidates
+          rows={candidates}
+          organisationId={organisationId}
+          canPrepare={canPrepare}
+        />
+        <InvoiceAdjustmentsTable rows={adjustments} organisationId={organisationId} />
       </section>
 
       <section aria-labelledby="invoice-billable-heading" className="flex flex-col gap-3">

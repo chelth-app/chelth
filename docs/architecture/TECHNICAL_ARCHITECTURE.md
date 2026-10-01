@@ -323,6 +323,27 @@ The identity and authorization design is specified in
 - No payroll execution, tax, payments, invoice sending, accounting or bank
   integrations.
 
+### Financial adjustments & control hardening (P0-E7-S3)
+
+- **Adjustments.** Post-lock revisions become delta-only payroll adjustments
+  and invoice adjustment drafts. They are chained revision by revision from
+  the last accounted state, with structural claims, signed integer totals
+  and deterministic, checksummed exports through the same private
+  infrastructure. Docs:
+  [FINANCIAL_ADJUSTMENT_MODEL.md](FINANCIAL_ADJUSTMENT_MODEL.md),
+  [FINANCIAL_ADJUSTMENT_CHAIN.md](FINANCIAL_ADJUSTMENT_CHAIN.md).
+- **Controls.** An optional maker/checker rule
+  ([MAKER_CHECKER_POLICY.md](MAKER_CHECKER_POLICY.md)), and bounded, audited
+  financial refusals
+  ([../security/FINANCIAL_DENIAL_AUDIT.md](../security/FINANCIAL_DENIAL_AUDIT.md)).
+- **UI.** Adjustment queues and tables on `/payroll` and `/invoices`;
+  `/payroll/adjustments/[adjustmentId]`;
+  `/invoices/adjustments/[adjustmentId]`.
+- **Code.** `src/features/financial` (adjustment-queries, adjustment-actions,
+  denials, components).
+- **Out of scope.** There is still no payment, tax, ledger, legal invoicing
+  or accounting integration.
+
 ### Content Security Policy
 
 `src/proxy.ts` generates a 128-bit nonce per request and sets:

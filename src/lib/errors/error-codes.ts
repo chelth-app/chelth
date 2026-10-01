@@ -443,6 +443,56 @@ export const ERROR_CODES = {
     status: 409,
     message: "Some of this work was just included elsewhere. Refresh and try again.",
   },
+  ADJUSTMENT_NOT_REQUIRED: {
+    kind: "conflict",
+    status: 409,
+    message: "This work does not need an adjustment.",
+  },
+  ADJUSTMENT_ALREADY_EXISTS: {
+    kind: "conflict",
+    status: 409,
+    message: "An adjustment for this revision already exists. Finish or cancel it first.",
+  },
+  ADJUSTMENT_SOURCE_NOT_LOCKED: {
+    kind: "conflict",
+    status: 409,
+    message: "The revised timesheet is not locked yet.",
+  },
+  ADJUSTMENT_SOURCE_NOT_PRICED: {
+    kind: "conflict",
+    status: 409,
+    message: "The revised timesheet is not priced yet. Price it, then prepare the adjustment.",
+  },
+  ADJUSTMENT_ORIGINAL_NOT_FINAL: {
+    kind: "conflict",
+    status: 409,
+    message: "The original document is not locked. Finish or cancel it instead of adjusting.",
+  },
+  ADJUSTMENT_CURRENCY_MISMATCH: {
+    kind: "conflict",
+    status: 409,
+    message: "The revised pricing uses a different currency from the original document.",
+  },
+  ADJUSTMENT_ZERO_DELTA: {
+    kind: "conflict",
+    status: 409,
+    message: "The revision does not change any amount, so no adjustment is needed.",
+  },
+  ADJUSTMENT_NOT_FOUND: {
+    kind: "not_found",
+    status: 404,
+    message: "That adjustment could not be found.",
+  },
+  DOCUMENT_HAS_ADJUSTMENTS: {
+    kind: "conflict",
+    status: 409,
+    message: "This document has adjustments and cannot be voided.",
+  },
+  MAKER_CHECKER_REQUIRED: {
+    kind: "authorization",
+    status: 403,
+    message: "A different person must approve this, because you prepared it.",
+  },
   RATE_LIMITED: {
     kind: "rate_limited",
     status: 429,

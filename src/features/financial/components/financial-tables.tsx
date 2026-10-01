@@ -6,6 +6,9 @@ import {
   attentionLabel,
   financialStatusTone,
   formatByteSize,
+  formatSignedMinutes,
+  formatSignedMoney,
+  DELTA_RECONCILIATION_STATES,
   INVOICE_DRAFT_STATUS_LABELS,
   type InvoiceDraftStatus,
   PAYROLL_BATCH_STATUS_LABELS,
@@ -41,10 +44,18 @@ export function InvoiceStatusBadge({ status }: { status: InvoiceDraftStatus }) {
 export function AttentionBadge({ code }: { code: string | null }) {
   const label = attentionLabel(code);
   if (!label) return null;
-  return <Badge tone={code === "ADJUSTMENT_REQUIRED" ? "warning" : "danger"}>{label}</Badge>;
+  const tone =
+    code === "REVISION_RESOLVED"
+      ? "neutral"
+      : code === "ADJUSTMENT_IN_PROGRESS"
+        ? "info"
+        : code === "ADJUSTMENT_REQUIRED"
+          ? "warning"
+          : "danger";
+  return <Badge tone={tone}>{label}</Badge>;
 }
 
-const TABLE_REGION = "overflow-x-auto rounded-lg border border-border bg-surface";
+const TABLE_REGION = "relative overflow-x-auto rounded-lg border border-border bg-surface";
 const TH = "px-3 py-2 font-medium";
 
 /** Generated files with their integrity metadata. Downloads are audited POSTs. */
@@ -52,10 +63,13 @@ export function ExportsTable({
   rows,
   canDownload,
   label,
+  signedTotals = false,
 }: {
   rows: FinancialExportRow[];
   canDownload: boolean;
   label: string;
+  /** Adjustment exports record a signed net delta. */
+  signedTotals?: boolean;
 }) {
   if (rows.length === 0) {
     return <p className="text-sm text-muted-foreground">No exports have been generated yet.</p>;
@@ -106,7 +120,9 @@ export function ExportsTable({
               </td>
               <td className="px-3 py-2 text-right tabular-nums">{row.rowCount}</td>
               <td className="px-3 py-2 text-right tabular-nums">
-                {formatMoney(row.totalMinor, row.currency)}
+                {signedTotals
+                  ? formatSignedMoney(row.totalMinor, row.currency)
+                  : formatMoney(row.totalMinor, row.currency)}
               </td>
               <td className="px-3 py-2">
                 <code className="font-mono text-xs" title={row.sha256}>
@@ -217,10 +233,16 @@ export function ReconciliationTable({
               <td className="px-3 py-2">{RECONCILIATION_LABELS[row.state] ?? row.state}</td>
               <td className="px-3 py-2 text-right tabular-nums">{row.lineCount}</td>
               <td className="px-3 py-2 text-right tabular-nums">
-                {formatWorkedMinutes(row.minutes)}
+                {DELTA_RECONCILIATION_STATES.includes(row.state)
+                  ? formatSignedMinutes(row.minutes)
+                  : formatWorkedMinutes(row.minutes)}
               </td>
               <td className="px-3 py-2 text-right tabular-nums">
-                {formatMoney(row.amountMinor, row.currency)}
+                {!/^[A-Z]{3}$/.test(row.currency)
+                  ? "—"
+                  : DELTA_RECONCILIATION_STATES.includes(row.state)
+                    ? formatSignedMoney(row.amountMinor, row.currency)
+                    : formatMoney(row.amountMinor, row.currency)}
               </td>
             </tr>
           ))}

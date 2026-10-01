@@ -21,6 +21,7 @@ export type FinancialSettings = {
   payrollReferencePrefix: string;
   invoiceReferencePrefix: string;
   configured: boolean;
+  makerCheckerRequired: boolean;
 };
 
 export async function getFinancialSettings(organisationId: string): Promise<FinancialSettings> {
@@ -38,6 +39,7 @@ export async function getFinancialSettings(organisationId: string): Promise<Fina
     payrollReferencePrefix: row.payroll_reference_prefix,
     invoiceReferencePrefix: row.invoice_reference_prefix,
     configured: row.configured,
+    makerCheckerRequired: row.maker_checker_required,
   };
 }
 
@@ -563,7 +565,7 @@ export type FinancialExportRow = {
 };
 
 export async function listFinancialExports(
-  sourceType: "payroll_batch" | "invoice_draft",
+  sourceType: "payroll_batch" | "invoice_draft" | "payroll_adjustment" | "invoice_adjustment",
   sourceId: string,
 ): Promise<FinancialExportRow[]> {
   const supabase = await createSupabaseServerClient();

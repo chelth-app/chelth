@@ -1,0 +1,737 @@
+CHELTH — P0-E7-S3 FINANCIAL ADJUSTMENTS & CONTROL HARDENING
+Stage report · 2026-10-01 · branch p0-e7-s3-financial-adjustments (from main 8150e5b, uncommitted)
+
+======================================================================
+1. EXECUTIVE SUMMARY
+======================================================================
+Revisions made after lock are now resolved inside Chelth. When locked or
+exported work is revised and priced again, finance prepares an adjustment:
+
+  - a payroll adjustment (pay side), or
+  - an invoice adjustment draft (bill side; an additional charge or a
+    credit).
+
+Both are delta-only and immutable. Each one:
+
+  - compares the last financially accounted revision with the new priced
+    revision;
+  - matches lines by timesheet entry;
+  - is chained revision by revision (1→2→3).
+
+The originals never change: lines, totals, history, references, timestamps
+and export bytes stay byte-identical, as tested.
+
+Also delivered:
+
+  - an optional maker/checker rule (preparer ≠ approver; default off);
+  - audited, bounded refusals for approvals and downloads;
+  - reconciliation with adjustment states;
+  - deterministic, checksummed adjustment exports, including a DRAFT
+    INVOICE ADJUSTMENT PDF;
+  - operational queues on /payroll and /invoices.
+
+Nothing pays, taxes, posts or issues. All validation passes, with zero
+database-lint warnings and no unresolved HIGH or CRITICAL finding.
+
+======================================================================
+2. ADJUSTMENT DOMAIN
+======================================================================
+Explicit entities; normal documents were not reused:
+
+  - payroll_adjustments, payroll_adjustment_lines, payroll_adjustment_claims,
+    payroll_adjustment_history;
+  - invoice_adjustments, invoice_adjustment_lines, invoice_adjustment_claims,
+    invoice_adjustment_history.
+
+Unit of adjustment:
+  - payroll: one timesheet revision transition;
+  - invoice: one (timesheet, facility relationship) revision transition.
+
+Visibly distinct: references are PAY-ADJ-/INV-ADJ-, and pages are labelled
+"Adjustment — not payment" and "Draft invoice adjustment — internal, not
+sent".
+
+======================================================================
+3. REVISION LINEAGE
+======================================================================
+Each header stores:
+
+  - timesheet (and relationship), from_revision → to_revision (to > from);
+  - both priced timesheets, composite-FK-bound to (id, agency, timesheet,
+    revision) and (id, currency);
+  - the ROOT original document. Payroll: FK (id, agency, currency) to the
+    batch. Invoice: FK (id, agency, relationship, facility, week, currency)
+    to the draft;
+  - previous_adjustment_id. Its FK proves previous.to_revision =
+    from_revision, with the same timesheet (and relationship) and the same
+    root.
+
+The UI shows original document, "Follows" (previous adjustment), revision
+change and source pricing links. Every link remains explainable months
+later.
+
+======================================================================
+4. PAYROLL ADJUSTMENT SCHEMA
+======================================================================
+Header:
+  - reference, status (payroll_batch_status), timesheet, worker/profile
+    (FK to the timesheet);
+  - period (FK to the to-priced timesheet);
+  - revisions and both priced timesheets;
+  - original batch, previous adjustment, currency;
+  - line_count; signed regular/overtime minute deltas;
+  - total_increase_minor ≥ 0, total_decrease_minor ≥ 0, net_delta_minor
+    (CHECK: net = increase − decrease);
+  - worker reference and name snapshots;
+  - lifecycle stamps; cancel reason.
+
+Lines (changed entries only):
+  - entry, worker, facility, relationship, discipline, work date;
+  - old_* and new_* pay sides: priced line id, priced timesheet, regular and
+    overtime minutes, pay rate, pay amount, calculation version. Each side
+    is composite-FK-bound to the priced line's pay-side source key, and is
+    either wholly present or wholly NULL (num_nulls check);
+  - signed deltas, CHECKed as new − old;
+  - display snapshots.
+
+There are no bill-side columns (pgTAP P).
+
+======================================================================
+5. INVOICE ADJUSTMENT SCHEMA
+======================================================================
+Header: as for payroll, plus:
+  - relationship and facility (FK);
+  - direction, a generated column (additional_charge / credit /
+    no_net_change);
+  - agency and facility name snapshots;
+  - a void lifecycle.
+
+Lines:
+  - old and new bill sides: priced minutes, bill regular and overtime
+    minutes, bill rate, bill amount, calculation version, each FK-bound to
+    the priced line's bill-side key;
+  - signed priced-minute and bill-amount deltas.
+
+There are no pay or margin columns (pgTAP Q, integration).
+
+======================================================================
+6. DELTA CALCULATION
+======================================================================
+Sources:
+  - Old side: the lines last financially accounted. These are the original
+    document's claimed lines, or, after an adjustment, its whole
+    to_revision.
+  - New side: the current priced revision of the locked timesheet.
+
+Matching: a FULL JOIN on timesheet entry (one per assignment, stable across
+revisions); never names.
+
+  - Added entry: old side NULL.
+  - Removed entry: new side NULL, negative delta.
+  - Changed: added, removed, or any of minutes / rate / amount differs. Only
+    changed lines are stored.
+
+Amounts are copied, never recomputed: there is no rate × minutes and no live
+rates or attendance (pgTAP J; owner-level FK proof).
+
+======================================================================
+7. ADJUSTMENT CHAIN
+======================================================================
+The base is the latest non-cancelled/non-voided adjustment's to_revision,
+otherwise the original's claimed revision. Each step compares against that
+base and never back to revision 1.
+
+Tested chain (pgTAP S, integration, E2E 4):
+
+  revision 1 → original batch / draft;
+  revision 2 → adjustment A (1→2, +$11.32 pay, +$15.10 bill);
+  revision 3 → adjustment B (2→3, −$50.20 pay, −$61.75 bill), linked to A;
+  revision 4 (financially identical) → resolved without a document.
+
+Open adjustments:
+  - one whose target is superseded blocks approve/lock (CHY02) until it is
+    cancelled or voided;
+  - a locked invoice adjustment cannot be voided, because it is a chain base.
+
+======================================================================
+8. POSITIVE / NEGATIVE HANDLING
+======================================================================
+  - Integer minor units throughout; signed bigint deltas.
+  - Totals are increase and decrease magnitudes plus a signed net.
+  - The UI shows "+$11.32 Increase", "−$50.20 Decrease", "+$15.10 Additional
+    charge" and "−$61.75 Credit": a true minus sign plus a text label, never
+    colour alone.
+  - CSV numeric columns keep their sign.
+
+Zero delta:
+  - no material change → no document (CHY18), state no_change, resolved;
+  - minutes or rate changed with a zero net → a document with net 0
+    (direction no_net_change).
+
+======================================================================
+9. ORIGINAL DOCUMENT PRESERVATION
+======================================================================
+pgTAP H/I compare, before and after the adjustments:
+  - the full batch row (to_jsonb);
+  - every batch line;
+  - the history count;
+  - the original payroll CSV and draft-invoice PDF bytes (SHA-256 of the
+    stored content);
+  - the full draft row.
+
+All are identical. The integration and E2E suites check the same.
+
+Structural guards:
+  - S2 immutability triggers;
+  - adjustments only ever insert their own rows;
+  - void_invoice_draft refuses an original that roots a chain (CHY21).
+
+======================================================================
+10. PAYROLL ADJUSTMENT LIFECYCLE
+======================================================================
+draft → reviewed → approved → locked → exported; cancelled before lock.
+
+  prepare  create_payroll_adjustment(timesheet)    payroll.prepare
+  review   review_payroll_adjustment               payroll.prepare
+  approve  approve_payroll_adjustment              payroll.approve (AAL2) + maker/checker
+  lock     lock_payroll_adjustment                 payroll.approve (AAL2)
+  export   create_payroll_adjustment_export        payroll.export (AAL2)
+  cancel   cancel_payroll_adjustment(reason)       payroll.prepare (payroll.approve once approved)
+
+Each step appends to the history table and is audited. The trigger enforces
+transitions and immutability after lock.
+
+======================================================================
+11. INVOICE ADJUSTMENT LIFECYCLE
+======================================================================
+draft → reviewed → approved → locked → exported; voided before lock.
+
+  - invoice.prepare / invoice.approve (AAL2) / invoice.export (AAL2), as for
+    payroll.
+  - void_invoice_adjustment needs a reason and releases the transition
+    claim.
+  - There is no sent, paid, overdue or collected state.
+
+Fixed during the stage:
+  - The immutability trigger compared the generated `direction` column,
+    which is NULL in NEW during BEFORE triggers. Every lifecycle update was
+    refused. The column is now excluded from the comparison; it is derived
+    from net_delta_minor, which is still compared.
+
+======================================================================
+12. ADJUSTMENT EXPORTS
+======================================================================
+Payroll adjustment CSV columns:
+  adjustment_reference, original_batch_reference,
+  previous_adjustment_reference, worker_reference, worker_name, work_date,
+  facility, discipline, original_revision, revised_revision,
+  original/revised regular minutes, original/revised overtime minutes,
+  original/revised pay amount (minor), delta_pay_amount_minor, currency.
+
+Invoice adjustment CSV columns:
+  adjustment_reference, original_invoice_draft_reference,
+  previous_adjustment_reference, direction, facility,
+  relationship_reference, work_date, worker_reference, worker_name,
+  discipline, original/revised revision, original/revised priced minutes,
+  original/revised bill amount (minor), delta_bill_amount_minor, currency.
+There are no pay values (pgTAP Q, integration, E2E).
+
+Invoice adjustment PDF:
+  - titled "DRAFT INVOICE ADJUSTMENT", then "Additional charge" or "Credit";
+  - "Not a tax invoice, credit note or request for payment";
+  - shows the original draft, previous adjustment and revision change;
+  - signed net;
+  - escaped text only.
+
+Exports are deterministic (database-rendered, ordered by line number).
+total_minor records the signed net.
+
+======================================================================
+13. CHECKSUM & FILE SECURITY
+======================================================================
+The S2 infrastructure is reused unchanged:
+  - financial_exports, now accepting payroll_adjustment and
+    invoice_adjustment with composite FKs; the private no-grant byte table;
+  - SHA-256 at generation, on insert, in the download RPC and in the route;
+  - the same-origin POST route;
+  - Cache-Control no-store and nosniff;
+  - the content-type allow-list and file-name validation;
+  - csv_text neutralisation;
+  - AAL2 *.export.
+
+Downloads now audit refusals (§16). The route maps a returned denial to 404,
+or to 403 with a verification prompt.
+
+======================================================================
+14. RECONCILIATION CHANGES
+======================================================================
+States: unprepared, drafted, approved, exported, adjustment_required,
+adjustment_in_progress, adjusted.
+
+  - Adjustment states carry signed deltas.
+  - "adjusted" includes completed chains and no-change revisions.
+  - Resolved revisions are no longer unresolved, nor offered for
+    preparation (no double pay or bill).
+
+Document attention:
+  - Open documents: SOURCE_SUPERSEDED (fail closed).
+  - Locked or exported documents: ADJUSTMENT_REQUIRED,
+    ADJUSTMENT_IN_PROGRESS or REVISION_RESOLVED.
+
+Tested final state: pay = exported 3 lines $830.88, adjusted 3 delta lines
+−$38.88.
+
+======================================================================
+15. MAKER / CHECKER POLICY
+======================================================================
+agency_financial_settings.financial_maker_checker_required, default false
+(existing agencies are unaffected; pgTAP V).
+
+  - Changed with set_financial_maker_checker, which requires
+    payroll.approve AND invoice.approve at AAL2 and is audited.
+  - Rule: the membership that prepared a payroll batch, invoice draft,
+    payroll adjustment or invoice adjustment may not approve it (MAKER_
+    CHECKER, audited). Enforced in the database (internal.financial_
+    authorize).
+  - Lock and export carry no further restriction; a third person is not
+    required.
+  - The UI hides Approve from the preparer and says why. Approval audit
+    metadata records whether the rule was in force.
+
+======================================================================
+16. DENIED ACTION AUDITING
+======================================================================
+Audited refusals:
+  - financial export download;
+  - payroll batch approval and invoice draft approval;
+  - payroll adjustment approval and invoice adjustment approval.
+
+Each refusal records financial.action_denied:
+  - metadata { attempted_action, reason_code } only;
+  - reason codes NOT_FOUND, NOT_PERMITTED, MFA_REQUIRED, MAKER_CHECKER;
+  - the organisation only when the actor is a member, so cross-tenant
+    attempts never write into another agency's log;
+  - no names, no free text, no content.
+
+Refusals are RETURNED rather than raised, so the audit row commits:
+  - approvals return (outcome, reason_code);
+  - the download returns denied_reason.
+
+Server actions fail closed unless outcome = 'approved'. State errors still
+raise.
+
+Bounds:
+  - a per-actor cap of 60 per hour, checked FIRST;
+  - then dedupe per (actor, action, target, reason) per 15 minutes.
+Both audit rows and counters are bounded (see §29).
+
+======================================================================
+17. CAPABILITIES
+======================================================================
+No new capabilities: adjustments reuse payroll.* and invoice.*. Approve and
+export remain privileged (AAL2).
+
+  - The operations manager can view adjustments only.
+  - Scheduler, worker, facility and platform admin: no path (pgTAP A–E, X).
+
+Admin capability counts are unchanged (44 / 19).
+
+======================================================================
+18. RLS ARCHITECTURE
+======================================================================
+All 8 new tables:
+  - RLS enabled;
+  - SELECT grant only;
+  - policies of has_capability(agency, payroll.view | invoice.view).
+
+They are deny-by-default and agency-only, with no anon, worker, facility or
+platform-admin path.
+
+  - Writes happen only through SECURITY DEFINER RPCs with search_path = ''
+    (pgTAP Y, Z).
+  - Projections return not-found (CHY19) to non-viewers.
+  - The baseline RPC allow-list is updated (+22 RPCs).
+
+======================================================================
+19. STRUCTURAL INTEGRITY
+======================================================================
+Composite FKs prove that:
+  - the adjustment belongs to the agency;
+  - the original document is the agency's and in the same currency (and,
+    for invoices, the same relationship, facility and week);
+  - both priced revisions belong to the same timesheet;
+  - the previous adjustment ends at from_revision;
+  - lines belong to the header (timesheet, revisions, currency);
+  - each line side equals a pay-side (payroll) or bill-side (invoice)
+    priced line of the right revision;
+  - claims belong to the adjustment.
+
+CHECKs:
+  - signed deltas = new − old;
+  - wholly present or wholly absent sides;
+  - net = increase − decrease;
+  - status stamps.
+
+Deferred triggers: totals equal the lines.
+Immutability: protect triggers; append-only lines and history; no TRUNCATE.
+
+A currency mismatch is structurally impossible (pgTAP R, owner insert gives
+23503).
+
+======================================================================
+20. DUPLICATE PREVENTION
+======================================================================
+Claims primary keys:
+  - payroll: (timesheet, from_revision);
+  - invoice: (timesheet, relationship, from_revision).
+
+Claims can be inserted only while preparing, and deleted only on
+cancel/void (before lock).
+
+Tests:
+  - pgTAP N: a re-prepare gives CHY13; an owner-level duplicate claim gives
+    23505.
+
+======================================================================
+21. CONCURRENCY
+======================================================================
+Adjustment preparation takes the SAME per-agency advisory lock as ordinary
+preparation, plus a share lock on the timesheet row.
+
+Integration tests (real parallel sessions):
+  - two finance users preparing the same payroll adjustment: exactly one
+    document; the other gets CHY13; one claim;
+  - the same for invoice adjustments.
+
+======================================================================
+22. AUDIT CHANGES
+======================================================================
+New actions:
+  - payroll.adjustment_created, _reviewed, _approved, _locked, _exported,
+    _cancelled;
+  - invoice.adjustment_created, _reviewed, _approved, _locked, _exported,
+    _voided;
+  - financial.maker_checker_updated;
+  - financial.action_denied.
+
+Metadata: ids, references, revision numbers, currency, signed net totals,
+direction, reason codes, checksums. There are no file contents.
+
+Exports and downloads reuse *.export_created and *.export_downloaded, with
+source_type in the metadata. All actions are labelled in AUDIT_ACTIONS.
+
+======================================================================
+23. PAYROLL UI
+======================================================================
+/payroll gains an "Adjustments" section, separate from the batch table:
+
+  - "Payroll adjustments required": worker and week, original batch (link),
+    "Last accounted in …", revision change, priced status, state label, a
+    signed delta estimate (only when it can be prepared, sourced from
+    immutable pricing), and "Prepare adjustment" or a link to the open
+    adjustment;
+  - "Payroll adjustments": a dense table of reference, worker, what it
+    adjusts, status and attention, and signed net with label.
+
+Payroll settings gain the "Require a second approver" control.
+
+/payroll/adjustments/[adjustmentId]:
+  - "Adjustment — not payment";
+  - lineage (original batch "(unchanged)", follows, revision change, source
+    pricing);
+  - net change with increases and decreases, signed minutes;
+  - the next step (hidden from the preparer under maker/checker, with an
+    explanation);
+  - exports with signed totals;
+  - changed lines (original → revised time, rate and pay, signed change);
+  - history.
+
+Design: calm, tables only, text-labelled signs, brand tokens, no new logo
+treatment.
+
+Fixed during E2E:
+  - On mobile, `sr-only` header labels inside horizontally scrolling table
+    regions escaped clipping and widened the page to 817px.
+  - Financial table regions are now `relative`; the page is exactly the
+    viewport width, and E2E passes on mobile.
+
+======================================================================
+24. INVOICE UI
+======================================================================
+/invoices gains an "Adjustments" section:
+
+  - "Invoice adjustments required for <facility>": grouped by facility, with
+    the original draft, revision change, priced status and a signed estimate
+    labelled "Additional charge" or "Credit";
+  - "Invoice adjustments": a table with direction labels.
+
+/invoices/adjustments/[adjustmentId]:
+  - "Draft invoice adjustment — internal, not sent";
+  - direction;
+  - lineage and net bill adjustment (additional charges, credits, billed
+    time);
+  - steps, PDF/CSV documents, changed lines, history.
+
+No pay or margin appears (E2E 3 checks for the absence of pay rates and pay
+deltas).
+
+======================================================================
+25. SECURITY TESTS
+======================================================================
+supabase/tests/security/250_financial_adjustments.test.sql, 91 assertions,
+A–Z:
+
+  A/B  cross-agency reads and by-id: none
+  C    worker: no reads, no prepare, no download
+  D    facility: no reads or projections
+  E    scheduler cannot prepare or approve (denied and audited)
+  F    finance is limited to its own agency
+  G    no adjustment unless the newer revision is locked and priced and the
+       earlier one is accounted (CHY12/14/15)
+  H/I  originals and their export bytes are unchanged, byte for byte
+  J    delta = new priced − last accounted; both sides FK-bound
+  K    positive (+1132)
+  L    negative (−5020 pay, −6175 bill credit)
+  M    zero delta: no document, resolved, not offered again
+  N    duplicate prepare and owner duplicate claim refused
+  P/Q  side separation (no bill columns on payroll, no pay/margin on
+       invoice)
+  R    currency mismatch structurally impossible
+  S    chain 1→2→3 with previous link and root
+  T    locked immutability (totals, lines, claims, cancel)
+  U    private, checksummed exports; cross-tenant download refused
+  V    maker/checker off: the preparer approves
+  W    maker/checker on: the preparer is refused, repeatedly; a second person
+       approves
+  X    denial audit: safe metadata, deduplicated, org-scoped only for
+       members
+  Y    search_path pinned
+  Z    no anon; no direct writes or claim release
+
+Updated:
+  - 000 (RPC allow-list);
+  - 240 (approvals and downloads now assert audited returned denials; its
+    revision is now made materially different).
+
+======================================================================
+26. INTEGRATION TESTS
+======================================================================
+New: tests/integration/financial-adjustments.test.ts (7 tests, real stack):
+  - required state with an exact estimate;
+  - concurrent prepare: one winner;
+  - positive delta, approve/lock/export, CSV checksum and header; original
+    batch and export unchanged; no work offered again;
+  - invoice adjustment: concurrency, bill-only fields, additional charge,
+    CSV without pay; original draft unchanged;
+  - maker/checker on: preparer refused, view-only refused, second approver
+    accepted; denial audit rows;
+  - maker/checker off restores the workflow; a credit chained to the
+    previous adjustment;
+  - cross-tenant, worker, facility and scheduler: no path; repeated
+    cross-tenant download refusals give one org-less audit row.
+
+Updated: financial.test.ts (S2: returned denials; materially different
+revision).
+
+======================================================================
+27. E2E TESTS
+======================================================================
+New: tests/e2e/financial-adjustments.spec.ts (desktop + mobile, axe):
+
+  1  Adjustment required → prepare → review delta ($320.88 → $332.20,
+     +$11.32) → approve → lock.
+  2  Export CSV; the downloaded SHA-256 equals the displayed checksum.
+  3  Invoice adjustment shown as "Additional charge" +$15.10 with no pay
+     values; review → approve → lock.
+  4  The third revision references "Last accounted in PAY-ADJ-…",
+     "Revision 2 → 3", −$50.20 Decrease, and "Follows".
+  5  Maker/checker on: the preparer sees why they cannot approve and has no
+     Approve button; a second finance member approves and locks; history
+     names both.
+  6  Worker, scheduler and facility get 404 on adjustment routes.
+
+Updated: financial.spec.ts Flow 7 (S2) now revises with a real rate change.
+
+======================================================================
+28. EXPORT TESTS
+======================================================================
+  - Headers are exact (pgTAP, integration, E2E).
+  - Signed deltas and empty sides are integers.
+  - Invoice adjustment CSV and PDF contain no pay values.
+  - PDF marking: "DRAFT INVOICE ADJUSTMENT" and "Additional charge".
+  - Checksum over the stored bytes; download verifies it.
+  - Originals' bytes are unchanged.
+  - Unit tests (tests/unit/lib/financial-adjustments.test.ts, 9 tests):
+      * signed money and minutes formatting (true minus);
+      * labels;
+      * schemas drop client deltas;
+      * refusal mapping and fail-closed outcome checks;
+      * export column sets.
+
+======================================================================
+29. SECURITY FINDINGS
+======================================================================
+No CRITICAL or HIGH findings remain.
+
+Found and fixed during the stage:
+  - [MEDIUM] Denial-audit counter growth. The dedupe bucket was consumed
+    before the per-actor cap, so cycling random target ids could grow the
+    rate-limit counter table without bound (audit rows were already
+    capped). The cap is now checked first.
+  - [MEDIUM] Invoice adjustment lifecycle refused all updates (generated
+    column compared in a BEFORE trigger). This was fail-closed, not unsafe.
+    Fixed.
+  - [LOW] Mobile horizontal page overflow on financial pages (sr-only
+    escapes); fixed for all financial tables. The same pattern exists on
+    non-financial pages (attendance, timesheets, pricing, rates, shifts,
+    workforce) and is deferred (§34).
+
+Reviewed with no issue:
+  - double counting (held states and claims);
+  - chain errors (FK previous.to = from; base resolution);
+  - original or export mutation (triggers; byte tests);
+  - negative handling (CHECKs; signed only where intended);
+  - cross-tenant IDOR (view checks; not-found);
+  - pay leakage (no columns);
+  - duplicate claims (PKs);
+  - concurrency (lock plus PK);
+  - maker/checker bypass (one membership per org; database-enforced);
+  - denial metadata leakage (action and reason only);
+  - direct writes (none);
+  - service-role exposure (none; bundle check passes).
+
+======================================================================
+30. KNOWN LIMITATIONS
+======================================================================
+  - A transition whose accounted lines span several original documents
+    (possible only with misaligned payroll periods) is refused ("split")
+    rather than adjusted.
+  - Invoice adjustments are internal drafts. Legal credit notes and
+    invoice issuance remain outside Chelth.
+  - A locked invoice adjustment cannot be voided; corrections continue the
+    chain.
+  - Maker/checker covers approval only (not lock or export), by design.
+  - Refusals of lock, export creation and other non-approval actions still
+    raise and are not audited (only approvals and downloads were in scope).
+  - Adjustment exports are per adjustment; there is no combined multi-worker
+    adjustment batch export.
+  - The adjustment PDF supports Latin-1 text only (as in S2).
+
+======================================================================
+31. DEFERRED ITEMS
+======================================================================
+  - Grouped adjustment batches (several workers per document).
+  - Audited refusals for every financial write.
+  - Maker/checker extended to lock/export, or a configurable third person.
+  - The `relative` fix for sr-only table headers on non-financial pages.
+  - Unicode PDF fonts.
+  - Retention schedule (legal).
+  - Canonical agency timezone.
+
+======================================================================
+32. MIGRATION LIST
+======================================================================
+New (6):
+  20261001130000_adjustment_controls.sql
+      maker/checker, prefixes, denial audit, authorise gate, settings RPCs
+  20261001130100_payroll_adjustment_tables.sql
+  20261001130200_invoice_adjustment_tables.sql
+  20261001130300_adjustment_state.sql
+      status/delta functions; S2 source, attention, issues and
+      reconciliation replaced
+  20261001130400_adjustment_rpcs.sql
+      adjustment lifecycle and projections; S2 approvals return audited
+      refusals; void guard
+  20261001130500_adjustment_exports.sql
+      export source types, renderers, export RPCs, audited download
+
+No merged migration was edited; S2 functions were replaced in new
+migrations. Total: 60 migration files.
+
+======================================================================
+33. BUILD VALIDATION
+======================================================================
+Sequential run from an empty database reset:
+
+  npm run format:check        PASS
+  npm run lint                PASS
+  npm run typecheck           PASS
+  npm test                    PASS (24 files, 277 tests)
+  npm run build               PASS
+  npm run check:bundle        PASS (57 browser files, no secrets)
+  npx playwright test         PASS (134 passed, 2 skipped by design)
+  npm run check:migrations    PASS (60 files)
+  supabase db reset           PASS
+  supabase db lint --level warning --fail-on warning --schema public,authz,internal
+                              PASS: ZERO findings ({"results":[]})
+  supabase test db            PASS (27 files, 1,331 assertions)
+  npm run test:integration    PASS (14 files, 111 tests)
+  npm run db:types            PASS (no drift after regeneration)
+
+The skips are the existing desktop-only keyboard tests on mobile.
+
+db lint note: in the full run the linter reported zero findings, but the
+CLI exited 1 when its PostHog telemetry timed out on shutdown. That is a
+network or telemetry issue, not a lint result. Re-run twice on its own:
+exit 0, "No schema errors found", {"results":[]}.
+
+Completion gate (§54): all items met.
+  - Post-lock revisions are resolved in Chelth.
+  - Originals are immutable (byte-tested).
+  - Only immutable snapshots are used.
+  - Positive and negative deltas work.
+  - The chain advances revision by revision.
+  - Duplicates are impossible.
+  - Concurrent preparation has one winner.
+  - Invoice adjustments carry no pay data.
+  - Exports are private and deterministic.
+  - Maker/checker is opt-in, default off.
+  - Refusals are audited and bounded.
+  - RLS, zero lint, pgTAP, integration and E2E all pass.
+  - No payment, tax or accounting execution exists.
+  - The report is saved.
+
+======================================================================
+34. GIT STATUS
+======================================================================
+Branch p0-e7-s3-financial-adjustments, from main (8150e5b, S2 merged).
+Nothing is committed or pushed.
+
+New:
+  - 6 migrations;
+  - pgTAP 250;
+  - integration financial-adjustments;
+  - E2E financial-adjustments;
+  - unit financial-adjustments;
+  - src/features/financial: adjustment-queries, adjustment-actions, denials,
+    components (adjustment-forms, adjustment-tables, signed-amount);
+  - pages: payroll/adjustments/[adjustmentId],
+    invoices/adjustments/[adjustmentId];
+  - 4 docs;
+  - this report.
+
+Modified:
+  - financial actions, schemas, queries, index and tables;
+  - payroll and invoices pages; batch and draft detail pages (table region);
+  - download route;
+  - financial domain; authz vocabulary; error codes and mapping;
+  - database types;
+  - pgTAP 000 and 240; integration financial; E2E financial;
+  - 7 docs: PAYROLL_PREPARATION_MODEL, INVOICE_DRAFT_MODEL,
+    FINANCIAL_EXPORT_MODEL, FINANCIAL_RECONCILIATION, AUTHORIZATION_MODEL,
+    SECURITY_INVARIANTS (60–64), TECHNICAL_ARCHITECTURE.
+
+The shared stack was coordinated with chelth-87 and chelth-d8.
+
+======================================================================
+35. RECOMMENDED NEXT STAGE
+======================================================================
+The financial-control chain is complete. Recommended next: production-
+readiness work (P0-E8).
+
+  - Hosted environment hardening and secrets rotation.
+  - Backup and restore drills for append-only financial data.
+  - Observability and alerting on financial refusals.
+  - Retention policy decisions (legal).
+  - Fixing the remaining non-financial mobile table overflow.
+  - An accessibility sweep.

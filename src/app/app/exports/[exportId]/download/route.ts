@@ -54,6 +54,13 @@ export async function POST(
   }
   const row = data[0];
   if (!row) return plain(404, "Not found");
+  // Refusals are returned (and audited) by the database rather than raised.
+  if (row.denied_reason) {
+    logger.info("Export download refused", { code: row.denied_reason, requestId: getRequestId() });
+    return row.denied_reason === "MFA_REQUIRED"
+      ? plain(403, "Verify with your authenticator app, then download again.")
+      : plain(404, "Not found");
+  }
 
   const bytes = decodeVerifiedExport({
     contentBase64: row.content_base64,

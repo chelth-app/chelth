@@ -62,3 +62,18 @@ page. See [FINANCIAL_EXPORT_MODEL.md](FINANCIAL_EXPORT_MODEL.md).
 - Both state "Not a tax invoice. Not a request for payment. No tax has been
   calculated."
 - The file names end in `-DRAFT-INVOICE.csv` / `.pdf`.
+
+## 6. Adjustments (P0-E7-S3)
+
+Bill-side revisions made after lock are resolved as **invoice adjustment
+drafts**. There is one per (timesheet, relationship) transition, each an
+**additional charge** or a **credit**.
+
+- **Naming.** They are internal drafts, never legal credit notes.
+- **No pay data.** They have no pay or margin column.
+- **Original drafts.** An original draft that roots an adjustment chain
+  cannot be voided (`CHY21`).
+- **Approval outcome.** `approve_invoice_draft` returns
+  `(outcome, reason_code)`; refusals are audited.
+
+See [FINANCIAL_ADJUSTMENT_MODEL.md](FINANCIAL_ADJUSTMENT_MODEL.md).

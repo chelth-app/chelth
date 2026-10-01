@@ -241,6 +241,17 @@ Payroll and invoice capabilities (P0-E7-S2):
 - See [../security/FINANCIAL_EXPORT_SECURITY.md](../security/FINANCIAL_EXPORT_SECURITY.md)
   for the AAL2 decision.
 
+Adjustments (P0-E7-S3) reuse the payroll and invoice capabilities; no new
+capability was added.
+
+- **Prepare, review, cancel/void before approval:** `*.prepare`.
+- **Approve and lock:** `*.approve` (AAL2).
+- **Export and download:** `*.export` (AAL2).
+- **Maker/checker:** optional, default off; the preparer may not approve.
+  See [MAKER_CHECKER_POLICY.md](MAKER_CHECKER_POLICY.md).
+- **Audited refusals:** approvals and downloads return their refusals (see
+  [../security/FINANCIAL_DENIAL_AUDIT.md](../security/FINANCIAL_DENIAL_AUDIT.md)).
+
 ## 6. RLS strategy
 
 | Table                                        | SELECT policy                                                                                | Writes                                                 |
@@ -375,6 +386,7 @@ hid the button, or use a privileged key.
 | `CHT04`–`CHT18`             | `ATTENDANCE_NOT_FOUND`, `ASSIGNMENT_NOT_ACCEPTED`, `SHIFT_CANCELLED`, `TOO_EARLY/LATE_TO_CLOCK_IN`, `ALREADY_CLOCKED_IN/OUT`, `NOT_CLOCKED_IN`, `GEOFENCE_REQUIRED`, `LOCATION_UNAVAILABLE`, `LOCATION_ACCURACY_TOO_LOW`, `OUTSIDE_GEOFENCE`, `CORRECTION_NOT_ALLOWED`, `CORRECTION_ALREADY_REVIEWED`, `CLOCK_OUT_WINDOW_CLOSED` | attendance rules (refused clock-ins return a recorded refusal)           |
 | `CHT19`–`CHT22`             | `ALREADY_ON_BREAK`, `NOT_ON_BREAK`, `ON_BREAK`, `TIMESHEET_REVISION_REQUIRED`                                                                                                                                                                                                                                                    | break state / change to an approved timesheet needs a confirmed revision |
 | `CHP04`–`CHP15`             | `TIMESHEET_NOT_FOUND`, `TIMESHEET_NOT_ACTIONABLE`, `TIMESHEET_ENTRY_NOT_FOUND`, `SIGNOFF_NOT_ACTIONABLE`, `TIMESHEET_REVISION_CONFLICT`, `TIMESHEET_SETTINGS_LOCKED`                                                                                                                                                             | timesheet lifecycle (blocked submission/approval returns reason codes)   |
+| `CHY12`–`CHY21`             | `ADJUSTMENT_NOT_REQUIRED`, `ADJUSTMENT_ALREADY_EXISTS`, `ADJUSTMENT_SOURCE_NOT_LOCKED`, `ADJUSTMENT_SOURCE_NOT_PRICED`, `ADJUSTMENT_ORIGINAL_NOT_FINAL`, `ADJUSTMENT_CURRENCY_MISMATCH`, `ADJUSTMENT_ZERO_DELTA`, `ADJUSTMENT_NOT_FOUND`, `DOCUMENT_HAS_ADJUSTMENTS` (+ app-level `MAKER_CHECKER_REQUIRED`)                      | financial adjustments (P0-E7-S3)                                         |
 | `CHY01`–`CHY10`             | `PAYROLL_NOTHING_TO_PREPARE`, `FINANCIAL_SOURCE_SUPERSEDED`, `FINANCIAL_DOCUMENT_LOCKED`, `INVALID_FINANCIAL_TRANSITION`, `PAYROLL_PERIOD_INVALID`, `PAYROLL_BATCH_NOT_FOUND`, `INVOICE_DRAFT_NOT_FOUND`, `FINANCIAL_EXPORT_NOT_FOUND`, `INVOICE_NOTHING_TO_DRAFT`, `FINANCIAL_LINE_ALREADY_INCLUDED`                            | payroll/invoice preparation (P0-E7-S2)                                   |
 | `CHM01`–`CHM15`             | `RATE_NOT_CONFIGURED`, `RATE_AMBIGUOUS`, `RATE_NOT_ACTIVE`, `RATE_NOT_FOUND`, `RATE_CURRENCY_MISMATCH`, `TIMESHEET_NOT_LOCKED`, `TIMESHEET_REVISION_CHANGED`, `INVALID_RATE`, `INVALID_EFFECTIVE_PERIOD`, `OVERLAPPING_RATE_VERSION`, `ROUNDING_POLICY_INVALID`, `OVERTIME_POLICY_INVALID`, `PRICING_NOT_FOUND`                  | rate/pricing rules (blocked pricing returns issue codes)                 |
 | `CH429`                     | `RATE_LIMITED`                                                                                                                                                                                                                                                                                                                   | throttled                                                                |

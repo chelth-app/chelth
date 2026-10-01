@@ -121,3 +121,20 @@ claims belong to one batch.
 - **Retention.** Financial records and exports are retained indefinitely
   (append-only). A legal retention review per jurisdiction is required before
   production.
+
+## 7. Adjustments (P0-E7-S3)
+
+Revisions made after lock are resolved as **payroll adjustments**: separate,
+delta-only documents.
+
+- **Originals are untouched.** The original batch is never changed. A batch
+  with revised work shows "Adjustment required", then "Adjustment in
+  progress", then "Revision resolved".
+- **Held work.** Held work is never offered for an ordinary batch.
+- **Approval outcome.** `approve_payroll_batch` now returns
+  `(outcome, reason_code)`. A refusal (including maker/checker) is audited
+  rather than raised.
+
+See [FINANCIAL_ADJUSTMENT_MODEL.md](FINANCIAL_ADJUSTMENT_MODEL.md),
+[FINANCIAL_ADJUSTMENT_CHAIN.md](FINANCIAL_ADJUSTMENT_CHAIN.md) and
+[MAKER_CHECKER_POLICY.md](MAKER_CHECKER_POLICY.md).

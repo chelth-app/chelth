@@ -14,8 +14,11 @@ import { requireAuthIdentity } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formDataToObject, parseInput } from "@/lib/validation";
 
+import { assertNotDenied } from "./denials";
+
 import {
   cancelPayrollBatchSchema,
+  makerCheckerSchema,
   createInvoiceDraftSchema,
   createPayrollBatchSchema,
   financialSettingsSchema,
@@ -75,13 +78,6 @@ export async function createPayrollBatchAction(
   return result;
 }
 
-const PAYROLL_STEP_RPC = {
-  review: "review_payroll_batch",
-  approve: "approve_payroll_batch",
-  lock: "lock_payroll_batch",
-  export: "create_payroll_export",
-} as const;
-
 export async function payrollBatchStepAction(
   _state: ActionState,
   formData: FormData,
@@ -90,10 +86,22 @@ export async function payrollBatchStepAction(
     const input = parseInput(payrollBatchActionSchema, formDataToObject(formData));
     await requireAuthIdentity();
     const supabase = await createSupabaseServerClient();
-    const { error } = await supabase.rpc(PAYROLL_STEP_RPC[input.step], {
-      p_batch_id: input.batchId,
-    });
-    if (error) throw error;
+    const args = { p_batch_id: input.batchId };
+    if (input.step === "approve") {
+      const { data, error } = await supabase.rpc("approve_payroll_batch", args);
+      if (error) throw error;
+      assertNotDenied(data, "PAYROLL_BATCH_NOT_FOUND");
+    } else {
+      const { error } = await supabase.rpc(
+        input.step === "review"
+          ? "review_payroll_batch"
+          : input.step === "lock"
+            ? "lock_payroll_batch"
+            : "create_payroll_export",
+        args,
+      );
+      if (error) throw error;
+    }
     revalidatePath(payrollPath(input.organisationId));
     revalidatePath(`${payrollPath(input.organisationId)}/${input.batchId}`);
     return null;
@@ -155,21 +163,27 @@ export async function invoiceDraftStepAction(
     const input = parseInput(invoiceDraftActionSchema, formDataToObject(formData));
     await requireAuthIdentity();
     const supabase = await createSupabaseServerClient();
-    const { error } =
-      input.step === "export_csv" || input.step === "export_pdf"
-        ? await supabase.rpc("create_invoice_export", {
-            p_draft_id: input.draftId,
-            p_format: input.step === "export_csv" ? "csv" : "pdf",
-          })
-        : await supabase.rpc(
-            input.step === "review"
-              ? "review_invoice_draft"
-              : input.step === "approve"
-                ? "approve_invoice_draft"
-                : "lock_invoice_draft",
-            { p_draft_id: input.draftId },
-          );
-    if (error) throw error;
+    if (input.step === "approve") {
+      const { data, error } = await supabase.rpc("approve_invoice_draft", {
+        p_draft_id: input.draftId,
+      });
+      if (error) throw error;
+      assertNotDenied(data, "INVOICE_DRAFT_NOT_FOUND");
+    } else {
+      const { error } =
+        input.step === "export_csv" || input.step === "export_pdf"
+          ? await supabase.rpc("create_invoice_export", {
+              p_draft_id: input.draftId,
+              p_format: input.step === "export_csv" ? "csv" : "pdf",
+            })
+          : await supabase.rpc(
+              input.step === "review" ? "review_invoice_draft" : "lock_invoice_draft",
+              {
+                p_draft_id: input.draftId,
+              },
+            );
+      if (error) throw error;
+    }
     revalidatePath(invoicesPath(input.organisationId));
     revalidatePath(`${invoicesPath(input.organisationId)}/${input.draftId}`);
     return null;
@@ -191,6 +205,25 @@ export async function voidInvoiceDraftAction(
     if (error) throw error;
     revalidatePath(invoicesPath(input.organisationId));
     revalidatePath(`${invoicesPath(input.organisationId)}/${input.draftId}`);
+    return null;
+  });
+}
+
+export async function setMakerCheckerAction(
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction("financial.setMakerChecker", async () => {
+    const input = parseInput(makerCheckerSchema, formDataToObject(formData));
+    await requireAuthIdentity();
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.rpc("set_financial_maker_checker", {
+      p_organisation_id: input.organisationId,
+      p_required: input.required,
+    });
+    if (error) throw error;
+    revalidatePath(payrollPath(input.organisationId));
+    revalidatePath(invoicesPath(input.organisationId));
     return null;
   });
 }

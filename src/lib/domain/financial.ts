@@ -6,6 +6,7 @@
  * copied by the database from immutable priced lines; this module only labels
  * states and checks export integrity.
  */
+import { formatMoney } from "@/lib/domain/pricing";
 import { Constants, type Database } from "@/types/database.types";
 
 type Enums = Database["public"]["Enums"];
@@ -63,6 +64,8 @@ export function financialStatusTone(status: PayrollBatchStatus | InvoiceDraftSta
 export const ATTENTION_LABELS: Record<string, string> = {
   SOURCE_SUPERSEDED: "Includes revised work",
   ADJUSTMENT_REQUIRED: "Adjustment required",
+  ADJUSTMENT_IN_PROGRESS: "Adjustment in progress",
+  REVISION_RESOLVED: "Revision resolved",
   PRICING_REQUIRED: "Not priced yet",
 };
 
@@ -73,20 +76,31 @@ export function attentionLabel(code: string | null | undefined): string | null {
 
 export const RECONCILIATION_STATES = [
   "unprepared",
-  "adjustment_required",
   "drafted",
   "approved",
   "exported",
+  "adjustment_required",
+  "adjustment_in_progress",
+  "adjusted",
 ] as const;
 export type ReconciliationState = (typeof RECONCILIATION_STATES)[number];
 
 export const RECONCILIATION_LABELS: Record<ReconciliationState, string> = {
   unprepared: "Not yet prepared",
-  adjustment_required: "Adjustment required",
   drafted: "In a draft",
   approved: "Approved or locked",
   exported: "Exported",
+  adjustment_required: "Adjustment required",
+  adjustment_in_progress: "Adjustment in progress",
+  adjusted: "Adjusted or no financial change",
 };
+
+/** Reconciliation states whose amount column is a signed delta, not a total. */
+export const DELTA_RECONCILIATION_STATES: readonly ReconciliationState[] = [
+  "adjustment_required",
+  "adjustment_in_progress",
+  "adjusted",
+];
 
 export const PAYROLL_CSV_COLUMNS = [
   "batch_reference",
@@ -144,3 +158,104 @@ export function formatByteSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+
+// -----------------------------------------------------------------------------
+// Adjustments (P0-E7-S3)
+// -----------------------------------------------------------------------------
+
+/**
+ * Signed money: "+$120.00", "−$45.50" (true minus sign), "$0.00". The sign is
+ * text, so the meaning never depends on colour.
+ */
+export function formatSignedMoney(minor: number, currency: string): string {
+  const magnitude = formatMoney(Math.abs(minor), currency);
+  if (minor > 0) return `+${magnitude}`;
+  if (minor < 0) return `\u2212${magnitude}`;
+  return magnitude;
+}
+
+/** Signed minutes: "+1h 30m", "−45m". */
+export function formatSignedMinutes(minutes: number): string {
+  const absolute = Math.abs(minutes);
+  const text =
+    absolute >= 60
+      ? `${Math.floor(absolute / 60)}h${absolute % 60 ? ` ${absolute % 60}m` : ""}`
+      : `${absolute}m`;
+  if (minutes > 0) return `+${text}`;
+  if (minutes < 0) return `\u2212${text}`;
+  return "0m";
+}
+
+export function payDeltaLabel(minor: number): "Increase" | "Decrease" | "No net change" {
+  return minor > 0 ? "Increase" : minor < 0 ? "Decrease" : "No net change";
+}
+
+export const INVOICE_DIRECTION_LABELS: Record<string, string> = {
+  additional_charge: "Additional charge",
+  credit: "Credit",
+  no_net_change: "No net change",
+};
+
+export function invoiceDirectionLabel(direction: string): string {
+  return INVOICE_DIRECTION_LABELS[direction] ?? direction;
+}
+
+export const ADJUSTMENT_STATE_LABELS: Record<string, string> = {
+  required: "Ready to adjust",
+  awaiting_lock: "Revision not locked yet",
+  awaiting_pricing: "Revision not priced yet",
+  currency_mismatch: "Currency differs — cannot adjust",
+  split: "Original spans several documents",
+  in_progress: "Adjustment in progress",
+  in_progress_superseded: "Open adjustment is out of date — cancel it",
+};
+
+export function adjustmentStateLabel(state: string): string {
+  return ADJUSTMENT_STATE_LABELS[state] ?? state;
+}
+
+export const PAYROLL_ADJUSTMENT_CSV_COLUMNS = [
+  "adjustment_reference",
+  "original_batch_reference",
+  "previous_adjustment_reference",
+  "worker_reference",
+  "worker_name",
+  "work_date",
+  "facility",
+  "discipline",
+  "original_revision",
+  "revised_revision",
+  "original_regular_minutes",
+  "revised_regular_minutes",
+  "original_overtime_minutes",
+  "revised_overtime_minutes",
+  "original_pay_amount_minor",
+  "revised_pay_amount_minor",
+  "delta_pay_amount_minor",
+  "currency",
+] as const;
+
+export const INVOICE_ADJUSTMENT_CSV_COLUMNS = [
+  "adjustment_reference",
+  "original_invoice_draft_reference",
+  "previous_adjustment_reference",
+  "direction",
+  "facility",
+  "relationship_reference",
+  "work_date",
+  "worker_reference",
+  "worker_name",
+  "discipline",
+  "original_revision",
+  "revised_revision",
+  "original_priced_minutes",
+  "revised_priced_minutes",
+  "original_bill_amount_minor",
+  "revised_bill_amount_minor",
+  "delta_bill_amount_minor",
+  "currency",
+] as const;
+
+/** Reason codes returned (and audited) by the database for refused sensitive actions. */
+export type FinancialDenialReason =
+  "NOT_FOUND" | "NOT_PERMITTED" | "MFA_REQUIRED" | "MAKER_CHECKER";

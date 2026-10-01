@@ -92,3 +92,50 @@ See [../security/FINANCIAL_EXPORT_SECURITY.md](../security/FINANCIAL_EXPORT_SECU
 The route `POST /app/exports/[exportId]/download` streams the content as an
 attachment. It is same-origin only and signed-in only, and it re-verifies the
 SHA-256 again before sending. No signed URL is minted.
+
+## 7. Adjustment exports (P0-E7-S3)
+
+Adjustment exports use the same infrastructure, with no weaker path:
+database rendering, `financial_exports` plus the private byte store, SHA-256
+at generation, insert, download RPC and route, the audited same-origin
+download, `csv_text` neutralisation, the content-type allow-list and the
+file-name validation.
+
+- **Source types:** `payroll_adjustment` and `invoice_adjustment`, each with
+  composite FKs for agency, period and currency. `total_minor` is the
+  **signed net delta** (documents stay ≥ 0).
+- **Payroll adjustment CSV:**
+
+  ```
+  adjustment_reference, original_batch_reference, previous_adjustment_reference,
+  worker_reference, worker_name, work_date, facility, discipline,
+  original_revision, revised_revision, original_regular_minutes,
+  revised_regular_minutes, original_overtime_minutes, revised_overtime_minutes,
+  original_pay_amount_minor, revised_pay_amount_minor, delta_pay_amount_minor,
+  currency
+  ```
+
+- **Invoice adjustment CSV:**
+
+  ```
+  adjustment_reference, original_invoice_draft_reference, previous_adjustment_reference,
+  direction, facility, relationship_reference, work_date, worker_reference,
+  worker_name, discipline, original_revision, revised_revision,
+  original_priced_minutes, revised_priced_minutes, original_bill_amount_minor,
+  revised_bill_amount_minor, delta_bill_amount_minor, currency
+  ```
+
+  It has no pay columns.
+
+- **Numeric columns:** these are database integers. Negative deltas keep
+  their `-` sign; a missing side is an empty field. Only text columns are
+  formula-neutralised: a quote would corrupt a number, and integers cannot
+  carry formulas.
+- **Invoice adjustment PDF:** titled **DRAFT INVOICE ADJUSTMENT**, followed
+  by "Additional charge" or "Credit". It states "Not a tax invoice, credit
+  note or request for payment" and shows the original draft reference, the
+  previous adjustment and the revision change. It is text only, escaped,
+  with no links, scripts or remote assets. It is built by
+  `internal.pdf_document`.
+- **Download:** refusals are audited and returned (`denied_reason`); see
+  [../security/FINANCIAL_DENIAL_AUDIT.md](../security/FINANCIAL_DENIAL_AUDIT.md).
