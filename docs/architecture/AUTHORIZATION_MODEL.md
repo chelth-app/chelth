@@ -140,6 +140,14 @@ would change an approved timesheet additionally requires `timesheet.approve`.
 Retention settings use `attendance.manage_settings`; legal holds use
 `attendance.location.view` (both AAL2).
 
+Financial capabilities (P0-E7-S1): `rates.view` — admin, finance, operations
+manager; `rates.manage` (**privileged, AAL2**) — admin, finance;
+`pricing.view` — admin, finance, operations manager; `pricing.run` — admin,
+finance. Scheduler, recruiter, credentialing officer, healthcare worker and
+every facility role hold none: facilities and workers never see pay rates,
+margin or pricing. See
+[../security/FINANCIAL_DATA_ACCESS.md](../security/FINANCIAL_DATA_ACCESS.md).
+
 Least-privilege notes: `relationship.manage` (commercial state) is owner-only;
 recruiters do not see client data; finance does not see workers; credentialing
 officers do not see internal notes (credentials arrive later).
@@ -346,5 +354,6 @@ hid the button, or use a privileged key.
 | `CHT04`–`CHT18`             | `ATTENDANCE_NOT_FOUND`, `ASSIGNMENT_NOT_ACCEPTED`, `SHIFT_CANCELLED`, `TOO_EARLY/LATE_TO_CLOCK_IN`, `ALREADY_CLOCKED_IN/OUT`, `NOT_CLOCKED_IN`, `GEOFENCE_REQUIRED`, `LOCATION_UNAVAILABLE`, `LOCATION_ACCURACY_TOO_LOW`, `OUTSIDE_GEOFENCE`, `CORRECTION_NOT_ALLOWED`, `CORRECTION_ALREADY_REVIEWED`, `CLOCK_OUT_WINDOW_CLOSED` | attendance rules (refused clock-ins return a recorded refusal)           |
 | `CHT19`–`CHT22`             | `ALREADY_ON_BREAK`, `NOT_ON_BREAK`, `ON_BREAK`, `TIMESHEET_REVISION_REQUIRED`                                                                                                                                                                                                                                                    | break state / change to an approved timesheet needs a confirmed revision |
 | `CHP04`–`CHP15`             | `TIMESHEET_NOT_FOUND`, `TIMESHEET_NOT_ACTIONABLE`, `TIMESHEET_ENTRY_NOT_FOUND`, `SIGNOFF_NOT_ACTIONABLE`, `TIMESHEET_REVISION_CONFLICT`, `TIMESHEET_SETTINGS_LOCKED`                                                                                                                                                             | timesheet lifecycle (blocked submission/approval returns reason codes)   |
+| `CHM01`–`CHM15`             | `RATE_NOT_CONFIGURED`, `RATE_AMBIGUOUS`, `RATE_NOT_ACTIVE`, `RATE_NOT_FOUND`, `RATE_CURRENCY_MISMATCH`, `TIMESHEET_NOT_LOCKED`, `TIMESHEET_REVISION_CHANGED`, `INVALID_RATE`, `INVALID_EFFECTIVE_PERIOD`, `OVERLAPPING_RATE_VERSION`, `ROUNDING_POLICY_INVALID`, `OVERTIME_POLICY_INVALID`, `PRICING_NOT_FOUND`                  | rate/pricing rules (blocked pricing returns issue codes)                 |
 | `CH429`                     | `RATE_LIMITED`                                                                                                                                                                                                                                                                                                                   | throttled                                                                |
 | (empty result)              | `INVITE_INVALID`                                                                                                                                                                                                                                                                                                                 | invitation cannot be redeemed (uniform)                                  |

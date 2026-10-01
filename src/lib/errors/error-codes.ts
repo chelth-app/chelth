@@ -326,6 +326,72 @@ export const ERROR_CODES = {
     status: 409,
     message: "The timesheet week is fixed once timesheets exist.",
   },
+  RATE_NOT_CONFIGURED: {
+    kind: "conflict",
+    status: 409,
+    message: "No active rate covers this work. Add or activate a rate, then price again.",
+  },
+  RATE_AMBIGUOUS: {
+    kind: "conflict",
+    status: 409,
+    message: "More than one rate matches this work. Pricing was stopped.",
+  },
+  RATE_NOT_ACTIVE: {
+    kind: "conflict",
+    status: 409,
+    message: "Only a draft rate version can be changed.",
+  },
+  RATE_NOT_FOUND: {
+    kind: "not_found",
+    status: 404,
+    message: "That rate could not be found.",
+  },
+  RATE_CURRENCY_MISMATCH: {
+    kind: "conflict",
+    status: 409,
+    message:
+      "The rates for this timesheet use different currencies, or the currency is not supported.",
+  },
+  TIMESHEET_NOT_LOCKED: {
+    kind: "conflict",
+    status: 409,
+    message: "Only a locked timesheet can be priced.",
+  },
+  TIMESHEET_REVISION_CHANGED: {
+    kind: "conflict",
+    status: 409,
+    message: "The timesheet changed. Reload it before pricing.",
+  },
+  INVALID_RATE: {
+    kind: "validation",
+    status: 400,
+    message: "Enter pay and bill rates greater than zero.",
+  },
+  INVALID_EFFECTIVE_PERIOD: {
+    kind: "validation",
+    status: 400,
+    message: "The end date must be on or after the start date.",
+  },
+  OVERLAPPING_RATE_VERSION: {
+    kind: "conflict",
+    status: 409,
+    message: "This version would overlap an existing active version. Choose a later start date.",
+  },
+  ROUNDING_POLICY_INVALID: {
+    kind: "validation",
+    status: 400,
+    message: "Choose no rounding, or rounding to 5, 6, 10 or 15 minutes.",
+  },
+  OVERTIME_POLICY_INVALID: {
+    kind: "validation",
+    status: 400,
+    message: "Enter a weekly threshold and a multiplier of at least 1×.",
+  },
+  PRICING_NOT_FOUND: {
+    kind: "not_found",
+    status: 404,
+    message: "That pricing record could not be found.",
+  },
   RATE_LIMITED: {
     kind: "rate_limited",
     status: 429,

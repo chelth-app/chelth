@@ -68,6 +68,7 @@ export const HISTORY_ACTION_LABELS: Record<TimesheetHistoryAction, string> = {
   locked: "Locked",
   reopened: "Reopened",
   revised: "New revision after an attendance change",
+  facility_signoff_not_required: "Facility sign-off no longer required (relationship ended)",
 };
 
 /**

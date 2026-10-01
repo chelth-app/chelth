@@ -12,6 +12,8 @@ type OrganisationSectionsProps = {
   showOperations: boolean;
   showAttendance: boolean;
   showTimesheets: boolean;
+  showRates: boolean;
+  showPricing: boolean;
 };
 
 const LINK_CLASS =
@@ -31,6 +33,8 @@ export function OrganisationSections(props: OrganisationSectionsProps) {
     showOperations,
     showAttendance,
     showTimesheets,
+    showRates,
+    showPricing,
   } = props;
   if (
     !showWorkforce &&
@@ -42,7 +46,9 @@ export function OrganisationSections(props: OrganisationSectionsProps) {
     !showStaffingRequests &&
     !showOperations &&
     !showAttendance &&
-    !showTimesheets
+    !showTimesheets &&
+    !showRates &&
+    !showPricing
   )
     return null;
   return (
@@ -65,6 +71,16 @@ export function OrganisationSections(props: OrganisationSectionsProps) {
       {showTimesheets ? (
         <Link href={`/app/organisations/${organisationId}/timesheets`} className={LINK_CLASS}>
           Timesheets
+        </Link>
+      ) : null}
+      {showPricing ? (
+        <Link href={`/app/organisations/${organisationId}/pricing`} className={LINK_CLASS}>
+          Pricing
+        </Link>
+      ) : null}
+      {showRates ? (
+        <Link href={`/app/organisations/${organisationId}/rates`} className={LINK_CLASS}>
+          Rates
         </Link>
       ) : null}
       {showStaffingRequests ? (

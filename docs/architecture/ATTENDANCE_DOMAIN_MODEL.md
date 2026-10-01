@@ -176,3 +176,10 @@ facial recognition. Multiple work segments per assignment are schema-ready
 - **Timesheets**: attendance feeds weekly timesheets
   ([TIMESHEET_DOMAIN_MODEL.md](TIMESHEET_DOMAIN_MODEL.md)); a change to
   attendance on an approved timesheet creates a new timesheet revision.
+
+## 13. Default day (P0-E7-S1 fix)
+
+With no dates chosen, the agency attendance list shows shifts whose start is
+**today in their facility's timezone**, plus any shift in progress now (a
+night shift that began before local midnight). It never uses the UTC date,
+which in the US evening is already tomorrow.

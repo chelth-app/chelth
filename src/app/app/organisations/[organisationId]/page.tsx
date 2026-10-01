@@ -128,6 +128,10 @@ export default async function OrganisationPage({
           (organisation.type === "facility" &&
             can(CAPABILITIES.TIMESHEET_FACILITY_SIGNOFF) !== "not_held")
         }
+        showRates={organisation.type === "agency" && can(CAPABILITIES.RATES_VIEW) !== "not_held"}
+        showPricing={
+          organisation.type === "agency" && can(CAPABILITIES.PRICING_VIEW) !== "not_held"
+        }
         showOperations={
           organisation.type === "agency" && can(CAPABILITIES.ASSIGNMENT_VIEW) !== "not_held"
         }

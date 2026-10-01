@@ -85,3 +85,15 @@ Composite foreign keys bind:
 Later stages consume **locked** timesheets and their approval snapshots
 (immutable, per revision, with calculation version). Rounding, overtime,
 rates and exports are explicitly out of scope here.
+
+## 7. Pricing (P0-E7-S1)
+
+Locked timesheets are the only input to pricing. The engine reads the
+current approval snapshot of the locked revision and writes immutable
+records in separate tables ([PRICING_ENGINE.md](PRICING_ENGINE.md),
+[PRICING_SNAPSHOT_MODEL.md](PRICING_SNAPSHOT_MODEL.md)); no timesheet column
+carries money. A reopened and re-locked timesheet is priced again as a new
+record; the earlier record is kept. Timesheet approvals gained the key
+`(id, timesheet_id, revision)` and entries a key covering assignment, shift,
+worker, relationship and facility, so priced lines bind to exactly the
+evidence they price.

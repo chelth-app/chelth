@@ -39,6 +39,7 @@ import {
   ShiftNoteForm,
   ShiftStatusBadge,
 } from "@/features/shifts";
+import { ShiftClassificationForm } from "@/features/pricing";
 import { CAPABILITIES } from "@/lib/authz";
 import {
   ATTENDANCE_EXCEPTION_LABELS,
@@ -63,6 +64,7 @@ import {
   SHIFT_OFFER_CLOSE_REASON_LABELS,
   SHIFT_SOURCE_LABELS,
 } from "@/lib/domain/shifts";
+import { SHIFT_CLASSIFICATION_LABELS } from "@/lib/domain/pricing";
 
 export const metadata: Metadata = { title: "Shift" };
 
@@ -167,9 +169,18 @@ export default async function ShiftPage({
             />
           ) : null}
           <Badge tone="neutral">{SHIFT_SOURCE_LABELS[shift.source]}</Badge>
+          <Badge tone="neutral">{SHIFT_CLASSIFICATION_LABELS[shift.classification]} shift</Badge>
           {!relationshipActive ? <Badge tone="warning">Relationship not active</Badge> : null}
         </div>
       </header>
+
+      {canManageShift && (shift.status === "draft" || shift.status === "submitted") ? (
+        <ShiftClassificationForm
+          organisationId={organisationId}
+          shiftId={shift.id}
+          classification={shift.classification}
+        />
+      ) : null}
 
       <section aria-labelledby="shift-details-heading" className="flex flex-col gap-3">
         <h2 id="shift-details-heading" className="text-lg font-semibold">

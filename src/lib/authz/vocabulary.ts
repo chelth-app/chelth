@@ -55,6 +55,10 @@ export const CAPABILITIES = {
   TIMESHEET_VIEW: "timesheet.view",
   TIMESHEET_APPROVE: "timesheet.approve",
   TIMESHEET_FACILITY_SIGNOFF: "timesheet.facility_signoff",
+  RATES_VIEW: "rates.view",
+  RATES_MANAGE: "rates.manage",
+  PRICING_VIEW: "pricing.view",
+  PRICING_RUN: "pricing.run",
 } as const;
 
 export type CapabilityKey = (typeof CAPABILITIES)[keyof typeof CAPABILITIES];
@@ -192,6 +196,21 @@ export const AUDIT_ACTIONS = {
   TIMESHEET_DISPUTE_RESOLVED: "timesheet.dispute_resolved",
   TIMESHEET_SETTINGS_UPDATED: "timesheet.settings_updated",
   TIMESHEET_VIEWED_BY_FACILITY: "timesheet.viewed_by_facility",
+  RATE_CARD_CREATED: "rate.card_created",
+  RATE_CREATED: "rate.created",
+  RATE_UPDATED_DRAFT: "rate.updated_draft",
+  RATE_DISCARDED: "rate.discarded",
+  RATE_ACTIVATED: "rate.activated",
+  RATE_SUPERSEDED: "rate.superseded",
+  PRICING_ROUNDING_POLICY_CREATED: "pricing.rounding_policy_created",
+  PRICING_OVERTIME_POLICY_CREATED: "pricing.overtime_policy_created",
+  PRICING_POLICY_ACTIVATED: "pricing.policy_activated",
+  PRICING_POLICY_DISCARDED: "pricing.policy_discarded",
+  PRICING_CREATED: "pricing.created",
+  PRICING_FAILED: "pricing.failed",
+  PRICING_REPRICED_FOR_REVISION: "pricing.repriced_for_revision",
+  SHIFT_CLASSIFICATION_SET: "shift.classification_set",
+  TIMESHEET_SIGNOFF_NOT_REQUIRED: "timesheet.signoff_not_required",
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
@@ -301,6 +320,21 @@ const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   "timesheet.dispute_resolved": "Timesheet discrepancy answered",
   "timesheet.settings_updated": "Timesheet week changed",
   "timesheet.viewed_by_facility": "Facility viewed timesheet entries",
+  "rate.card_created": "Rate card created",
+  "rate.created": "Rate version drafted",
+  "rate.updated_draft": "Draft rate version changed",
+  "rate.discarded": "Draft rate version discarded",
+  "rate.activated": "Rate version activated",
+  "rate.superseded": "Rate version superseded",
+  "pricing.rounding_policy_created": "Rounding policy drafted",
+  "pricing.overtime_policy_created": "Overtime policy drafted",
+  "pricing.policy_activated": "Pricing policy activated",
+  "pricing.policy_discarded": "Pricing policy discarded",
+  "pricing.created": "Timesheet priced",
+  "pricing.failed": "Pricing blocked",
+  "pricing.repriced_for_revision": "New timesheet revision priced",
+  "shift.classification_set": "Shift classification set",
+  "timesheet.signoff_not_required": "Facility sign-off no longer required",
 };
 
 export function auditActionLabel(action: string): string {
