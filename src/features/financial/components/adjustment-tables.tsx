@@ -1,8 +1,17 @@
 import type { Route } from "next";
 import Link from "next/link";
 
+import {
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeaderCell,
+  DataTableRegion,
+  DataTableRow,
+} from "@/components/ui/data-table";
 import { InlineActionForm } from "@/components/forms/inline-action-form";
-import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { StatusChip } from "@/components/ui/status-chip";
 import { adjustmentStateLabel } from "@/lib/domain/financial";
 import { formatPeriod } from "@/lib/domain/timesheets";
 
@@ -19,14 +28,13 @@ import type {
 import { AttentionBadge, InvoiceStatusBadge, PayrollStatusBadge } from "./financial-tables";
 import { SignedAmount } from "./signed-amount";
 
-const TABLE_REGION = "relative overflow-x-auto rounded-lg border border-border bg-surface";
-const TH = "px-3 py-2 font-medium";
-
 function StateCell({ state }: { state: string }) {
   return (
-    <Badge tone={state === "required" ? "warning" : state === "in_progress" ? "info" : "danger"}>
+    <StatusChip
+      tone={state === "required" ? "attention" : state === "in_progress" ? "info" : "danger"}
+    >
       {adjustmentStateLabel(state)}
-    </Badge>
+    </StatusChip>
   );
 }
 
@@ -41,49 +49,34 @@ export function PayrollAdjustmentCandidates({
   canPrepare: boolean;
 }) {
   if (rows.length === 0) {
-    return <p className="text-sm text-muted-foreground">No locked payroll needs an adjustment.</p>;
+    return <EmptyState headingLevel={3} title="No locked payroll needs an adjustment." />;
   }
   const base = `/app/organisations/${organisationId}/payroll`;
   return (
-    <div
-      role="region"
-      aria-label="Payroll adjustments required"
-      tabIndex={0}
-      className={TABLE_REGION}
-    >
-      <table className="w-full min-w-[900px] text-left text-sm">
-        <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
+    <DataTableRegion aria-label="Payroll adjustments required">
+      <DataTable className="min-w-[900px]">
+        <DataTableHead>
           <tr>
-            <th scope="col" className={TH}>
-              Worker · week
-            </th>
-            <th scope="col" className={TH}>
-              Original batch
-            </th>
-            <th scope="col" className={TH}>
-              Revision
-            </th>
-            <th scope="col" className={TH}>
-              Status
-            </th>
-            <th scope="col" className={`${TH} text-right`}>
-              Estimated change
-            </th>
-            <th scope="col" className={TH}>
+            <DataTableHeaderCell>Worker · week</DataTableHeaderCell>
+            <DataTableHeaderCell>Original batch</DataTableHeaderCell>
+            <DataTableHeaderCell>Revision</DataTableHeaderCell>
+            <DataTableHeaderCell>Status</DataTableHeaderCell>
+            <DataTableHeaderCell numeric>Estimated change</DataTableHeaderCell>
+            <DataTableHeaderCell>
               <span className="sr-only">Actions</span>
-            </th>
+            </DataTableHeaderCell>
           </tr>
-        </thead>
+        </DataTableHead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.timesheetId} className="border-b border-border align-top last:border-0">
-              <td className="px-3 py-2">
+            <DataTableRow key={row.timesheetId}>
+              <DataTableCell>
                 <div className="font-medium">{row.workerName}</div>
                 <div className="text-xs text-muted-foreground">
                   {formatPeriod(row.periodStart, row.periodEnd)}
                 </div>
-              </td>
-              <td className="px-3 py-2">
+              </DataTableCell>
+              <DataTableCell>
                 {row.originalBatchId ? (
                   <Link
                     href={`${base}/${row.originalBatchId}` as Route}
@@ -99,24 +92,24 @@ export function PayrollAdjustmentCandidates({
                     Last accounted in {row.baseReference}
                   </div>
                 ) : null}
-              </td>
-              <td className="px-3 py-2">
+              </DataTableCell>
+              <DataTableCell>
                 Revision {row.baseRevision} → {row.currentRevision}
                 <div className="text-xs text-muted-foreground">
                   {row.currentPriced ? "Priced" : "Not priced yet"}
                 </div>
-              </td>
-              <td className="px-3 py-2">
+              </DataTableCell>
+              <DataTableCell>
                 <StateCell state={row.state} />
-              </td>
-              <td className="px-3 py-2 text-right">
+              </DataTableCell>
+              <DataTableCell className="text-right">
                 {row.netDeltaMinor !== null && row.currency ? (
                   <SignedAmount minor={row.netDeltaMinor} currency={row.currency} side="pay" />
                 ) : (
                   "—"
                 )}
-              </td>
-              <td className="px-3 py-2">
+              </DataTableCell>
+              <DataTableCell>
                 {row.state === "required" && canPrepare ? (
                   <InlineActionForm
                     action={createPayrollAdjustmentAction}
@@ -133,12 +126,12 @@ export function PayrollAdjustmentCandidates({
                     {row.openAdjustmentReference}
                   </Link>
                 ) : null}
-              </td>
-            </tr>
+              </DataTableCell>
+            </DataTableRow>
           ))}
         </tbody>
-      </table>
-    </div>
+      </DataTable>
+    </DataTableRegion>
   );
 }
 
@@ -150,34 +143,24 @@ export function PayrollAdjustmentsTable({
   organisationId: string;
 }) {
   if (rows.length === 0) {
-    return <p className="text-sm text-muted-foreground">No payroll adjustments yet.</p>;
+    return <EmptyState headingLevel={3} title="No payroll adjustments yet." />;
   }
   return (
-    <div role="region" aria-label="Payroll adjustments table" tabIndex={0} className={TABLE_REGION}>
-      <table className="w-full min-w-[860px] text-left text-sm">
-        <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
+    <DataTableRegion aria-label="Payroll adjustments table">
+      <DataTable className="min-w-[860px]">
+        <DataTableHead>
           <tr>
-            <th scope="col" className={TH}>
-              Adjustment
-            </th>
-            <th scope="col" className={TH}>
-              Worker · week
-            </th>
-            <th scope="col" className={TH}>
-              Adjusts
-            </th>
-            <th scope="col" className={TH}>
-              Status
-            </th>
-            <th scope="col" className={`${TH} text-right`}>
-              Net change
-            </th>
+            <DataTableHeaderCell>Adjustment</DataTableHeaderCell>
+            <DataTableHeaderCell>Worker · week</DataTableHeaderCell>
+            <DataTableHeaderCell>Adjusts</DataTableHeaderCell>
+            <DataTableHeaderCell>Status</DataTableHeaderCell>
+            <DataTableHeaderCell numeric>Net change</DataTableHeaderCell>
           </tr>
-        </thead>
+        </DataTableHead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.id} className="border-b border-border align-top last:border-0">
-              <td className="px-3 py-2">
+            <DataTableRow key={row.id}>
+              <DataTableCell>
                 <Link
                   href={
                     `/app/organisations/${organisationId}/payroll/adjustments/${row.id}` as Route
@@ -186,33 +169,33 @@ export function PayrollAdjustmentsTable({
                 >
                   {row.reference}
                 </Link>
-              </td>
-              <td className="px-3 py-2">
+              </DataTableCell>
+              <DataTableCell>
                 {row.workerName}
                 <div className="text-xs text-muted-foreground">
                   {formatPeriod(row.periodStart, row.periodEnd)}
                 </div>
-              </td>
-              <td className="px-3 py-2">
+              </DataTableCell>
+              <DataTableCell>
                 {row.originalBatchReference}
                 <div className="text-xs text-muted-foreground">
                   Revision {row.fromRevision} → {row.toRevision}
                 </div>
-              </td>
-              <td className="px-3 py-2">
+              </DataTableCell>
+              <DataTableCell>
                 <div className="flex flex-wrap gap-1">
                   <PayrollStatusBadge status={row.status} />
                   <AttentionBadge code={row.attention} />
                 </div>
-              </td>
-              <td className="px-3 py-2 text-right">
+              </DataTableCell>
+              <DataTableCell className="text-right">
                 <SignedAmount minor={row.netDeltaMinor} currency={row.currency} side="pay" />
-              </td>
-            </tr>
+              </DataTableCell>
+            </DataTableRow>
           ))}
         </tbody>
-      </table>
-    </div>
+      </DataTable>
+    </DataTableRegion>
   );
 }
 
@@ -227,9 +210,7 @@ export function InvoiceAdjustmentCandidates({
   canPrepare: boolean;
 }) {
   if (rows.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">No locked invoice draft needs an adjustment.</p>
-    );
+    return <EmptyState headingLevel={3} title="No locked invoice draft needs an adjustment." />;
   }
   const base = `/app/organisations/${organisationId}/invoices`;
   const facilities = [...new Set(rows.map((row) => row.facilityName))];
@@ -238,50 +219,32 @@ export function InvoiceAdjustmentCandidates({
       {facilities.map((facility) => (
         <div key={facility} className="flex flex-col gap-2">
           <h3 className="text-base font-semibold">{facility}</h3>
-          <div
-            role="region"
-            aria-label={`Invoice adjustments required for ${facility}`}
-            tabIndex={0}
-            className={TABLE_REGION}
-          >
-            <table className="w-full min-w-[860px] text-left text-sm">
-              <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
+          <DataTableRegion aria-label={`Invoice adjustments required for ${facility}`}>
+            <DataTable className="min-w-[860px]">
+              <DataTableHead>
                 <tr>
-                  <th scope="col" className={TH}>
-                    Worker · week
-                  </th>
-                  <th scope="col" className={TH}>
-                    Original draft
-                  </th>
-                  <th scope="col" className={TH}>
-                    Revision
-                  </th>
-                  <th scope="col" className={TH}>
-                    Status
-                  </th>
-                  <th scope="col" className={`${TH} text-right`}>
-                    Estimated change
-                  </th>
-                  <th scope="col" className={TH}>
+                  <DataTableHeaderCell>Worker · week</DataTableHeaderCell>
+                  <DataTableHeaderCell>Original draft</DataTableHeaderCell>
+                  <DataTableHeaderCell>Revision</DataTableHeaderCell>
+                  <DataTableHeaderCell>Status</DataTableHeaderCell>
+                  <DataTableHeaderCell numeric>Estimated change</DataTableHeaderCell>
+                  <DataTableHeaderCell>
                     <span className="sr-only">Actions</span>
-                  </th>
+                  </DataTableHeaderCell>
                 </tr>
-              </thead>
+              </DataTableHead>
               <tbody>
                 {rows
                   .filter((row) => row.facilityName === facility)
                   .map((row) => (
-                    <tr
-                      key={`${row.timesheetId}-${row.relationshipId}`}
-                      className="border-b border-border align-top last:border-0"
-                    >
-                      <td className="px-3 py-2">
+                    <DataTableRow key={`${row.timesheetId}-${row.relationshipId}`}>
+                      <DataTableCell>
                         <div className="font-medium">{row.workerName}</div>
                         <div className="text-xs text-muted-foreground">
                           {formatPeriod(row.periodStart, row.periodEnd)}
                         </div>
-                      </td>
-                      <td className="px-3 py-2">
+                      </DataTableCell>
+                      <DataTableCell>
                         {row.originalDraftId ? (
                           <Link
                             href={`${base}/${row.originalDraftId}` as Route}
@@ -297,17 +260,17 @@ export function InvoiceAdjustmentCandidates({
                             Last accounted in {row.baseReference}
                           </div>
                         ) : null}
-                      </td>
-                      <td className="px-3 py-2">
+                      </DataTableCell>
+                      <DataTableCell>
                         Revision {row.baseRevision} → {row.currentRevision}
                         <div className="text-xs text-muted-foreground">
                           {row.currentPriced ? "Priced" : "Not priced yet"}
                         </div>
-                      </td>
-                      <td className="px-3 py-2">
+                      </DataTableCell>
+                      <DataTableCell>
                         <StateCell state={row.state} />
-                      </td>
-                      <td className="px-3 py-2 text-right">
+                      </DataTableCell>
+                      <DataTableCell className="text-right">
                         {row.netDeltaMinor !== null && row.currency ? (
                           <SignedAmount
                             minor={row.netDeltaMinor}
@@ -317,8 +280,8 @@ export function InvoiceAdjustmentCandidates({
                         ) : (
                           "—"
                         )}
-                      </td>
-                      <td className="px-3 py-2">
+                      </DataTableCell>
+                      <DataTableCell>
                         {row.state === "required" && canPrepare ? (
                           <InlineActionForm
                             action={createInvoiceAdjustmentAction}
@@ -339,12 +302,12 @@ export function InvoiceAdjustmentCandidates({
                             {row.openAdjustmentReference}
                           </Link>
                         ) : null}
-                      </td>
-                    </tr>
+                      </DataTableCell>
+                    </DataTableRow>
                   ))}
               </tbody>
-            </table>
-          </div>
+            </DataTable>
+          </DataTableRegion>
         </div>
       ))}
     </>
@@ -359,34 +322,24 @@ export function InvoiceAdjustmentsTable({
   organisationId: string;
 }) {
   if (rows.length === 0) {
-    return <p className="text-sm text-muted-foreground">No invoice adjustment drafts yet.</p>;
+    return <EmptyState headingLevel={3} title="No invoice adjustment drafts yet." />;
   }
   return (
-    <div role="region" aria-label="Invoice adjustments table" tabIndex={0} className={TABLE_REGION}>
-      <table className="w-full min-w-[860px] text-left text-sm">
-        <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
+    <DataTableRegion aria-label="Invoice adjustments table">
+      <DataTable className="min-w-[860px]">
+        <DataTableHead>
           <tr>
-            <th scope="col" className={TH}>
-              Adjustment
-            </th>
-            <th scope="col" className={TH}>
-              Facility · week
-            </th>
-            <th scope="col" className={TH}>
-              Adjusts
-            </th>
-            <th scope="col" className={TH}>
-              Status
-            </th>
-            <th scope="col" className={`${TH} text-right`}>
-              Net change
-            </th>
+            <DataTableHeaderCell>Adjustment</DataTableHeaderCell>
+            <DataTableHeaderCell>Facility · week</DataTableHeaderCell>
+            <DataTableHeaderCell>Adjusts</DataTableHeaderCell>
+            <DataTableHeaderCell>Status</DataTableHeaderCell>
+            <DataTableHeaderCell numeric>Net change</DataTableHeaderCell>
           </tr>
-        </thead>
+        </DataTableHead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.id} className="border-b border-border align-top last:border-0">
-              <td className="px-3 py-2">
+            <DataTableRow key={row.id}>
+              <DataTableCell>
                 <Link
                   href={
                     `/app/organisations/${organisationId}/invoices/adjustments/${row.id}` as Route
@@ -395,37 +348,37 @@ export function InvoiceAdjustmentsTable({
                 >
                   {row.reference}
                 </Link>
-              </td>
-              <td className="px-3 py-2">
+              </DataTableCell>
+              <DataTableCell>
                 {row.facilityName}
                 <div className="text-xs text-muted-foreground">
                   {formatPeriod(row.periodStart, row.periodEnd)}
                 </div>
-              </td>
-              <td className="px-3 py-2">
+              </DataTableCell>
+              <DataTableCell>
                 {row.originalDraftReference}
                 <div className="text-xs text-muted-foreground">
                   Revision {row.fromRevision} → {row.toRevision}
                 </div>
-              </td>
-              <td className="px-3 py-2">
+              </DataTableCell>
+              <DataTableCell>
                 <div className="flex flex-wrap gap-1">
                   <InvoiceStatusBadge status={row.status} />
                   <AttentionBadge code={row.attention} />
                 </div>
-              </td>
-              <td className="px-3 py-2 text-right">
+              </DataTableCell>
+              <DataTableCell className="text-right">
                 <SignedAmount
                   minor={row.netDeltaMinor}
                   currency={row.currency}
                   side="bill"
                   direction={row.direction}
                 />
-              </td>
-            </tr>
+              </DataTableCell>
+            </DataTableRow>
           ))}
         </tbody>
-      </table>
-    </div>
+      </DataTable>
+    </DataTableRegion>
   );
 }

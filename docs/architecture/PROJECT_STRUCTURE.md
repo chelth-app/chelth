@@ -25,7 +25,7 @@
 │   ├── components/
 │   │   ├── ui/                   # owned primitives: Button, Input, Label, FormField,
 │   │   │                         # Badge, Card, Dialog, Spinner, LoadingState, ErrorState
-│   │   ├── layout/               # SkipLink, PageContainer (app shells later)
+│   │   ├── layout/               # SkipLink, PageContainer, workspace AppShell (sidebar, header, switcher, mobile nav)
 │   │   └── shared/               # cross-feature composites (BrandLogo)
 │   ├── config/
 │   │   ├── env.schema.ts         # pure Zod schemas + parsing (tested)

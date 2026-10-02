@@ -16,13 +16,40 @@ type OrganisationSectionsProps = {
   showPricing: boolean;
   showPayroll: boolean;
   showInvoices: boolean;
+  /**
+   * Workspace staff navigate with the shell sidebar (P0-E8-S2 Overview
+   * cleanup): list only the self-service links the sidebar does not carry.
+   */
+  selfServiceOnly?: boolean;
 };
 
 const LINK_CLASS =
   "rounded-md border border-input-border bg-surface px-4 py-2 text-sm font-medium hover:bg-surface-muted";
 
 /** Section links for an organisation. Shown per capability (UI hint only). */
-export function OrganisationSections(props: OrganisationSectionsProps) {
+export function OrganisationSections({
+  selfServiceOnly = false,
+  ...all
+}: OrganisationSectionsProps) {
+  const props: Omit<OrganisationSectionsProps, "selfServiceOnly"> = selfServiceOnly
+    ? {
+        organisationId: all.organisationId,
+        showMyShifts: all.showMyShifts,
+        showMyCredentials: all.showMyCredentials,
+        showWorkforce: false,
+        showFacilities: false,
+        showCompliance: false,
+        showShifts: false,
+        showStaffingRequests: false,
+        showOperations: false,
+        showAttendance: false,
+        showTimesheets: false,
+        showRates: false,
+        showPricing: false,
+        showPayroll: false,
+        showInvoices: false,
+      }
+    : all;
   const {
     organisationId,
     showWorkforce,
@@ -58,7 +85,10 @@ export function OrganisationSections(props: OrganisationSectionsProps) {
   )
     return null;
   return (
-    <nav aria-label="Organisation sections" className="flex flex-wrap gap-2">
+    <nav
+      aria-label={selfServiceOnly ? "My work" : "Organisation sections"}
+      className="flex flex-wrap gap-2"
+    >
       {showShifts ? (
         <Link href={`/app/organisations/${organisationId}/shifts`} className={LINK_CLASS}>
           Shifts

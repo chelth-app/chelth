@@ -453,3 +453,18 @@ export async function agencyMember(
   if (withAuthenticator) await stepUp(who);
   return who;
 }
+
+/** A new member of the world's facility organisation with one role (invited by the facility admin). */
+export async function facilityMember(
+  world: StaffingWorld,
+  label: string,
+  name: string,
+  role: string,
+  existing?: Person,
+): Promise<Person> {
+  const who = existing ?? (await person(label, name));
+  // Inviting is privileged: the facility admin steps up once.
+  if (!world.facilityAdmin.totpSecret) await stepUp(world.facilityAdmin);
+  await join(world.facilityAdmin.client, world.facilityOrgId, role, who);
+  return who;
+}

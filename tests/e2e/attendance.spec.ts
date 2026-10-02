@@ -8,7 +8,7 @@ import {
 } from "@playwright/test";
 
 import { createStaffingWorld, type StaffingWorld } from "./staffing-fixture";
-import { signIn } from "./support";
+import { expectNoPageOverflow, qaScreenshot, signIn } from "./support";
 
 const A11Y_TAGS = ["wcag2a", "wcag2aa", "wcag22aa"];
 const AFTER_ACTION = { timeout: 20_000 };
@@ -19,6 +19,8 @@ const FAR_AWAY = { latitude: 40.7128 + 0.009, longitude: -74.006 }; // ≈ 1 km 
 async function expectNoA11yViolations(page: Page) {
   const results = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
   expect(results.violations).toEqual([]);
+  // P0-E8-S2: wide tables scroll inside their region, never the page (412 px on mobile).
+  await expectNoPageOverflow(page);
 }
 
 async function must<T>(promise: PromiseLike<{ data: T; error: unknown }>): Promise<NonNullable<T>> {
@@ -165,7 +167,31 @@ test.describe.serial("time & attendance", () => {
       .getByRole("row", { name: /Leo Late/ });
     await expect(row).toContainText("Needs review");
     await expect(row).toContainText("Late clock-in");
+    await qaScreenshot(admin, "attendance-operational");
     await expectNoA11yViolations(admin);
+
+    // P0-E8-S2 Details drawer: quick inspection without leaving the table.
+    await expect(
+      admin.getByRole("region", { name: "Attendance summary" }).getByRole("link", {
+        name: /Needs review/,
+      }),
+    ).toContainText(/[1-9]/);
+    const details = row.getByRole("button", { name: "Details for Leo Late" });
+    await details.click();
+    const drawer = admin.getByRole("dialog", { name: "Leo Late" });
+    await expect(drawer).toBeVisible();
+    await expect(drawer.getByRole("button", { name: "Close details" })).toBeFocused();
+    expect(await drawer.evaluate((node) => node.matches(":modal"))).toBe(true);
+    await expect(drawer).toContainText("Late clock-in");
+    await qaScreenshot(admin, "attendance-drawer-open");
+    await expectNoA11yViolations(admin);
+    await admin.keyboard.press("Escape");
+    await expect(drawer).toBeHidden();
+    await expect(details).toBeFocused();
+    // The drawer never replaces the record's own route.
+    await details.click();
+    await drawer.getByRole("link", { name: "Open attendance record" }).click();
+    await expect(admin.getByRole("heading", { level: 1 })).toContainText("Leo Late");
     await admin.context().close();
   });
 
@@ -238,6 +264,7 @@ test.describe.serial("time & attendance", () => {
     const table = facility.getByRole("region", { name: "Attendance for this request" });
     await expect(table).toContainText("Gia Geofence");
     await expect(table).toContainText("Inside site area");
+    await qaScreenshot(facility, "s4-facility-attendance");
     await expect(facility.locator("main")).not.toContainText(/40\.71|74\.00|latitude|longitude/i);
     await facility.context().close();
   });

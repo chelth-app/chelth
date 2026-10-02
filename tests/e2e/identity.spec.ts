@@ -46,6 +46,8 @@ test.describe("authentication", () => {
     const results = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
     expect(results.violations).toEqual([]);
 
+    // In the workspace shell, Sign out lives in the account and workspace menu.
+    await page.getByRole("button", { name: /Account and workspace menu/ }).click();
     await page.getByRole("button", { name: "Sign out" }).click();
     await expect(page).toHaveURL(/\/$/);
     await page.goto("/app");

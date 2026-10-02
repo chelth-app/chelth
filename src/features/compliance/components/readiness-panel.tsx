@@ -1,4 +1,4 @@
-import { Badge } from "@/components/ui/badge";
+import { StatusChip } from "@/components/ui/status-chip";
 import { COMPLIANCE_REASON_LABELS } from "@/lib/domain/credentials";
 
 import type { Readiness } from "../queries";
@@ -34,9 +34,9 @@ export function ReadinessPanel({ title, readiness, headingId }: ReadinessPanelPr
               key={`${item.requirementId ?? item.reason}-${index}`}
               className="flex flex-wrap items-center gap-2"
             >
-              <Badge tone={item.severity === "blocking" ? "danger" : "warning"}>
+              <StatusChip tone={item.severity === "blocking" ? "danger" : "warning"}>
                 {COMPLIANCE_REASON_LABELS[item.reason]}
-              </Badge>
+              </StatusChip>
               <span>{item.credentialTypeName ?? "Worker"}</span>
               {item.effectiveExpiryDate ? (
                 <span className="text-muted-foreground">expires {item.effectiveExpiryDate}</span>

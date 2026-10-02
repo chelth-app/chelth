@@ -3,6 +3,8 @@ import { expect, type Page, test } from "@playwright/test";
 
 import {
   adminWithVerifiedAgency as adminWithVerifiedAgencyShared,
+  expectNoPageOverflow,
+  openWorkspaceSection,
   signUpAndConfirm,
   uniqueEmail,
 } from "./support";
@@ -16,6 +18,8 @@ async function adminWithVerifiedAgency(page: Page, agencyName: string): Promise<
 async function expectNoA11yViolations(page: Page) {
   const results = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
   expect(results.violations).toEqual([]);
+  // P0-E8-S2: wide tables scroll inside their region, never the page (412 px on mobile).
+  await expectNoPageOverflow(page);
 }
 
 test.describe("workforce", () => {
@@ -27,7 +31,7 @@ test.describe("workforce", () => {
   }) => {
     const organisationUrl = await adminWithVerifiedAgency(page, "Workforce Agency");
 
-    await page.getByRole("link", { name: "Workforce" }).click();
+    await openWorkspaceSection(page, "Workforce");
     await expect(page.getByRole("heading", { level: 1, name: "Workforce" })).toBeVisible();
     await expect(page.getByText("No workers yet.")).toBeVisible();
     await expectNoA11yViolations(page);
@@ -82,7 +86,7 @@ test.describe("facilities", () => {
   }) => {
     const organisationUrl = await adminWithVerifiedAgency(page, "Facility Agency");
 
-    await page.getByRole("link", { name: "Facilities" }).click();
+    await openWorkspaceSection(page, "Facilities");
     await expect(page.getByText("No client facilities yet.")).toBeVisible();
     await expectNoA11yViolations(page);
 

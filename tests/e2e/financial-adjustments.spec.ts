@@ -14,7 +14,7 @@ import {
   type Person,
   type StaffingWorld,
 } from "./staffing-fixture";
-import { signIn } from "./support";
+import { expectNoPageOverflow, expectNoPaymentVocabulary, qaScreenshot, signIn } from "./support";
 
 const A11Y_TAGS = ["wcag2a", "wcag2aa", "wcag22aa"];
 const AFTER_ACTION = { timeout: 20_000 };
@@ -23,6 +23,8 @@ const TZ = "America/New_York";
 async function expectNoA11yViolations(page: Page) {
   const results = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
   expect(results.violations).toEqual([]);
+  // P0-E8-S2: wide tables scroll inside their region, never the page (412 px on mobile).
+  await expectNoPageOverflow(page);
 }
 
 async function must<T>(promise: PromiseLike<{ data: T; error: unknown }>): Promise<NonNullable<T>> {
@@ -258,6 +260,11 @@ test.describe.serial("financial adjustments and controls", () => {
     const lines = page.getByRole("region", { name: "Payroll adjustment lines" });
     await expect(lines).toContainText("$320.88 → $332.20");
     await expect(lines).toContainText("+$11.32");
+    // Signed change stays explicit in text (not colour): amount and direction.
+    await expect(page.getByLabel("Net pay change")).toContainText("+$11.32");
+    await expect(page.getByLabel("Net pay change")).toContainText("Increase");
+    await expectNoPaymentVocabulary(page);
+    await qaScreenshot(page, "s5-payroll-adjustment-increase");
     await page.getByRole("button", { name: "Mark reviewed" }).click();
     await page.getByRole("button", { name: "Approve adjustment" }).click();
     await page.getByRole("button", { name: "Lock adjustment" }).click();
@@ -304,6 +311,9 @@ test.describe.serial("financial adjustments and controls", () => {
     await expect(page.getByText("Draft invoice adjustment — internal, not sent")).toBeVisible();
     await expect(page.getByText("Additional charge").first()).toBeVisible();
     await expect(page.getByText(/\$42\.50|\$44\.00|\$11\.32/)).toHaveCount(0);
+    await expect(page.getByRole("main")).not.toContainText(/margin|pay rate/i);
+    await expectNoPaymentVocabulary(page);
+    await qaScreenshot(page, "s5-invoice-adjustment-charge");
     await page.getByRole("button", { name: "Mark reviewed" }).click();
     await page.getByRole("button", { name: "Approve adjustment" }).click();
     await page.getByRole("button", { name: "Lock adjustment" }).click();
@@ -349,11 +359,15 @@ test.describe.serial("financial adjustments and controls", () => {
     const secondPath = new URL(page.url()).pathname;
     await expect(page.getByText(/^Follows$/)).toBeVisible();
     await expect(page.getByText("−$50.20").first()).toBeVisible();
+    await expect(page.getByLabel("Net pay change")).toContainText("Decrease");
+    await qaScreenshot(page, "s5-payroll-adjustment-decrease");
     await page.getByRole("button", { name: "Mark reviewed" }).click();
     await expect(
       page.getByText("You prepared this adjustment. A different finance member must approve it."),
     ).toBeVisible(AFTER_ACTION);
     await expect(page.getByRole("button", { name: "Approve adjustment" })).toHaveCount(0);
+    await qaScreenshot(page, "s5-maker-checker-blocked");
+    await expectNoA11yViolations(page);
     await page.context().close();
 
     const checker = await steppedUp(browser, gus, secondPath);

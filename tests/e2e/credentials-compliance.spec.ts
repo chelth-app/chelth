@@ -2,7 +2,13 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 
 import { markUploadsClean } from "../support/scanner";
-import { adminWithVerifiedAgency, signUpAndConfirm, uniqueEmail } from "./support";
+import {
+  adminWithVerifiedAgency,
+  expectNoPageOverflow,
+  openWorkspaceSection,
+  signUpAndConfirm,
+  uniqueEmail,
+} from "./support";
 
 const A11Y_TAGS = ["wcag2a", "wcag2aa", "wcag22aa"];
 const PDF = Buffer.from("%PDF-1.4\n% Chelth E2E credential evidence\n%%EOF\n");
@@ -14,6 +20,8 @@ function isoDate(offsetDays: number): string {
 async function expectNoA11yViolations(page: Page) {
   const results = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
   expect(results.violations).toEqual([]);
+  // P0-E8-S2: wide tables scroll inside their region, never the page (412 px on mobile).
+  await expectNoPageOverflow(page);
 }
 
 test.describe("credentials and compliance", () => {
@@ -26,7 +34,7 @@ test.describe("credentials and compliance", () => {
     const organisationPath = await adminWithVerifiedAgency(page, "Compliance Agency");
 
     // Agency baseline: BLS for everyone.
-    await page.getByRole("link", { name: "Credential requirements" }).click();
+    await openWorkspaceSection(page, "Compliance");
     await page
       .getByRole("combobox", { name: "Credential" })
       .selectOption({ label: "Basic Life Support (BLS)" });

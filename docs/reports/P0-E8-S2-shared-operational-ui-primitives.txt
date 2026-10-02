@@ -1,0 +1,703 @@
+P0-E8-S2 — SHARED OPERATIONAL UI PRIMITIVES
+Branch: p0-e8-visual-implementation (base 3b45f8a, S1 committed)
+Date: 2026-10-02
+Status: complete, uncommitted, awaiting review. S3 not started.
+
+======================================================================
+1. EXECUTIVE SUMMARY
+======================================================================
+The shared operational visual language now exists as owned primitives in
+src/components/ui, composed from the existing tokens:
+
+  - PageHeader, KpiFilterCard / KpiFilterGroup;
+  - FilterBar / FilterField / FilterSelect;
+  - DataTableRegion, DataTable (+ Head / HeaderCell / Row / Cell) and
+    DataTablePagination;
+  - StatusChip (six semantic tones), SectionTabs;
+  - DetailDrawer / DetailDrawerTrigger, KeyValueList, ActivityTimeline;
+  - EmptyState, plus restyled ErrorState / LoadingState.
+
+The repeated table-region problem is fixed structurally:
+  - all 30 hand-written scroll regions now use DataTableRegion
+    (relative overflow-x-auto, named, focusable);
+  - a unit test fails if a raw one reappears;
+  - every axe checkpoint in the E2E suite now also asserts no page-level
+    horizontal overflow, which runs at 412 px on the mobile project.
+
+Status colours now derive from the brand semantic palette. Domain status
+badges render through StatusChip.
+
+The Overview no longer repeats the sidebar.
+
+Adoption is deliberately conservative, on representative pages:
+  - Overview cleanup;
+  - Attendance (operational P3 list, with the P5 drawer);
+  - Pricing (P3-F finance list with route tabs);
+  - the priced-timesheet record (detail);
+  - a workspace error boundary and empty states.
+
+No database, migration, RLS, capability, Server Action, RPC, query or
+business logic changed.
+
+======================================================================
+2. REFERENCES USED
+======================================================================
+Approved UI references:
+  - DERIVATION-MAP.md: P1, P2 (KPI card), P3 + P3-F + P3-M, P4
+    (KeyValueList / ActivityTimeline), P5 and P9.
+  - Locked PNGs: Payroll_Invoices (P3-F), Staffing_Requests (P3 + drawer),
+    Operations_Overview (KPI cards, chips).
+
+Typography and audit sources:
+  - docs/brand/CHELTH-PRODUCT-TYPOGRAPHY.md:
+      - page title Manrope 600 32/40 -0.03em;
+      - supporting copy 16/24;
+      - section heading 18/26;
+      - KPI value 26/30;
+      - KPI label 14/20;
+      - table header 12/18.
+  - S0 audit §12–13: the table-region inventory and the sr-only escape.
+  - S1 report §20: the recommended S2 scope.
+
+Authoritative throughout:
+  - src/styles/brand.css (unchanged);
+  - DESIGN_SYSTEM.md.
+
+======================================================================
+3. SHARED PRIMITIVE ARCHITECTURE
+======================================================================
+Everything lives in src/components/ui (exported from its index), next to
+Button, Card, Dialog and FormField. There is no second component system and
+no new dependency.
+
+Server-compatible primitives (no client JS):
+  - PageHeader;
+  - KpiFilterCard;
+  - FilterBar;
+  - DataTable*;
+  - StatusChip;
+  - SectionTabs;
+  - KeyValueList;
+  - ActivityTimeline;
+  - EmptyState / ErrorState / LoadingState / StateIcon.
+
+The only new client component is DetailDrawer (+ Trigger). Like the existing
+Dialog, it is built on the native modal <dialog>, which is CSP-safe and
+injects no inline styles.
+
+Not built, by design:
+  - SearchField: no page-local search exists, and the prompt makes it
+    conditional.
+  - ActionMenu: row actions stay as visible inline buttons. Hiding them
+    behind a menu would change product behaviour, and no safe menu
+    primitive exists yet.
+
+======================================================================
+4. PAGEHEADER
+======================================================================
+Slots:
+  - title, rendered as the page's one h1;
+  - description;
+  - back (breadcrumb or back link);
+  - meta (chips and labels);
+  - primaryAction;
+  - secondaryActions.
+
+Typography:
+  - Title: Manrope 600, 32/40, -0.03em, Navy. On phones it is one step
+    down (28/36), which the typography document's mobile rule allows.
+  - Supporting copy: Inter 16/24, muted.
+
+It is compact (no hero), and actions sit top-right from sm and stack below.
+
+Adopted on:
+  - Overview;
+  - Attendance;
+  - Pricing;
+  - the priced-timesheet record.
+
+======================================================================
+5. KPI CARDS
+======================================================================
+KpiFilterCard: icon tile (decorative), value (Manrope 26/30, tabular),
+label (Inter 14/20) and optional supporting text.
+
+Behaviour:
+  - It is a Link (filter or section shortcut) or a static figure.
+  - Active state: aria-current="true", a 2 px Deep Teal border and a
+    visible "Showing" marker, so it is not colour-only.
+  - No charts, sparklines or deltas.
+  - KpiFilterGroup is a named region, laid out as 1 column on phones, 2 on
+    tablets and 4 on wide screens.
+
+Adopted on Attendance with real counts the page already loads:
+  - Scheduled;
+  - Needs review;
+  - Correction requests;
+  - Open exceptions (with an urgent count).
+Each card links to its section with an anchor. The page has no
+status-filter parameter, so none was invented.
+
+======================================================================
+6. FILTERBAR
+======================================================================
+FilterBar is a named native GET form, so filters stay in the URL and work
+without JavaScript.
+  - Labels sit above controls (P3-F).
+  - Submit wording is kept per page.
+  - Optional clear/reset link and an actions slot.
+  - Wraps on phones.
+  - FilterField and FilterSelect wrap the existing Label and native Select.
+  - There is no global search.
+
+Adopted on Attendance:
+  - Same field names, ids, labels and submit text ("Show").
+  - Adds a "Today" reset link: the existing unfiltered URL, which already
+    means "today at each facility".
+
+======================================================================
+7. DATATABLE / DATATABLEREGION
+======================================================================
+DataTableRegion:
+  - role="region", tabIndex=0;
+  - a REQUIRED accessible name, enforced by the type system
+    (aria-label | aria-labelledby);
+  - "relative overflow-x-auto" plus the existing card border and surface.
+
+DataTable components standardise:
+  - text size;
+  - header styling (12 px, muted, Cloud background);
+  - cell density (px-3 py-2.5);
+  - row hover;
+  - `selected` rows (aria-selected + Mint Mist);
+  - right-aligned tabular `numeric` cells.
+
+Cell content stays page-specific; there is no column abstraction.
+
+DataTablePagination is a cursor pagination nav with a name, an optional
+summary and 44 px previous/next links. The app pages by cursor, so there are
+no numbered pages.
+
+Sticky headers are not applied. Inside a horizontal scroll container a
+sticky top header is relative to the region, not the page, so it would not
+stick. Documented in §21.
+
+======================================================================
+8. MOBILE OVERFLOW FIX
+======================================================================
+Cause (S0): sr-only header text is position:absolute. Inside a
+non-positioned overflow container it escaped to the page, causing
+page-level horizontal scroll (817 px measured in P0-E7-S3).
+
+Fix:
+  - All 30 regions were migrated mechanically to <DataTableRegion>, with
+    the same names and children; only the wrapper changed. S0 counted 22;
+    the financial adjustment tables added more.
+
+    Area                                   Regions migrated
+    -------------------------------------  -----------------------------
+    attendance list / record / evidence    3
+    timesheets page                        2 (+ entries-table)
+    shift detail, staffing-request detail  1 each
+    workforce                              1
+    rates                                  2
+    pricing list / priced record           2
+    organisation hub                       1
+    payroll list / batch / adjustment      2 / 2 / 1
+    invoices list / draft / adjustment     2 / 1 / 1
+    financial-tables.tsx                   3
+    adjustment-tables.tsx                  4
+
+  - The local TABLE_REGION class constants were removed.
+
+Guards:
+  - Unit: a structural test fails if any src file with a <table> uses
+    overflow-x-auto outside DataTableRegion.
+  - E2E: every spec's expectNoA11yViolations helper now also asserts
+      document.documentElement.scrollWidth <= clientWidth.
+    It therefore runs at every existing axe checkpoint, with real data, on
+    desktop and on Pixel 7 (412 CSS px). Covered:
+      - hub;
+      - attendance list, record and drawer;
+      - timesheets;
+      - shift and staffing-request pages;
+      - workforce and facilities;
+      - rates and pricing (list and record);
+      - payroll and invoices (lists, batches, drafts, adjustments);
+      - compliance;
+      - operations.
+  - Mobile content was not redesigned.
+
+======================================================================
+9. STATUS SYSTEM
+======================================================================
+StatusChip has six tones:
+
+  Tone       Meaning
+  ---------  -----------------------------------------------------
+  neutral    inactive, draft, not required, closed without issue
+  info       in progress, waiting on someone else
+  success    done, verified, signed off, filled
+  warning    caution, partial, expiring, declined
+  danger     failed, blocked, disputed, cancelled with impact
+  attention  needs an operator's action now (Critical + Warning, an
+             orange)
+
+Visual: a soft pill with a decorative leading dot. The text is always the
+meaning.
+
+Tokens (globals.css, @theme inline), derived from brand.css:
+  - soft background = brand colour 12% on white;
+  - foreground = 62% brand + 38% Ink;
+  - indicator = the brand colour.
+
+Text contrast on its own soft background:
+
+  Tone       Ratio
+  ---------  -----
+  success    6.35
+  warning    5.55
+  danger     6.91
+  info       6.22
+  attention  6.20
+  neutral    6.35
+
+The destructive-button danger colour is now Critical: white text 5.14:1,
+hover 6.68:1. No reference hex values were imported.
+
+The previous status tones (#dcfce7 etc., recorded as brand drift in B3) are
+replaced. Because Badge, notices and form errors use the same soft tokens,
+they now also render in brand-derived tints.
+
+Consolidation into StatusChip:
+  - Attendance, Timesheet / Facility state, Shift / Fill / Assignment /
+    Offer, Readiness, Worker, Facility / Relationship, Verification /
+    Document, Payroll / Invoice status and AttentionBadge.
+  - The domain "brand" tone, used only by approved/locked financial
+    statuses and the "open" shift status, maps to info. ADJUSTMENT_REQUIRED
+    maps to attention.
+  - Inline status badges on adopted pages were converted (Overview member
+    status, Attendance, Pricing).
+
+Badge remains for non-status labels (organisation type, role names) and for
+inline badges on pages not yet adopted (§21).
+
+======================================================================
+10. DETAILDRAWER
+======================================================================
+DetailDrawer is a native modal <dialog>:
+
+Desktop:
+  - right-hand panel with sm / md / lg widths (24 / 28 / 36 rem);
+  - the page stays visible behind a light Ink 30% backdrop;
+  - header with title, description and a "Close details" button (44 px);
+  - scrolling body;
+  - footer action stack (primary full width, then secondary).
+
+Phones: a full-height, full-width sheet.
+
+Behaviour:
+  - Escape, the close button and a backdrop click all close it.
+  - The focus trap and inert background come from showModal().
+  - Focus returns to the trigger.
+
+DetailDrawerTrigger owns the open state. Its content is server-rendered and
+passed as children, so no data is fetched client-side.
+
+The drawer never replaces a deep-link route. On Attendance each row has a
+"Details" button whose accessible name is "Details for <worker>". It opens
+the row's facts (status, facility, location, shift, timezone, clock in/out
+with location results, needs attention) with "Open attendance record" and
+"Open shift" links. The record and shift routes are unchanged.
+
+======================================================================
+11. TABS
+======================================================================
+SectionTabs are navigation tabs: a named <nav> of links with
+aria-current="page" and an optional real count. They use underline styling,
+44 px targets and scroll inside themselves on phones. They are never
+role="tab", because these tabs change the URL.
+
+Adopted on the Pricing queues (Needs attention / Ready for pricing /
+Priced), replacing the hand-styled pill links with the same names and URLs.
+
+======================================================================
+12. EMPTY / LOADING / ERROR STATES
+======================================================================
+All three now share the P9 language: icon tile (StateIcon, decorative),
+Manrope title, one sentence, one action.
+
+EmptyState:
+  - Optional heading level (h2, or h3 under a section).
+  - Adopted for the Pricing empty queues and Attendance "No accepted
+    assignments in this window." (titles keep the existing text), and for
+    the Overview "No activity yet".
+
+ErrorState:
+  - Same props, role="alert", safe message and support reference.
+  - Restyled with an error tile.
+  - New: src/app/app/organisations/[organisationId]/(workspace)/error.tsx.
+    Errors now render INSIDE the workspace shell, so navigation remains,
+    with "Try again" (reset) and the digest reference. Only the generic
+    safe message is shown, as before. Nothing useful is hidden: the digest
+    is the existing support reference.
+
+LoadingState: same role="status" and label, with a loading tile. No
+loading.tsx was added: introducing Suspense boundaries would change
+navigation and streaming behaviour.
+
+======================================================================
+13. OVERVIEW CLEANUP
+======================================================================
+For workspace staff (shell users), the "Organisation sections" link grid is
+gone. All its destinations are in the sidebar.
+
+Kept:
+  - the "All organisations" link (/app is not in the sidebar);
+  - the type and role labels;
+  - the step-up notice;
+  - my worker record;
+  - agency relationships and shared compliance;
+  - members administration;
+  - invitations;
+  - Recent activity (now an ActivityTimeline, with an EmptyState when
+    empty).
+
+Self-service links not in the sidebar remain for staff who are also workers
+(OrganisationSections selfServiceOnly, a nav named "My work").
+
+Self-service-only members (personal frame, no sidebar) keep the full,
+unchanged "Organisation sections" nav. E2E verifies this for the worker.
+
+The members table region is now named "Members table". It previously
+shared the name "Members" with its section landmark.
+
+No P2 dashboard was built (S3).
+
+======================================================================
+14. REPRESENTATIVE PAGE ADOPTION
+======================================================================
+Overview:
+  - PageHeader, StatusChip, ActivityTimeline, EmptyState;
+  - duplicate navigation removed.
+
+Operational list — Attendance (P3 / P3-M):
+  - PageHeader + back link;
+  - KPI group;
+  - FilterBar;
+  - DataTable primitives;
+  - StatusChips;
+  - per-row DetailDrawer;
+  - EmptyState.
+  Other sections (corrections, exceptions, rules) keep their markup, with
+  Manrope section headings and exception chips.
+
+Financial list — Pricing (P3-F):
+  - PageHeader;
+  - SectionTabs;
+  - DataTable primitives;
+  - StatusChips (issues = attention, ready = info);
+  - EmptyState per queue;
+  - DataTablePagination for the existing cursor "Next page".
+
+Detail — priced timesheet (P4-derived):
+  - PageHeader with back link and a snapshot chip ("Current snapshot" /
+    "Superseded", derived from the revision fields);
+  - Totals as a KeyValueList card (still labelled "Totals");
+  - priced lines on DataTable primitives.
+
+System state:
+  - workspace error boundary (ErrorState);
+  - EmptyStates above.
+
+Table regions: all 30, application-wide (§8).
+
+Not restyled (per the stop condition): Workforce, Shifts, Facilities,
+Timesheets and the other pages beyond the region wrapper and the shared
+chips.
+
+======================================================================
+15. RESPONSIVE BEHAVIOUR
+======================================================================
+- Tables scroll inside DataTableRegion. The page width is verified at
+  412 px across the E2E suite, and on the design-system page at 412 px and
+  1280 px (overflow 0).
+- KPI cards: 1, 2 or 4 columns.
+- FilterBar fields wrap and grow on phones.
+- PageHeader actions stack.
+- SectionTabs scroll inside their own nav.
+- DetailDrawer is a full-screen sheet below sm.
+- KeyValueList stacks label over value on phones.
+- No new mobile application design.
+
+======================================================================
+16. ACCESSIBILITY
+======================================================================
+- Table regions are named, focusable and keyboard-scrollable.
+- Visible focus uses the global Navy ring.
+- Drawer:
+    - focus trap and inert background (verified with :modal in E2E);
+    - initial focus on "Close details";
+    - Escape closes and returns focus to the trigger (E2E);
+    - axe passes with the drawer open.
+- Filters are labelled native controls in a named form.
+- Pagination is a named nav.
+- aria-current is used for tabs ("page") and active KPI cards ("true").
+- Status is in text; dots are decorative.
+- Targets: buttons, links, tabs, pagination and the drawer close button
+  are at least 44 px.
+- axe (wcag2a, wcag2aa, wcag22aa) passes on every existing checkpoint plus:
+    - the Attendance drawer;
+    - the Pricing empty state;
+    - the Overview after cleanup;
+    - the design-system primitives page (foundation.spec).
+
+======================================================================
+17. FUNCTIONAL PRESERVATION
+======================================================================
+Unchanged:
+  - routes;
+  - Server Actions, queries, RPCs and capabilities;
+  - AAL2 behaviour;
+  - workflow states;
+  - filter parameters, names and ids;
+  - form submissions;
+  - table columns, row actions and permissions;
+  - all region names except the hub's members table (§13).
+
+One domain-file change is presentation only: OrganisationSections gained
+the selfServiceOnly prop.
+
+lib/domain was not changed. financialStatusTone still returns "brand"; the
+mapping happens in the badge component.
+
+E2E adjustments (navigation only, not weakened):
+  - Tests that clicked Overview section links now open the same page via the
+    sidebar, using a new openWorkspaceSection helper (desktop sidebar or
+    mobile overlay):
+      - shifts-assignments: Shifts, Staffing requests;
+      - workforce-facilities: Workforce, Facilities;
+      - credentials-compliance: Compliance (formerly the "Credential
+        requirements" hub link).
+  - Every assertion that followed is unchanged.
+
+======================================================================
+18. SCREENSHOT QA
+======================================================================
+Captured in the session scratchpad (not committed), using QA_SCREENSHOTS_DIR
+with the E2E suite plus a design-system capture.
+
+Pages, each at 1280 px and 412 px:
+  - Overview after cleanup;
+  - Attendance (P3 operational);
+  - Attendance drawer open;
+  - Pricing ready queue (P3-F);
+  - priced-timesheet detail;
+  - Pricing empty state.
+
+Additional captures:
+  - error-state (design-system), 1280 and 412;
+  - design-system primitives section, 1280 and 412.
+
+Comparison with the locked references:
+
+Matches:
+  - PageHeader scale and weight;
+  - KPI card anatomy (icon tile, value, label, sub-label);
+  - labelled filter row;
+  - soft chips with dots;
+  - table header band and density;
+  - right-hand drawer anatomy (title + close, key-value rows, full-width
+    teal primary + outline secondary);
+  - underline tabs;
+  - the drawer as a full-screen sheet on phones.
+
+Differs:
+  - The drawer is modal with a backdrop, not docked. The reference
+    contracts the table beside it.
+  - No checkboxes, avatars, kebab menus or numbered pagination (no
+    Chelth equivalents).
+  - KPI cards have no deltas.
+  - Long chip text wraps inside narrow table columns (e.g. "Needs review"
+    at 1280 px).
+
+======================================================================
+19. TESTS
+======================================================================
+Unit: tests/unit/components/operational-primitives.test.tsx (21 tests):
+  - PageHeader: one h1 in the display face; slots render; no action area
+    when there are no actions.
+  - KpiFilterCard:
+      - the link name includes the value and label;
+      - active = aria-current + "Showing";
+      - a static card is not a link.
+  - DataTableRegion: named, tabindex 0, relative + overflow-x-auto.
+  - DataTable: selected row has aria-selected.
+  - DataTablePagination: named nav, or nothing.
+  - StatusChip: all six tones carry text and their token classes.
+  - DetailDrawer:
+      - the trigger has aria-haspopup;
+      - it opens a dialog named by its title, with content and a footer
+        link;
+      - Close works.
+  - EmptyState: heading levels, action, decorative icon.
+  - SectionTabs: links with aria-current, no ARIA tabs.
+  - FilterBar: named GET form, labelled select, submit, clear link.
+  - KeyValueList: term / definition.
+  - ActivityTimeline: an ordered list.
+  - Structural guard: no raw table scroll region anywhere in src.
+
+Existing unit tests (ErrorState role=alert + reference, LoadingState
+role=status) still pass.
+
+E2E additions:
+  - The page-overflow guard runs at every axe checkpoint in 10 specs (§8).
+  - attendance.spec Flow 2:
+      - the KPI "Needs review" count;
+      - the drawer opens with focus on Close and is modal;
+      - axe passes with the drawer open;
+      - Escape closes it and returns focus to the trigger;
+      - "Open attendance record" reaches the record route.
+  - workspace-shell.spec (agency admin):
+      - no "Organisation sections" nav;
+      - no duplicated sidebar links in main;
+      - Members and its table region remain, plus the step-up link;
+      - Pricing: route tabs use aria-current with no tab roles, the empty
+        state heading shows, axe passes, and switching tabs updates the URL
+        and aria-current.
+  - workspace-shell.spec (worker): the self-service Overview keeps
+    "Organisation sections" with My shifts.
+
+Validation (final run):
+
+  Command               Result
+  --------------------  ------------------------------------------------
+  npm run format:check  pass
+  npm run lint          pass (0 warnings)
+  npm run typecheck     pass
+  npm test              27 files, 329 tests passed
+  npm run build         pass
+  npm run check:bundle  OK (60 browser files, no secrets)
+  npx playwright test   148 passed, 2 skipped (the existing desktop-only
+                        keyboard tests in foundation.spec skip on mobile),
+                        0 failed
+
+During development, three test-side issues were found and fixed:
+  - a duplicate "Totals" label, from the new section wrapper;
+  - the members section and its region sharing one name;
+  - an Overview assertion that ignored AAL1 step-up gating.
+
+No database tests were run, because no backend code changed.
+
+======================================================================
+20. FILES CHANGED
+======================================================================
+Added:
+  src/components/ui/activity-timeline.tsx
+  src/components/ui/data-table.tsx
+  src/components/ui/detail-drawer.tsx
+  src/components/ui/empty-state.tsx
+  src/components/ui/filter-bar.tsx
+  src/components/ui/key-value-list.tsx
+  src/components/ui/kpi-filter-card.tsx
+  src/components/ui/page-header.tsx
+  src/components/ui/section-tabs.tsx
+  src/components/ui/state-icon.tsx
+  src/components/ui/status-chip.tsx
+  src/app/app/organisations/[organisationId]/(workspace)/error.tsx
+  tests/unit/components/operational-primitives.test.tsx
+  docs/reports/P0-E8-S2-shared-operational-ui-primitives.txt
+
+Modified — primitives and tokens:
+  src/app/globals.css  (brand-derived status tokens)
+  src/components/ui/{error-state, loading-state, index}.tsx/ts
+
+Modified — adopted pages (workspace group):
+  page.tsx (Overview)
+  attendance/page.tsx
+  pricing/page.tsx
+  pricing/[pricedTimesheetId]/page.tsx
+
+Modified — region wrapper only (workspace group):
+  attendance/[attendanceId]/page.tsx and .../evidence/page.tsx
+  timesheets/page.tsx
+  shifts/[shiftId]/page.tsx
+  staffing-requests/[shiftId]/page.tsx
+  workforce/page.tsx
+  rates/page.tsx
+  payroll/page.tsx, payroll/[batchId]/page.tsx,
+      payroll/adjustments/[adjustmentId]/page.tsx
+  invoices/page.tsx, invoices/[draftId]/page.tsx,
+      invoices/adjustments/[adjustmentId]/page.tsx
+
+Modified — features:
+  src/features/timesheets/components/entries-table.tsx  (region)
+  src/features/financial/components/financial-tables.tsx  (regions, chips)
+  src/features/financial/components/adjustment-tables.tsx  (regions)
+  src/features/*/components/*badge*.tsx  (StatusChip):
+      attendance, timesheets, shifts, compliance, workforce, facilities,
+      credentials
+  src/features/organisations/components/organisation-sections.tsx
+      (selfServiceOnly)
+
+Modified — other:
+  src/app/(internal)/design-system/page.tsx  (primitives reference)
+  docs/architecture/DESIGN_SYSTEM.md
+  tests/e2e/support.ts  (openWorkspaceSection, expectNoPageOverflow,
+      qaScreenshot)
+  tests/e2e/{attendance, assignment-operations, credentials-compliance,
+      financial, financial-adjustments, pricing, shifts-assignments,
+      timesheets, workforce-facilities, workspace-shell}.spec.ts
+
+======================================================================
+21. KNOWN GAPS
+======================================================================
+1. The drawer is modal rather than docked. The P3 reference contracts the
+   table beside an open drawer; a docked, non-modal panel needs its own
+   focus model. The modal drawer is the safe accessible default.
+2. Drawer adoption is limited to Attendance. Other P3 lists will adopt it in
+   their domain stages.
+3. Sticky table headers are not applied (they do not work inside a
+   horizontal scroll region; see §7).
+4. Inline <Badge> status usages remain on pages not yet adopted (about 20
+   files). They already use the new brand-derived tints; converting them to
+   StatusChip is per-domain work.
+5. No SearchField (no page-local search exists) and no ActionMenu (row
+   actions stay visible).
+6. KPI cards on Attendance jump to sections. They are not filters, because
+   the page has no status filter parameter, and none was added.
+7. Chip text can wrap in narrow table columns. Acceptable; revisit with
+   column sizing in the domain stages.
+8. PageHeader is adopted on 4 pages. Other pages keep their text-2xl
+   headers until restyled.
+9. No loading.tsx was added (it would introduce new Suspense boundaries).
+10. Role labels on the hub use Badge tone "info", which now renders in the
+    brand-derived info tint. This is visually close to a status chip but has
+    no dot.
+
+======================================================================
+22. GIT STATUS
+======================================================================
+Branch p0-e8-visual-implementation. HEAD 3b45f8a ("feat: implement Chelth
+shared app shell and navigation", S1). All S2 changes are uncommitted
+(modified + untracked as listed in §20); nothing is staged or committed. No
+secrets were found.
+
+======================================================================
+23. RECOMMENDED S3 SCOPE
+======================================================================
+- P2 Operations Overview: compose KpiFilterCard + panels from EXISTING
+  counts/queries only (attention queue, open shifts, pending timesheets,
+  credential readiness). No invented analytics or charts.
+- Decide on the docked P3 drawer (gap 1) before broad drawer adoption.
+- Per-domain P3 restyles, one stage each:
+    - Shifts (list → DataTable, FilterBar exists);
+    - Workforce;
+    - Facilities;
+    - Timesheets;
+    - Payroll/Invoices;
+    - Rates.
+  Each stage should convert inline Badges to StatusChip and adopt
+  PageHeader / EmptyState.
+- Consider a facility Overview variant (P2-derived) with the same
+  primitives.

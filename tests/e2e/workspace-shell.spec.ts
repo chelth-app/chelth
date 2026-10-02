@@ -1,0 +1,398 @@
+import AxeBuilder from "@axe-core/playwright";
+import {
+  type Browser,
+  expect,
+  type Locator,
+  type Page,
+  test,
+  type TestInfo,
+} from "@playwright/test";
+
+import {
+  agencyMember,
+  createStaffingWorld,
+  facilityMember,
+  type Person,
+  type StaffingWorld,
+} from "./staffing-fixture";
+import { expectNoPageOverflow, qaScreenshot, signIn } from "./support";
+
+/*
+ * P0-E8-S1 shared Agency / Facility workspace shell: capability-driven
+ * navigation, workspace switching, narrow-viewport overlay and the worker
+ * separation. Selectors are semantic (roles and accessible names).
+ */
+
+const A11Y_TAGS = ["wcag2a", "wcag2aa", "wcag22aa"];
+const SCREENSHOTS = process.env.SHELL_SCREENSHOTS_DIR;
+
+async function expectNoA11yViolations(page: Page) {
+  const results = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
+  expect(results.violations).toEqual([]);
+  // P0-E8-S2: wide tables scroll inside their region, never the page (412 px on mobile).
+  await expectNoPageOverflow(page);
+}
+
+async function signedIn(browser: Browser, email: string): Promise<Page> {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await signIn(page, email);
+  await expect(page).toHaveURL(/\/app$/);
+  return page;
+}
+
+const isMobile = (testInfo: TestInfo) => testInfo.project.name.startsWith("mobile");
+
+/**
+ * The workspace navigation landmark: the persistent sidebar on desktop, or the
+ * overlay opened from the top-bar trigger on narrow viewports.
+ */
+async function openWorkspaceNav(page: Page, testInfo: TestInfo): Promise<Locator> {
+  if (isMobile(testInfo)) {
+    await page.getByRole("button", { name: "Open navigation" }).click();
+    const dialog = page.getByRole("dialog", { name: "Workspace navigation" });
+    await expect(dialog).toBeVisible();
+    return dialog.getByRole("navigation", { name: "Workspace" });
+  }
+  const nav = page.getByRole("navigation", { name: "Workspace" });
+  await expect(nav).toBeVisible();
+  return nav;
+}
+
+async function closeWorkspaceNav(page: Page, testInfo: TestInfo) {
+  if (isMobile(testInfo)) await page.keyboard.press("Escape");
+}
+
+async function navLabels(nav: Locator): Promise<string[]> {
+  return (await nav.getByRole("link").allInnerTexts()).map((text) => text.trim());
+}
+
+async function expectNoInventedChrome(page: Page) {
+  // Decision F10: no fake search, no fake notification bell; F6: no invented routes.
+  await expect(page.getByRole("searchbox")).toHaveCount(0);
+  await expect(page.getByPlaceholder(/search/i)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /notification/i })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /notification/i })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /^reports?$/i })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /^settings$/i })).toHaveCount(0);
+}
+
+async function screenshot(page: Page, testInfo: TestInfo, name: string) {
+  if (!SCREENSHOTS) return;
+  await page.screenshot({
+    path: `${SCREENSHOTS}/${testInfo.project.name}-${name}.png`,
+    fullPage: false,
+  });
+}
+
+const AGENCY_ADMIN_NAV = [
+  "Overview",
+  "Operations",
+  "Shifts",
+  "Attendance",
+  "Timesheets",
+  "Workforce",
+  "Facilities",
+  "Compliance",
+  "Rates",
+  "Pricing",
+  "Payroll",
+  "Invoices",
+];
+
+test.describe.serial("workspace shell", () => {
+  test.setTimeout(240_000);
+
+  let world: StaffingWorld;
+  let finance: Person;
+  let supervisor: Person;
+
+  test.beforeAll(async ({}, testInfo) => {
+    testInfo.setTimeout(240_000);
+    world = await createStaffingWorld(`shell-${testInfo.project.name.split("-")[0] ?? "e2e"}`);
+    finance = await agencyMember(world, "e2e-shell-finance", "Fran Finance", "agency.finance");
+    // Fran also belongs to the facility, so she has a workspace to switch to.
+    await facilityMember(world, "", "", "facility.scheduler", finance);
+    supervisor = await facilityMember(
+      world,
+      "e2e-shell-supervisor",
+      "Sue Supervisor",
+      "facility.supervisor",
+    );
+  });
+
+  test("agency admin: full capability navigation, Overview current, no invented chrome", async ({
+    browser,
+  }, testInfo) => {
+    const page = await signedIn(browser, world.admin.email);
+    await page.goto(`/app/organisations/${world.agencyId}`);
+    await expect(page.getByRole("heading", { level: 1, name: world.agencyName })).toBeVisible();
+
+    const nav = await openWorkspaceNav(page, testInfo);
+    expect(await navLabels(nav)).toEqual(AGENCY_ADMIN_NAV);
+    await expect(nav.getByRole("link", { name: "Overview" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    // Canonical reverse lockup at the top of the sidebar (desktop) / overlay (narrow).
+    const logoScope = isMobile(testInfo)
+      ? page.getByRole("dialog", { name: "Workspace navigation" })
+      : page.getByRole("complementary", { name: "Workspace sidebar" });
+    await expect(logoScope.getByRole("img", { name: /Chelth/ })).toHaveAttribute(
+      "src",
+      "/brand/chelth/logo-reverse.svg",
+    );
+    await screenshot(page, testInfo, "agency-admin-overview");
+    await closeWorkspaceNav(page, testInfo);
+
+    await expectNoInventedChrome(page);
+    await expectNoA11yViolations(page);
+
+    // P0-E8-S2 Overview cleanup: the section link grid no longer repeats the sidebar.
+    await expect(page.getByRole("navigation", { name: "Organisation sections" })).toHaveCount(0);
+    for (const label of AGENCY_ADMIN_NAV.slice(1)) {
+      await expect(
+        page.getByRole("main").getByRole("link", { name: label, exact: true }),
+      ).toHaveCount(0);
+    }
+    // Administration that the sidebar does not carry stays on the Overview
+    // (privileged sections such as Invitations wait for MFA step-up, as before).
+    await expect(page.getByRole("heading", { name: "Members" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Members table" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Verify now" })).toBeVisible();
+    await qaScreenshot(page, "overview-after-cleanup");
+
+    // Representative finance page on the shared primitives: route tabs + empty state.
+    await page.goto(`/app/organisations/${world.agencyId}/pricing?state=priced`);
+    await expect(page.getByRole("heading", { level: 1, name: "Pricing" })).toBeVisible();
+    const queues = page.getByRole("navigation", { name: "Pricing queues" });
+    await expect(queues.getByRole("link", { name: "Priced" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await expect(queues.getByRole("tab")).toHaveCount(0);
+    await expect(
+      page.getByRole("heading", { level: 2, name: "Nothing has been priced yet." }),
+    ).toBeVisible();
+    await qaScreenshot(page, "empty-state");
+    await expectNoA11yViolations(page);
+    await queues.getByRole("link", { name: "Needs attention" }).click();
+    await expect(page).toHaveURL(/state=attention/);
+    await expect(
+      page.getByRole("navigation", { name: "Pricing queues" }).getByRole("link", {
+        name: "Needs attention",
+      }),
+    ).toHaveAttribute("aria-current", "page");
+  });
+
+  test("agency scheduler: only routes they can open, each one renders", async ({
+    browser,
+  }, testInfo) => {
+    const page = await signedIn(browser, world.scheduler.email);
+    await page.goto(`/app/organisations/${world.agencyId}`);
+
+    const nav = await openWorkspaceNav(page, testInfo);
+    const labels = await navLabels(nav);
+    expect(labels).toEqual([
+      "Overview",
+      "Operations",
+      "Shifts",
+      "Attendance",
+      "Timesheets",
+      "Workforce",
+      "Facilities",
+    ]);
+    const hrefs = await nav
+      .getByRole("link")
+      .evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? ""));
+    await closeWorkspaceNav(page, testInfo);
+
+    // No leakage: every listed destination renders for this user (no 404).
+    for (const href of hrefs) {
+      const response = await page.goto(href);
+      expect(response?.status(), href).toBe(200);
+    }
+    // And a destination that is not listed is genuinely unavailable.
+    const payroll = await page.goto(`/app/organisations/${world.agencyId}/payroll`);
+    expect(payroll?.status()).toBe(404);
+
+    // Choosing a destination marks it current (detail pages keep it current).
+    await page.goto(`/app/organisations/${world.agencyId}`);
+    const navAgain = await openWorkspaceNav(page, testInfo);
+    await navAgain.getByRole("link", { name: "Shifts" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Shifts" })).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Workspace navigation" })).toBeHidden();
+    const current = await openWorkspaceNav(page, testInfo);
+    await expect(current.getByRole("link", { name: "Shifts" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await expect(current.getByRole("link", { name: "Overview" })).not.toHaveAttribute(
+      "aria-current",
+    );
+    await closeWorkspaceNav(page, testInfo);
+    await expectNoInventedChrome(page);
+    await expectNoA11yViolations(page);
+  });
+
+  test("finance: finance navigation, and the switcher moves to another existing workspace", async ({
+    browser,
+  }, testInfo) => {
+    const page = await signedIn(browser, finance.email);
+    await page.goto(`/app/organisations/${world.agencyId}`);
+
+    const nav = await openWorkspaceNav(page, testInfo);
+    expect(await navLabels(nav)).toEqual([
+      "Overview",
+      "Timesheets",
+      "Facilities",
+      "Rates",
+      "Pricing",
+      "Payroll",
+      "Invoices",
+    ]);
+    await closeWorkspaceNav(page, testInfo);
+
+    const trigger = page.getByRole("button", { name: /Account and workspace menu/ });
+    await expect(trigger).toHaveAttribute("aria-expanded", "false");
+    await trigger.click();
+    await expect(trigger).toHaveAttribute("aria-expanded", "true");
+    await expect(page.getByRole("group", { name: "Current workspace" })).toContainText(
+      world.agencyName,
+    );
+    const switchList = page.getByRole("list", { name: "Switch workspace" });
+    await expect(switchList).toBeVisible();
+    await expect(page.getByRole("link", { name: "Account" })).toHaveAttribute(
+      "href",
+      "/app/account",
+    );
+    await expect(page.getByRole("link", { name: "Security" })).toHaveAttribute(
+      "href",
+      "/app/security",
+    );
+    await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
+    await screenshot(page, testInfo, "switcher-open");
+    await expectNoA11yViolations(page);
+
+    // Escape closes the control and returns focus to it.
+    await page.keyboard.press("Escape");
+    await expect(trigger).toHaveAttribute("aria-expanded", "false");
+    await expect(trigger).toBeFocused();
+
+    await trigger.click();
+    await switchList.getByRole("button", { name: new RegExp(world.facilityOrgName) }).click();
+    await expect(page).toHaveURL(new RegExp(`/app/organisations/${world.facilityOrgId}$`));
+    await expect(
+      page.getByRole("heading", { level: 1, name: world.facilityOrgName }),
+    ).toBeVisible();
+    const facilityNav = await openWorkspaceNav(page, testInfo);
+    expect(await navLabels(facilityNav)).toEqual(["Overview", "Staffing requests"]);
+    await closeWorkspaceNav(page, testInfo);
+  });
+
+  test("facility admin: facility subset of the same shell", async ({ browser }, testInfo) => {
+    const page = await signedIn(browser, world.facilityAdmin.email);
+    await page.goto(`/app/organisations/${world.facilityOrgId}`);
+
+    const nav = await openWorkspaceNav(page, testInfo);
+    expect(await navLabels(nav)).toEqual(["Overview", "Staffing requests", "Timesheet sign-off"]);
+    await screenshot(page, testInfo, "facility-admin-overview");
+    await closeWorkspaceNav(page, testInfo);
+    // Single-workspace user: no switcher choices.
+    await page.getByRole("button", { name: /Account and workspace menu/ }).click();
+    await expect(page.getByRole("list", { name: "Switch workspace" })).toHaveCount(0);
+    await page.keyboard.press("Escape");
+
+    await expectNoInventedChrome(page);
+    await expectNoA11yViolations(page);
+  });
+
+  test("facility supervisor: view-only navigation, no member admin or request creation", async ({
+    browser,
+  }, testInfo) => {
+    const page = await signedIn(browser, supervisor.email);
+    await page.goto(`/app/organisations/${world.facilityOrgId}`);
+
+    const nav = await openWorkspaceNav(page, testInfo);
+    expect(await navLabels(nav)).toEqual(["Overview", "Staffing requests", "Timesheet sign-off"]);
+    await closeWorkspaceNav(page, testInfo);
+    await expect(page.getByRole("button", { name: "Create invitation" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Invitations" })).toHaveCount(0);
+
+    const requests = await openWorkspaceNav(page, testInfo);
+    await requests.getByRole("link", { name: "Staffing requests" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Staffing requests" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Submit request" })).toHaveCount(0);
+    await expectNoA11yViolations(page);
+  });
+
+  test("worker: self-service pages are not moved into the workspace shell", async ({ browser }) => {
+    const page = await signedIn(browser, world.wendy.email);
+    for (const path of [
+      `/app/organisations/${world.agencyId}`,
+      `/app/organisations/${world.agencyId}/my-shifts`,
+    ]) {
+      await page.goto(path);
+      await expect(page.getByRole("navigation", { name: "Account" })).toBeVisible();
+      await expect(page.getByRole("navigation", { name: "Workspace" })).toHaveCount(0);
+      if (path.endsWith(world.agencyId)) {
+        // Self-service members keep their section links (no sidebar on the personal frame).
+        await expect(
+          page
+            .getByRole("navigation", { name: "Organisation sections" })
+            .getByRole("link", { name: "My shifts" }),
+        ).toBeVisible();
+      }
+      await expect(page.getByRole("button", { name: "Open navigation" })).toHaveCount(0);
+    }
+  });
+
+  test("narrow viewport: the sidebar becomes an accessible overlay", async ({
+    browser,
+  }, testInfo) => {
+    const page = await signedIn(browser, world.scheduler.email);
+    await page.goto(`/app/organisations/${world.agencyId}`);
+    const trigger = page.getByRole("button", { name: "Open navigation" });
+
+    if (!isMobile(testInfo)) {
+      // Desktop: persistent sidebar, no trigger.
+      await expect(page.getByRole("navigation", { name: "Workspace" })).toBeVisible();
+      await expect(trigger).toBeHidden();
+      return;
+    }
+
+    await expect(page.getByRole("navigation", { name: "Workspace" })).toBeHidden();
+    await expect(trigger).toHaveAttribute("aria-expanded", "false");
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+
+    await trigger.click();
+    const dialog = page.getByRole("dialog", { name: "Workspace navigation" });
+    await expect(dialog).toBeVisible();
+    await expect(trigger).toHaveAttribute("aria-expanded", "true");
+    // Modal: focus moves inside, the background is inert.
+    await expect(dialog.getByRole("button", { name: "Close navigation" })).toBeFocused();
+    expect(await page.locator("dialog[open]").evaluate((node) => node.matches(":modal"))).toBe(
+      true,
+    );
+    await screenshot(page, testInfo, "narrow-nav-open");
+    await expectNoA11yViolations(page);
+
+    // Focus stays trapped in the overlay.
+    for (let step = 0; step < 12; step += 1) await page.keyboard.press("Tab");
+    expect(await page.evaluate(() => document.activeElement?.closest("dialog") !== null)).toBe(
+      true,
+    );
+
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect(trigger).toBeFocused();
+
+    await trigger.click();
+    await dialog.getByRole("button", { name: "Close navigation" }).click();
+    await expect(dialog).toBeHidden();
+    await expect(trigger).toBeFocused();
+  });
+});

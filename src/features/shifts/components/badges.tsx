@@ -1,4 +1,4 @@
-import { Badge, type BadgeProps } from "@/components/ui/badge";
+import { StatusChip, type StatusTone } from "@/components/ui/status-chip";
 import {
   ASSIGNMENT_STATUS_LABELS,
   type AssignmentStatus,
@@ -10,12 +10,12 @@ import {
   type ShiftStatus,
 } from "@/lib/domain/shifts";
 
-type Tone = NonNullable<BadgeProps["tone"]>;
+type Tone = StatusTone;
 
 const SHIFT_TONE: Record<ShiftStatus, Tone> = {
   draft: "neutral",
   submitted: "info",
-  open: "brand",
+  open: "info",
   cancelled: "danger",
   completed: "success",
 };
@@ -34,7 +34,7 @@ const ASSIGNMENT_TONE: Record<AssignmentStatus, Tone> = {
 };
 
 export function ShiftStatusBadge({ status }: { status: ShiftStatus }) {
-  return <Badge tone={SHIFT_TONE[status]}>{SHIFT_STATUS_LABELS[status]}</Badge>;
+  return <StatusChip tone={SHIFT_TONE[status]}>{SHIFT_STATUS_LABELS[status]}</StatusChip>;
 }
 
 /** Derived fill progress, e.g. "Partially filled · 1 of 2". */
@@ -48,14 +48,14 @@ export function FillBadge({
   requestedHeadcount: number;
 }) {
   return (
-    <Badge tone={FILL_TONE[fillState]}>
+    <StatusChip tone={FILL_TONE[fillState]}>
       {FILL_STATE_LABELS[fillState]} · {activeCount} of {requestedHeadcount}
-    </Badge>
+    </StatusChip>
   );
 }
 
 export function AssignmentStatusBadge({ status }: { status: AssignmentStatus }) {
-  return <Badge tone={ASSIGNMENT_TONE[status]}>{ASSIGNMENT_STATUS_LABELS[status]}</Badge>;
+  return <StatusChip tone={ASSIGNMENT_TONE[status]}>{ASSIGNMENT_STATUS_LABELS[status]}</StatusChip>;
 }
 
 const OFFER_TONE: Record<ShiftOfferStatus, Tone> = {
@@ -67,5 +67,5 @@ const OFFER_TONE: Record<ShiftOfferStatus, Tone> = {
 };
 
 export function OfferStatusBadge({ status }: { status: ShiftOfferStatus }) {
-  return <Badge tone={OFFER_TONE[status]}>{SHIFT_OFFER_STATUS_LABELS[status]}</Badge>;
+  return <StatusChip tone={OFFER_TONE[status]}>{SHIFT_OFFER_STATUS_LABELS[status]}</StatusChip>;
 }

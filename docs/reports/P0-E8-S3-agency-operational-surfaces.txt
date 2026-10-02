@@ -1,0 +1,592 @@
+P0-E8-S3 — AGENCY OPERATIONAL SURFACES
+Branch: p0-e8-visual-implementation (base 68ac1f7, S2 committed)
+Date: 2026-10-02
+Status: complete, uncommitted, awaiting review. S4 not started.
+
+======================================================================
+1. EXECUTIVE SUMMARY
+======================================================================
+The main agency surfaces now use the approved Chelth language, composed from
+the S2 primitives plus one shared addition (Panel / PanelLink, the P2/P4
+titled card). The surfaces are:
+  - Operations Overview (P2);
+  - Shifts and shift record;
+  - Workforce and worker record;
+  - Facilities and facility record;
+  - Attendance (list, record, evidence);
+  - Timesheets (list, record);
+  - Compliance and credential review;
+  - Operations.
+
+The Overview answers what needs attention, what is happening today and what
+is coming up, using only existing queries gated exactly like their own pages.
+There are no charts, trends, forecasts or scores.
+
+Shifts, Workforce and Facilities each gained:
+  - real-count quick filters (KPI cards that set URL filters);
+  - a labelled FilterBar;
+  - a DataTable;
+  - the modal Details drawer.
+Each record page gained a P4 identity header and an in-page section list that
+only lists sections that render for the viewer.
+
+No database, migration, RLS, capability, Server Action, RPC, query, workflow
+or rule changed. Every existing E2E test passes unmodified.
+
+One latent UI bug was found and fixed: GET filter forms showed stale values
+after client-side navigation (§16).
+
+======================================================================
+2. REFERENCES USED
+======================================================================
+- DERIVATION-MAP.md: P2, P3 (+P3-M, P3-F, P3-C), P4, P5, P6, F6, F10.
+- Locked references:
+    - Operations_Overview (P2);
+    - Shifts Interactive list (P3);
+    - Staffing_Requests (drawer anatomy);
+    - Workforce, Worker_Profile (P4), Facilities, Attendance (P3-M),
+      Credentials, Settings (P6 cards).
+- CHELTH-PRODUCT-TYPOGRAPHY.md; S0, S1 and S2 reports; brand.css
+  (unchanged).
+
+======================================================================
+3. OPERATIONS OVERVIEW
+======================================================================
+Route: /app/organisations/[id] (Overview).
+
+The dashboard renders for agency workspace staff in
+_components/agency-operations-overview.tsx. The h1 stays the organisation
+name, with the supporting line "What needs attention, what is happening
+today and what is coming up."
+
+KPI cards ("Operations summary"). Each card appears only when its source is
+allowed:
+
+  Card                           Source and gate                     Links to
+  -----------------------------  ----------------------------------  ---------------------------
+  Open shifts                    listAgencyShifts(open, from today)  Shifts, pre-filtered
+                                 + count not fully staffed;
+                                 shift.view held
+  Assignments needing attention  listAssignmentIssues + urgent       Operations
+                                 count; assignment.view AND
+                                 compliance.view granted, as on
+                                 Operations
+  Attendance to review today     listAgencyAttendance(today)         Attendance
+                                 needs-review count +
+                                 listOpenExceptions;
+                                 attendance.view held
+  Timesheets to approve          listAgencyTimesheets(submitted) +   Timesheets?status=submitted
+                                 discrepancy count;
+                                 timesheet.view held
+
+Panels:
+  - Today's schedule: table of today's accepted assignments (worker,
+    facility, time, attendance status chip), 8 rows, then "Showing 8 of N".
+  - Upcoming open shifts: facility / discipline, date, time, staffing chip.
+  - Needs attention: top 5 assignment issues with a severity chip.
+  - Workforce: worker records by status (real counts) with status chips.
+    This replaces the reference's "readiness donut".
+
+Omitted, because Chelth has no backing data for them:
+  - Credential Expirations bars;
+  - the Coverage Activity chart;
+  - the date-range control;
+  - the readiness donut.
+
+Kept below the dashboard: member administration, invitations, recent activity
+and self-service links.
+
+Facility Overviews are unchanged (S4).
+
+======================================================================
+4. SHIFTS
+======================================================================
+- PageHeader: back link, copy, and a primary "New shift" link that jumps to
+  the existing create form on the same page.
+- Quick filters ("Upcoming shifts") count upcoming work from today using the
+  existing listAgencyShifts query:
+    - Open (with "N not fully staffed");
+    - Facility requests (submitted);
+    - Drafts.
+  Each card sets ?status=…&from=today and is active (aria-current, "Showing")
+  when that filter is applied.
+- FilterBar keeps the existing names, ids and labels (status, facilityId,
+  from, to) and adds "Clear filters".
+- The list moved from cards to a DataTable ("Shifts table"):
+    - shift link (same text as before);
+    - location / reference;
+    - date and time;
+    - status chip;
+    - staffing (fill chip, or "N needed");
+    - needs attention (source label, relationship and issue chips);
+    - Details.
+- Cursor pagination uses DataTablePagination ("First page" / "Next page",
+  same names).
+- The create form is unchanged.
+
+======================================================================
+5. SHIFT DETAIL / DRAWER
+======================================================================
+Drawer (quick inspection only):
+  - status, staffing;
+  - assigned "x of n (y accepted)";
+  - facility, location, discipline, timezone;
+  - source, relationship, reference;
+  - open issues.
+Footer: "Open shift" (the record route remains authoritative).
+
+Record (P4):
+  - PageHeader with status / fill / relationship chips plus source and
+    classification labels.
+  - Description: date · location. The time is not repeated, so it stays
+    unique on the page.
+  - "Shift sections" in-page list: Details, Assigned workers, Assign,
+    Attendance, Offers, Decisions, Notes. Each appears only when that section
+    renders.
+  - Every section is now a Panel, with ids and names unchanged.
+  - Details is a KeyValueList.
+  - The attendance table uses DataTable primitives.
+  - Issue, eligibility and exception chips.
+  - Assignment decisions are an ActivityTimeline with the same text and
+    order: "<worker> · Refused — reasons", then date and evaluation dates.
+
+Preserved:
+  - classification form;
+  - open / accept / complete actions;
+  - re-check readiness;
+  - eligible and unavailable candidates with explanations;
+  - offers and withdraw;
+  - correction review;
+  - manage / cancel;
+  - notes.
+
+======================================================================
+6. WORKFORCE
+======================================================================
+- PageHeader with a primary "Invite worker" link to the existing invite form.
+- Status quick filters (Active, Onboarding, Suspended, with "of N workers")
+  plus a status FilterBar. This is a display filter over the
+  already-loaded listWorkers result (?status=); no query changed.
+- DataTable ("Workers table") with name (row header link), status chip,
+  reference, started, and Details.
+- Drawer: status, reference, start and end date, a pointer to the record,
+  and "Open worker record".
+- Empty states: "No workers yet." (unchanged text) and "No workers with
+  this status." with "Show all workers".
+- Not added: ratings, skills, availability, messaging.
+
+======================================================================
+7. WORKER RECORD
+======================================================================
+P4:
+  - PageHeader (identity) with a status chip.
+  - Meta line: reference · started · disciplines.
+  - "Worker record sections" in-page list, one link per rendered section
+    only: Record, Manage, Readiness, Disciplines, Credentials, Facility
+    sharing, Notes. There are no Assignments, Attendance or Timesheets tabs:
+    the worker record has no such product sections, so none were invented
+    (E2E asserts every link resolves to an element on the page).
+  - "Worker record" summary card (KeyValueList): status, reference, start
+    and end date, agency readiness chip, number of credentials shared.
+  - Every section is a Panel.
+  - The facility readiness check uses FilterBar (select label unchanged; the
+    form is named "Facility readiness check").
+  - Credential chips: "Not submitted", "Document not cleared", verification.
+
+Preserved:
+  - status transitions;
+  - reference edit;
+  - readiness panels with reasons;
+  - discipline toggles;
+  - shared credentials;
+  - readiness sharing with facilities;
+  - internal notes.
+
+======================================================================
+8. FACILITIES
+======================================================================
+- PageHeader with a primary "Add facility" link to the existing form.
+- Status quick filters (Active, Inactive, Archived) plus a FilterBar. This
+  is a display filter over listFacilities; no query changed.
+- The list moved from cards to a DataTable ("Client facilities table"):
+  facility (row header link), type, locality, timezone, status chip, Details.
+- Empty states: "No client facilities yet." (unchanged text) and the
+  filtered empty state.
+- The create form is unchanged.
+
+======================================================================
+9. FACILITY DETAIL / DRAWER
+======================================================================
+Drawer:
+  - status, type, locality, timezone;
+  - the link to the Chelth organisation;
+  - a pointer to the record;
+  - "Open facility".
+
+Record:
+  - P4 header (type · locality · timezone, status chip, linked note).
+  - "Facility sections" in-page list.
+  - P6-style Panels (configuration cards for existing configuration only):
+      - Details (KeyValueList);
+      - Locations (still a list);
+      - Attendance location checks (geofence forms);
+      - Credential requirements;
+      - Relationship (lifecycle actions);
+      - Edit facility (form + status transitions).
+  - No Settings route was created.
+  - Relationship status text appears once (E2E reads it).
+
+======================================================================
+10. ATTENDANCE
+======================================================================
+List (S2 adoption kept):
+  - Correction requests and Open exceptions are now side-by-side Panels
+    (P3-M board) under the Scheduled workers table.
+  - Empty states: "No correction requests waiting." (unchanged text).
+  - Attendance rules is a Panel.
+  - The KPI anchors still land on the panels.
+
+Record:
+  - P4 header with the attendance state and an "N open exceptions" chip.
+  - History table on DataTable primitives.
+  - Exception chips.
+  - Panels.
+
+Evidence:
+  - PageHeader with a "Legal hold active" chip.
+  - Table on primitives.
+  - Hold rows show an "Active hold" / "Released hold" chip.
+  - Empty state.
+
+Coordinates appear only where they did before: the privileged, audited,
+AAL2-gated evidence page. Geofence logic, corrections, adjustments,
+exception review, holds and step-up are unchanged.
+
+======================================================================
+11. TIMESHEETS
+======================================================================
+List (agency):
+  - PageHeader.
+  - Quick filters: To approve, Open, Returned, Awaiting facility. Counts come
+    from the same listAgencyTimesheets query for the selected week; each card
+    keeps the week and sets status.
+  - FilterBar (Week starting, Status, "Show"; same names and ids).
+  - DataTable primitives.
+  - Chips: "N shifts to resolve", Discrepancy, Awaiting facility.
+  - Empty state.
+
+Worker and facility views:
+  - The shared header becomes PageHeader.
+  - Blocking-reason chips.
+  - Empty states.
+  - Tables on primitives.
+  - Facility sign-off is otherwise untouched (S4).
+
+Record:
+  - P4 header (status chip + "Approved by …" inside the page header, which
+    E2E reads).
+  - Totals card (KeyValueList).
+  - Panels.
+  - "Timesheet history" is an ActivityTimeline with every field: action,
+    revision, time, reason, actor and note. The history is immutable and
+    nothing is dropped.
+  - The entries table (feature component) uses primitives and chips.
+
+Revisions, submit / approve / return, facility discrepancies, reopen,
+recalculate and expected-revision behaviour are unchanged.
+
+======================================================================
+12. COMPLIANCE / CREDENTIALS
+======================================================================
+Compliance (agency baseline):
+  - PageHeader with "N active" / "N inactive" chips (real counts) and an
+    "Add requirement" link.
+  - Panels: Agency baseline, Add a baseline requirement (P6 configuration
+    cards).
+  - RequirementsTable keeps its named list (E2E reads it), with
+    Active/Inactive chips and an EmptyState.
+  - ReadinessPanel reasons are chips (blocking = danger, warning).
+
+Credential review:
+  - P4 header (issuer · jurisdiction · number, "Withdrawn by the worker"
+    chip).
+  - Panels: Evidence, Record a decision, Decision history.
+  - Empty states.
+
+Preserved:
+  - versions;
+  - document scan states;
+  - audited document opening;
+  - verification form (facility scope);
+  - effective dates and jurisdictions.
+
+No agency-wide Credentials route was created.
+
+======================================================================
+13. STATUS CONSOLIDATION
+======================================================================
+Converted to StatusChip on the adopted pages, with domain vocabulary
+unchanged:
+  - Overview (issue severity, worker status);
+  - Operations (issue severity, assignment status, relationship, delivery
+    state);
+  - Shifts and record (relationship, needs attention, eligibility, issues,
+    attendance exceptions);
+  - Worker record (credential states);
+  - Attendance record and evidence (exceptions, holds);
+  - Timesheets list and entries table (resolve, discrepancy, awaiting
+    facility, blocking reasons, complete, corrections);
+  - Compliance (requirement status, readiness reasons);
+  - Credential review (withdrawn).
+
+Kept as Badge (metadata, not status):
+  - organisation type;
+  - role names;
+  - shift source and classification;
+  - disciplines;
+  - "N assigned".
+
+Pages outside S3 keep their Badges: staffing requests (S4), rates and
+financial adjustments (finance).
+
+======================================================================
+14. RESPONSIVE BEHAVIOUR
+======================================================================
+- All tables are in DataTableRegion.
+- The page-overflow guard runs at every axe checkpoint (412 px on mobile)
+  across the whole suite, including all new S3 checkpoints.
+- KPI cards: 1 / 2 / 4 columns.
+- FilterBar fields wrap.
+- PageHeader actions stack under the title on phones.
+- Panels stack (the Overview grid is 2:1 from xl).
+- Drawers are full-height sheets on phones.
+- No agency bottom navigation.
+
+======================================================================
+15. ACCESSIBILITY
+======================================================================
+- Semantic headings: one h1, Panel h2s, h3 empty states. Section ids,
+  heading texts and region names are preserved.
+- Named regions and tables.
+- aria-current on active quick filters ("true") and sidebar items ("page").
+- In-page section lists are named navs with no aria-current, since they do
+  not change the route.
+- Drawer:
+    - modal dialog with focus on "Close details";
+    - Escape closes and focus returns to the trigger;
+    - verified on Shifts, Workforce, Facilities and Attendance;
+    - axe passes with each drawer open.
+- Labelled filters; the readiness form now has a distinct name from its
+  select.
+- Status always in text.
+- Targets at least 44 px.
+- axe passes at every checkpoint, desktop and 412 px.
+
+======================================================================
+16. FUNCTIONAL PRESERVATION
+======================================================================
+Unchanged:
+  - database, migrations, RLS, capabilities;
+  - Server Actions, queries, RPCs;
+  - AAL2;
+  - workflow state machines;
+  - attendance, credential, timesheet and financial rules;
+  - routes;
+  - form field names and ids;
+  - button and link names used by flows.
+
+New reads use only existing query functions, mirroring their own page's
+gate:
+  - the Overview;
+  - Shifts quick-filter counts (listAgencyShifts);
+  - Timesheets quick-filter counts (listAgencyTimesheets).
+Workforce and Facilities status filters operate on lists already loaded.
+
+Bug fix (UI): GET filter forms use uncontrolled defaultValue. After a
+client-side navigation that changes the query (a quick-filter link), they
+kept showing the old values. Each FilterBar is now keyed on its current
+filter values so it remounts. This is documented on FilterBar and in
+DESIGN_SYSTEM.md.
+
+Name changes for accessibility:
+  - The Workforce table region is now "Workers table", distinct from its
+    section.
+  - The readiness form is now "Facility readiness check", distinct from its
+    select.
+
+Existing E2E tests: no test was edited in S3. Two failures during
+development came from my changes and were fixed in the product, not the
+tests:
+  - the readiness form label duplicated its select's label;
+  - the decisions timeline had reordered "<worker> · Refused".
+
+======================================================================
+17. SCREENSHOT QA
+======================================================================
+Captured in the session scratchpad (QA_SCREENSHOTS_DIR, not committed),
+each at 1280 px and 412 px:
+  - Operations Overview;
+  - Shifts;
+  - Shifts drawer open;
+  - Workforce;
+  - Workforce drawer open;
+  - Worker record;
+  - Facilities;
+  - Facility drawer open;
+  - Attendance;
+  - Timesheets;
+  - Compliance.
+
+Compared with the locked references:
+
+Matches:
+  - P2 page title + copy + 4 KPI cards (icon tile, value, label, sub-label)
+    + 2:1 panel grid with "View …" outline buttons and compact tables;
+  - P3 KPI quick filters, labelled filter row, table header band, status
+    chips with dots, right-hand drawer with key-value rows and a full-width
+    primary action;
+  - P4 identity header with status chip and meta line, section row,
+    summary card with key-value list;
+  - P6-style configuration cards on the facility record and compliance
+    page.
+
+Differences are listed in §20.
+
+======================================================================
+18. TESTS
+======================================================================
+New E2E: tests/e2e/agency-surfaces.spec.ts (6 tests × desktop + mobile = 12):
+
+1. Operations Overview:
+   - the summary KPIs and the upcoming-shift panel link to the real shift;
+   - the workforce status list;
+   - administration is retained;
+   - no invented features (forecast, revenue, utilisation, score, rating,
+     trend, messaging, reports, availability);
+   - axe;
+   - finance sees only the timesheet KPI, with no shift, attendance or
+     workforce panels.
+2. Shifts:
+   - the quick filter sets status=open&from=… with aria-current;
+   - the FilterBar select reflects the URL;
+   - table row;
+   - drawer (focus, :modal, Escape, focus return, axe open);
+   - "Open shift" reaches the record;
+   - the record's section links all resolve;
+   - the time stays unique;
+   - "Clear filters" returns to the bare URL.
+3. Workforce:
+   - Active quick filter and URL;
+   - table, drawer and axe;
+   - status FilterBar submission;
+   - the filtered empty state.
+   Worker record:
+   - every section link resolves to real content;
+   - no assignments tab;
+   - no invented actions;
+   - axe.
+4. Facilities:
+   - table, drawer (linked note), axe;
+   - the record's section links resolve;
+   - locations are still list items.
+5. Attendance panels; the Timesheets quick filter, URL, select value and
+   aria-current; the Compliance header and baseline list; axe.
+6. Capability: finance gets 404 on shifts, workforce, attendance,
+   compliance and operations.
+
+Unit: Panel (region named by its heading, anchor id, link name without the
+arrow). 35 component tests in total.
+
+Validation (final run):
+
+  Command               Result
+  --------------------  -------------------------------------------------
+  npm run format:check  pass
+  npm run lint          pass (0 warnings)
+  npm run typecheck     pass
+  npm test              27 files, 330 tests passed
+  npm run build         pass
+  npm run check:bundle  OK (61 browser files, no secrets)
+  npx playwright test   160 passed, 2 skipped (the existing desktop-only
+                        keyboard tests in foundation.spec), 0 failed
+
+No database tests were run, because no backend code changed.
+
+======================================================================
+19. FILES CHANGED
+======================================================================
+Added:
+  src/components/ui/panel.tsx
+  src/app/app/organisations/[organisationId]/(workspace)/_components/
+      agency-operations-overview.tsx
+  tests/e2e/agency-surfaces.spec.ts
+  docs/reports/P0-E8-S3-agency-operational-surfaces.txt
+
+Modified — pages (workspace group):
+  page.tsx (Overview)
+  operations/page.tsx
+  shifts/page.tsx, shifts/[shiftId]/page.tsx
+  workforce/page.tsx, workforce/[workerId]/page.tsx,
+      workforce/[workerId]/credentials/[credentialId]/page.tsx
+  facilities/page.tsx, facilities/[facilityId]/page.tsx
+  attendance/page.tsx, attendance/[attendanceId]/page.tsx,
+      attendance/[attendanceId]/evidence/page.tsx
+  timesheets/page.tsx, timesheets/[timesheetId]/page.tsx
+  compliance/page.tsx
+
+Modified — components and features:
+  src/components/ui/filter-bar.tsx  (documentation of the key rule)
+  src/components/ui/index.ts
+  src/features/compliance/components/readiness-panel.tsx
+  src/features/compliance/components/requirements-table.tsx
+  src/features/timesheets/components/entries-table.tsx
+
+Modified — tests and docs:
+  tests/unit/components/operational-primitives.test.tsx
+  docs/architecture/DESIGN_SYSTEM.md
+
+======================================================================
+20. KNOWN VISUAL DIFFERENCES
+======================================================================
+1. The drawer is modal (locked decision 1), not docked beside a contracted
+   table.
+2. Overview: no Credential Expirations bars, Coverage Activity chart, date
+   range picker or readiness donut (no backing data). Workforce status counts
+   replace the donut.
+3. No global search, notification bell, Reports, Settings or agency
+   Credentials register (F6, F10).
+4. No checkboxes or bulk actions, avatars or photos, kebab menus or
+   numbered pagination (no product equivalents; actions stay visible).
+5. Worker record: no Availability card, skills tags, Message button or "More"
+   menu. The section row is an in-page list of real sections, not 8 tabs.
+6. Shifts: no List/Calendar toggle. P3-C (calendar) is not supported by the
+   current list query's pagination model.
+7. KPI cards show no deltas ("↑ 6 from last month"). On phones they stack one
+   per row, which uses vertical space; a 2-column compact phone layout is a
+   possible refinement.
+8. Panel header actions wrap under the description in narrow panels.
+9. Record pages keep long forms (manage, edit, requirement forms) inline in
+   Panels rather than in modal editors.
+10. Attendance list correction cards sit as bordered cards inside the panel
+    (nested borders).
+
+======================================================================
+21. GIT STATUS
+======================================================================
+Branch p0-e8-visual-implementation. HEAD 68ac1f7 ("feat: add Chelth shared
+operational UI primitives", S2). All S3 changes are uncommitted (§19);
+nothing is staged or committed. No secrets were found.
+
+======================================================================
+22. RECOMMENDED S4 SCOPE
+======================================================================
+- Facility workspace (P2 facility variant + P3):
+    - facility Overview from its existing signals (requests, attendance
+      view, timesheet sign-off pending);
+    - Staffing requests list and record (convert inline Badges, drawer);
+    - facility Timesheet sign-off table polish.
+- Facility admin member management on the shared language.
+- Keep: modal drawer, no fake analytics, no new routes.
+- Separately (later stages): Worker mobile (P7), Finance surfaces (Rates,
+  Pricing, Payroll, Invoices; convert their remaining Badges), and an
+  optional compact 2-column KPI layout for phones.

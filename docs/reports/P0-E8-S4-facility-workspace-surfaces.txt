@@ -1,0 +1,521 @@
+P0-E8-S4 — FACILITY WORKSPACE SURFACES
+Branch: p0-e8-visual-implementation (base 4ac697e, S3 committed)
+Date: 2026-10-02
+Status: complete, uncommitted, awaiting review. Worker Mobile and Finance not
+started.
+
+======================================================================
+1. EXECUTIVE SUMMARY
+======================================================================
+The facility workspace now uses the same shell, primitives and patterns as
+Agency, with no facility-specific design system. Facility Admin, Scheduler and
+Supervisor share one shell; their differences come only from capabilities
+(shift.view, shift.request, timesheet.facility_signoff, membership.*), never
+from role names.
+
+Implemented:
+  - a facility P2 Overview (from the facility's own projections only);
+  - Staffing Requests:
+      - real-count quick filters;
+      - a URL-backed filter;
+      - a DataTable;
+      - a facility-safe drawer;
+  - Staffing Request record (P4);
+  - Timesheet sign-off:
+      - quick filters;
+      - a state filter;
+      - a facility-safe entry drawer;
+  - facility attendance on the shared table primitives (same narrow
+    projection);
+  - member and admin surfaces in P6 card language.
+
+No database, migration, RLS, capability, Server Action, query function, RPC,
+rule, projection or tenancy behaviour changed. No data is shown beyond what
+the facility already saw (§16).
+
+======================================================================
+2. REFERENCES USED
+======================================================================
+- Chelth_Staffing_Requests_LOCKED_Claude (P3 + P5 drawer anatomy).
+- Chelth_Operations_Overview (P2, adapted to facility scope).
+- DERIVATION-MAP P2–P6 and F6 / F10.
+- S1–S3 reports; DESIGN_SYSTEM.md; CHELTH-PRODUCT-TYPOGRAPHY.md; brand.css
+  (unchanged).
+
+======================================================================
+3. FACILITY OVERVIEW
+======================================================================
+Implemented in _components/facility-operations-overview.tsx. It renders on
+/app/organisations/[facility id] for facility workspace staff, under the
+existing header ("Your staffing requests, who is expected and the timesheets
+waiting for sign-off").
+
+Data, each gated as on its own page:
+
+  Source                                        Gate                   Audit
+  --------------------------------------------  ---------------------  ---------------------
+  list_facility_shifts (the facility shift      shift.view held        not audited
+  projection: counts, agency, location,
+  discipline, times, status, fill)
+  list_facility_timesheet_entries (the          timesheet.facility_    audited, de-duplicated
+  facility's own sign-off entries)              signoff granted        (record_audit_event_
+                                                                       once), the same read
+                                                                       the sign-off page
+                                                                       makes
+
+KPI cards ("Facility summary"):
+  - Awaiting agency (requests not yet opened), linking to filtered requests;
+  - Open requests (with "N not fully staffed"), linking to filtered
+    requests;
+  - Workers expected today: the sum of accepted workers on today's open
+    shifts, using the facility's local date. A static figure: counts only,
+    no names;
+  - Timesheets to sign off, linking to the pending sign-off filter.
+
+Panels:
+  - Today and upcoming: requests and shifts, earliest first, with status
+    and staffing;
+  - Awaiting sign-off: up to 5 pending entries (worker, agency, date,
+    worked time). This is the same facility projection as the sign-off
+    page.
+
+Deliberately NOT on the Overview:
+  - Worker names per request and attendance. Those projections
+    (list_facility_shift_assignments, list_facility_shift_attendance) are
+    audited on EVERY call, so a dashboard visit would write one audit event
+    per shift. They stay on each request record.
+  - Agency assignment issues, pay, pricing, finance, coordinates, audit
+    internals.
+
+Below the dashboard (unchanged content, Panel language):
+  - Agency relationships (status chips);
+  - shared readiness (the existing shared projection);
+  - Members;
+  - Invitations;
+  - Recent activity.
+
+======================================================================
+4. FACILITY ADMIN EXPERIENCE
+======================================================================
+Navigation: Overview, Staffing requests, Timesheet sign-off.
+
+Overview: all four KPI cards, both panels, relationships and shared
+readiness, members.
+
+Staffing requests:
+  - "New request" primary action;
+  - Request staff form (shift.request);
+  - Withdraw on submitted facility requests.
+
+Timesheet sign-off: sign off or raise a discrepancy.
+
+Member administration: invite, resend and revoke, role assignment,
+suspend/remove. These are privileged and wait for MFA step-up exactly as
+before ("Verify now").
+
+======================================================================
+5. FACILITY SCHEDULER EXPERIENCE
+======================================================================
+Navigation: Overview, Staffing requests (timesheet.facility_signoff is not
+held).
+
+Overview:
+  - request KPIs and the Today and upcoming panel only;
+  - no sign-off KPI or panel;
+  - Members are visible read-only (membership.view);
+  - no Invitations and no management controls.
+
+Staffing requests: "New request" plus the Request staff form (shift.request).
+
+Timesheets returns 404, as before.
+
+======================================================================
+6. FACILITY SUPERVISOR EXPERIENCE
+======================================================================
+Navigation: Overview, Staffing requests, Timesheet sign-off.
+
+Overview: request KPIs and panel, plus the sign-off KPI and panel.
+
+Staffing requests are view only:
+  - no "New request";
+  - no Request staff form;
+  - no Submit or Withdraw.
+
+Members are read-only; no Invitations or management. Sign-off is available,
+because timesheet.facility_signoff is held.
+
+======================================================================
+7. STAFFING REQUESTS
+======================================================================
+PageHeader: back link, copy, and a "New request" link to the existing form
+(only with shift.request and request options).
+
+Quick filters ("Upcoming requests"):
+  - Awaiting agency;
+  - Open (with "N not fully staffed");
+  - Workers confirmed (static total of accepted workers on upcoming open
+    shifts).
+They are computed from list_facility_shifts. Awaiting agency and Open set
+?status=…&when=upcoming and show as active.
+
+FilterBar ("Filter requests"): Status (shift statuses) and When (Any time /
+Upcoming), with "Clear filters".
+  - Filtering is a display filter over the facility shift projection the
+    page already loads for the counts.
+  - Unfiltered, the list keeps its cursor pagination ("Older requests").
+  - The bar is keyed on the URL state (the S3 rule).
+
+DataTable ("Staffing requests table"):
+  - request link (same text as before: agency · discipline · date);
+  - location and time;
+  - status chip;
+  - staffing (fill chip or "N needed");
+  - source label;
+  - Details.
+
+Empty states: "No requests yet." and "No requests match.".
+
+The request form (Request staff) and its "not available yet" guidance
+(now an EmptyState) are unchanged.
+
+No bulk operations and no messaging.
+
+======================================================================
+8. STAFFING REQUEST DETAIL / DRAWER
+======================================================================
+Drawer (projection fields only):
+  - status;
+  - staffing;
+  - workers needed (confirmed count);
+  - agency, location, time, timezone, source;
+  - agency relationship;
+  - reference;
+  - cancellation.
+It shows no worker names (those are the audited per-request projection),
+with a pointer to the request page and "Open request".
+
+Record (P4):
+  - Title: discipline · date. Description: agency · location.
+  - Header chips: status, fill, and "Agency relationship not active" when
+    applicable. Each appears once (E2E reads them).
+  - Details: KeyValueList (agency, location, time, timezone, workers needed,
+    reference, instructions, cancellation) plus Withdraw request
+    (shift.request).
+  - Who is coming: a table of the facility-safe projection (worker display
+    name, discipline, assignment status chip, readiness chip). The region
+    name "Who is coming" is unchanged. Empty state: "No workers assigned
+    yet.".
+  - Attendance (unchanged rule: after the shift starts, attendance.view):
+    a DataTable with clock state and in/out times. The location RESULT
+    label ("Inside site area") is now a neutral chip, exactly as before;
+    there are no coordinates.
+
+======================================================================
+9. TIMESHEET SIGN-OFF
+======================================================================
+- PageHeader (S3).
+- Quick filters ("Sign-off summary"): Awaiting sign-off, Signed off,
+  Discrepancies raised. Counts come from the facility's own entries;
+  ?state=… display filter.
+- FilterBar "Filter entries" (Sign-off state), with "Clear filters".
+- DataTable unchanged in content: worker / agency, date / location,
+  scheduled, worked from–to, breaks, worked, sign-off state with the
+  discrepancy reason, and the sign-off / dispute forms.
+- New entry drawer with the same projection fields: sign-off state,
+  discrepancy, agency, location, scheduled, worked from–to, breaks, worked,
+  timezone, revision. It shows no pay values and has no actions; decisions
+  stay in the table.
+- Empty states: "No entries awaiting sign-off." (unchanged text) and the
+  filtered empty state.
+
+Sign-off rules, revision handling and history are unchanged. Only this
+facility's entries appear, because the RPC projection is unchanged.
+
+======================================================================
+10. ATTENDANCE VISIBILITY
+======================================================================
+Facility attendance stays the narrow per-request projection
+(list_facility_shift_attendance, audited, attendance.view, after the shift
+starts). It is shown on the request record in P3-M table language:
+  - worker;
+  - clock state;
+  - clock-in and clock-out times;
+  - location result label only.
+
+No coordinates, privileged evidence, agency exception details, correction
+internals, legal holds or notes are shown. There is no facility attendance
+board route (none exists), and the Overview does not aggregate attendance
+(§3).
+
+======================================================================
+11. MEMBER/ADMIN SURFACES
+======================================================================
+On the Overview, shared with Agency:
+  - Members: a Panel with the DataTable primitives ("Members table"),
+    status chips and role labels (Badge).
+  - Invitations: a Panel with the existing form and list.
+  - Recent activity: a Panel with an ActivityTimeline.
+  - Agency relationships and shared readiness: a Panel.
+
+Behaviour, capability gates, step-up, and the forms and actions are
+unchanged. No Settings route was created.
+
+======================================================================
+12. STATUS CONSOLIDATION
+======================================================================
+Facility side, now StatusChip:
+  - request status;
+  - fill;
+  - relationship;
+  - assignment;
+  - readiness;
+  - attendance state and location result;
+  - sign-off state (the drawer uses the shared tones);
+  - member status.
+
+Badge is kept for request source (metadata), organisation type and role
+labels. Vocabulary is unchanged.
+
+======================================================================
+13. RESPONSIVE BEHAVIOUR
+======================================================================
+- Same shell and mobile overlay navigation as Agency; no bottom nav.
+- Tables are in DataTableRegion.
+- Filters wrap.
+- Header actions stack.
+- Drawers are full-height sheets.
+- KPI cards 1 / 2 / 4.
+- The 412 px page-overflow guard ran at every new facility checkpoint and
+  across the whole suite.
+
+======================================================================
+14. ACCESSIBILITY
+======================================================================
+- One h1 per page; Panel h2s; named regions and tables.
+- aria-current on active quick filters.
+- Labelled filters.
+- Drawer (request and sign-off entry):
+    - modal dialog;
+    - focus on "Close details";
+    - Escape closes and focus returns to the trigger (E2E);
+    - axe passes with the drawer open.
+- Status is always in text.
+- Targets at least 44 px.
+- axe passes on Overview (admin, supervisor), Staffing requests (list,
+  drawer, record), sign-off and the existing facility flows, at desktop and
+  412 px.
+
+======================================================================
+15. FUNCTIONAL PRESERVATION
+======================================================================
+Unchanged:
+  - database, migrations, RLS, capabilities;
+  - Server Actions, query functions, RPCs;
+  - request, timesheet and attendance rules;
+  - facility-safe projections;
+  - tenancy;
+  - AAL2;
+  - routes;
+  - form names, ids and labels;
+  - the texts and region names that flows read.
+
+New reads use only existing query functions on the facility's own
+projections (§3). Staffing-request filtering is a display filter over
+list_facility_shifts. Sign-off filtering is a display filter over the
+already-loaded entries.
+
+Existing tests: none were weakened. timesheets.spec Flow 3 gained an
+additive drawer check before sign-off: it shows "Awaiting sign-off", has no
+pay or coordinates, and Escape returns focus. attendance.spec gained a
+screenshot call only.
+
+======================================================================
+16. DATA EXPOSURE REVIEW
+======================================================================
+Facility pages use only these facility RPC projections, as before:
+
+  Projection                         Fields
+  ---------------------------------  ----------------------------------------
+  list_facility_shifts(_page)        shift metadata, counts, status, source,
+                                     relationship status
+  list_facility_shift_assignments    worker display name, discipline,
+                                     assignment status, readiness
+                                     (request record only; audited)
+  list_facility_shift_attendance     clock state, times, location result
+                                     (request record only; audited)
+  list_facility_timesheet_entries    the facility's own entries (sign-off;
+                                     audited once)
+  hub queries                        members, invites, audit for the
+                                     facility org, partner relationships,
+                                     shared readiness; unchanged
+
+No new field reaches the facility.
+
+The drawers render only fields already on the same page. They never include
+worker names from the audited projection, pay or bill values, rates,
+margins, coordinates, evidence, notes or agency issues.
+
+Verified by E2E with a NO_LEAKS pattern ($, pay rate, bill rate, margin,
+payroll, invoice, latitude, longitude, coordinate digits) on:
+  - the Overview (admin, supervisor);
+  - the request drawer;
+  - the request record;
+  - the sign-off drawer.
+The existing pricing.spec and timesheets.spec checks still pass.
+
+Agency-only routes (shifts, workforce, attendance, operations, payroll,
+pricing) return 404 for facility users, under both the agency's and the
+facility's organisation ids. The facility sidebar shows exactly Overview,
+Staffing requests, Timesheet sign-off.
+
+======================================================================
+17. SCREENSHOT QA
+======================================================================
+Captured in the session scratchpad (QA_SCREENSHOTS_DIR, not committed),
+each at 1280 px and 412 px:
+  - s4-facility-overview (Facility Admin);
+  - s4-facility-members (member/admin surface);
+  - s4-staffing-requests (with the active quick filter);
+  - s4-staffing-request-drawer-open;
+  - s4-staffing-request-detail;
+  - s4-timesheet-signoff (empty state);
+  - s4-facility-attendance (request record with Who is coming and
+    attendance);
+  - s4-supervisor-overview;
+  - s4-supervisor-requests.
+
+Compared with the Staffing Requests reference and the S3 agency language:
+
+Matches:
+  - title + copy + primary "New request";
+  - KPI quick filters;
+  - filter row;
+  - table with status and progress chips;
+  - right-hand drawer with key-value rows and a full-width primary action;
+  - P4 record with header chips and cards.
+The facility screens are visually the same system as Agency.
+
+======================================================================
+18. TESTS
+======================================================================
+New E2E: tests/e2e/facility-surfaces.spec.ts (4 tests × desktop + mobile = 8):
+
+1. Facility Admin:
+   - Overview KPIs (open requests, sign-off);
+   - the upcoming panel links to the real request;
+   - Members table present;
+   - no leaks; axe.
+   Staffing requests:
+   - "New request";
+   - the quick filter sets the URL with aria-current, and the filter select
+     reflects it;
+   - the table row shows "Unfilled · 0 of 2";
+   - drawer: focus, :modal, no leaks, axe, Escape, focus return;
+   - "Open request" reaches the record.
+   Record:
+   - "Who is coming" shows the empty state;
+   - no leaks; axe.
+   Sign-off: heading and empty state; axe.
+2. Facility Scheduler:
+   - request KPIs, but no sign-off KPI or panel;
+   - no Invitations or "Create invitation";
+   - "New request" and "Request staff" present;
+   - timesheets returns 404.
+3. Facility Supervisor:
+   - sign-off KPI;
+   - no admin controls;
+   - no leaks; axe;
+   - no "New request", "Request staff" or "Submit request";
+   - can view the request row;
+   - no "Withdraw request" on the record.
+4. Facility users get 404 on agency-only routes under both organisation ids;
+   the sidebar shows exactly the three facility items.
+
+Plus the additive timesheets.spec Flow 3 drawer check: sign-off itself still
+works and locks the timesheet.
+
+Validation (final run):
+
+  Command               Result
+  --------------------  -------------------------------------------------
+  npm run format:check  pass
+  npm run lint          pass (0 warnings)
+  npm run typecheck     pass
+  npm test              27 files, 330 tests passed
+  npm run build         pass
+  npm run check:bundle  OK (62 browser files, no secrets)
+  npx playwright test   168 passed, 2 skipped (the existing desktop-only
+                        keyboard tests in foundation.spec), 0 failed
+
+A later re-run of attendance + facility-surfaces after adding two screenshot
+calls also passed (20/20).
+
+No database tests were run, because no backend code changed.
+
+======================================================================
+19. FILES CHANGED
+======================================================================
+Added:
+  src/app/app/organisations/[organisationId]/(workspace)/_components/
+      facility-operations-overview.tsx
+  tests/e2e/facility-surfaces.spec.ts
+  docs/reports/P0-E8-S4-facility-workspace-surfaces.txt
+
+Modified (workspace group):
+  page.tsx (Overview: facility dashboard; Panels for relationships, members,
+      invitations, activity; members table on primitives)
+  staffing-requests/page.tsx
+  staffing-requests/[shiftId]/page.tsx
+  timesheets/page.tsx (facility branch: quick filters, state filter, entry
+      drawer)
+
+Modified (tests):
+  tests/e2e/timesheets.spec.ts (additive drawer check)
+  tests/e2e/attendance.spec.ts (screenshot call)
+
+======================================================================
+20. KNOWN VISUAL DIFFERENCES
+======================================================================
+1. The drawer is modal (locked), not docked.
+2. No checkboxes or bulk actions, kebab menus, numbered pagination,
+   Find Workers, Contact Facility or Edit Request (no product
+   equivalents). Requirements chips, the Coverage bar and suggested
+   workers are not in the facility projection.
+3. The facility Overview has no attendance aggregate, no charts and no
+   date range. Worker names and attendance stay per request (audited
+   reads).
+4. "Workers expected today" is a count only (no names on the Overview).
+5. Request drawer: no worker list (audited projection), and a pointer to
+   the record instead.
+6. The request record's attendance section appears only after the shift
+   starts (unchanged rule).
+7. Inside the Agency relationships panel, the relationship list and the
+   shared-readiness lists keep their bordered list style (nested borders).
+8. On phones, KPI cards stack one per row (as in S3).
+
+======================================================================
+21. GIT STATUS
+======================================================================
+Branch p0-e8-visual-implementation. HEAD 4ac697e ("feat: implement Chelth
+agency operational surfaces", S3). All S4 changes are uncommitted (§19);
+nothing is staged or committed. No secrets were found.
+
+======================================================================
+22. RECOMMENDED S5 SCOPE
+======================================================================
+Finance surfaces (P3-F + P4), agency-only:
+  - Rates;
+  - Pricing (S2 partial);
+  - Payroll (list, batch, adjustments);
+  - Invoices (list, draft, adjustments).
+For each:
+  - PageHeader, quick filters from existing counts, FilterBar, DataTable,
+    StatusChip (convert the remaining Badges, e.g. rate phase and adjustment
+    state), KeyValueList summaries, and audit / history as ActivityTimeline;
+  - keep exports, maker/checker, reconciliation and checksums;
+  - no fake analytics or deltas.
+
+Then (separate stage): Worker mobile (P7).
+
+Optional polish across stages: a compact 2-column KPI layout on phones, and
+flattening nested list borders inside Panels.

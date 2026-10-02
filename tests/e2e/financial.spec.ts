@@ -14,7 +14,7 @@ import {
   type Person,
   type StaffingWorld,
 } from "./staffing-fixture";
-import { signIn } from "./support";
+import { expectNoPageOverflow, expectNoPaymentVocabulary, qaScreenshot, signIn } from "./support";
 
 const A11Y_TAGS = ["wcag2a", "wcag2aa", "wcag22aa"];
 const AFTER_ACTION = { timeout: 20_000 };
@@ -23,6 +23,8 @@ const TZ = "America/New_York";
 async function expectNoA11yViolations(page: Page) {
   const results = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
   expect(results.violations).toEqual([]);
+  // P0-E8-S2: wide tables scroll inside their region, never the page (412 px on mobile).
+  await expectNoPageOverflow(page);
 }
 
 async function must<T>(promise: PromiseLike<{ data: T; error: unknown }>): Promise<NonNullable<T>> {
@@ -208,6 +210,15 @@ test.describe.serial("payroll preparation and invoice drafting", () => {
   }) => {
     const path = `/app/organisations/${world.agencyId}/payroll`;
     const page = await steppedUpFinance(browser, path);
+    // P0-E8-S5: P3-F workspace — summary from real counts, Payroll | Invoices mode switch.
+    await expect(page.getByRole("region", { name: "Payroll summary" })).toBeVisible();
+    await expect(
+      page.getByRole("navigation", { name: "Payroll and invoices" }).getByRole("link", {
+        name: "Payroll",
+      }),
+    ).toHaveAttribute("aria-current", "page");
+    await expectNoPaymentVocabulary(page);
+    await qaScreenshot(page, "s5-payroll");
     const work = page.getByRole("region", { name: "Unprepared payroll work" });
     await expect(work).toContainText("$830.88");
     await work.getByRole("button", { name: /^Prepare payroll batch for/ }).click();
@@ -252,6 +263,8 @@ test.describe.serial("payroll preparation and invoice drafting", () => {
     );
     expect(file.text).toContain(",34000,");
     await expect(page.getByText("Exported", { exact: true }).first()).toBeVisible();
+    await expectNoPaymentVocabulary(page);
+    await qaScreenshot(page, "s5-payroll-batch");
     const exportRows = await must(
       finance.client
         .from("financial_exports")
@@ -263,6 +276,26 @@ test.describe.serial("payroll preparation and invoice drafting", () => {
     );
     exportId = exportRows[0]?.id ?? "";
     await expectNoA11yViolations(page);
+
+    // The batch list: status filter keeps URL state; the preview drawer is inspection only.
+    await page.goto(`/app/organisations/${world.agencyId}/payroll?status=exported`);
+    const batches = page.getByRole("region", { name: "Payroll batches table" });
+    await expect(
+      page.getByRole("form", { name: "Filter payroll batches" }).getByRole("combobox", {
+        name: "Batch status",
+      }),
+    ).toHaveValue("exported");
+    const preview = batches.getByRole("button", { name: /^Preview PAY-/ }).first();
+    await preview.click();
+    const drawer = page.getByRole("dialog", { name: /^PAY-\d{4}-\d{6}$/ });
+    await expect(drawer).toBeVisible();
+    await expect(drawer.getByRole("button", { name: "Close details" })).toBeFocused();
+    await expect(drawer).toContainText("Exported");
+    await expect(drawer).toContainText("$830.88");
+    await expect(drawer.getByRole("button", { name: /approve|lock|export/i })).toHaveCount(0);
+    await expectNoA11yViolations(page);
+    await page.keyboard.press("Escape");
+    await expect(preview).toBeFocused();
     await page.context().close();
   });
 
@@ -271,6 +304,10 @@ test.describe.serial("payroll preparation and invoice drafting", () => {
   }) => {
     const path = `/app/organisations/${world.agencyId}/invoices`;
     const page = await steppedUpFinance(browser, path);
+    await expect(page.getByRole("region", { name: "Invoice summary" })).toBeVisible();
+    await expect(page.getByText("Internal drafts — not sent")).toBeVisible();
+    await expectNoPaymentVocabulary(page);
+    await qaScreenshot(page, "s5-invoices");
     const billable = page.getByRole("region", { name: "Billable work for Riverside Clinic" });
     await expect(billable).toContainText("$1,133.90");
     await billable
@@ -306,7 +343,22 @@ test.describe.serial("payroll preparation and invoice drafting", () => {
     expect(csv.text).not.toMatch(/pay_|,4250,|,34000,|,32088,|,17000,/);
     await page.getByRole("button", { name: "Export draft PDF" }).click();
     await expect(exports).toContainText(/-DRAFT-INVOICE\.pdf/, AFTER_ACTION);
+    await expectNoPaymentVocabulary(page);
+    await qaScreenshot(page, "s5-invoice-draft");
     await expectNoA11yViolations(page);
+
+    // The draft preview on the list shows bill-side values only.
+    await page.goto(`/app/organisations/${world.agencyId}/invoices`);
+    const preview = page
+      .getByRole("region", { name: "Invoice drafts table" })
+      .getByRole("button", { name: /^Preview INV-DRAFT-/ })
+      .first();
+    await preview.click();
+    const drawer = page.getByRole("dialog", { name: /^INV-DRAFT-/ });
+    await expect(drawer).toContainText("$1,133.90");
+    await expect(drawer).not.toContainText(/\$660\.88|\$340\.00|\$320\.88|margin/i);
+    await page.keyboard.press("Escape");
+    await expect(preview).toBeFocused();
     await page.context().close();
   });
 

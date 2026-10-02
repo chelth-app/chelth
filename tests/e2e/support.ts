@@ -75,3 +75,61 @@ export async function adminWithVerifiedAgency(
   await expect(page).toHaveURL(new RegExp(`${organisationPath}$`), { timeout: 20_000 });
   return organisationPath;
 }
+
+/**
+ * Opens a workspace section from the shell's sidebar navigation (P0-E8-S1):
+ * the persistent sidebar on desktop, or the overlay from "Open navigation" on
+ * narrow viewports.
+ */
+export async function openWorkspaceSection(page: Page, name: string): Promise<void> {
+  const trigger = page.getByRole("button", { name: "Open navigation" });
+  if (await trigger.isVisible()) {
+    await trigger.click();
+    await page
+      .getByRole("dialog", { name: "Workspace navigation" })
+      .getByRole("link", { name, exact: true })
+      .click();
+    return;
+  }
+  await page
+    .getByRole("navigation", { name: "Workspace" })
+    .getByRole("link", { name, exact: true })
+    .click();
+}
+
+/** The page itself never scrolls horizontally: wide tables scroll inside their region. */
+export async function expectNoPageOverflow(page: Page): Promise<void> {
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(overflow, `page-level horizontal overflow on ${page.url()}`).toBeLessThanOrEqual(0);
+}
+
+/** Visual QA capture, only when QA_SCREENSHOTS_DIR is set (never in CI by default). */
+export async function qaScreenshot(page: Page, name: string): Promise<void> {
+  const dir = process.env.QA_SCREENSHOTS_DIR;
+  if (!dir) return;
+  const width = page.viewportSize()?.width ?? 0;
+  await page.screenshot({ path: `${dir}/${width}px-${name}.png` });
+}
+
+/**
+ * Chelth finance prepares, approves and exports; it never pays, sends,
+ * collects or posts. No payment-execution vocabulary or controls may appear.
+ */
+export async function expectNoPaymentVocabulary(page: Page): Promise<void> {
+  const main = page.getByRole("main");
+  await expect(main).not.toContainText(
+    /\bPaid\b|\bOverdue\b|\bACH\b|\bOutstanding\b|Payment received|Process payroll|Collected/,
+  );
+  await expect(
+    main.getByRole("button", {
+      name: /pay now|send invoice|process payment|mark (as )?paid|collect/i,
+    }),
+  ).toHaveCount(0);
+  await expect(
+    main.getByRole("link", {
+      name: /pay now|send invoice|process payment|mark (as )?paid|collect/i,
+    }),
+  ).toHaveCount(0);
+}

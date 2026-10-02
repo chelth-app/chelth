@@ -68,6 +68,76 @@
 
   --color-focus-ring: var(--chelth-navy); /* 13.06:1 on white */
 
+  /*
+   * Workspace shell (P0-E8-S1). Derived only from brand.css values; the
+   * approximate colours in the UI reference prototypes are NOT imported.
+   * The application canvas is `background` (Off White) and content dividers
+   * are `border`; both already exist, so only the sidebar needed new tokens.
+   * Contrast (lightest sidebar stop, Teal Dark): foreground 9.10:1, muted
+   * (Mint) 6.22:1, on hover 7.35:1 / 5.02:1. Active pill (Deep Teal): white
+   * text and icon only, 6.32:1 (Mint would be 4.31:1, so it is not used there).
+   */
+  --color-shell-sidebar: var(--chelth-teal-dark);
+  --color-shell-sidebar-deep: color-mix(in srgb, var(--chelth-teal-dark) 72%, var(--chelth-navy));
+  --color-shell-sidebar-foreground: var(--chelth-white);
+  --color-shell-sidebar-muted: var(--chelth-mint);
+  --color-shell-sidebar-hover: color-mix(in srgb, var(--chelth-white) 8%, transparent);
+  --color-shell-sidebar-active: var(--chelth-teal);
+  --color-shell-sidebar-indicator: var(--chelth-mint);
+  --color-shell-sidebar-divider: color-mix(in srgb, var(--chelth-white) 18%, transparent);
+  --color-shell-sidebar-focus: var(--chelth-white); /* focus ring on the dark sidebar */
+
+  /*
+   * Semantic status colours (P0-E8-S2), derived from the brand semantic
+   * palette in brand.css — no reference-prototype values:
+   *   soft background = brand colour 12% on white;
+   *   soft foreground = brand colour 62% + Ink 38%;
+   *   dot / indicator = the brand colour itself (decorative: the text always
+   *   carries the meaning).
+   * Text contrast on its soft background: success 6.35, warning 5.55,
+   * danger 6.91, info 6.22, attention 6.20, neutral 6.35 (all AA).
+   * Danger solid (destructive buttons) = Critical, white text 5.14:1.
+   */
+  --color-danger: var(--chelth-critical);
+  --color-danger-hover: color-mix(in srgb, var(--chelth-critical) 78%, var(--chelth-ink));
+  --color-danger-foreground: var(--chelth-white);
+  --color-danger-soft: color-mix(in srgb, var(--chelth-critical) 12%, var(--chelth-white));
+  --color-danger-soft-foreground: color-mix(in srgb, var(--chelth-critical) 62%, var(--chelth-ink));
+  --color-danger-indicator: var(--chelth-critical);
+
+  --color-warning-soft: color-mix(in srgb, var(--chelth-warning) 12%, var(--chelth-white));
+  --color-warning-soft-foreground: color-mix(in srgb, var(--chelth-warning) 62%, var(--chelth-ink));
+  --color-warning-indicator: var(--chelth-warning);
+
+  --color-success-soft: color-mix(in srgb, var(--chelth-success) 12%, var(--chelth-white));
+  --color-success-soft-foreground: color-mix(in srgb, var(--chelth-success) 62%, var(--chelth-ink));
+  --color-success-indicator: var(--chelth-success);
+
+  --color-info-soft: color-mix(in srgb, var(--chelth-info) 12%, var(--chelth-white));
+  --color-info-soft-foreground: color-mix(in srgb, var(--chelth-info) 62%, var(--chelth-ink));
+  --color-info-indicator: var(--chelth-info);
+
+  /* Attention: needs an operator's action (Critical + Warning, an orange). */
+  --color-attention-soft: color-mix(
+    in srgb,
+    color-mix(in srgb, var(--chelth-critical) 50%, var(--chelth-warning)) 12%,
+    var(--chelth-white)
+  );
+  --color-attention-soft-foreground: color-mix(
+    in srgb,
+    color-mix(in srgb, var(--chelth-critical) 50%, var(--chelth-warning)) 62%,
+    var(--chelth-ink)
+  );
+  --color-attention-indicator: color-mix(
+    in srgb,
+    var(--chelth-critical) 50%,
+    var(--chelth-warning)
+  );
+
+  --color-neutral-soft: color-mix(in srgb, var(--chelth-slate) 12%, var(--chelth-white));
+  --color-neutral-soft-foreground: color-mix(in srgb, var(--chelth-slate) 62%, var(--chelth-ink));
+  --color-neutral-indicator: var(--chelth-slate);
+
   /* Typography: Inter for product/UI, Manrope for display/marketing */
   --font-display: var(--chelth-font-display);
 
@@ -87,22 +157,6 @@
   --color-muted-foreground: #475569;
   --color-subtle-foreground: #64748b;
   --color-input-border: #64748b; /* 4.76:1 — meets 3:1 non-text contrast */
-
-  /* Semantic status colours: not yet aligned (brand drift list, B3 report) */
-  --color-danger: #b91c1c;
-  --color-danger-hover: #991b1b;
-  --color-danger-foreground: #ffffff;
-  --color-danger-soft: #fee2e2;
-  --color-danger-soft-foreground: #991b1b;
-
-  --color-warning-soft: #fef3c7;
-  --color-warning-soft-foreground: #92400e;
-
-  --color-success-soft: #dcfce7;
-  --color-success-soft-foreground: #166534;
-
-  --color-info-soft: #dbeafe;
-  --color-info-soft-foreground: #1e3a8a;
 
   /* Typography */
   --font-sans:

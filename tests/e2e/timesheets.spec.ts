@@ -16,7 +16,7 @@ import {
   createStaffingWorld,
   type StaffingWorld,
 } from "./staffing-fixture";
-import { signIn } from "./support";
+import { expectNoPageOverflow, signIn } from "./support";
 
 const A11Y_TAGS = ["wcag2a", "wcag2aa", "wcag22aa"];
 const AFTER_ACTION = { timeout: 20_000 };
@@ -25,6 +25,8 @@ const TZ = "America/New_York";
 async function expectNoA11yViolations(page: Page) {
   const results = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
   expect(results.violations).toEqual([]);
+  // P0-E8-S2: wide tables scroll inside their region, never the page (412 px on mobile).
+  await expectNoPageOverflow(page);
 }
 
 async function must<T>(promise: PromiseLike<{ data: T; error: unknown }>): Promise<NonNullable<T>> {
@@ -247,6 +249,14 @@ test.describe.serial("timesheets & attendance review", () => {
     await expect(table).toContainText("7 h 30 min");
     await expect(facility.locator("main")).not.toContainText(/Riverside|40\.71|latitude/i);
     await expectNoA11yViolations(facility);
+    // P0-E8-S4: the entry drawer shows only the facility projection.
+    const details = table.getByRole("button", { name: /^Details for Tia Timesheet/ });
+    await details.click();
+    const drawer = facility.getByRole("dialog", { name: "Tia Timesheet" });
+    await expect(drawer).toContainText("Awaiting sign-off");
+    await expect(drawer).not.toContainText(/\$|latitude|longitude|40\.71/i);
+    await facility.keyboard.press("Escape");
+    await expect(details).toBeFocused();
     await table.getByRole("button", { name: "Sign off Tia Timesheet" }).click();
     await expect(table).toContainText("Signed off", AFTER_ACTION);
     await facility.context().close();
