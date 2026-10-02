@@ -6,6 +6,7 @@ import {
   adminWithVerifiedAgency,
   expectNoPageOverflow,
   openWorkspaceSection,
+  qaScreenshot,
   signUpAndConfirm,
   uniqueEmail,
 } from "./support";
@@ -112,6 +113,7 @@ test.describe("credentials and compliance", () => {
     await worker.getByRole("button", { name: "Upload", exact: true }).click();
     await expect(worker.getByText("will be usable once its security scan clears")).toBeVisible();
     await expect(worker.getByText("Awaiting security scan")).toBeVisible();
+    await qaScreenshot(worker, "s6-credential-upload");
 
     // Wrong content is refused server-side even with a PDF name and type.
     await worker.getByTestId("credential-file").setInputFiles({

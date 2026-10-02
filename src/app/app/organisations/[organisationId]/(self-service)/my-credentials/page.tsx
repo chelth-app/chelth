@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { Badge } from "@/components/ui/badge";
+import { Panel } from "@/components/ui/panel";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatusChip } from "@/components/ui/status-chip";
 import { getReadiness, ReadinessPanel } from "@/features/compliance";
 import {
   CreateCredentialForm,
@@ -38,19 +41,23 @@ export default async function MyCredentialsPage({
 
   return (
     <>
-      <header className="flex flex-col gap-2">
-        <Link
-          href={`/app/organisations/${organisationId}`}
-          className="w-fit text-sm text-primary underline underline-offset-4"
-        >
-          {organisation.name}
-        </Link>
-        <h1 className="text-2xl font-semibold">My credentials</h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Your credentials belong to you. {organisation.name} can see a credential only while you
-          share it with them, and they verify it independently of any other agency.
-        </p>
-      </header>
+      <PageHeader
+        title="My credentials"
+        description={
+          <p className="text-sm">
+            Your credentials belong to you. {organisation.name} can see a credential only while you
+            share it with them, and they verify it independently of any other agency.
+          </p>
+        }
+        primaryAction={
+          <a
+            href="#add-credential-heading"
+            className="inline-flex min-h-11 items-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary-hover"
+          >
+            Add a credential
+          </a>
+        }
+      />
 
       <ReadinessPanel
         title={`Readiness at ${organisation.name}`}
@@ -58,12 +65,13 @@ export default async function MyCredentialsPage({
         headingId="my-readiness"
       />
 
-      <section aria-labelledby="my-credentials-heading" className="flex flex-col gap-3">
-        <h2 id="my-credentials-heading" className="text-lg font-semibold">
-          Credentials
-        </h2>
+      <Panel titleId="my-credentials-heading" title={<>Credentials</>}>
         {credentials.length === 0 ? (
-          <p className="text-sm text-muted-foreground">You have not added any credentials yet.</p>
+          <EmptyState
+            headingLevel={3}
+            title="You have not added any credentials yet."
+            description="Add one below, upload its evidence and submit it for review."
+          />
         ) : (
           <ul className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface text-sm">
             {credentials.map((credential) => (
@@ -80,36 +88,33 @@ export default async function MyCredentialsPage({
                 </Link>
                 <span className="flex flex-wrap items-center gap-2">
                   {credential.status === "withdrawn" ? (
-                    <Badge tone="neutral">Withdrawn</Badge>
+                    <StatusChip tone="neutral">Withdrawn</StatusChip>
                   ) : null}
                   {credential.latestVersion?.expiryDate ? (
                     <span className="text-muted-foreground">
                       expires {credential.latestVersion.expiryDate}
                     </span>
                   ) : null}
-                  <Badge tone={credential.sharedWithAgency ? "info" : "neutral"}>
+                  <StatusChip tone={credential.sharedWithAgency ? "info" : "neutral"}>
                     {credential.sharedWithAgency
                       ? `Shared with ${organisation.name}`
                       : "Not shared"}
-                  </Badge>
+                  </StatusChip>
                 </span>
               </li>
             ))}
           </ul>
         )}
-      </section>
+      </Panel>
 
-      <section aria-labelledby="add-credential-heading" className="flex flex-col gap-3">
-        <h2 id="add-credential-heading" className="text-lg font-semibold">
-          Add a credential
-        </h2>
+      <Panel titleId="add-credential-heading" title={<>Add a credential</>}>
         <CreateCredentialForm
           organisationId={organisationId}
           organisationName={organisation.name}
           credentialTypes={credentialTypes}
           jurisdictions={jurisdictions}
         />
-      </section>
+      </Panel>
     </>
   );
 }

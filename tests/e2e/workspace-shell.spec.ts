@@ -333,8 +333,10 @@ test.describe.serial("workspace shell", () => {
       `/app/organisations/${world.agencyId}/my-shifts`,
     ]) {
       await page.goto(path);
-      await expect(page.getByRole("navigation", { name: "Account" })).toBeVisible();
+      // P0-E8-S6: workers get the P7 worker shell (bottom navigation), never the workspace shell.
+      await expect(page.getByRole("navigation", { name: "Worker" })).toBeVisible();
       await expect(page.getByRole("navigation", { name: "Workspace" })).toHaveCount(0);
+      await expect(page.getByRole("complementary", { name: "Workspace sidebar" })).toHaveCount(0);
       if (path.endsWith(world.agencyId)) {
         // Self-service members keep their section links (no sidebar on the personal frame).
         await expect(
