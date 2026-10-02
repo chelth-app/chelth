@@ -37,7 +37,10 @@ test.describe.serial("shift requests & assignments", () => {
 
   test("Flow 1: a scheduler creates a shift, sees eligible workers, assigns and sees fill progress", async () => {
     await scheduler.goto(`/app/organisations/${world.agencyId}`);
-    await scheduler.getByRole("link", { name: "Shifts" }).click();
+    await scheduler
+      .getByRole("navigation", { name: "Organisation sections" })
+      .getByRole("link", { name: "Shifts" })
+      .click();
     await expect(scheduler.getByRole("heading", { level: 1, name: "Shifts" })).toBeVisible();
 
     await scheduler
@@ -118,7 +121,10 @@ test.describe.serial("shift requests & assignments", () => {
   }) => {
     const facility = await signedIn(browser, world.facilityAdmin.email);
     await facility.goto(`/app/organisations/${world.facilityOrgId}`);
-    await facility.getByRole("link", { name: "Staffing requests" }).click();
+    await facility
+      .getByRole("navigation", { name: "Organisation sections" })
+      .getByRole("link", { name: "Staffing requests" })
+      .click();
     await expect(
       facility.getByRole("heading", { level: 1, name: "Staffing requests" }),
     ).toBeVisible();

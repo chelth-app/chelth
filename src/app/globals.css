@@ -68,6 +68,25 @@
 
   --color-focus-ring: var(--chelth-navy); /* 13.06:1 on white */
 
+  /*
+   * Workspace shell (P0-E8-S1). Derived only from brand.css values; the
+   * approximate colours in the UI reference prototypes are NOT imported.
+   * The application canvas is `background` (Off White) and content dividers
+   * are `border`; both already exist, so only the sidebar needed new tokens.
+   * Contrast (lightest sidebar stop, Teal Dark): foreground 9.10:1, muted
+   * (Mint) 6.22:1, on hover 7.35:1 / 5.02:1. Active pill (Deep Teal): white
+   * text and icon only, 6.32:1 (Mint would be 4.31:1, so it is not used there).
+   */
+  --color-shell-sidebar: var(--chelth-teal-dark);
+  --color-shell-sidebar-deep: color-mix(in srgb, var(--chelth-teal-dark) 72%, var(--chelth-navy));
+  --color-shell-sidebar-foreground: var(--chelth-white);
+  --color-shell-sidebar-muted: var(--chelth-mint);
+  --color-shell-sidebar-hover: color-mix(in srgb, var(--chelth-white) 8%, transparent);
+  --color-shell-sidebar-active: var(--chelth-teal);
+  --color-shell-sidebar-indicator: var(--chelth-mint);
+  --color-shell-sidebar-divider: color-mix(in srgb, var(--chelth-white) 18%, transparent);
+  --color-shell-sidebar-focus: var(--chelth-white); /* focus ring on the dark sidebar */
+
   /* Typography: Inter for product/UI, Manrope for display/marketing */
   --font-display: var(--chelth-font-display);
 

@@ -26,3 +26,4 @@ export {
   type OrganisationPageContext,
   requireCapabilityOrNotFound,
 } from "./page-context";
+export { buildWorkspaceNavigation, isWorkspaceStaff } from "./workspace-navigation";

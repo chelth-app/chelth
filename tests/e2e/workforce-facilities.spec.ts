@@ -27,7 +27,10 @@ test.describe("workforce", () => {
   }) => {
     const organisationUrl = await adminWithVerifiedAgency(page, "Workforce Agency");
 
-    await page.getByRole("link", { name: "Workforce" }).click();
+    await page
+      .getByRole("navigation", { name: "Organisation sections" })
+      .getByRole("link", { name: "Workforce" })
+      .click();
     await expect(page.getByRole("heading", { level: 1, name: "Workforce" })).toBeVisible();
     await expect(page.getByText("No workers yet.")).toBeVisible();
     await expectNoA11yViolations(page);
@@ -82,7 +85,10 @@ test.describe("facilities", () => {
   }) => {
     const organisationUrl = await adminWithVerifiedAgency(page, "Facility Agency");
 
-    await page.getByRole("link", { name: "Facilities" }).click();
+    await page
+      .getByRole("navigation", { name: "Organisation sections" })
+      .getByRole("link", { name: "Facilities" })
+      .click();
     await expect(page.getByText("No client facilities yet.")).toBeVisible();
     await expectNoA11yViolations(page);
 

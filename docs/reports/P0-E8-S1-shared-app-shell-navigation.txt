@@ -1,0 +1,578 @@
+P0-E8-S1 — SHARED APP SHELL + NAVIGATION
+Branch: p0-e8-visual-implementation (base c30fa37)
+Date: 2026-10-02
+Status: complete, uncommitted, awaiting visual review. S2 not started.
+
+======================================================================
+1. EXECUTIVE SUMMARY
+======================================================================
+The authenticated Agency / Facility routes under /app/organisations/[id]/**
+now render inside one shared workspace shell (approved parent P1):
+  - dark-teal sidebar with the canonical reverse logo;
+  - capability-driven navigation;
+  - top bar with the workspace context and a user/workspace control
+    (Account, Security, Switch workspace, Sign out);
+  - an off-white canvas with a wider content container.
+Below the lg breakpoint the same sidebar opens as an accessible modal
+overlay from a menu trigger (G1). There is no bottom navigation, no search
+field and no notification bell (F10).
+
+Workers are not moved into the shell. Self-service pages and self-service-
+only members keep the existing personal frame.
+
+Changed:
+  - layouts and route groups (URLs unchanged);
+  - shell components;
+  - shell tokens;
+  - one pure navigation builder;
+  - docs and tests.
+
+Unchanged:
+  - page bodies, forms and tables;
+  - Server Actions, RPCs and capabilities;
+  - memberships and RLS;
+  - migrations, and AAL2 / step-up behaviour.
+
+No backend or database change was needed.
+
+======================================================================
+2. APPROVED REFERENCES USED
+======================================================================
+- docs/ui-reference/p08-e8/DERIVATION-MAP.md: P1 App Shell, gaps G1/G2 and
+  findings F3/F4/F6/F10, as locked in the S1 prompt.
+- Chelth_Operations_Overview/assets/chelth-operations-overview-locked.png
+  (the shell source).
+- Chelth_Payroll_Invoices locked PNG (the fullest nav), used for ordering
+  only.
+- Chelth_Operations_Overview/CHELTH-PRODUCT-TYPOGRAPHY.md, promoted to
+  docs/brand/ (see §12).
+- Authoritative over all references: src/styles/brand.css,
+  docs/brand/CHELTH-BRAND-GUIDELINES.md, CHELTH-DESIGN-TOKENS.md,
+  CLAUDE-CHELTH-BRAND-RULES.md and public/brand/chelth/.
+
+======================================================================
+3. PREVIOUS SHELL
+======================================================================
+src/app/app/layout.tsx wrapped every /app route (the chooser, account,
+security and all organisation pages) in one frame:
+  - a white header with the Shift Mark;
+  - an "Account" nav (Organisations, Security, Account, Sign out);
+  - <main> with PageContainer (max-w-6xl).
+Organisation navigation existed only as the hub's "Organisation sections"
+link buttons, so there was no persistent workspace navigation, workspace
+context or switcher outside /app.
+
+======================================================================
+4. NEW APPSHELL ARCHITECTURE
+======================================================================
+The frames are separated by route groups. Folders were moved with git mv;
+no URL changed and the typed routes are identical, as the build route list
+confirms.
+
+  src/app/app/layout.tsx
+      Authentication redirect only (UX). No visual frame.
+  src/app/app/(personal)/layout.tsx
+      PersonalFrame for /app, /app/account and /app/security[/verify].
+  src/app/app/organisations/[organisationId]/(workspace)/layout.tsx
+      Server layout. It loads:
+        - the identity and profile;
+        - the organisation (RLS);
+        - my_capabilities;
+        - my memberships;
+        - the role names;
+        - my worker record (agency only).
+      It renders AppShell for workspace staff. Otherwise it renders
+      PersonalFrame, which covers self-service-only members and invalid or
+      invisible ids (the page then returns 404 exactly as before).
+      Hosts:
+        - Overview (hub);
+        - operations, shifts, attendance and timesheets;
+        - workforce, facilities and compliance;
+        - rates, pricing, payroll and invoices;
+        - staffing-requests;
+        - all detail pages.
+  src/app/app/organisations/[organisationId]/(self-service)/layout.tsx
+      PersonalFrame for my-shifts and my-credentials, unchanged.
+  src/app/app/_components/personal-frame.tsx
+      The previous header and frame, moved verbatim.
+  src/app/app/exports/... (route handler)
+      Untouched.
+
+Components (src/components/layout; no second component system):
+
+  AppShell (client)
+      lg+ grid: 15rem sidebar + content column. Owns the overlay state.
+  WorkspaceSidebar (client)
+      Reverse logo, then <nav aria-label="Workspace"> with grouped lists.
+  SidebarNavItem
+      A Next Link. aria-current="page" uses an exact match for Overview
+      and a prefix match for sections.
+  WorkspaceHeader
+      Contains, in order:
+        - the menu trigger (below lg);
+        - the Shift Mark (below lg);
+        - the workspace name and type;
+        - the WorkspaceSwitcher.
+  WorkspaceSwitcher (client)
+      The user/workspace disclosure (G2).
+  MobileWorkspaceNav (client)
+      The sidebar inside a native modal <dialog>.
+  workspace-nav-icon.tsx
+      Inline SVG line icons. No icon dependency; CSP-safe.
+  workspace-navigation-model.ts
+      Nav types and isNavItemActive (pure).
+  PageContainer
+      New size="wide" (max-w-screen-2xl) used by the shell. Default stays
+      max-w-6xl.
+
+The shell receives Server Actions (selectOrganisationAction,
+signOutAction) as props from the server layout. Client code therefore
+never imports a feature index that contains server-only modules. To allow
+this, signOutAction is now also exported from @/features/identity.
+
+======================================================================
+5. AGENCY NAVIGATION
+======================================================================
+Order (agency admin, all capabilities):
+  Overview | Operations, Shifts, Attendance, Timesheets
+  — People and compliance — Workforce, Facilities, Compliance
+  — Finance — Rates, Pricing, Payroll, Invoices
+The groups are separated by dividers. The second and third groups have
+small visible headings, and each group is a <ul> with an accessible name.
+
+Gate per item (identical to the page's own gate):
+
+  Item         Capability
+  -----------  -----------------------------------------------
+  Operations   assignment.view
+  Shifts       shift.view
+  Attendance   attendance.view
+  Timesheets   timesheet.view, or the caller has a worker record
+               (the page shows their own timesheets)
+  Workforce    worker.view
+  Facilities   facility.view
+  Compliance   credential.requirements.view
+  Rates        rates.view
+  Pricing      pricing.view
+  Payroll      payroll.view
+  Invoices     invoice.view
+
+Not listed, because no such route exists (F6): Reports, Notifications,
+Settings, an agency Credentials register and agency Staffing Requests.
+
+======================================================================
+6. FACILITY NAVIGATION
+======================================================================
+The same shell with a subset of items:
+  - Overview;
+  - Staffing requests (shift.view);
+  - Timesheet sign-off (timesheet.facility_signoff).
+
+Result per role:
+
+  Role                  Navigation
+  --------------------  ------------------------------------------------
+  facility.admin        Overview, Staffing requests, Timesheet sign-off.
+                        Member administration stays on Overview, gated
+                        as before.
+  facility.scheduler    Overview, Staffing requests (the request form is
+                        on that page, gated by shift.request).
+  facility.supervisor   Overview, Staffing requests, Timesheet sign-off.
+                        Verified by E2E: no "Create invitation", no
+                        Invitations section and no "Submit request".
+
+Agency routes are never listed in a facility workspace, even if a grant
+set contained them (unit tested).
+
+======================================================================
+7. CAPABILITY VISIBILITY
+======================================================================
+buildWorkspaceNavigation (src/features/organisations/workspace-navigation.ts)
+is a pure function of:
+  - the organisation type;
+  - can(capability), from my_capabilities;
+  - hasWorkerRecord.
+It never looks at role keys.
+
+An item is listed when the capability is "held" (granted or pending
+step-up). This is the same predicate as requireCapabilityOrNotFound and as
+the hub's section links, so the navigation can never offer a page that
+returns 404, and it never hides a page the user can open.
+
+The navigation is a UI hint only. Every page keeps its own server gate,
+and every RPC is still authorised by the database.
+
+Audience:
+  - isWorkspaceStaff(grants) is true when the caller holds any grant
+    besides organisation.view.
+  - Agency healthcare workers (organisation.view only) are self-service
+    users and keep the personal frame.
+
+E2E (scheduler) visits every listed href and asserts HTTP 200. It also
+asserts that an unlisted one (payroll) returns 404.
+
+======================================================================
+8. WORKSPACE SWITCHING
+======================================================================
+WorkspaceSwitcher is a disclosure: a button with aria-expanded and
+aria-controls, and a panel of ordinary links and buttons in tab order. It
+is not an ARIA menu.
+
+Trigger: initials avatar, user name and role (the name is visually hidden
+below sm but stays in the accessible name "Account and workspace menu: …").
+
+Panel:
+  - name and email;
+  - "Current workspace": name, type, role, and Suspended if applicable;
+  - "Switch workspace": the caller's other existing memberships (from
+    listMyMemberships), each a form posting to the existing
+    selectOrganisationAction. That action re-checks visibility, writes the
+    UI-preference cookie and redirects. The section also links to "All
+    workspaces" (/app, the full chooser);
+  - Account, Security, Sign out (the existing signOutAction).
+
+Single-workspace users see no switch section (no switcher complexity).
+No membership behaviour was created or changed.
+
+Closing:
+  - Escape closes the panel and returns focus to the trigger;
+  - an outside pointer press or focus leaving the control closes it.
+
+======================================================================
+9. DESKTOP BEHAVIOUR
+======================================================================
+lg (1024px) and up:
+  - The sidebar is persistent and sticky (full viewport height, scrolls
+    internally if needed), 240px wide.
+  - The top bar is sticky with a bottom border.
+  - The content uses PageContainer wide (max 1536px) on the Off White
+    canvas.
+  - The active item has:
+      - a Deep Teal pill;
+      - a Mint indicator bar on the left edge;
+      - a semibold label;
+      - aria-current="page".
+  - Detail pages keep their section active through a prefix match that is
+    segment-safe (/shifts does not match /shifts-archive).
+
+======================================================================
+10. TABLET/MOBILE BEHAVIOUR
+======================================================================
+Below lg (phones and tablets, including landscape tablets under 1024px):
+  - The persistent sidebar is display:none (not in the page or the
+    accessibility tree).
+  - The top bar shows the menu trigger. It has the accessible name "Open
+    navigation", aria-haspopup="dialog", aria-expanded and aria-controls.
+  - The overlay is a native modal <dialog> named "Workspace navigation".
+    showModal() provides:
+      - a focus trap;
+      - an inert (blocked) background, verified with :modal in E2E;
+      - Escape to close;
+      - focus return to the trigger.
+  - Initial focus is on "Close navigation".
+  - The overlay also closes on a backdrop click, on choosing a
+    destination, and on any route change.
+  - No bottom navigation (G1).
+  - No horizontal overflow caused by the shell: E2E asserts
+    scrollWidth <= clientWidth at Pixel 7 width.
+  - The workspace name truncates. The switcher panel is capped at
+    calc(100vw - 2rem).
+
+======================================================================
+11. WORKER ROUTE SEPARATION
+======================================================================
+The separation is by route group and audience, with no pathname sniffing:
+  (a) my-shifts and my-credentials live in the (self-service) group, whose
+      layout is PersonalFrame. They are never inside AppShell.
+  (b) In the (workspace) group, a caller whose only grant is
+      organisation.view (agency.healthcare_worker) gets PersonalFrame for
+      Overview and their own timesheets.
+  (c) Staff who are also workers keep the shell on staff pages. "My shifts"
+      and "My credentials" are deliberately not in the sidebar; they are
+      still linked from Overview's section links, as before.
+
+E2E (worker Wendy): the agency Overview and My shifts show the "Account"
+nav, no "Workspace" nav and no "Open navigation" trigger.
+
+======================================================================
+12. BRAND/TOKEN CHANGES
+======================================================================
+src/styles/brand.css is untouched and remains authoritative. No reference-
+prototype hex values were imported (F4).
+
+New semantic shell tokens in src/app/globals.css (@theme inline), all
+derived from brand variables:
+
+  Token                     Derivation
+  ------------------------  ---------------------------------------------
+  shell-sidebar             Teal Dark #0D514F
+  shell-sidebar-deep        color-mix(Teal Dark 72%, Navy) ≈ #10494D
+                            (the restrained vertical tint the approved P1
+                            sidebar shows; no glow)
+  shell-sidebar-foreground  White: 9.10:1 / 10.09:1
+  shell-sidebar-muted       Soft Mint, for group labels: 6.22:1 / 6.89:1
+  shell-sidebar-hover       White 8% overlay: text 7.35:1
+  shell-sidebar-active      Deep Teal: white 6.32:1. Mint is not used on
+                            the pill (4.31:1).
+  shell-sidebar-indicator   Soft Mint
+  shell-sidebar-divider     White 18% overlay
+  shell-sidebar-focus       White focus ring on the dark sidebar
+
+Canvas and content divider: the existing background (Off White) and
+border tokens were reused, not duplicated.
+
+Typography:
+  - docs/brand/CHELTH-PRODUCT-TYPOGRAPHY.md was copied byte-for-byte
+    (docs/brand is already prettier-ignored) and referenced from
+    docs/architecture/DESIGN_SYSTEM.md.
+  - Promotion is conservative: no global type-scale tokens and no page
+    restyling. The shell follows the document: workspace name in Manrope
+    600, navigation, metadata and menu in Inter.
+
+Logo:
+  - BrandLogo variant="reverse" in the sidebar and overlay
+    (public/brand/chelth/logo-reverse.svg).
+  - variant="mark" in the narrow top bar (decorative, because the name is
+    adjacent).
+  - Nothing was redrawn, recoloured or recreated.
+
+======================================================================
+13. ACCESSIBILITY
+======================================================================
+- Landmarks:
+    - complementary "Workspace sidebar";
+    - navigation "Workspace" (one at a time; the hidden copy is
+      display:none);
+    - banner header;
+    - main#main-content (the existing skip link still works).
+- aria-current="page". The active state is not conveyed by colour alone:
+  it also uses a pill, an indicator bar and a weight change.
+- Targets are 44px or larger: nav rows are min-h-11, and the trigger,
+  close button, switcher trigger and menu rows are all at least 44px.
+- Visible focus uses the global :focus-visible ring (Navy). The sidebar
+  uses a white ring for contrast.
+- The overlay manages focus as described in §10.
+- The switcher handles Escape and returns focus to its trigger.
+- Icons are aria-hidden. Every icon has a visible text label.
+- axe (wcag2a, wcag2aa, wcag22aa) passes, desktop and mobile, for:
+    - agency Overview;
+    - the Shifts page;
+    - the switcher open;
+    - facility admin Overview;
+    - facility supervisor Staffing requests;
+    - the overlay open.
+  The existing per-page axe checks in other specs also pass inside the
+  shell.
+
+======================================================================
+14. FUNCTIONAL PRESERVATION
+======================================================================
+- No migration, RLS, capability, RPC, Server Action or query was changed.
+- Page bodies were moved, not edited (git shows 100% renames).
+- The hub content is unchanged and labelled "Overview" in the navigation.
+  Its "All organisations" link and section links remain.
+- The /app chooser, account and security pages are unchanged and keep the
+  PersonalFrame.
+- The active-organisation cookie is still a UI preference only. The
+  switcher uses the existing action.
+- AAL2 / step-up: navigation lists held-but-unsatisfied capabilities
+  exactly as pages do, and pages still show their step-up notices.
+
+Existing E2E adjustments, which are scoping only and not weakening:
+  - shifts-assignments.spec.ts ("Shifts", "Staffing requests") and
+    workforce-facilities.spec.ts ("Workforce", "Facilities"): the hub-link
+    clicks are now scoped to the hub's own nav "Organisation sections". On
+    desktop the sidebar adds a second link with the same name (a Playwright
+    strict-mode collision). The tests still exercise the hub links.
+  - identity.spec.ts: Sign out from an organisation page now first opens
+    the "Account and workspace menu" (Sign out moved into the G2 control).
+    Sign out from /app pages is unchanged.
+
+======================================================================
+15. SCREENSHOT QA
+======================================================================
+Captured by tests/e2e/workspace-shell.spec.ts when SHELL_SCREENSHOTS_DIR is
+set (session scratchpad; not committed):
+  - desktop-chromium-agency-admin-overview.png (1280×720);
+  - desktop-chromium-facility-admin-overview.png;
+  - desktop-chromium-switcher-open.png;
+  - mobile-chromium-narrow-nav-open.png (Pixel 7);
+  - mobile-chromium-switcher-open.png;
+  - mobile-chromium-agency-admin-overview.png, which shows the overlay open
+    at the moment of capture;
+  - mobile-chromium-facility-admin-overview.png.
+
+Manual comparison against the P1 locked PNG:
+
+Matches:
+  - dark-teal sidebar with the reverse lockup at the top-left;
+  - icon + label rows;
+  - lighter-teal active pill;
+  - divider between groups;
+  - white text;
+  - Off White canvas;
+  - top bar with avatar, name, role and chevron at the right;
+  - content to the right of a fixed sidebar.
+
+Differs: see §17.
+
+======================================================================
+16. TESTS
+======================================================================
+Unit (vitest):
+  - tests/unit/lib/workspace-navigation.test.ts (26 tests):
+      - exact navigation per role for agency admin, scheduler and finance,
+        and facility admin, scheduler and supervisor, using the database
+        role → capability sets;
+      - step-up-pending capabilities are listed;
+      - Timesheets for a staff member who is also a worker;
+      - no invented or self-service routes for any role;
+      - a facility never gets agency items;
+      - empty groups are dropped;
+      - isWorkspaceStaff: the worker is excluded and all staff roles are
+        included;
+      - isNavItemActive: exact and segment-safe prefix matching.
+  - tests/unit/components/workspace-shell.test.tsx (5 tests):
+      - nav landmark and aria-current;
+      - the canonical reverse logo;
+      - the switcher's contents and links;
+      - Escape and focus return;
+      - a single workspace has no switch section.
+
+E2E: tests/e2e/workspace-shell.spec.ts (7 tests × desktop + mobile = 14):
+  - agency admin: full ordered navigation, Overview current, reverse logo,
+    no search, bell, Reports or Settings, axe;
+  - agency scheduler: exact navigation, every listed href returns 200,
+    unlisted payroll returns 404, navigating marks Shifts current, axe;
+  - finance: exact navigation; the switcher's current workspace, Account,
+    Security and Sign out; axe with the switcher open; Escape returns
+    focus; switching to the facility gives the facility navigation;
+  - facility admin: facility navigation, no switch section, axe;
+  - facility supervisor: view navigation, no Create invitation and no
+    Submit request, axe;
+  - worker: personal frame on Overview and My shifts, no workspace shell;
+  - narrow viewport: hidden sidebar, trigger state, no horizontal
+    overflow, modal dialog, initial focus, trapped Tab, Escape and Close
+    both return focus, axe. On desktop: persistent sidebar, no trigger.
+
+tests/e2e/staffing-fixture.ts gains facilityMember(): a facility member
+invited by the facility admin through the public RPCs.
+
+Validation (final run):
+
+  Command                Result
+  ---------------------  --------------------------------------------------
+  npm run format:check   pass
+  npm run lint           pass (0 warnings)
+  npm run typecheck      pass
+  npm test               26 files, 308 tests passed
+  npm run build          pass (route list unchanged)
+  npm run check:bundle   OK (59 browser files, no secrets)
+  npx playwright test    148 passed, 2 skipped (the pre-existing
+                         desktop-only keyboard tests in foundation.spec.ts
+                         skip on mobile), 0 failed (9.1m)
+
+======================================================================
+17. KNOWN VISUAL DIFFERENCES (vs P1)
+======================================================================
+ 1. No global search field and no notification bell in the top bar. This
+    is the locked decision F10: neither feature exists.
+ 2. No Notifications or Settings entries below the divider, and no Reports,
+    Credentials register or agency Staffing Requests (F6: no routes). The
+    lower sidebar is therefore emptier than the reference.
+ 3. No mint wave artwork at the sidebar foot: no approved asset exists in
+    public/brand, and it is not to be improvised.
+ 4. The sidebar tint is a restrained vertical Teal Dark → (Teal Dark+Navy)
+    token blend, not the prototype's colours.
+ 5. The active pill is Deep Teal with a Mint indicator bar. The reference
+    pill has no indicator bar; it was added so the state is not
+    colour-only.
+ 6. Sidebar groups carry small uppercase headings ("People and
+    compliance", "Finance"). The reference has a flat list. This was added
+    for scanability with up to 12 items.
+ 7. The top bar shows the workspace name and type on the left, where the
+    reference has search. The P1 top bar has no workspace context; G2
+    requires it.
+ 8. The avatar shows initials (there are no profile photos).
+ 9. Page content is NOT restyled (S1 scope). Page titles are still
+    text-2xl rather than the reference's 32px Manrope. The hub keeps its
+    "All organisations" link, its role badges and its section link
+    buttons, which now duplicate the sidebar. Removing them is S2/S3 work.
+10. Sidebar width is 240px (the reference is about 210–225px), so the
+    48px-minimum reverse lockup fits with padding.
+11. Narrow-viewport behaviour has no reference (G1). The overlay design is
+    derived from the desktop sidebar.
+
+======================================================================
+18. FILES CHANGED
+======================================================================
+Moved (git mv, 100% renames, 0 line changes; URLs unchanged):
+  src/app/app/{page.tsx, account/, security/}
+      -> src/app/app/(personal)/...
+  src/app/app/organisations/[organisationId]/{my-shifts, my-credentials}
+      -> .../(self-service)/...
+  src/app/app/organisations/[organisationId]/{page.tsx, attendance,
+      compliance, facilities, invoices, operations, payroll, pricing, rates,
+      shifts, staffing-requests, timesheets, workforce}
+      -> .../(workspace)/...
+
+Added:
+  src/app/app/(personal)/layout.tsx
+  src/app/app/_components/personal-frame.tsx
+  src/app/app/organisations/[organisationId]/(self-service)/layout.tsx
+  src/app/app/organisations/[organisationId]/(workspace)/layout.tsx
+  src/components/layout/app-shell.tsx  (AppShell, WorkspaceHeader)
+  src/components/layout/mobile-workspace-nav.tsx
+  src/components/layout/workspace-nav-icon.tsx
+  src/components/layout/workspace-navigation-model.ts
+  src/components/layout/workspace-sidebar.tsx  (WorkspaceSidebar,
+      SidebarNavItem)
+  src/components/layout/workspace-switcher.tsx
+  src/features/organisations/workspace-navigation.ts
+  docs/brand/CHELTH-PRODUCT-TYPOGRAPHY.md  (byte-for-byte copy)
+  docs/reports/P0-E8-S1-shared-app-shell-navigation.txt
+  tests/e2e/workspace-shell.spec.ts
+  tests/unit/components/workspace-shell.test.tsx
+  tests/unit/lib/workspace-navigation.test.ts
+
+Modified:
+  src/app/app/layout.tsx  (authentication only; the frame moved to
+      PersonalFrame)
+  src/app/globals.css  (shell tokens)
+  src/components/layout/page-container.tsx  (size="wide")
+  src/features/identity/index.ts  (exports signOutAction)
+  src/features/organisations/index.ts  (exports buildWorkspaceNavigation,
+      isWorkspaceStaff)
+  docs/architecture/DESIGN_SYSTEM.md
+  docs/architecture/PROJECT_STRUCTURE.md
+  tests/e2e/identity.spec.ts
+  tests/e2e/shifts-assignments.spec.ts
+  tests/e2e/workforce-facilities.spec.ts
+  tests/e2e/staffing-fixture.ts  (facilityMember helper)
+
+Not touched: supabase/ (no migrations), src/styles/brand.css,
+public/brand/, any page body, action, query or RPC.
+
+======================================================================
+19. GIT STATUS
+======================================================================
+Branch p0-e8-visual-implementation, HEAD c30fa37. All changes are
+uncommitted (not staged or committed, per instructions). The working tree
+contains exactly the files in §18. No secrets were found; check:bundle is
+clean.
+
+======================================================================
+20. RECOMMENDED S2 SCOPE
+======================================================================
+- Add a PageHeader (P1/P3): Manrope 32/40 title, supporting copy and a
+  primary action slot. Adopt the promoted typography scale on the Overview
+  and on list pages.
+- Overview: remove the now-redundant section link buttons and the "All
+  organisations" link (navigation now lives in the shell). Keep member,
+  invite and audit administration intact.
+- Decide whether staff who are also workers should get a "My work" entry.
+  If so, it should link out of the shell or follow the worker-mobile stage.
+- Use the semantic shell canvas for any future mint-tinted canvas only
+  after a token review. Replace soft status tints per F4 once approved.
+- Keep G1, G2, F3, F6 and F10 constraints; any new route (Settings,
+  agency staffing requests) needs explicit approval first.
