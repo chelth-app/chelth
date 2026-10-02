@@ -1,10 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+
+import { Panel } from "@/components/ui/panel";
 import { z } from "zod";
 
-import { DataTableRegion } from "@/components/ui/data-table";
+import {
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeaderCell,
+  DataTableRegion,
+  DataTableRow,
+} from "@/components/ui/data-table";
 import { InlineActionForm } from "@/components/forms/inline-action-form";
+import { Badge } from "@/components/ui/badge";
+import { KeyValueList } from "@/components/ui/key-value-list";
+import { PageHeader } from "@/components/ui/page-header";
 import {
   AttentionBadge,
   ExportsTable,
@@ -29,7 +41,6 @@ import { formatPeriod, formatWorkedMinutes } from "@/lib/domain/timesheets";
 export const metadata: Metadata = { title: "Invoice draft" };
 
 const idSchema = z.uuid();
-const TH = "px-3 py-2 font-medium";
 const dateFormat = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
   weekday: "short",
@@ -75,23 +86,28 @@ export default async function InvoiceDraftPage({
 
   return (
     <>
-      <header className="flex flex-col gap-2">
-        <Link href={base} className="w-fit text-sm text-primary underline underline-offset-4">
-          Invoices
-        </Link>
-        <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-          Draft invoice — internal, not sent
-        </p>
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold">{draft.reference}</h1>
-          <InvoiceStatusBadge status={draft.status} />
-          <AttentionBadge code={draft.attention} />
-        </div>
-        <p className="text-sm text-muted-foreground">
-          {draft.facilityName} · week {formatPeriod(draft.periodStart, draft.periodEnd)} ·{" "}
-          {draft.currency} · No tax calculated. Not a request for payment.
-        </p>
-      </header>
+      <PageHeader
+        title={draft.reference}
+        back={
+          <Link href={base} className="text-primary underline underline-offset-4">
+            Invoices
+          </Link>
+        }
+        description={
+          <p className="text-sm">
+            {draft.facilityName} · week {formatPeriod(draft.periodStart, draft.periodEnd)} ·{" "}
+            {draft.currency} · No tax calculated. Not a request for payment.
+          </p>
+        }
+        meta={
+          <>
+            <Badge tone="neutral">Draft invoice — internal, not sent</Badge>
+            <InvoiceStatusBadge status={draft.status} />
+            <AttentionBadge code={draft.attention} />
+            <Badge tone="neutral">{draft.currency}</Badge>
+          </>
+        }
+      />
 
       {needsStepUp ? (
         <StepUpNotice returnTo={`${base}/${draft.id}`}>
@@ -113,27 +129,34 @@ export default async function InvoiceDraftPage({
         </p>
       ) : null}
 
-      <section aria-labelledby="draft-totals-heading" className="flex flex-col gap-3">
-        <h2 id="draft-totals-heading" className="text-lg font-semibold">
-          Totals
-        </h2>
-        <dl className="grid max-w-xl grid-cols-[auto_1fr] gap-x-6 gap-y-2 rounded-lg border border-border bg-surface p-4 text-sm">
-          <dt className="text-muted-foreground">Bill total (before any tax)</dt>
-          <dd className="font-semibold tabular-nums">
-            {formatMoney(draft.totalBillMinor, draft.currency)}
-          </dd>
-          <dt className="text-muted-foreground">Lines</dt>
-          <dd className="tabular-nums">{draft.lineCount}</dd>
-          <dt className="text-muted-foreground">Billed time</dt>
-          <dd className="tabular-nums">{formatWorkedMinutes(draft.totalPricedMinutes)}</dd>
-        </dl>
-      </section>
+      <Panel titleId="draft-totals-heading" title={<>Totals</>}>
+        <KeyValueList
+          aria-label="Draft totals"
+          className="max-w-xl"
+          items={[
+            {
+              label: "Bill total (before any tax)",
+              value: (
+                <span className="font-semibold tabular-nums">
+                  {formatMoney(draft.totalBillMinor, draft.currency)}
+                </span>
+              ),
+            },
+            { label: "Lines", value: <span className="tabular-nums">{draft.lineCount}</span> },
+            {
+              label: "Billed time",
+              value: (
+                <span className="tabular-nums">
+                  {formatWorkedMinutes(draft.totalPricedMinutes)}
+                </span>
+              ),
+            },
+          ]}
+        />
+      </Panel>
 
       {draft.status !== "voided" ? (
-        <section aria-labelledby="draft-steps-heading" className="flex flex-col gap-3">
-          <h2 id="draft-steps-heading" className="text-lg font-semibold">
-            Next step
-          </h2>
+        <Panel titleId="draft-steps-heading" title={<>Next step</>}>
           <div className="flex flex-wrap items-start gap-3">
             {draft.status === "draft" && prepare === "granted" ? (
               <InlineActionForm
@@ -178,7 +201,7 @@ export default async function InvoiceDraftPage({
               <VoidInvoiceDraftForm organisationId={organisationId} draftId={draft.id} />
             ) : null}
           </div>
-        </section>
+        </Panel>
       ) : (
         <p className="text-sm text-muted-foreground">
           Voided by {draft.voidedByName ?? "a former member"}: “{draft.voidReason}”. The draft is
@@ -186,99 +209,73 @@ export default async function InvoiceDraftPage({
         </p>
       )}
 
-      <section aria-labelledby="draft-exports-heading" className="flex flex-col gap-3">
-        <h2 id="draft-exports-heading" className="text-lg font-semibold">
-          Draft documents
-        </h2>
+      <Panel titleId="draft-exports-heading" title={<>Draft documents</>}>
         <ExportsTable
           rows={exports}
           canDownload={exportCap === "granted"}
           label="Invoice draft exports"
         />
-      </section>
+      </Panel>
 
-      <section aria-labelledby="draft-lines-heading" className="flex flex-col gap-3">
-        <h2 id="draft-lines-heading" className="text-lg font-semibold">
-          Lines
-        </h2>
+      <Panel titleId="draft-lines-heading" title={<>Lines</>}>
         <DataTableRegion aria-label="Invoice draft lines">
-          <table className="w-full min-w-[760px] text-left text-sm">
-            <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
+          <DataTable className="min-w-[760px]">
+            <DataTableHead>
               <tr>
-                <th scope="col" className={TH}>
-                  Date
-                </th>
-                <th scope="col" className={TH}>
-                  Worker
-                </th>
-                <th scope="col" className={TH}>
-                  Discipline
-                </th>
-                <th scope="col" className={`${TH} text-right`}>
-                  Time
-                </th>
-                <th scope="col" className={`${TH} text-right`}>
-                  Bill rate
-                </th>
-                <th scope="col" className={`${TH} text-right`}>
-                  Amount
-                </th>
-                <th scope="col" className={TH}>
-                  Source
-                </th>
+                <DataTableHeaderCell>Date</DataTableHeaderCell>
+                <DataTableHeaderCell>Worker</DataTableHeaderCell>
+                <DataTableHeaderCell>Discipline</DataTableHeaderCell>
+                <DataTableHeaderCell numeric>Time</DataTableHeaderCell>
+                <DataTableHeaderCell numeric>Bill rate</DataTableHeaderCell>
+                <DataTableHeaderCell numeric>Amount</DataTableHeaderCell>
+                <DataTableHeaderCell>Source</DataTableHeaderCell>
               </tr>
-            </thead>
+            </DataTableHead>
             <tbody>
               {lines.map((line) => (
-                <tr
-                  key={line.lineNumber}
-                  className="border-b border-border align-top last:border-0"
-                >
-                  <td className="px-3 py-2">
+                <DataTableRow key={line.lineNumber}>
+                  <DataTableCell>
                     {dateFormat.format(new Date(`${line.workDate}T00:00:00Z`))}
-                  </td>
-                  <td className="px-3 py-2">
+                  </DataTableCell>
+                  <DataTableCell>
                     {line.workerName}
                     {line.workerReference ? (
                       <div className="text-xs text-muted-foreground">{line.workerReference}</div>
                     ) : null}
-                  </td>
-                  <td className="px-3 py-2">{line.disciplineName}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">
+                  </DataTableCell>
+                  <DataTableCell>{line.disciplineName}</DataTableCell>
+                  <DataTableCell numeric>
                     {formatWorkedMinutes(line.pricedMinutes)}
                     {line.billOvertimeMinutes > 0 ? (
                       <div className="text-xs text-muted-foreground">
                         incl. {formatWorkedMinutes(line.billOvertimeMinutes)} overtime
                       </div>
                     ) : null}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
+                  </DataTableCell>
+                  <DataTableCell numeric>
                     {formatHourlyRate(line.billRateMinor, draft.currency)}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
+                  </DataTableCell>
+                  <DataTableCell numeric>
                     {formatMoney(line.billAmountMinor, draft.currency)}
-                  </td>
-                  <td className="px-3 py-2 text-xs">
+                  </DataTableCell>
+                  <DataTableCell className="text-xs">
                     Revision {line.timesheetRevision}
                     {line.superseded ? (
                       <div className="text-muted-foreground">
                         Now revision {line.currentRevision}
                       </div>
                     ) : null}
-                  </td>
-                </tr>
+                  </DataTableCell>
+                </DataTableRow>
               ))}
             </tbody>
-          </table>
+          </DataTable>
         </DataTableRegion>
-      </section>
+      </Panel>
 
-      <section aria-labelledby="draft-history-heading" className="flex flex-col gap-3">
-        <h2 id="draft-history-heading" className="text-lg font-semibold">
-          History
-        </h2>
+      <Panel titleId="draft-history-heading" title={<>History</>}>
         <HistoryList rows={history} label="Invoice draft history" />
-      </section>
+      </Panel>
     </>
   );
 }

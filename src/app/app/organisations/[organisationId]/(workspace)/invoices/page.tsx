@@ -1,9 +1,26 @@
-import type { Metadata } from "next";
+import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { DataTableRegion } from "@/components/ui/data-table";
+import { Panel } from "@/components/ui/panel";
+
+import {
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeaderCell,
+  DataTableRegion,
+  DataTableRow,
+} from "@/components/ui/data-table";
 import { InlineActionForm } from "@/components/forms/inline-action-form";
+import { WorkspaceNavIcon } from "@/components/layout/workspace-nav-icon";
+import { Badge } from "@/components/ui/badge";
+import { DetailDrawerTrigger } from "@/components/ui/detail-drawer";
+import { EmptyState } from "@/components/ui/empty-state";
+import { FilterBar, FilterSelect } from "@/components/ui/filter-bar";
+import { KeyValueList } from "@/components/ui/key-value-list";
+import { KpiFilterCard, KpiFilterGroup } from "@/components/ui/kpi-filter-card";
+import { PageHeader } from "@/components/ui/page-header";
 import {
   AttentionBadge,
   createInvoiceDraftAction,
@@ -29,9 +46,9 @@ import { INVOICE_DRAFT_STATUS_LABELS, INVOICE_DRAFT_STATUSES } from "@/lib/domai
 import { formatMoney } from "@/lib/domain/pricing";
 import { formatPeriod, formatWorkedMinutes } from "@/lib/domain/timesheets";
 
-export const metadata: Metadata = { title: "Invoices" };
+import { FinanceModeTabs } from "../_components/finance-mode-tabs";
 
-const TH = "px-3 py-2 font-medium";
+export const metadata: Metadata = { title: "Invoices" };
 
 /**
  * Invoice DRAFTING from bill-side pricing, grouped by facility relationship
@@ -40,6 +57,7 @@ const TH = "px-3 py-2 font-medium";
  */
 export default async function InvoicesPage({
   params,
+  searchParams,
 }: PageProps<"/app/organisations/[organisationId]/invoices">) {
   const context = await loadOrganisationPage((await params).organisationId);
   requireCapabilityOrNotFound(context, CAPABILITIES.INVOICE_VIEW);
@@ -62,23 +80,82 @@ export default async function InvoicesPage({
     count: drafts.filter((draft) => draft.status === status).length,
   })).filter((entry) => entry.count > 0);
   const facilities = [...new Set(work.map((row) => row.facilityName))];
+  // Display filter over the drafts already loaded (no new query).
+  const rawStatus = (await searchParams).status;
+  const statusFilter = INVOICE_DRAFT_STATUSES.find(
+    (status) => status === (Array.isArray(rawStatus) ? rawStatus[0] : rawStatus),
+  );
+  const shownDrafts = statusFilter
+    ? drafts.filter((draft) => draft.status === statusFilter)
+    : drafts;
+  const readyWeeks = work.filter((row) => !row.adjustmentRequired).length;
+  const anchor = (id: string) => `${base}#${id}` as Route;
 
   return (
     <>
-      <header className="flex flex-col gap-2">
-        <Link
-          href={`/app/organisations/${organisationId}`}
-          className="w-fit text-sm text-primary underline underline-offset-4"
-        >
-          {organisation.name}
-        </Link>
-        <h1 className="text-2xl font-semibold">Invoices</h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Draft invoices from billable, priced work for each facility and week. Bill amounts are
-          copied exactly from pricing. Drafts are internal documents: Chelth does not send them,
-          calculate tax or collect payment.
-        </p>
-      </header>
+      <PageHeader
+        title="Invoices"
+        back={
+          <Link
+            href={`/app/organisations/${organisationId}`}
+            className="text-primary underline underline-offset-4"
+          >
+            {organisation.name}
+          </Link>
+        }
+        description={
+          <p>
+            Draft invoices from billable, priced work for each facility and week. Bill amounts are
+            copied exactly from pricing. Drafts are internal documents: Chelth does not send them,
+            calculate tax or collect payment.
+          </p>
+        }
+        meta={<Badge tone="neutral">Internal drafts — not sent</Badge>}
+        primaryAction={
+          canPrepare && readyWeeks > 0 ? (
+            <a
+              href="#invoice-billable-heading"
+              className="inline-flex min-h-11 items-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary-hover"
+            >
+              Create a draft
+            </a>
+          ) : undefined
+        }
+      />
+
+      <FinanceModeTabs organisationId={organisationId} current="invoices" can={can} />
+
+      <KpiFilterGroup label="Invoice summary">
+        <KpiFilterCard
+          label="Blocked"
+          value={issues.length}
+          supporting="Needs attention before drafting"
+          icon={<WorkspaceNavIcon name="compliance" />}
+          href={anchor("invoice-attention-heading")}
+        />
+        <KpiFilterCard
+          label="Weeks ready to draft"
+          value={readyWeeks}
+          supporting="Billable work not yet in a draft"
+          icon={<WorkspaceNavIcon name="pricing" />}
+          href={anchor("invoice-billable-heading")}
+        />
+        <KpiFilterCard
+          label="Awaiting approval"
+          value={drafts.filter((draft) => draft.status === "reviewed").length}
+          supporting="Drafts marked reviewed"
+          icon={<WorkspaceNavIcon name="invoices" />}
+          href={`${base}?status=reviewed` as Route}
+          active={statusFilter === "reviewed"}
+        />
+        <KpiFilterCard
+          label="Adjustments required"
+          value={candidates.filter((row) => row.state === "required").length}
+          supporting="Revised after locking"
+          icon={<WorkspaceNavIcon name="timesheets" />}
+          href={anchor("invoice-adjustments-heading")}
+        />
+      </KpiFilterGroup>
 
       {approve === "step_up_required" ? (
         <StepUpNotice returnTo={base}>
@@ -87,12 +164,9 @@ export default async function InvoicesPage({
         </StepUpNotice>
       ) : null}
 
-      <section aria-labelledby="invoice-attention-heading" className="flex flex-col gap-3">
-        <h2 id="invoice-attention-heading" className="text-lg font-semibold">
-          Blocked and needs attention
-        </h2>
+      <Panel titleId="invoice-attention-heading" title={<>Blocked and needs attention</>}>
         {issues.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nothing is blocked.</p>
+          <EmptyState headingLevel={3} title="Nothing is blocked." />
         ) : (
           <IssuesTable
             rows={issues}
@@ -102,12 +176,9 @@ export default async function InvoicesPage({
             showFacility
           />
         )}
-      </section>
+      </Panel>
 
-      <section aria-labelledby="invoice-adjustments-heading" className="flex flex-col gap-3">
-        <h2 id="invoice-adjustments-heading" className="text-lg font-semibold">
-          Adjustments
-        </h2>
+      <Panel titleId="invoice-adjustments-heading" title={<>Adjustments</>}>
         <p className="max-w-2xl text-sm text-muted-foreground">
           When billed work is revised after a draft is locked, the draft never changes. The
           bill-side difference is prepared as a separate adjustment draft: an additional charge or a
@@ -119,50 +190,38 @@ export default async function InvoicesPage({
           canPrepare={canPrepare}
         />
         <InvoiceAdjustmentsTable rows={adjustments} organisationId={organisationId} />
-      </section>
+      </Panel>
 
-      <section aria-labelledby="invoice-billable-heading" className="flex flex-col gap-3">
-        <h2 id="invoice-billable-heading" className="text-lg font-semibold">
-          Billable work not yet drafted
-        </h2>
+      <Panel titleId="invoice-billable-heading" title={<>Billable work not yet drafted</>}>
         {work.length === 0 ? (
-          <p className="text-sm text-muted-foreground">All billable work is in a draft.</p>
+          <EmptyState headingLevel={3} title="All billable work is in a draft." />
         ) : (
           facilities.map((facility) => (
             <div key={facility} className="flex flex-col gap-2">
               <h3 className="text-base font-semibold">{facility}</h3>
               <DataTableRegion aria-label={`Billable work for ${facility}`}>
-                <table className="w-full min-w-[680px] text-left text-sm">
-                  <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
+                <DataTable className="min-w-[680px]">
+                  <DataTableHead>
                     <tr>
-                      <th scope="col" className={TH}>
-                        Week
-                      </th>
-                      <th scope="col" className={`${TH} text-right`}>
-                        Workers
-                      </th>
-                      <th scope="col" className={`${TH} text-right`}>
-                        Time
-                      </th>
-                      <th scope="col" className={`${TH} text-right`}>
-                        Bill total
-                      </th>
-                      <th scope="col" className={TH}>
+                      <DataTableHeaderCell>Week</DataTableHeaderCell>
+                      <DataTableHeaderCell numeric>Workers</DataTableHeaderCell>
+                      <DataTableHeaderCell numeric>Time</DataTableHeaderCell>
+                      <DataTableHeaderCell numeric>Bill total</DataTableHeaderCell>
+                      <DataTableHeaderCell>
                         <span className="sr-only">Actions</span>
-                      </th>
+                      </DataTableHeaderCell>
                     </tr>
-                  </thead>
+                  </DataTableHead>
                   <tbody>
                     {work
                       .filter((row) => row.facilityName === facility)
                       .map((row) => {
                         const week = formatPeriod(row.periodStart, row.periodEnd);
                         return (
-                          <tr
+                          <DataTableRow
                             key={`${row.relationshipId}-${row.periodStart}-${row.currency}-${row.adjustmentRequired}`}
-                            className="border-b border-border align-top last:border-0"
                           >
-                            <td className="px-3 py-2">
+                            <DataTableCell>
                               <div className="font-medium">{week}</div>
                               <div className="text-xs text-muted-foreground">
                                 {row.currency}
@@ -170,15 +229,15 @@ export default async function InvoicesPage({
                                   ? ` · relationship ${row.relationshipStatus}`
                                   : ""}
                               </div>
-                            </td>
-                            <td className="px-3 py-2 text-right tabular-nums">{row.workerCount}</td>
-                            <td className="px-3 py-2 text-right tabular-nums">
+                            </DataTableCell>
+                            <DataTableCell numeric>{row.workerCount}</DataTableCell>
+                            <DataTableCell numeric>
                               {formatWorkedMinutes(row.totalPricedMinutes)}
-                            </td>
-                            <td className="px-3 py-2 text-right tabular-nums">
+                            </DataTableCell>
+                            <DataTableCell numeric>
                               {formatMoney(row.totalBillMinor, row.currency)}
-                            </td>
-                            <td className="px-3 py-2">
+                            </DataTableCell>
+                            <DataTableCell>
                               {row.adjustmentRequired ? (
                                 <AttentionBadge code="ADJUSTMENT_REQUIRED" />
                               ) : canPrepare ? (
@@ -195,22 +254,19 @@ export default async function InvoicesPage({
                                   variant="primary"
                                 />
                               ) : null}
-                            </td>
-                          </tr>
+                            </DataTableCell>
+                          </DataTableRow>
                         );
                       })}
                   </tbody>
-                </table>
+                </DataTable>
               </DataTableRegion>
             </div>
           ))
         )}
-      </section>
+      </Panel>
 
-      <section aria-labelledby="invoice-drafts-heading" className="flex flex-col gap-3">
-        <h2 id="invoice-drafts-heading" className="text-lg font-semibold">
-          Invoice drafts
-        </h2>
+      <Panel titleId="invoice-drafts-heading" title={<>Invoice drafts</>}>
         {counts.length > 0 ? (
           <p className="text-sm text-muted-foreground">
             {counts
@@ -221,76 +277,134 @@ export default async function InvoicesPage({
               .join(" · ")}
           </p>
         ) : null}
+        {drafts.length > 0 ? (
+          <FilterBar
+            key={statusFilter ?? "all"}
+            label="Filter invoice drafts"
+            resetHref={statusFilter ? (base as Route) : undefined}
+          >
+            <FilterSelect
+              label="Draft status"
+              id="draft-status"
+              name="status"
+              defaultValue={statusFilter ?? ""}
+            >
+              <option value="">All statuses</option>
+              {INVOICE_DRAFT_STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {INVOICE_DRAFT_STATUS_LABELS[status]}
+                </option>
+              ))}
+            </FilterSelect>
+          </FilterBar>
+        ) : null}
         {drafts.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No invoice drafts yet.</p>
+          <EmptyState
+            headingLevel={3}
+            title="No invoice drafts yet."
+            description="Create a draft from billable work above."
+          />
         ) : (
           <DataTableRegion aria-label="Invoice drafts table">
-            <table className="w-full min-w-[820px] text-left text-sm">
-              <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
+            <DataTable className="min-w-[820px]">
+              <DataTableHead>
                 <tr>
-                  <th scope="col" className={TH}>
-                    Draft
-                  </th>
-                  <th scope="col" className={TH}>
-                    Facility
-                  </th>
-                  <th scope="col" className={TH}>
-                    Week
-                  </th>
-                  <th scope="col" className={TH}>
-                    Status
-                  </th>
-                  <th scope="col" className={`${TH} text-right`}>
-                    Bill total
-                  </th>
-                  <th scope="col" className={`${TH} text-right`}>
-                    Exports
-                  </th>
+                  <DataTableHeaderCell>Draft</DataTableHeaderCell>
+                  <DataTableHeaderCell>Facility</DataTableHeaderCell>
+                  <DataTableHeaderCell>Week</DataTableHeaderCell>
+                  <DataTableHeaderCell>Status</DataTableHeaderCell>
+                  <DataTableHeaderCell numeric>Bill total</DataTableHeaderCell>
+                  <DataTableHeaderCell numeric>Exports</DataTableHeaderCell>
+                  <DataTableHeaderCell>
+                    <span className="sr-only">Preview</span>
+                  </DataTableHeaderCell>
                 </tr>
-              </thead>
+              </DataTableHead>
               <tbody>
-                {drafts.map((draft) => (
-                  <tr key={draft.id} className="border-b border-border align-top last:border-0">
-                    <td className="px-3 py-2">
+                {shownDrafts.map((draft) => (
+                  <DataTableRow key={draft.id}>
+                    <DataTableCell>
                       <Link
                         href={`${base}/${draft.id}`}
                         className="font-medium text-primary underline underline-offset-4"
                       >
                         {draft.reference}
                       </Link>
-                    </td>
-                    <td className="px-3 py-2">{draft.facilityName}</td>
-                    <td className="px-3 py-2">
+                    </DataTableCell>
+                    <DataTableCell>{draft.facilityName}</DataTableCell>
+                    <DataTableCell>
                       {formatPeriod(draft.periodStart, draft.periodEnd)}
-                    </td>
-                    <td className="px-3 py-2">
+                    </DataTableCell>
+                    <DataTableCell>
                       <div className="flex flex-wrap gap-1">
                         <InvoiceStatusBadge status={draft.status} />
                         <AttentionBadge code={draft.attention} />
                       </div>
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums">
+                    </DataTableCell>
+                    <DataTableCell numeric>
                       {formatMoney(draft.totalBillMinor, draft.currency)}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums">{draft.exportCount}</td>
-                  </tr>
+                    </DataTableCell>
+                    <DataTableCell numeric>{draft.exportCount}</DataTableCell>
+                    <DataTableCell>
+                      <DetailDrawerTrigger
+                        triggerLabel="Preview"
+                        triggerAccessibleLabel={`Preview ${draft.reference}`}
+                        title={draft.reference}
+                        description={`${draft.facilityName} · ${formatPeriod(draft.periodStart, draft.periodEnd)}`}
+                        footer={
+                          <Link
+                            href={`${base}/${draft.id}` as Route}
+                            className="inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary-hover"
+                          >
+                            Open draft
+                          </Link>
+                        }
+                      >
+                        <KeyValueList
+                          items={[
+                            {
+                              label: "Status",
+                              value: (
+                                <span className="flex flex-wrap gap-1">
+                                  <InvoiceStatusBadge status={draft.status} />
+                                  <AttentionBadge code={draft.attention} />
+                                </span>
+                              ),
+                            },
+                            { label: "Facility", value: draft.facilityName },
+                            {
+                              label: "Week",
+                              value: formatPeriod(draft.periodStart, draft.periodEnd),
+                            },
+                            { label: "Currency", value: draft.currency },
+                            {
+                              label: "Bill total",
+                              value: formatMoney(draft.totalBillMinor, draft.currency),
+                            },
+                            { label: "Exports", value: draft.exportCount },
+                          ]}
+                        />
+                        <p className="text-sm text-muted-foreground">
+                          Draft invoice — internal, not sent. Review, approval, locking and exports
+                          happen on the draft page.
+                        </p>
+                      </DetailDrawerTrigger>
+                    </DataTableCell>
+                  </DataTableRow>
                 ))}
               </tbody>
-            </table>
+            </DataTable>
           </DataTableRegion>
         )}
-      </section>
+      </Panel>
 
-      <section aria-labelledby="invoice-reconciliation-heading" className="flex flex-col gap-3">
-        <h2 id="invoice-reconciliation-heading" className="text-lg font-semibold">
-          Reconciliation
-        </h2>
+      <Panel titleId="invoice-reconciliation-heading" title={<>Reconciliation</>}>
         <ReconciliationTable
           rows={reconciliation}
           label="Invoice reconciliation"
           amountLabel="Bill amount"
         />
-      </section>
+      </Panel>
     </>
   );
 }

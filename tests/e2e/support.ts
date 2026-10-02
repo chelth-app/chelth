@@ -112,3 +112,24 @@ export async function qaScreenshot(page: Page, name: string): Promise<void> {
   const width = page.viewportSize()?.width ?? 0;
   await page.screenshot({ path: `${dir}/${width}px-${name}.png` });
 }
+
+/**
+ * Chelth finance prepares, approves and exports; it never pays, sends,
+ * collects or posts. No payment-execution vocabulary or controls may appear.
+ */
+export async function expectNoPaymentVocabulary(page: Page): Promise<void> {
+  const main = page.getByRole("main");
+  await expect(main).not.toContainText(
+    /\bPaid\b|\bOverdue\b|\bACH\b|\bOutstanding\b|Payment received|Process payroll|Collected/,
+  );
+  await expect(
+    main.getByRole("button", {
+      name: /pay now|send invoice|process payment|mark (as )?paid|collect/i,
+    }),
+  ).toHaveCount(0);
+  await expect(
+    main.getByRole("link", {
+      name: /pay now|send invoice|process payment|mark (as )?paid|collect/i,
+    }),
+  ).toHaveCount(0);
+}

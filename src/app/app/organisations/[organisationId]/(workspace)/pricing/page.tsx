@@ -31,6 +31,8 @@ import {
 } from "@/lib/domain/pricing";
 import { formatPeriod, formatWorkedMinutes } from "@/lib/domain/timesheets";
 
+import { FinanceModeTabs } from "../_components/finance-mode-tabs";
+
 export const metadata: Metadata = { title: "Pricing" };
 
 const TABS = [
@@ -93,6 +95,8 @@ export default async function PricingPage({
           </p>
         }
       />
+
+      <FinanceModeTabs organisationId={organisationId} current="pricing" can={can} />
 
       <SectionTabs
         label="Pricing queues"

@@ -1,10 +1,22 @@
-import type { Metadata } from "next";
+import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+
+import { Panel } from "@/components/ui/panel";
 import { z } from "zod";
 
-import { DataTableRegion } from "@/components/ui/data-table";
+import {
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeaderCell,
+  DataTableRegion,
+  DataTableRow,
+} from "@/components/ui/data-table";
 import { InlineActionForm } from "@/components/forms/inline-action-form";
+import { Badge } from "@/components/ui/badge";
+import { KeyValueList } from "@/components/ui/key-value-list";
+import { PageHeader } from "@/components/ui/page-header";
 import {
   AttentionBadge,
   CancelPayrollAdjustmentForm,
@@ -32,7 +44,6 @@ import { formatPeriod, formatWorkedMinutes } from "@/lib/domain/timesheets";
 export const metadata: Metadata = { title: "Payroll adjustment" };
 
 const idSchema = z.uuid();
-const TH = "px-3 py-2 font-medium";
 const dateFormat = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
   weekday: "short",
@@ -80,23 +91,28 @@ export default async function PayrollAdjustmentPage({
 
   return (
     <>
-      <header className="flex flex-col gap-2">
-        <Link href={base} className="w-fit text-sm text-primary underline underline-offset-4">
-          Payroll
-        </Link>
-        <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-          Adjustment — not payment
-        </p>
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold">{adjustment.reference}</h1>
-          <PayrollStatusBadge status={adjustment.status} />
-          <AttentionBadge code={adjustment.attention} />
-        </div>
-        <p className="text-sm text-muted-foreground">
-          {adjustment.workerName} · week{" "}
-          {formatPeriod(adjustment.periodStart, adjustment.periodEnd)} · {currency}
-        </p>
-      </header>
+      <PageHeader
+        title={adjustment.reference}
+        back={
+          <Link href={base} className="text-primary underline underline-offset-4">
+            Payroll
+          </Link>
+        }
+        description={
+          <p className="text-sm">
+            {adjustment.workerName} · week{" "}
+            {formatPeriod(adjustment.periodStart, adjustment.periodEnd)} · {currency}
+          </p>
+        }
+        meta={
+          <>
+            <Badge tone="neutral">Adjustment — not payment</Badge>
+            <PayrollStatusBadge status={adjustment.status} />
+            <AttentionBadge code={adjustment.attention} />
+            <Badge tone="neutral">{currency}</Badge>
+          </>
+        }
+      />
 
       {needsStepUp ? (
         <StepUpNotice returnTo={`${base}/adjustments/${adjustment.id}`}>
@@ -110,101 +126,145 @@ export default async function PayrollAdjustmentPage({
           approved or locked. Cancel it and prepare a new adjustment.
         </p>
       ) : null}
-      {adjustment.status === "reviewed" && checkerNeeded ? (
-        <p role="status" className="rounded-md border border-border bg-info-soft p-3 text-sm">
-          You prepared this adjustment. A different finance member must approve it.
-        </p>
-      ) : null}
 
-      <section aria-labelledby="adjustment-lineage-heading" className="flex flex-col gap-3">
-        <h2 id="adjustment-lineage-heading" className="text-lg font-semibold">
-          What it adjusts
-        </h2>
-        <dl className="grid max-w-2xl grid-cols-[auto_1fr] gap-x-6 gap-y-2 rounded-lg border border-border bg-surface p-4 text-sm">
-          <dt className="text-muted-foreground">Original batch</dt>
-          <dd>
-            <Link
-              href={`${base}/${adjustment.originalBatchId}`}
-              className="text-primary underline underline-offset-4"
-            >
-              {adjustment.originalBatchReference}
-            </Link>{" "}
-            <span className="text-muted-foreground">(unchanged)</span>
-          </dd>
-          {adjustment.previousAdjustmentId ? (
-            <>
-              <dt className="text-muted-foreground">Follows</dt>
-              <dd>
-                <Link
-                  href={`${base}/adjustments/${adjustment.previousAdjustmentId}`}
-                  className="text-primary underline underline-offset-4"
-                >
-                  {adjustment.previousAdjustmentReference}
-                </Link>
-              </dd>
-            </>
-          ) : null}
-          <dt className="text-muted-foreground">Revision change</dt>
-          <dd>
-            Last accounted revision {adjustment.fromRevision} → priced revision{" "}
-            {adjustment.toRevision}
-            {adjustment.currentRevision !== adjustment.toRevision ? (
-              <span className="text-muted-foreground">
-                {" "}
-                (timesheet is now at revision {adjustment.currentRevision})
-              </span>
-            ) : null}
-          </dd>
-          <dt className="text-muted-foreground">Source pricing</dt>
-          <dd>
-            <Link
-              href={`/app/organisations/${organisationId}/pricing/${adjustment.fromPricedTimesheetId}`}
-              className="text-primary underline underline-offset-4"
-            >
-              Revision {adjustment.fromRevision}
-            </Link>{" "}
-            ·{" "}
-            <Link
-              href={`/app/organisations/${organisationId}/pricing/${adjustment.toPricedTimesheetId}`}
-              className="text-primary underline underline-offset-4"
-            >
-              Revision {adjustment.toRevision}
-            </Link>
-          </dd>
-        </dl>
-      </section>
+      <Panel titleId="adjustment-lineage-heading" title={<>What it adjusts</>}>
+        <KeyValueList
+          aria-label="Adjustment lineage"
+          className="max-w-3xl"
+          items={[
+            {
+              label: "Original batch",
+              value: (
+                <>
+                  <Link
+                    href={`${base}/${adjustment.originalBatchId}` as Route}
+                    className="text-primary underline underline-offset-4"
+                  >
+                    {adjustment.originalBatchReference}
+                  </Link>{" "}
+                  <span className="text-muted-foreground">(unchanged)</span>
+                </>
+              ),
+            },
+            ...(adjustment.previousAdjustmentId
+              ? [
+                  {
+                    label: "Follows",
+                    value: (
+                      <Link
+                        href={`${base}/adjustments/${adjustment.previousAdjustmentId}` as Route}
+                        className="text-primary underline underline-offset-4"
+                      >
+                        {adjustment.previousAdjustmentReference}
+                      </Link>
+                    ),
+                  },
+                ]
+              : []),
+            {
+              label: "Revision change",
+              value: (
+                <>
+                  Last accounted revision {adjustment.fromRevision} → priced revision{" "}
+                  {adjustment.toRevision}
+                  {adjustment.currentRevision !== adjustment.toRevision ? (
+                    <span className="text-muted-foreground">
+                      {" "}
+                      (timesheet is now at revision {adjustment.currentRevision})
+                    </span>
+                  ) : null}
+                </>
+              ),
+            },
+            {
+              label: "Source pricing",
+              value: (
+                <>
+                  <Link
+                    href={
+                      `/app/organisations/${organisationId}/pricing/${adjustment.fromPricedTimesheetId}` as Route
+                    }
+                    className="text-primary underline underline-offset-4"
+                  >
+                    Revision {adjustment.fromRevision}
+                  </Link>{" "}
+                  ·{" "}
+                  <Link
+                    href={
+                      `/app/organisations/${organisationId}/pricing/${adjustment.toPricedTimesheetId}` as Route
+                    }
+                    className="text-primary underline underline-offset-4"
+                  >
+                    Revision {adjustment.toRevision}
+                  </Link>
+                </>
+              ),
+            },
+          ]}
+        />
+      </Panel>
 
-      <section aria-labelledby="adjustment-totals-heading" className="flex flex-col gap-3">
-        <h2 id="adjustment-totals-heading" className="text-lg font-semibold">
-          Net change
-        </h2>
-        <dl className="grid max-w-xl grid-cols-[auto_1fr] gap-x-6 gap-y-2 rounded-lg border border-border bg-surface p-4 text-sm">
-          <dt className="text-muted-foreground">Net pay change</dt>
-          <dd>
-            <SignedAmount minor={adjustment.netDeltaMinor} currency={currency} side="pay" />
-          </dd>
-          <dt className="text-muted-foreground">Increases</dt>
-          <dd className="tabular-nums">
-            {formatSignedMoney(adjustment.totalIncreaseMinor, currency)}
-          </dd>
-          <dt className="text-muted-foreground">Decreases</dt>
-          <dd className="tabular-nums">
-            {formatSignedMoney(-adjustment.totalDecreaseMinor, currency)}
-          </dd>
-          <dt className="text-muted-foreground">Regular time</dt>
-          <dd className="tabular-nums">{formatSignedMinutes(adjustment.deltaRegularMinutes)}</dd>
-          <dt className="text-muted-foreground">Overtime</dt>
-          <dd className="tabular-nums">{formatSignedMinutes(adjustment.deltaOvertimeMinutes)}</dd>
-          <dt className="text-muted-foreground">Changed lines</dt>
-          <dd className="tabular-nums">{adjustment.lineCount}</dd>
-        </dl>
-      </section>
+      <Panel titleId="adjustment-totals-heading" title={<>Net change</>}>
+        <KeyValueList
+          aria-label="Net pay change"
+          className="max-w-xl"
+          items={[
+            {
+              label: "Net pay change",
+              value: (
+                <SignedAmount minor={adjustment.netDeltaMinor} currency={currency} side="pay" />
+              ),
+            },
+            {
+              label: "Increases",
+              value: (
+                <span className="tabular-nums">
+                  {formatSignedMoney(adjustment.totalIncreaseMinor, currency)}
+                </span>
+              ),
+            },
+            {
+              label: "Decreases",
+              value: (
+                <span className="tabular-nums">
+                  {formatSignedMoney(-adjustment.totalDecreaseMinor, currency)}
+                </span>
+              ),
+            },
+            {
+              label: "Regular time",
+              value: (
+                <span className="tabular-nums">
+                  {formatSignedMinutes(adjustment.deltaRegularMinutes)}
+                </span>
+              ),
+            },
+            {
+              label: "Overtime",
+              value: (
+                <span className="tabular-nums">
+                  {formatSignedMinutes(adjustment.deltaOvertimeMinutes)}
+                </span>
+              ),
+            },
+            {
+              label: "Changed lines",
+              value: <span className="tabular-nums">{adjustment.lineCount}</span>,
+            },
+          ]}
+        />
+      </Panel>
 
       {adjustment.status !== "cancelled" ? (
-        <section aria-labelledby="adjustment-steps-heading" className="flex flex-col gap-3">
-          <h2 id="adjustment-steps-heading" className="text-lg font-semibold">
-            Next step
-          </h2>
+        <Panel titleId="adjustment-steps-heading" title={<>Next step</>}>
+          {adjustment.status === "reviewed" && checkerNeeded ? (
+            <p
+              role="status"
+              className="rounded-md border border-border bg-info-soft p-3 text-sm text-info-soft-foreground"
+            >
+              You prepared this adjustment. A different finance member must approve it.
+            </p>
+          ) : null}
           <div className="flex flex-wrap items-start gap-3">
             {adjustment.status === "draft" && prepare === "granted" ? (
               <InlineActionForm
@@ -255,7 +315,7 @@ export default async function PayrollAdjustmentPage({
               changes.
             </p>
           ) : null}
-        </section>
+        </Panel>
       ) : (
         <p className="text-sm text-muted-foreground">
           Cancelled by {adjustment.cancelledByName ?? "a former member"}: “{adjustment.cancelReason}
@@ -263,59 +323,38 @@ export default async function PayrollAdjustmentPage({
         </p>
       )}
 
-      <section aria-labelledby="adjustment-exports-heading" className="flex flex-col gap-3">
-        <h2 id="adjustment-exports-heading" className="text-lg font-semibold">
-          Exports
-        </h2>
+      <Panel titleId="adjustment-exports-heading" title={<>Exports</>}>
         <ExportsTable
           rows={exports}
           canDownload={exportCap === "granted"}
           label="Payroll adjustment exports"
           signedTotals
         />
-      </section>
+      </Panel>
 
-      <section aria-labelledby="adjustment-lines-heading" className="flex flex-col gap-3">
-        <h2 id="adjustment-lines-heading" className="text-lg font-semibold">
-          Changed lines
-        </h2>
+      <Panel titleId="adjustment-lines-heading" title={<>Changed lines</>}>
         <DataTableRegion aria-label="Payroll adjustment lines">
-          <table className="w-full min-w-[920px] text-left text-sm">
-            <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
+          <DataTable className="min-w-[920px]">
+            <DataTableHead>
               <tr>
-                <th scope="col" className={TH}>
-                  Date
-                </th>
-                <th scope="col" className={TH}>
-                  Facility · discipline
-                </th>
-                <th scope="col" className={`${TH} text-right`}>
-                  Time (original → revised)
-                </th>
-                <th scope="col" className={`${TH} text-right`}>
-                  Pay rate
-                </th>
-                <th scope="col" className={`${TH} text-right`}>
-                  Pay (original → revised)
-                </th>
-                <th scope="col" className={`${TH} text-right`}>
-                  Change
-                </th>
+                <DataTableHeaderCell>Date</DataTableHeaderCell>
+                <DataTableHeaderCell>Facility · discipline</DataTableHeaderCell>
+                <DataTableHeaderCell numeric>Time (original → revised)</DataTableHeaderCell>
+                <DataTableHeaderCell numeric>Pay rate</DataTableHeaderCell>
+                <DataTableHeaderCell numeric>Pay (original → revised)</DataTableHeaderCell>
+                <DataTableHeaderCell numeric>Change</DataTableHeaderCell>
               </tr>
-            </thead>
+            </DataTableHead>
             <tbody>
               {lines.map((line) => (
-                <tr
-                  key={line.lineNumber}
-                  className="border-b border-border align-top last:border-0"
-                >
-                  <td className="px-3 py-2">
+                <DataTableRow key={line.lineNumber}>
+                  <DataTableCell>
                     {dateFormat.format(new Date(`${line.workDate}T00:00:00Z`))}
-                  </td>
-                  <td className="px-3 py-2">
+                  </DataTableCell>
+                  <DataTableCell>
                     {line.facilityName} · {line.disciplineName}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
+                  </DataTableCell>
+                  <DataTableCell numeric>
                     {pair(
                       line.oldRegularMinutes === null
                         ? "—"
@@ -328,8 +367,8 @@ export default async function PayrollAdjustmentPage({
                             (line.newRegularMinutes ?? 0) + (line.newOvertimeMinutes ?? 0),
                           ),
                     )}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
+                  </DataTableCell>
+                  <DataTableCell numeric>
                     {pair(
                       line.oldPayRateMinor === null
                         ? "—"
@@ -338,8 +377,8 @@ export default async function PayrollAdjustmentPage({
                         ? "—"
                         : formatHourlyRate(line.newPayRateMinor, currency),
                     )}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
+                  </DataTableCell>
+                  <DataTableCell numeric>
                     {line.oldPayAmountMinor === null
                       ? "—"
                       : formatMoney(line.oldPayAmountMinor, currency)}{" "}
@@ -347,23 +386,20 @@ export default async function PayrollAdjustmentPage({
                     {line.newPayAmountMinor === null
                       ? "—"
                       : formatMoney(line.newPayAmountMinor, currency)}
-                  </td>
-                  <td className="px-3 py-2 text-right">
+                  </DataTableCell>
+                  <DataTableCell className="text-right">
                     <SignedAmount minor={line.deltaPayAmountMinor} currency={currency} side="pay" />
-                  </td>
-                </tr>
+                  </DataTableCell>
+                </DataTableRow>
               ))}
             </tbody>
-          </table>
+          </DataTable>
         </DataTableRegion>
-      </section>
+      </Panel>
 
-      <section aria-labelledby="adjustment-history-heading" className="flex flex-col gap-3">
-        <h2 id="adjustment-history-heading" className="text-lg font-semibold">
-          History
-        </h2>
+      <Panel titleId="adjustment-history-heading" title={<>History</>}>
         <HistoryList rows={history} label="Payroll adjustment history" />
-      </section>
+      </Panel>
     </>
   );
 }

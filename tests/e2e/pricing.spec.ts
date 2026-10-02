@@ -5,7 +5,7 @@ import { zonedLocalToInstant } from "@/lib/domain/attendance";
 
 import { generateTotp } from "../support/totp";
 import { arrangePastWork, createStaffingWorld, type StaffingWorld } from "./staffing-fixture";
-import { expectNoPageOverflow, qaScreenshot, signIn } from "./support";
+import { expectNoPageOverflow, expectNoPaymentVocabulary, qaScreenshot, signIn } from "./support";
 
 const A11Y_TAGS = ["wcag2a", "wcag2aa", "wcag22aa"];
 const AFTER_ACTION = { timeout: 20_000 };
@@ -192,6 +192,15 @@ test.describe.serial("pay & bill rates and pricing", () => {
     });
     await expect(versions).toContainText("Draft", AFTER_ACTION);
     await versions.getByRole("button", { name: /^Activate v1/ }).click();
+    // P0-E8-S5: rate version status renders as a text chip; Rates | Pricing mode switch.
+    await expect(versions.getByRole("row", { name: /v1/ })).toContainText("Current", AFTER_ACTION);
+    await expect(
+      admin.getByRole("navigation", { name: "Rates and pricing" }).getByRole("link", {
+        name: "Rates",
+      }),
+    ).toHaveAttribute("aria-current", "page");
+    await expectNoPaymentVocabulary(admin);
+    await qaScreenshot(admin, "s5-rates");
     await expect(versions).toContainText("Current", AFTER_ACTION);
     await expect(versions).toContainText("$42.50/h");
     await expect(versions).toContainText("$58.00/h");

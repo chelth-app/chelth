@@ -1,10 +1,24 @@
-import type { Metadata } from "next";
+import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { DataTableRegion } from "@/components/ui/data-table";
+import { Panel } from "@/components/ui/panel";
+
+import {
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeaderCell,
+  DataTableRegion,
+  DataTableRow,
+} from "@/components/ui/data-table";
 import { InlineActionForm } from "@/components/forms/inline-action-form";
-import { Badge, type BadgeProps } from "@/components/ui/badge";
+import { WorkspaceNavIcon } from "@/components/layout/workspace-nav-icon";
+import { EmptyState } from "@/components/ui/empty-state";
+import { FilterBar, FilterSelect } from "@/components/ui/filter-bar";
+import { KpiFilterCard, KpiFilterGroup } from "@/components/ui/kpi-filter-card";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatusChip, type StatusTone } from "@/components/ui/status-chip";
 import {
   loadOrganisationPage,
   requireCapabilityOrNotFound,
@@ -35,9 +49,11 @@ import {
 } from "@/lib/domain/pricing";
 import { todayIsoDate } from "@/lib/domain/shifts";
 
+import { FinanceModeTabs } from "../_components/finance-mode-tabs";
+
 export const metadata: Metadata = { title: "Rates" };
 
-const PHASE_TONE: Record<VersionPhase, NonNullable<BadgeProps["tone"]>> = {
+const PHASE_TONE: Record<VersionPhase, StatusTone> = {
   draft: "warning",
   discarded: "neutral",
   upcoming: "info",
@@ -67,7 +83,10 @@ export default async function RatesPage({
   const manage = can(CAPABILITIES.RATES_MANAGE);
   const canManage = manage === "granted";
 
-  const rawAfter = (await searchParams).after;
+  const raw = await searchParams;
+  const rawAfter = raw.after;
+  const rawShow = Array.isArray(raw.show) ? raw.show[0] : raw.show;
+  const show = rawShow === "draft" || rawShow === "upcoming" ? rawShow : undefined;
   const cursor = rateCardCursorSchema.parse(Array.isArray(rawAfter) ? rawAfter[0] : rawAfter);
   const [createdAt, id] = cursor ? cursor.split("_") : [];
   const [cards, policies, options] = await Promise.all([
@@ -77,23 +96,77 @@ export default async function RatesPage({
   ]);
   const today = todayIsoDate();
   const last = cards.at(-1);
+  const phasesOf = (card: (typeof cards)[number]) =>
+    card.versions.map((version) => versionPhase(version, today));
+  const withPhase = (phase: VersionPhase) =>
+    cards.filter((card) => phasesOf(card).includes(phase)).length;
+  // Display filter over the rate cards already loaded (no new query).
+  const shownCards = show ? cards.filter((card) => phasesOf(card).includes(show)) : cards;
+  const base = `/app/organisations/${organisationId}/rates` as const;
 
   return (
     <>
-      <header className="flex flex-col gap-2">
-        <Link
-          href={`/app/organisations/${organisationId}`}
-          className="w-fit text-sm text-primary underline underline-offset-4"
-        >
-          {organisation.name}
-        </Link>
-        <h1 className="text-2xl font-semibold">Rates</h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Hourly pay and bill rates by facility, discipline and shift type. Pay and bill are set
-          separately. A new version never changes history: it applies from its start date, and
-          priced timesheets keep the rates they were priced with.
-        </p>
-      </header>
+      <PageHeader
+        title="Rates"
+        back={
+          <Link
+            href={`/app/organisations/${organisationId}`}
+            className="text-primary underline underline-offset-4"
+          >
+            {organisation.name}
+          </Link>
+        }
+        description={
+          <p>
+            Hourly pay and bill rates by facility, discipline and shift type. Pay and bill are set
+            separately. A new version never changes history: it applies from its start date, and
+            priced timesheets keep the rates they were priced with.
+          </p>
+        }
+        primaryAction={
+          options ? (
+            <a
+              href="#new-rate-heading"
+              className="inline-flex min-h-11 items-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary-hover"
+            >
+              Add a rate
+            </a>
+          ) : undefined
+        }
+      />
+
+      <FinanceModeTabs organisationId={organisationId} current="rates" can={can} />
+
+      <KpiFilterGroup label="Rate cards summary">
+        <KpiFilterCard
+          label="Rate cards"
+          value={cards.length}
+          supporting={cards.length === 50 ? "First 50 shown" : "Facility · discipline · shift type"}
+          icon={<WorkspaceNavIcon name="rates" />}
+        />
+        <KpiFilterCard
+          label="With a current version"
+          value={withPhase("current")}
+          supporting="Can price work today"
+          icon={<WorkspaceNavIcon name="pricing" />}
+        />
+        <KpiFilterCard
+          label="With a draft version"
+          value={withPhase("draft")}
+          supporting="Waiting to be activated"
+          icon={<WorkspaceNavIcon name="timesheets" />}
+          href={`${base}?show=draft` as Route}
+          active={show === "draft"}
+        />
+        <KpiFilterCard
+          label="With an upcoming version"
+          value={withPhase("upcoming")}
+          supporting="Starts on a later date"
+          icon={<WorkspaceNavIcon name="shifts" />}
+          href={`${base}?show=upcoming` as Route}
+          active={show === "upcoming"}
+        />
+      </KpiFilterGroup>
 
       {manage === "step_up_required" ? (
         <StepUpNotice returnTo={`/app/organisations/${organisationId}/rates`}>
@@ -102,88 +175,96 @@ export default async function RatesPage({
       ) : null}
 
       {options ? (
-        <section aria-labelledby="new-rate-heading" className="flex flex-col gap-3">
-          <h2 id="new-rate-heading" className="text-lg font-semibold">
-            Add a rate
-          </h2>
+        <Panel titleId="new-rate-heading" title={<>Add a rate</>}>
           <NewRateForm
             organisationId={organisationId}
             disciplines={options.disciplines}
             relationships={options.relationships}
             today={today}
           />
-        </section>
+        </Panel>
       ) : null}
 
-      <section aria-labelledby="rate-cards-heading" className="flex flex-col gap-3">
-        <h2 id="rate-cards-heading" className="text-lg font-semibold">
-          Rate cards
-        </h2>
+      <Panel titleId="rate-cards-heading" title={<>Rate cards</>}>
+        {cards.length > 0 ? (
+          <FilterBar
+            key={show ?? "all"}
+            label="Filter rate cards"
+            resetHref={show ? (base as Route) : undefined}
+          >
+            <FilterSelect
+              label="Show rate cards"
+              id="rate-show"
+              name="show"
+              defaultValue={show ?? ""}
+            >
+              <option value="">All rate cards</option>
+              <option value="draft">With a draft version</option>
+              <option value="upcoming">With an upcoming version</option>
+            </FilterSelect>
+          </FilterBar>
+        ) : null}
         {cards.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No rates yet. Work cannot be priced until a rate covers it.
-          </p>
+          <EmptyState
+            headingLevel={3}
+            title="No rates yet."
+            description="Work cannot be priced until a rate covers it."
+          />
         ) : (
-          <ul aria-label="Rate cards" className="flex flex-col gap-4">
-            {cards.map((card) => {
+          <ul aria-label="Rate cards" className="flex flex-col divide-y divide-border">
+            {shownCards.map((card) => {
               const scope = `${card.facilityName ?? "All facilities"} · ${card.disciplineName} · ${
                 card.classification
                   ? SHIFT_CLASSIFICATION_LABELS[card.classification]
                   : "Any shift type"
               }`;
               return (
-                <li key={card.id} aria-label={scope} className="flex flex-col gap-2">
+                <li
+                  key={card.id}
+                  aria-label={scope}
+                  className="flex flex-col gap-2 py-4 first:pt-0 last:pb-0"
+                >
                   <h3 className="text-sm font-semibold">{scope}</h3>
                   <DataTableRegion aria-label={`Versions: ${scope}`}>
-                    <table className="w-full min-w-[760px] text-left text-sm">
-                      <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
+                    <DataTable className="min-w-[760px]">
+                      <DataTableHead>
                         <tr>
-                          <th scope="col" className="px-3 py-2 font-medium">
-                            Version
-                          </th>
-                          <th scope="col" className="px-3 py-2 font-medium">
-                            Status
-                          </th>
-                          <th scope="col" className="px-3 py-2 font-medium">
-                            Applies
-                          </th>
-                          <th scope="col" className="px-3 py-2 text-right font-medium">
-                            Pay
-                          </th>
-                          <th scope="col" className="px-3 py-2 text-right font-medium">
-                            Bill
-                          </th>
-                          <th scope="col" className="px-3 py-2 font-medium">
-                            Currency
-                          </th>
-                          <th scope="col" className="px-3 py-2 font-medium">
+                          <DataTableHeaderCell>Version</DataTableHeaderCell>
+                          <DataTableHeaderCell>Status</DataTableHeaderCell>
+                          <DataTableHeaderCell>Applies</DataTableHeaderCell>
+                          <DataTableHeaderCell numeric>Pay</DataTableHeaderCell>
+                          <DataTableHeaderCell numeric>Bill</DataTableHeaderCell>
+                          <DataTableHeaderCell>Currency</DataTableHeaderCell>
+                          <DataTableHeaderCell>
                             <span className="sr-only">Actions</span>
-                          </th>
+                          </DataTableHeaderCell>
                         </tr>
-                      </thead>
+                      </DataTableHead>
                       <tbody>
                         {card.versions.map((version) => {
                           const phase = versionPhase(version, today);
                           return (
-                            <tr key={version.id} className="border-b border-border last:border-0">
-                              <td className="px-3 py-2 tabular-nums">v{version.version}</td>
-                              <td className="px-3 py-2">
-                                <Badge tone={PHASE_TONE[phase]}>
+                            <DataTableRow key={version.id}>
+                              <DataTableCell className="tabular-nums">
+                                v{version.version}
+                              </DataTableCell>
+                              <DataTableCell>
+                                <StatusChip tone={PHASE_TONE[phase]}>
                                   {VERSION_PHASE_LABELS[phase]}
-                                </Badge>
-                              </td>
-                              <td className="px-3 py-2">
+                                </StatusChip>
+                              </DataTableCell>
+                              <DataTableCell>
                                 {day(version.effectiveFrom)} –{" "}
                                 {day(version.periodEnd ?? version.effectiveTo)}
-                              </td>
-                              <td className="px-3 py-2 text-right tabular-nums">
+                              </DataTableCell>
+                              <DataTableCell numeric>
                                 {formatHourlyRate(version.payRateMinor, version.currency)}
-                              </td>
-                              <td className="px-3 py-2 text-right tabular-nums">
+                              </DataTableCell>
+                              <DataTableCell numeric>
                                 {formatHourlyRate(version.billRateMinor, version.currency)}
-                              </td>
-                              <td className="px-3 py-2">{version.currency}</td>
-                              <td className="px-3 py-2">
+                              </DataTableCell>
+                              <DataTableCell>{version.currency}</DataTableCell>
+                              <DataTableCell>
                                 {canManage && version.status === "draft" ? (
                                   <span className="flex gap-2">
                                     <InlineActionForm
@@ -202,12 +283,12 @@ export default async function RatesPage({
                                     />
                                   </span>
                                 ) : null}
-                              </td>
-                            </tr>
+                              </DataTableCell>
+                            </DataTableRow>
                           );
                         })}
                       </tbody>
-                    </table>
+                    </DataTable>
                   </DataTableRegion>
                   {canManage ? (
                     <NewVersionForm
@@ -230,12 +311,9 @@ export default async function RatesPage({
             Next rate cards
           </Link>
         ) : null}
-      </section>
+      </Panel>
 
-      <section aria-labelledby="policies-heading" className="flex flex-col gap-3">
-        <h2 id="policies-heading" className="text-lg font-semibold">
-          Rounding and overtime
-        </h2>
+      <Panel titleId="policies-heading" title={<>Rounding and overtime</>}>
         <p className="max-w-3xl text-sm text-muted-foreground">
           Both are off unless you activate a policy. Rounding applies per timesheet entry and never
           changes recorded time. Overtime is a weekly threshold per timesheet week, set separately
@@ -243,36 +321,28 @@ export default async function RatesPage({
           remain responsible for the law and contracts that apply.
         </p>
         <DataTableRegion aria-label="Pricing policies">
-          <table className="w-full min-w-[640px] text-left text-sm">
-            <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
+          <DataTable className="min-w-[640px]">
+            <DataTableHead>
               <tr>
-                <th scope="col" className="px-3 py-2 font-medium">
-                  Policy
-                </th>
-                <th scope="col" className="px-3 py-2 font-medium">
-                  Rule
-                </th>
-                <th scope="col" className="px-3 py-2 font-medium">
-                  From
-                </th>
-                <th scope="col" className="px-3 py-2 font-medium">
-                  Status
-                </th>
-                <th scope="col" className="px-3 py-2 font-medium">
+                <DataTableHeaderCell>Policy</DataTableHeaderCell>
+                <DataTableHeaderCell>Rule</DataTableHeaderCell>
+                <DataTableHeaderCell>From</DataTableHeaderCell>
+                <DataTableHeaderCell>Status</DataTableHeaderCell>
+                <DataTableHeaderCell>
                   <span className="sr-only">Actions</span>
-                </th>
+                </DataTableHeaderCell>
               </tr>
-            </thead>
+            </DataTableHead>
             <tbody>
               {[
                 ...policies.rounding.map((p) => ({ ...p, kind: "Rounding" })),
                 ...policies.overtime.map((p) => ({ ...p, kind: `Overtime (${p.side ?? ""})` })),
               ].map((policy) => (
-                <tr key={policy.id} className="border-b border-border last:border-0">
-                  <td className="px-3 py-2">
+                <DataTableRow key={policy.id}>
+                  <DataTableCell>
                     {policy.kind} v{policy.version}
-                  </td>
-                  <td className="px-3 py-2">
+                  </DataTableCell>
+                  <DataTableCell>
                     {policy.roundingMode
                       ? describeRounding(policy.roundingMode, policy.increment ?? null)
                       : describeOvertime(
@@ -280,10 +350,10 @@ export default async function RatesPage({
                           policy.denominator ?? null,
                           policy.thresholdMinutes,
                         )}
-                  </td>
-                  <td className="px-3 py-2">{day(policy.effectiveFrom)}</td>
-                  <td className="px-3 py-2">
-                    <Badge
+                  </DataTableCell>
+                  <DataTableCell>{day(policy.effectiveFrom)}</DataTableCell>
+                  <DataTableCell>
+                    <StatusChip
                       tone={
                         policy.status === "active"
                           ? "success"
@@ -297,9 +367,9 @@ export default async function RatesPage({
                         : policy.status === "draft"
                           ? "Draft"
                           : "Discarded"}
-                    </Badge>
-                  </td>
-                  <td className="px-3 py-2">
+                    </StatusChip>
+                  </DataTableCell>
+                  <DataTableCell>
                     {canManage && policy.status === "draft" ? (
                       <span className="flex gap-2">
                         <InlineActionForm
@@ -318,18 +388,18 @@ export default async function RatesPage({
                         />
                       </span>
                     ) : null}
-                  </td>
-                </tr>
+                  </DataTableCell>
+                </DataTableRow>
               ))}
               {policies.rounding.length + policies.overtime.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-3 py-2 text-muted-foreground">
+                  <DataTableCell colSpan={5} className="text-muted-foreground">
                     No rounding, no overtime.
-                  </td>
+                  </DataTableCell>
                 </tr>
               ) : null}
             </tbody>
-          </table>
+          </DataTable>
         </DataTableRegion>
         {canManage ? (
           <div className="flex flex-col gap-4">
@@ -337,7 +407,7 @@ export default async function RatesPage({
             <OvertimePolicyForm organisationId={organisationId} today={today} />
           </div>
         ) : null}
-      </section>
+      </Panel>
     </>
   );
 }

@@ -1,0 +1,575 @@
+P0-E8-S5 — FINANCE SURFACES
+Branch: p0-e8-visual-implementation (base 45a5a25, S4 committed)
+Date: 2026-10-02
+Status: complete, uncommitted, awaiting review. Worker Mobile not started.
+
+======================================================================
+1. EXECUTIVE SUMMARY
+======================================================================
+Every agency finance surface now uses the shared Chelth P3-F / P4 language:
+  - Rates;
+  - Pricing;
+  - Priced timesheet;
+  - Payroll, Payroll batch, Payroll adjustment;
+  - Invoices, Invoice draft, Invoice adjustment.
+
+Changes:
+  - PageHeader on every page.
+  - A "Payroll | Invoices" and "Rates | Pricing" mode switch (route links
+    between existing pages; shown only when the caller can open both).
+  - Quick-filter KPI cards from counts the pages already load.
+  - URL-backed status filters.
+  - DataTable primitives on every finance table.
+  - StatusChip for lifecycle, attention, reconciliation and rate-version
+    states.
+  - KeyValueList for totals, lineage and net change.
+  - ActivityTimeline for immutable history.
+  - Read-only preview drawers on the batch and draft lists.
+
+Finance stays preparation, approval and export only:
+  - no payment, sending, collection or posting vocabulary or controls;
+  - the existing disclaimers ("Adjustment — not payment", "Draft invoice —
+    internal, not sent", "Not a request for payment", "No tax calculated")
+    are kept, and now also appear as header metadata.
+
+No database, migration, RLS, capability, Server Action, query, RPC,
+calculation, precedence, maker/checker, export or reconciliation logic
+changed.
+
+======================================================================
+2. REFERENCES USED
+======================================================================
+- Chelth_Payroll_Invoices and Chelth_Rates_Pricing (P3-F): mode switch
+  under the title, KPI row, labelled filter row, ledger table, drawer, audit
+  history, action stack.
+- DERIVATION-MAP P3-F, P4, P5, P6; finding F3 (the brand teal primary, never
+  the reference blue).
+- S1–S4 reports; DESIGN_SYSTEM.md; CHELTH-PRODUCT-TYPOGRAPHY.md; brand.css
+  (unchanged).
+
+Not copied from the reference: Sent, Paid, Overdue, ACH, Outstanding,
+"Payment received", "Process Payroll", "Recent Billing Activity" payment rows,
+deltas such as "↑ 12 from last period", avatars and checkboxes.
+
+======================================================================
+3. RATES
+======================================================================
+- PageHeader with an "Add a rate" link to the existing form (rates.manage
+  only).
+- "Rates | Pricing" mode switch.
+- KPI cards ("Rate cards summary"), from the loaded rate cards:
+    - Rate cards;
+    - With a current version;
+    - With a draft version (filter);
+    - With an upcoming version (filter).
+- FilterBar "Filter rate cards" (?show=draft|upcoming): a display filter
+  over the loaded cards.
+- Rate cards remain the named list. Each card keeps its "Versions: <scope>"
+  table, now on DataTable primitives, with the version phase as a
+  StatusChip:
+    - Draft (warning);
+    - Upcoming (info);
+    - Current (success);
+    - Superseded / Ended / Discarded (neutral).
+- Pricing policies table on primitives; policy status as StatusChip.
+
+Preserved:
+  - scope (facility / relationship, discipline, classification);
+  - effective dates;
+  - pay and bill per version;
+  - currency;
+  - rounding and overtime forms;
+  - activate / discard;
+  - new version form;
+  - pagination.
+
+Rate precedence and pricing logic are unchanged.
+
+======================================================================
+4. PRICING
+======================================================================
+S2 adoption kept:
+  - PageHeader;
+  - queue SectionTabs (Needs attention / Ready for pricing / Priced);
+  - DataTable;
+  - issue chips;
+  - empty states.
+
+S5 adds the "Rates | Pricing" mode switch.
+
+No queue count cards: the queue query is capped at 50 rows, so its counts
+would be misleading.
+
+Priced timesheet (S2): P4 header with "Current snapshot" / "Superseded",
+Totals (KeyValueList incl. "Margin (derived)", unchanged), and priced lines.
+
+Blocking issues (missing, ambiguous, mixed-currency), pay/bill separation and
+source lineage are unchanged.
+
+======================================================================
+5. PAYROLL
+======================================================================
+- PageHeader:
+    - text unchanged ("does not run payroll, pay workers or calculate tax
+      or deductions");
+    - a "Preparation and export only" metadata label;
+    - the period setting line;
+    - primary "Prepare a batch" link to the existing per-period
+      "Prepare batch" buttons. This is not "Process Payroll", and it moves
+      no money.
+- "Payroll | Invoices" mode switch.
+- KPI cards ("Payroll summary"):
+    - Needs attention;
+    - Periods ready to prepare;
+    - Awaiting approval (reviewed; filter);
+    - Adjustments required.
+- Panels:
+    - Needs attention;
+    - Adjustments;
+    - Priced work not yet in a batch;
+    - Payroll batches;
+    - Reconciliation;
+    - Payroll settings.
+- FilterBar "Filter payroll batches" (Batch status; ?status=): a display
+  filter over the loaded batches.
+- Batch table on primitives, with lifecycle and attention chips and a
+  per-row "Preview" drawer:
+    - status;
+    - period;
+    - currency;
+    - workers;
+    - pay total;
+    - exports;
+    - prepared by;
+    - "Open batch".
+  The drawer has no actions; every lifecycle action stays on the batch
+  page.
+
+Lifecycle labels are unchanged: Draft, Reviewed, Approved, Locked, Exported,
+Cancelled.
+
+======================================================================
+6. PAYROLL BATCH DETAIL
+======================================================================
+P4:
+  - The h1 is the batch reference.
+  - Description: period type, period, currency, "Payroll preparation only
+    — no payment, tax or deductions."
+  - Chips: lifecycle, attention, currency label.
+
+Panels:
+  - Totals (KeyValueList "Batch totals");
+  - Next step (Mark reviewed / Approve / Lock / Export CSV / Cancel, plus
+    the locked note);
+  - Exports;
+  - Worker totals;
+  - Lines (source revision links and "Now revision N" lineage);
+  - History (ActivityTimeline).
+
+Step-up, the ADJUSTMENT_REQUIRED notice and the SOURCE_SUPERSEDED block are
+unchanged.
+
+======================================================================
+7. PAYROLL ADJUSTMENTS
+======================================================================
+P4:
+  - The h1 is PAY-ADJ-…
+  - "Adjustment — not payment" label, lifecycle and attention chips,
+    currency.
+
+"What it adjusts" (KeyValueList "Adjustment lineage"):
+  - Original batch (unchanged);
+  - Follows (previous adjustment);
+  - Revision change;
+  - Source pricing revisions.
+
+"Net change" (KeyValueList "Net pay change"):
+  - net, via SignedAmount, e.g. "+$11.32 Increase" or "−$50.20 Decrease";
+  - increases;
+  - decreases;
+  - signed regular and overtime minutes;
+  - changed lines.
+Signs and words are explicit in text; nothing relies on colour.
+
+Next step, Exports, Changed lines and History are Panels.
+
+Maker/checker: see §12.
+
+======================================================================
+8. INVOICES
+======================================================================
+- PageHeader:
+    - text unchanged ("does not send them, calculate tax or collect
+      payment");
+    - "Internal drafts — not sent" label;
+    - "Create a draft" link to the existing per-facility create buttons.
+- "Payroll | Invoices" mode switch.
+- KPI cards ("Invoice summary"):
+    - Blocked;
+    - Weeks ready to draft;
+    - Awaiting approval (filter);
+    - Adjustments required.
+- Panels; FilterBar "Filter invoice drafts" (Draft status).
+- Drafts table with chips and a read-only "Preview" drawer (bill-side
+  fields only).
+
+Lifecycle labels are unchanged: Draft, Reviewed, Approved, Locked, Exported,
+Voided.
+
+======================================================================
+9. INVOICE DRAFT DETAIL
+======================================================================
+P4:
+  - The h1 is INV-DRAFT-…
+  - Description: facility, week, currency, "No tax calculated. Not a
+    request for payment."
+  - Chips: "Draft invoice — internal, not sent", lifecycle, attention,
+    currency.
+
+Panels:
+  - Totals (KeyValueList "Draft totals": bill total before any tax, lines,
+    billed time);
+  - Next step;
+  - Draft documents (exports);
+  - Lines (bill-side);
+  - History.
+
+No pay or margin appears.
+
+======================================================================
+10. INVOICE ADJUSTMENTS
+======================================================================
+P4:
+  - The h1 is INV-ADJ-…
+  - Description: direction (Additional charge / Credit / No net change),
+    facility, week, currency, "No tax calculated."
+  - Chips: "Draft invoice adjustment — internal, not sent", lifecycle,
+    attention, currency.
+
+Lineage and net (signed bill delta with direction text) are Panels. The
+existing description lists were restyled in place.
+
+No pay or margin values appear; E2E asserts none of the pay amounts, "margin"
+or "pay rate" are visible.
+
+======================================================================
+11. RECONCILIATION
+======================================================================
+The vocabulary is unchanged:
+  - unprepared;
+  - drafted;
+  - approved;
+  - exported;
+  - adjustment_required;
+  - adjustment_in_progress;
+  - adjusted.
+
+ReconciliationTable shows each label as a StatusChip:
+
+  State                    Tone
+  -----------------------  ---------
+  Not yet prepared         neutral
+  In a draft               info
+  Approved or locked       info
+  Exported                 success
+  Adjustment required      attention
+  Adjustment in progress   info
+  Adjusted                 success
+
+The text label is the meaning. Signed delta formatting and ordering are
+unchanged.
+
+======================================================================
+12. MAKER/CHECKER
+======================================================================
+The optional setting (MakerCheckerForm in Payroll settings) is unchanged, as
+is database enforcement.
+
+On payroll and invoice adjustments, when it is required and the viewer
+prepared the document:
+  - Approve is not offered;
+  - the explanation "You prepared this adjustment. A different finance
+    member must approve it." moved INTO the Next step panel, next to where
+    Approve would be, with the same text and role="status".
+
+A second finance member sees Approve and can approve (E2E). Batches and
+drafts have no maker/checker in the product, and none was added.
+
+======================================================================
+13. EXPORTS
+======================================================================
+ExportsTable on primitives:
+  - file;
+  - format and version;
+  - export number and size;
+  - generated by;
+  - rows;
+  - total (signed for adjustments);
+  - short SHA-256 with "Full checksum" details;
+  - source status at export and now, with attention chip.
+
+The Download button is now a 44 px outline button: still a same-origin
+POST, audited, AAL2-gated by the existing route, with the same accessible
+name "Download <file> (export N)".
+
+The empty state is "No exports have been generated yet." with "Exports become
+available once the document is locked." Deterministic CSV, draft PDF,
+adjustment exports and checksums are unchanged (E2E verifies the downloaded
+file hash equals the shown checksum).
+
+======================================================================
+14. STATUS CONSOLIDATION
+======================================================================
+Now StatusChip:
+  - rate version phase;
+  - policy status;
+  - payroll / invoice lifecycle (S2);
+  - attention (S2);
+  - adjustment state (was Badge; "Adjustment required" uses attention);
+  - reconciliation states.
+
+Badge kept for metadata only:
+  - currency;
+  - "Preparation and export only";
+  - "Internal drafts — not sent";
+  - "Adjustment — not payment";
+  - "Draft invoice (adjustment) — internal, not sent".
+
+No finance Badge remains for a status.
+
+======================================================================
+15. RESPONSIVE BEHAVIOUR
+======================================================================
+- Same shell; no bottom nav.
+- Every finance table is in DataTableRegion and scrolls inside it.
+- The 412 px page-overflow guard runs at every finance axe checkpoint.
+- KPI cards 1 / 2 / 4.
+- Filters wrap.
+- Header actions and chips stack.
+- Mode switch scrolls within itself.
+- Drawers are full-height sheets.
+- Export buttons stay reachable.
+- Signed values keep their sign and word on separate lines (SignedAmount).
+
+======================================================================
+16. ACCESSIBILITY
+======================================================================
+- One h1 per page; Panel h2s; named regions, tables and lists (all existing
+  names kept).
+- Mode switch: a named nav with aria-current="page".
+- Active quick filter: aria-current="true".
+- Preview drawers:
+    - modal;
+    - focus on "Close details";
+    - Escape closes and focus returns to the trigger (E2E);
+    - axe passes with a drawer open.
+- Credit / increase / decrease / additional charge / adjustment required /
+  approved / exported are always text.
+- Targets at least 44 px, including Download.
+- axe passes at every finance checkpoint, desktop and 412 px, including the
+  maker/checker-blocked state.
+
+======================================================================
+17. FUNCTIONAL PRESERVATION
+======================================================================
+Unchanged:
+  - database, migrations, RLS, capabilities;
+  - Server Actions, queries, RPCs;
+  - rate precedence;
+  - pricing and financial calculations;
+  - maker/checker;
+  - export security;
+  - adjustment lineage;
+  - reconciliation logic;
+  - AAL2;
+  - routes;
+  - every button, region and list name used by flows;
+  - every disclaimer text.
+
+New reads: none. All filters and counts use data each page already loaded.
+
+The only behavioural UI change is the position of the maker/checker
+explanation (§12).
+
+Existing tests were not weakened; all additions are additive assertions.
+
+======================================================================
+18. SCREENSHOT QA
+======================================================================
+Captured with QA_SCREENSHOTS_DIR in the session scratchpad (not committed),
+each at 1280 px and 412 px:
+  - s5-rates;
+  - s5-payroll;
+  - s5-payroll-batch;
+  - s5-invoices;
+  - s5-invoice-draft;
+  - s5-payroll-adjustment-increase (positive delta);
+  - s5-payroll-adjustment-decrease (negative delta);
+  - s5-invoice-adjustment-charge;
+  - s5-maker-checker-blocked.
+Pricing and priced-timesheet captures are from S2 (pricing-finance-list,
+pricing-detail), still produced by pricing.spec.
+
+Compared with Chelth_Payroll_Invoices:
+
+Matches:
+  - mode switch under the title;
+  - 4 KPI cards;
+  - labelled filter row;
+  - ledger table with status chips;
+  - drawer with key-value summary;
+  - audit history timeline;
+  - teal primary actions.
+
+The vocabulary is Chelth's own (see §21).
+
+======================================================================
+19. TESTS
+======================================================================
+Additive E2E assertions in the existing finance flows (real data, real
+lifecycle):
+
+financial.spec:
+  - payroll summary region;
+  - mode switch aria-current;
+  - no payment vocabulary or controls;
+  - batch preview drawer:
+      - status filter URL / value;
+      - drawer focus, content, no action buttons, axe, Escape, focus
+        return;
+  - invoice summary and "Internal drafts — not sent";
+  - draft preview drawer shows bill only (no pay amounts or margin);
+  - no payment vocabulary on batch and draft.
+
+financial-adjustments.spec:
+  - net pay change "+$11.32" with "Increase";
+  - "−$50.20" with "Decrease";
+  - the invoice adjustment shows no margin or pay rate;
+  - no payment vocabulary;
+  - maker/checker-blocked state passes axe.
+
+pricing.spec:
+  - the rate version shows "Current" after activation;
+  - the Rates | Pricing switch has aria-current;
+  - no payment vocabulary.
+
+Shared helper (tests/e2e/support.ts): expectNoPaymentVocabulary. It fails
+on:
+  - Paid, Overdue, ACH, Outstanding, Payment received, Process payroll,
+    Collected;
+  - any pay-now / send-invoice / process-payment / mark-paid / collect
+    control.
+
+Existing assertions kept:
+  - lifecycles;
+  - exports;
+  - checksum = file hash;
+  - CSV headers without pay columns on invoices;
+  - maker/checker second approver;
+  - 404s for other roles.
+
+Validation:
+
+  Command               Result
+  --------------------  --------------------------------------------------
+  npm run format:check  pass
+  npm run lint          pass (0 warnings)
+  npm run typecheck     pass
+  npm test              27 files, 330 tests passed
+  npm run check:bundle  OK (62 browser files, no secrets)
+  npm run build         pass
+  npx playwright test   168 passed, 2 skipped (the existing desktop-only
+                        keyboard tests in foundation.spec), 0 failed
+                        (final clean run on the final build)
+
+One earlier full run, right after Docker and the stack were restarted, had 6
+mobile failures in specs S5 did not touch. All were infrastructure errors:
+  - net::ERR_NETWORK_IO_SUSPENDED;
+  - Supabase auth "Processing this request timed out";
+  - sign-in not completing.
+They passed on re-run, and the final full run above is clean.
+
+The financial, financial-adjustments and pricing specs passed 36/36 on their
+own during development.
+
+No database tests were run, because no backend code changed.
+
+======================================================================
+20. FILES CHANGED
+======================================================================
+Added:
+  src/app/app/organisations/[organisationId]/(workspace)/_components/
+      finance-mode-tabs.tsx
+  docs/reports/P0-E8-S5-finance-surfaces.txt
+
+Modified (workspace group):
+  rates/page.tsx
+  pricing/page.tsx
+  payroll/page.tsx, payroll/[batchId]/page.tsx,
+      payroll/adjustments/[adjustmentId]/page.tsx
+  invoices/page.tsx, invoices/[draftId]/page.tsx,
+      invoices/adjustments/[adjustmentId]/page.tsx
+
+Modified (features):
+  src/features/financial/components/financial-tables.tsx
+      (primitives, export download button, HistoryList → ActivityTimeline,
+      reconciliation chips, empty states)
+  src/features/financial/components/adjustment-tables.tsx
+      (primitives, state chips, empty states)
+
+Modified (tests):
+  tests/e2e/support.ts  (expectNoPaymentVocabulary)
+  tests/e2e/financial.spec.ts
+  tests/e2e/financial-adjustments.spec.ts
+  tests/e2e/pricing.spec.ts
+
+======================================================================
+21. KNOWN VISUAL DIFFERENCES
+======================================================================
+1. No Sent / Paid / Overdue / ACH / Outstanding states, "Payment received"
+   rows or "Process Payroll"; the primary action is "Prepare a batch" /
+   "Create a draft".
+2. No date-range control in the header. Payroll periods come from settings;
+   the batch list filters by status.
+3. No KPI deltas ("↑ 12 from last period"), worker avatars, row checkboxes,
+   bulk actions or kebab menus.
+4. No docked right-hand drawer. Previews are modal (locked) and read-only;
+   lifecycle actions live on the record page.
+5. No "Rate Information" panel in the payroll drawer: rates are per line on
+   the batch page.
+6. No Pricing KPI cards (the queue query is capped at 50).
+7. The invoice-adjustment lineage and net lists keep their own list markup
+   (restyled), not KeyValueList.
+8. Long metadata labels (e.g. "Draft invoice — internal, not sent") wrap on
+   phones.
+
+======================================================================
+22. GIT STATUS
+======================================================================
+Branch p0-e8-visual-implementation. HEAD 45a5a25 ("feat: implement Chelth
+facility workspace surfaces", S4). All S5 changes are uncommitted (§20);
+nothing is staged or committed. No secrets were found.
+
+During validation, Docker and the shared local Supabase stack were found
+stopped (after a session restart). They were restarted with their existing
+volumes; no reset or migration was applied.
+
+======================================================================
+23. RECOMMENDED S6 SCOPE
+======================================================================
+Worker mobile (P7):
+  - My shifts;
+  - offers;
+  - clock in / out with the location explanation;
+  - breaks;
+  - corrections;
+  - My timesheets;
+  - My credentials.
+
+Mobile-first on the personal frame with the P7 language, no fake features,
+and the same capability, AAL2 and privacy rules.
+
+Optional polish:
+  - compact 2-column KPI cards on phones;
+  - flatten nested list borders inside Panels;
+  - convert the invoice-adjustment lists to KeyValueList.

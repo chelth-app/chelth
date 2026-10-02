@@ -1,10 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+
+import { Panel } from "@/components/ui/panel";
 import { z } from "zod";
 
-import { DataTableRegion } from "@/components/ui/data-table";
+import {
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeaderCell,
+  DataTableRegion,
+  DataTableRow,
+} from "@/components/ui/data-table";
 import { InlineActionForm } from "@/components/forms/inline-action-form";
+import { Badge } from "@/components/ui/badge";
+import { KeyValueList } from "@/components/ui/key-value-list";
+import { PageHeader } from "@/components/ui/page-header";
 import {
   AttentionBadge,
   CancelPayrollBatchForm,
@@ -31,7 +43,6 @@ import { formatPeriod, formatWorkedMinutes } from "@/lib/domain/timesheets";
 export const metadata: Metadata = { title: "Payroll batch" };
 
 const idSchema = z.uuid();
-const TH = "px-3 py-2 font-medium";
 const dateFormat = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
   weekday: "short",
@@ -73,21 +84,28 @@ export default async function PayrollBatchPage({
 
   return (
     <>
-      <header className="flex flex-col gap-2">
-        <Link href={base} className="w-fit text-sm text-primary underline underline-offset-4">
-          Payroll
-        </Link>
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold">{batch.reference}</h1>
-          <PayrollStatusBadge status={batch.status} />
-          <AttentionBadge code={batch.attention} />
-        </div>
-        <p className="text-sm text-muted-foreground">
-          {PAYROLL_PERIOD_TYPE_LABELS[batch.periodType]} period{" "}
-          {formatPeriod(batch.periodStart, batch.periodEnd)} · {batch.currency} · Payroll
-          preparation only — no payment, tax or deductions.
-        </p>
-      </header>
+      <PageHeader
+        title={batch.reference}
+        back={
+          <Link href={base} className="text-primary underline underline-offset-4">
+            Payroll
+          </Link>
+        }
+        description={
+          <p className="text-sm">
+            {PAYROLL_PERIOD_TYPE_LABELS[batch.periodType]} period{" "}
+            {formatPeriod(batch.periodStart, batch.periodEnd)} · {batch.currency} · Payroll
+            preparation only — no payment, tax or deductions.
+          </p>
+        }
+        meta={
+          <>
+            <PayrollStatusBadge status={batch.status} />
+            <AttentionBadge code={batch.attention} />
+            <Badge tone="neutral">{batch.currency}</Badge>
+          </>
+        }
+      />
 
       {needsStepUp ? (
         <StepUpNotice returnTo={`${base}/${batch.id}`}>
@@ -109,31 +127,43 @@ export default async function PayrollBatchPage({
         </p>
       ) : null}
 
-      <section aria-labelledby="batch-totals-heading" className="flex flex-col gap-3">
-        <h2 id="batch-totals-heading" className="text-lg font-semibold">
-          Totals
-        </h2>
-        <dl className="grid max-w-xl grid-cols-[auto_1fr] gap-x-6 gap-y-2 rounded-lg border border-border bg-surface p-4 text-sm">
-          <dt className="text-muted-foreground">Pay total</dt>
-          <dd className="font-semibold tabular-nums">
-            {formatMoney(batch.totalPayMinor, batch.currency)}
-          </dd>
-          <dt className="text-muted-foreground">Workers</dt>
-          <dd className="tabular-nums">{batch.workerCount}</dd>
-          <dt className="text-muted-foreground">Lines</dt>
-          <dd className="tabular-nums">{batch.lineCount}</dd>
-          <dt className="text-muted-foreground">Regular time</dt>
-          <dd className="tabular-nums">{formatWorkedMinutes(batch.totalRegularMinutes)}</dd>
-          <dt className="text-muted-foreground">Overtime</dt>
-          <dd className="tabular-nums">{formatWorkedMinutes(batch.totalOvertimeMinutes)}</dd>
-        </dl>
-      </section>
+      <Panel titleId="batch-totals-heading" title={<>Totals</>}>
+        <KeyValueList
+          aria-label="Batch totals"
+          className="max-w-xl"
+          items={[
+            {
+              label: "Pay total",
+              value: (
+                <span className="font-semibold tabular-nums">
+                  {formatMoney(batch.totalPayMinor, batch.currency)}
+                </span>
+              ),
+            },
+            { label: "Workers", value: <span className="tabular-nums">{batch.workerCount}</span> },
+            { label: "Lines", value: <span className="tabular-nums">{batch.lineCount}</span> },
+            {
+              label: "Regular time",
+              value: (
+                <span className="tabular-nums">
+                  {formatWorkedMinutes(batch.totalRegularMinutes)}
+                </span>
+              ),
+            },
+            {
+              label: "Overtime",
+              value: (
+                <span className="tabular-nums">
+                  {formatWorkedMinutes(batch.totalOvertimeMinutes)}
+                </span>
+              ),
+            },
+          ]}
+        />
+      </Panel>
 
       {batch.status !== "cancelled" ? (
-        <section aria-labelledby="batch-steps-heading" className="flex flex-col gap-3">
-          <h2 id="batch-steps-heading" className="text-lg font-semibold">
-            Next step
-          </h2>
+        <Panel titleId="batch-steps-heading" title={<>Next step</>}>
           <div className="flex flex-wrap items-start gap-3">
             {batch.status === "draft" && prepare === "granted" ? (
               <InlineActionForm
@@ -180,7 +210,7 @@ export default async function PayrollBatchPage({
               {batch.lockedByName ?? "a former member"}. A locked batch never changes.
             </p>
           ) : null}
-        </section>
+        </Panel>
       ) : (
         <p className="text-sm text-muted-foreground">
           Cancelled by {batch.cancelledByName ?? "a former member"}: “{batch.cancelReason}”. Its
@@ -188,128 +218,86 @@ export default async function PayrollBatchPage({
         </p>
       )}
 
-      <section aria-labelledby="batch-exports-heading" className="flex flex-col gap-3">
-        <h2 id="batch-exports-heading" className="text-lg font-semibold">
-          Exports
-        </h2>
+      <Panel titleId="batch-exports-heading" title={<>Exports</>}>
         <ExportsTable
           rows={exports}
           canDownload={exportCap === "granted"}
           label="Payroll exports"
         />
-      </section>
+      </Panel>
 
-      <section aria-labelledby="batch-workers-heading" className="flex flex-col gap-3">
-        <h2 id="batch-workers-heading" className="text-lg font-semibold">
-          Worker totals
-        </h2>
+      <Panel titleId="batch-workers-heading" title={<>Worker totals</>}>
         <DataTableRegion aria-label="Worker totals table">
-          <table className="w-full min-w-[620px] text-left text-sm">
-            <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
+          <DataTable className="min-w-[620px]">
+            <DataTableHead>
               <tr>
-                <th scope="col" className={TH}>
-                  Worker
-                </th>
-                <th scope="col" className={`${TH} text-right`}>
-                  Lines
-                </th>
-                <th scope="col" className={`${TH} text-right`}>
-                  Regular
-                </th>
-                <th scope="col" className={`${TH} text-right`}>
-                  Overtime
-                </th>
-                <th scope="col" className={`${TH} text-right`}>
-                  Pay
-                </th>
+                <DataTableHeaderCell>Worker</DataTableHeaderCell>
+                <DataTableHeaderCell numeric>Lines</DataTableHeaderCell>
+                <DataTableHeaderCell numeric>Regular</DataTableHeaderCell>
+                <DataTableHeaderCell numeric>Overtime</DataTableHeaderCell>
+                <DataTableHeaderCell numeric>Pay</DataTableHeaderCell>
               </tr>
-            </thead>
+            </DataTableHead>
             <tbody>
               {workers.map((worker) => (
-                <tr key={worker.agencyWorkerId} className="border-b border-border last:border-0">
-                  <td className="px-3 py-2">
+                <DataTableRow key={worker.agencyWorkerId}>
+                  <DataTableCell>
                     <div className="font-medium">{worker.workerName}</div>
                     {worker.workerReference ? (
                       <div className="text-xs text-muted-foreground">{worker.workerReference}</div>
                     ) : null}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">{worker.lineCount}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">
+                  </DataTableCell>
+                  <DataTableCell numeric>{worker.lineCount}</DataTableCell>
+                  <DataTableCell numeric>
                     {formatWorkedMinutes(worker.regularMinutes)}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
+                  </DataTableCell>
+                  <DataTableCell numeric>
                     {formatWorkedMinutes(worker.overtimeMinutes)}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
+                  </DataTableCell>
+                  <DataTableCell numeric>
                     {formatMoney(worker.totalPayMinor, batch.currency)}
-                  </td>
-                </tr>
+                  </DataTableCell>
+                </DataTableRow>
               ))}
             </tbody>
-          </table>
+          </DataTable>
         </DataTableRegion>
-      </section>
+      </Panel>
 
-      <section aria-labelledby="batch-lines-heading" className="flex flex-col gap-3">
-        <h2 id="batch-lines-heading" className="text-lg font-semibold">
-          Lines
-        </h2>
+      <Panel titleId="batch-lines-heading" title={<>Lines</>}>
         <DataTableRegion aria-label="Payroll lines">
-          <table className="w-full min-w-[900px] text-left text-sm">
-            <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
+          <DataTable className="min-w-[900px]">
+            <DataTableHead>
               <tr>
-                <th scope="col" className={TH}>
-                  Date
-                </th>
-                <th scope="col" className={TH}>
-                  Worker
-                </th>
-                <th scope="col" className={TH}>
-                  Facility · discipline
-                </th>
-                <th scope="col" className={`${TH} text-right`}>
-                  Regular
-                </th>
-                <th scope="col" className={`${TH} text-right`}>
-                  Overtime
-                </th>
-                <th scope="col" className={`${TH} text-right`}>
-                  Pay rate
-                </th>
-                <th scope="col" className={`${TH} text-right`}>
-                  Pay
-                </th>
-                <th scope="col" className={TH}>
-                  Source
-                </th>
+                <DataTableHeaderCell>Date</DataTableHeaderCell>
+                <DataTableHeaderCell>Worker</DataTableHeaderCell>
+                <DataTableHeaderCell>Facility · discipline</DataTableHeaderCell>
+                <DataTableHeaderCell numeric>Regular</DataTableHeaderCell>
+                <DataTableHeaderCell numeric>Overtime</DataTableHeaderCell>
+                <DataTableHeaderCell numeric>Pay rate</DataTableHeaderCell>
+                <DataTableHeaderCell numeric>Pay</DataTableHeaderCell>
+                <DataTableHeaderCell>Source</DataTableHeaderCell>
               </tr>
-            </thead>
+            </DataTableHead>
             <tbody>
               {lines.map((line) => (
-                <tr
-                  key={line.lineNumber}
-                  className="border-b border-border align-top last:border-0"
-                >
-                  <td className="px-3 py-2">
+                <DataTableRow key={line.lineNumber}>
+                  <DataTableCell>
                     {dateFormat.format(new Date(`${line.workDate}T00:00:00Z`))}
-                  </td>
-                  <td className="px-3 py-2">{line.workerName}</td>
-                  <td className="px-3 py-2">
+                  </DataTableCell>
+                  <DataTableCell>{line.workerName}</DataTableCell>
+                  <DataTableCell>
                     {line.facilityName} · {line.disciplineName}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {formatWorkedMinutes(line.regularMinutes)}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {formatWorkedMinutes(line.overtimeMinutes)}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
+                  </DataTableCell>
+                  <DataTableCell numeric>{formatWorkedMinutes(line.regularMinutes)}</DataTableCell>
+                  <DataTableCell numeric>{formatWorkedMinutes(line.overtimeMinutes)}</DataTableCell>
+                  <DataTableCell numeric>
                     {formatHourlyRate(line.payRateMinor, batch.currency)}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
+                  </DataTableCell>
+                  <DataTableCell numeric>
                     {formatMoney(line.payAmountMinor, batch.currency)}
-                  </td>
-                  <td className="px-3 py-2 text-xs">
+                  </DataTableCell>
+                  <DataTableCell className="text-xs">
                     <Link
                       href={`/app/organisations/${organisationId}/pricing/${line.pricedTimesheetId}`}
                       className="text-primary underline underline-offset-4"
@@ -321,20 +309,17 @@ export default async function PayrollBatchPage({
                         Now revision {line.currentRevision}
                       </div>
                     ) : null}
-                  </td>
-                </tr>
+                  </DataTableCell>
+                </DataTableRow>
               ))}
             </tbody>
-          </table>
+          </DataTable>
         </DataTableRegion>
-      </section>
+      </Panel>
 
-      <section aria-labelledby="batch-history-heading" className="flex flex-col gap-3">
-        <h2 id="batch-history-heading" className="text-lg font-semibold">
-          History
-        </h2>
+      <Panel titleId="batch-history-heading" title={<>History</>}>
         <HistoryList rows={history} label="Payroll batch history" />
-      </section>
+      </Panel>
     </>
   );
 }

@@ -1,10 +1,21 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+
+import { Panel } from "@/components/ui/panel";
 import { z } from "zod";
 
-import { DataTableRegion } from "@/components/ui/data-table";
+import {
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeaderCell,
+  DataTableRegion,
+  DataTableRow,
+} from "@/components/ui/data-table";
 import { InlineActionForm } from "@/components/forms/inline-action-form";
+import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/ui/page-header";
 import {
   AttentionBadge,
   ExportsTable,
@@ -36,7 +47,6 @@ import { formatPeriod, formatWorkedMinutes } from "@/lib/domain/timesheets";
 export const metadata: Metadata = { title: "Invoice adjustment draft" };
 
 const idSchema = z.uuid();
-const TH = "px-3 py-2 font-medium";
 const dateFormat = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
   weekday: "short",
@@ -82,24 +92,29 @@ export default async function InvoiceAdjustmentPage({
 
   return (
     <>
-      <header className="flex flex-col gap-2">
-        <Link href={base} className="w-fit text-sm text-primary underline underline-offset-4">
-          Invoices
-        </Link>
-        <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-          Draft invoice adjustment — internal, not sent
-        </p>
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold">{adjustment.reference}</h1>
-          <InvoiceStatusBadge status={adjustment.status} />
-          <AttentionBadge code={adjustment.attention} />
-        </div>
-        <p className="text-sm text-muted-foreground">
-          {direction} · {adjustment.facilityName} · week{" "}
-          {formatPeriod(adjustment.periodStart, adjustment.periodEnd)} · {currency} · No tax
-          calculated.
-        </p>
-      </header>
+      <PageHeader
+        title={adjustment.reference}
+        back={
+          <Link href={base} className="text-primary underline underline-offset-4">
+            Invoices
+          </Link>
+        }
+        description={
+          <p className="text-sm">
+            {direction} · {adjustment.facilityName} · week{" "}
+            {formatPeriod(adjustment.periodStart, adjustment.periodEnd)} · {currency} · No tax
+            calculated.
+          </p>
+        }
+        meta={
+          <>
+            <Badge tone="neutral">Draft invoice adjustment — internal, not sent</Badge>
+            <InvoiceStatusBadge status={adjustment.status} />
+            <AttentionBadge code={adjustment.attention} />
+            <Badge tone="neutral">{currency}</Badge>
+          </>
+        }
+      />
 
       {needsStepUp ? (
         <StepUpNotice returnTo={`${base}/adjustments/${adjustment.id}`}>
@@ -113,17 +128,9 @@ export default async function InvoiceAdjustmentPage({
           approved or locked. Void it and prepare a new adjustment.
         </p>
       ) : null}
-      {adjustment.status === "reviewed" && checkerNeeded ? (
-        <p role="status" className="rounded-md border border-border bg-info-soft p-3 text-sm">
-          You prepared this adjustment. A different finance member must approve it.
-        </p>
-      ) : null}
 
-      <section aria-labelledby="inv-adjustment-lineage-heading" className="flex flex-col gap-3">
-        <h2 id="inv-adjustment-lineage-heading" className="text-lg font-semibold">
-          What it adjusts
-        </h2>
-        <dl className="grid max-w-2xl grid-cols-[auto_1fr] gap-x-6 gap-y-2 rounded-lg border border-border bg-surface p-4 text-sm">
+      <Panel titleId="inv-adjustment-lineage-heading" title={<>What it adjusts</>}>
+        <dl className="grid max-w-2xl grid-cols-1 gap-x-6 gap-y-1 text-sm sm:grid-cols-[minmax(8rem,auto)_1fr] sm:gap-y-2.5">
           <dt className="text-muted-foreground">Original draft</dt>
           <dd>
             <Link
@@ -153,13 +160,10 @@ export default async function InvoiceAdjustmentPage({
             {adjustment.toRevision}
           </dd>
         </dl>
-      </section>
+      </Panel>
 
-      <section aria-labelledby="inv-adjustment-totals-heading" className="flex flex-col gap-3">
-        <h2 id="inv-adjustment-totals-heading" className="text-lg font-semibold">
-          Net bill adjustment
-        </h2>
-        <dl className="grid max-w-xl grid-cols-[auto_1fr] gap-x-6 gap-y-2 rounded-lg border border-border bg-surface p-4 text-sm">
+      <Panel titleId="inv-adjustment-totals-heading" title={<>Net bill adjustment</>}>
+        <dl className="grid max-w-xl grid-cols-1 gap-x-6 gap-y-1 text-sm sm:grid-cols-[minmax(8rem,auto)_1fr] sm:gap-y-2.5">
           <dt className="text-muted-foreground">Net (before any tax)</dt>
           <dd>
             <SignedAmount
@@ -180,13 +184,18 @@ export default async function InvoiceAdjustmentPage({
           <dt className="text-muted-foreground">Billed time</dt>
           <dd className="tabular-nums">{formatSignedMinutes(adjustment.deltaPricedMinutes)}</dd>
         </dl>
-      </section>
+      </Panel>
 
       {adjustment.status !== "voided" ? (
-        <section aria-labelledby="inv-adjustment-steps-heading" className="flex flex-col gap-3">
-          <h2 id="inv-adjustment-steps-heading" className="text-lg font-semibold">
-            Next step
-          </h2>
+        <Panel titleId="inv-adjustment-steps-heading" title={<>Next step</>}>
+          {adjustment.status === "reviewed" && checkerNeeded ? (
+            <p
+              role="status"
+              className="rounded-md border border-border bg-info-soft p-3 text-sm text-info-soft-foreground"
+            >
+              You prepared this adjustment. A different finance member must approve it.
+            </p>
+          ) : null}
           <div className="flex flex-wrap items-start gap-3">
             {adjustment.status === "draft" && prepare === "granted" ? (
               <InlineActionForm
@@ -238,70 +247,49 @@ export default async function InvoiceAdjustmentPage({
               />
             ) : null}
           </div>
-        </section>
+        </Panel>
       ) : (
         <p className="text-sm text-muted-foreground">
           Voided by {adjustment.voidedByName ?? "a former member"}: “{adjustment.voidReason}”.
         </p>
       )}
 
-      <section aria-labelledby="inv-adjustment-exports-heading" className="flex flex-col gap-3">
-        <h2 id="inv-adjustment-exports-heading" className="text-lg font-semibold">
-          Draft documents
-        </h2>
+      <Panel titleId="inv-adjustment-exports-heading" title={<>Draft documents</>}>
         <ExportsTable
           rows={exports}
           canDownload={exportCap === "granted"}
           label="Invoice adjustment exports"
           signedTotals
         />
-      </section>
+      </Panel>
 
-      <section aria-labelledby="inv-adjustment-lines-heading" className="flex flex-col gap-3">
-        <h2 id="inv-adjustment-lines-heading" className="text-lg font-semibold">
-          Changed lines
-        </h2>
+      <Panel titleId="inv-adjustment-lines-heading" title={<>Changed lines</>}>
         <DataTableRegion aria-label="Invoice adjustment lines">
-          <table className="w-full min-w-[880px] text-left text-sm">
-            <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
+          <DataTable className="min-w-[880px]">
+            <DataTableHead>
               <tr>
-                <th scope="col" className={TH}>
-                  Date
-                </th>
-                <th scope="col" className={TH}>
-                  Worker · discipline
-                </th>
-                <th scope="col" className={`${TH} text-right`}>
-                  Time (original → revised)
-                </th>
-                <th scope="col" className={`${TH} text-right`}>
-                  Bill rate
-                </th>
-                <th scope="col" className={`${TH} text-right`}>
-                  Bill (original → revised)
-                </th>
-                <th scope="col" className={`${TH} text-right`}>
-                  Change
-                </th>
+                <DataTableHeaderCell>Date</DataTableHeaderCell>
+                <DataTableHeaderCell>Worker · discipline</DataTableHeaderCell>
+                <DataTableHeaderCell numeric>Time (original → revised)</DataTableHeaderCell>
+                <DataTableHeaderCell numeric>Bill rate</DataTableHeaderCell>
+                <DataTableHeaderCell numeric>Bill (original → revised)</DataTableHeaderCell>
+                <DataTableHeaderCell numeric>Change</DataTableHeaderCell>
               </tr>
-            </thead>
+            </DataTableHead>
             <tbody>
               {lines.map((line) => (
-                <tr
-                  key={line.lineNumber}
-                  className="border-b border-border align-top last:border-0"
-                >
-                  <td className="px-3 py-2">
+                <DataTableRow key={line.lineNumber}>
+                  <DataTableCell>
                     {dateFormat.format(new Date(`${line.workDate}T00:00:00Z`))}
-                  </td>
-                  <td className="px-3 py-2">
+                  </DataTableCell>
+                  <DataTableCell>
                     {line.workerName} · {line.disciplineName}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
+                  </DataTableCell>
+                  <DataTableCell numeric>
                     {formatWorkedMinutes(line.oldPricedMinutes)} →{" "}
                     {formatWorkedMinutes(line.newPricedMinutes)}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
+                  </DataTableCell>
+                  <DataTableCell numeric>
                     {line.oldBillRateMinor === null
                       ? "—"
                       : formatHourlyRate(line.oldBillRateMinor, currency)}{" "}
@@ -309,8 +297,8 @@ export default async function InvoiceAdjustmentPage({
                     {line.newBillRateMinor === null
                       ? "—"
                       : formatHourlyRate(line.newBillRateMinor, currency)}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
+                  </DataTableCell>
+                  <DataTableCell numeric>
                     {line.oldBillAmountMinor === null
                       ? "—"
                       : formatMoney(line.oldBillAmountMinor, currency)}{" "}
@@ -318,27 +306,24 @@ export default async function InvoiceAdjustmentPage({
                     {line.newBillAmountMinor === null
                       ? "—"
                       : formatMoney(line.newBillAmountMinor, currency)}
-                  </td>
-                  <td className="px-3 py-2 text-right">
+                  </DataTableCell>
+                  <DataTableCell className="text-right">
                     <SignedAmount
                       minor={line.deltaBillAmountMinor}
                       currency={currency}
                       side="bill"
                     />
-                  </td>
-                </tr>
+                  </DataTableCell>
+                </DataTableRow>
               ))}
             </tbody>
-          </table>
+          </DataTable>
         </DataTableRegion>
-      </section>
+      </Panel>
 
-      <section aria-labelledby="inv-adjustment-history-heading" className="flex flex-col gap-3">
-        <h2 id="inv-adjustment-history-heading" className="text-lg font-semibold">
-          History
-        </h2>
+      <Panel titleId="inv-adjustment-history-heading" title={<>History</>}>
         <HistoryList rows={history} label="Invoice adjustment history" />
-      </section>
+      </Panel>
     </>
   );
 }

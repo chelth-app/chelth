@@ -1,9 +1,26 @@
-import type { Metadata } from "next";
+import type { Metadata, Route } from "next";
 import Link from "next/link";
+
+import { Panel } from "@/components/ui/panel";
 import { notFound } from "next/navigation";
 
-import { DataTableRegion } from "@/components/ui/data-table";
+import {
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeaderCell,
+  DataTableRegion,
+  DataTableRow,
+} from "@/components/ui/data-table";
 import { InlineActionForm } from "@/components/forms/inline-action-form";
+import { WorkspaceNavIcon } from "@/components/layout/workspace-nav-icon";
+import { Badge } from "@/components/ui/badge";
+import { DetailDrawerTrigger } from "@/components/ui/detail-drawer";
+import { EmptyState } from "@/components/ui/empty-state";
+import { FilterBar, FilterSelect } from "@/components/ui/filter-bar";
+import { KeyValueList } from "@/components/ui/key-value-list";
+import { KpiFilterCard, KpiFilterGroup } from "@/components/ui/kpi-filter-card";
+import { PageHeader } from "@/components/ui/page-header";
 import {
   AttentionBadge,
   createPayrollBatchAction,
@@ -37,9 +54,9 @@ import {
 import { formatMoney } from "@/lib/domain/pricing";
 import { formatPeriod, formatWorkedMinutes } from "@/lib/domain/timesheets";
 
-export const metadata: Metadata = { title: "Payroll" };
+import { FinanceModeTabs } from "../_components/finance-mode-tabs";
 
-const TH = "px-3 py-2 font-medium";
+export const metadata: Metadata = { title: "Payroll" };
 
 /**
  * Payroll PREPARATION: priced work grouped into payroll periods, batches by
@@ -48,6 +65,7 @@ const TH = "px-3 py-2 font-medium";
  */
 export default async function PayrollPage({
   params,
+  searchParams,
 }: PageProps<"/app/organisations/[organisationId]/payroll">) {
   const context = await loadOrganisationPage((await params).organisationId);
   requireCapabilityOrNotFound(context, CAPABILITIES.PAYROLL_VIEW);
@@ -75,27 +93,90 @@ export default async function PayrollPage({
     count: batches.filter((batch) => batch.status === status).length,
   })).filter((entry) => entry.count > 0);
   const base = `/app/organisations/${organisationId}/payroll` as const;
+  // Display filter over the batches already loaded (no new query).
+  const rawStatus = (await searchParams).status;
+  const statusFilter = PAYROLL_BATCH_STATUSES.find(
+    (status) => status === (Array.isArray(rawStatus) ? rawStatus[0] : rawStatus),
+  );
+  const shownBatches = statusFilter
+    ? batches.filter((batch) => batch.status === statusFilter)
+    : batches;
+  const awaitingApproval = batches.filter((batch) => batch.status === "reviewed").length;
+  const anchor = (id: string) => `${base}#${id}` as Route;
 
   return (
     <>
-      <header className="flex flex-col gap-2">
-        <Link
-          href={`/app/organisations/${organisationId}`}
-          className="w-fit text-sm text-primary underline underline-offset-4"
-        >
-          {organisation.name}
-        </Link>
-        <h1 className="text-2xl font-semibold">Payroll</h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Prepare payroll batches from priced, locked timesheets. Amounts are copied exactly from
-          pricing and never recalculated. Chelth prepares and exports payroll data; it does not run
-          payroll, pay workers or calculate tax or deductions.
-        </p>
-        <p className="text-sm text-muted-foreground">
-          Payroll periods: {PAYROLL_PERIOD_TYPE_LABELS[settings.payrollPeriodType]}, aligned to{" "}
-          {formatCalendarDate(settings.payrollAnchorDate)}.
-        </p>
-      </header>
+      <PageHeader
+        title="Payroll"
+        back={
+          <Link
+            href={`/app/organisations/${organisationId}`}
+            className="text-primary underline underline-offset-4"
+          >
+            {organisation.name}
+          </Link>
+        }
+        description={
+          <p>
+            Prepare payroll batches from priced, locked timesheets. Amounts are copied exactly from
+            pricing and never recalculated. Chelth prepares and exports payroll data; it does not
+            run payroll, pay workers or calculate tax or deductions.
+          </p>
+        }
+        meta={
+          <>
+            <Badge tone="neutral">Preparation and export only</Badge>
+            <span className="text-sm text-muted-foreground">
+              Payroll periods: {PAYROLL_PERIOD_TYPE_LABELS[settings.payrollPeriodType]}, aligned to{" "}
+              {formatCalendarDate(settings.payrollAnchorDate)}.
+            </span>
+          </>
+        }
+        primaryAction={
+          canPrepare && ready.length > 0 ? (
+            <a
+              href="#payroll-ready-heading"
+              className="inline-flex min-h-11 items-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary-hover"
+            >
+              Prepare a batch
+            </a>
+          ) : undefined
+        }
+      />
+
+      <FinanceModeTabs organisationId={organisationId} current="payroll" can={can} />
+
+      <KpiFilterGroup label="Payroll summary">
+        <KpiFilterCard
+          label="Needs attention"
+          value={issues.length}
+          supporting="Unpriced or revised work"
+          icon={<WorkspaceNavIcon name="compliance" />}
+          href={anchor("payroll-attention-heading")}
+        />
+        <KpiFilterCard
+          label="Periods ready to prepare"
+          value={ready.length}
+          supporting="Priced work not yet in a batch"
+          icon={<WorkspaceNavIcon name="pricing" />}
+          href={anchor("payroll-ready-heading")}
+        />
+        <KpiFilterCard
+          label="Awaiting approval"
+          value={awaitingApproval}
+          supporting="Batches marked reviewed"
+          icon={<WorkspaceNavIcon name="payroll" />}
+          href={`${base}?status=reviewed` as Route}
+          active={statusFilter === "reviewed"}
+        />
+        <KpiFilterCard
+          label="Adjustments required"
+          value={candidates.filter((row) => row.state === "required").length}
+          supporting="Revised after locking"
+          icon={<WorkspaceNavIcon name="timesheets" />}
+          href={anchor("payroll-adjustments-heading")}
+        />
+      </KpiFilterGroup>
 
       {approve === "step_up_required" ? (
         <StepUpNotice returnTo={base}>
@@ -104,12 +185,9 @@ export default async function PayrollPage({
         </StepUpNotice>
       ) : null}
 
-      <section aria-labelledby="payroll-attention-heading" className="flex flex-col gap-3">
-        <h2 id="payroll-attention-heading" className="text-lg font-semibold">
-          Needs attention
-        </h2>
+      <Panel titleId="payroll-attention-heading" title={<>Needs attention</>}>
         {issues.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nothing needs attention.</p>
+          <EmptyState headingLevel={3} title="Nothing needs attention." />
         ) : (
           <IssuesTable
             rows={issues}
@@ -119,12 +197,9 @@ export default async function PayrollPage({
             showFacility={false}
           />
         )}
-      </section>
+      </Panel>
 
-      <section aria-labelledby="payroll-adjustments-heading" className="flex flex-col gap-3">
-        <h2 id="payroll-adjustments-heading" className="text-lg font-semibold">
-          Adjustments
-        </h2>
+      <Panel titleId="payroll-adjustments-heading" title={<>Adjustments</>}>
         <p className="max-w-2xl text-sm text-muted-foreground">
           When locked work is revised, the original batch never changes. The difference between the
           last accounted revision and the new priced revision is prepared as a separate adjustment.
@@ -136,60 +211,46 @@ export default async function PayrollPage({
           canPrepare={canPrepare}
         />
         <PayrollAdjustmentsTable rows={adjustments} organisationId={organisationId} />
-      </section>
+      </Panel>
 
-      <section aria-labelledby="payroll-ready-heading" className="flex flex-col gap-3">
-        <h2 id="payroll-ready-heading" className="text-lg font-semibold">
-          Priced work not yet in a batch
-        </h2>
+      <Panel titleId="payroll-ready-heading" title={<>Priced work not yet in a batch</>}>
         {ready.length === 0 && held.length === 0 ? (
-          <p className="text-sm text-muted-foreground">All priced work is in a batch.</p>
+          <EmptyState headingLevel={3} title="All priced work is in a batch." />
         ) : (
           <DataTableRegion aria-label="Unprepared payroll work">
-            <table className="w-full min-w-[760px] text-left text-sm">
-              <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
+            <DataTable className="min-w-[760px]">
+              <DataTableHead>
                 <tr>
-                  <th scope="col" className={TH}>
-                    Payroll period
-                  </th>
-                  <th scope="col" className={`${TH} text-right`}>
-                    Workers
-                  </th>
-                  <th scope="col" className={`${TH} text-right`}>
-                    Lines
-                  </th>
-                  <th scope="col" className={`${TH} text-right`}>
-                    Time
-                  </th>
-                  <th scope="col" className={`${TH} text-right`}>
-                    Pay total
-                  </th>
-                  <th scope="col" className={TH}>
+                  <DataTableHeaderCell>Payroll period</DataTableHeaderCell>
+                  <DataTableHeaderCell numeric>Workers</DataTableHeaderCell>
+                  <DataTableHeaderCell numeric>Lines</DataTableHeaderCell>
+                  <DataTableHeaderCell numeric>Time</DataTableHeaderCell>
+                  <DataTableHeaderCell numeric>Pay total</DataTableHeaderCell>
+                  <DataTableHeaderCell>
                     <span className="sr-only">Actions</span>
-                  </th>
+                  </DataTableHeaderCell>
                 </tr>
-              </thead>
+              </DataTableHead>
               <tbody>
                 {[...held, ...ready].map((row) => {
                   const period = formatPeriod(row.periodStart, row.periodEnd);
                   return (
-                    <tr
+                    <DataTableRow
                       key={`${row.periodStart}-${row.currency}-${row.adjustmentRequired}`}
-                      className="border-b border-border align-top last:border-0"
                     >
-                      <td className="px-3 py-2">
+                      <DataTableCell>
                         <div className="font-medium">{period}</div>
                         <div className="text-xs text-muted-foreground">{row.currency}</div>
-                      </td>
-                      <td className="px-3 py-2 text-right tabular-nums">{row.workerCount}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{row.lineCount}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">
+                      </DataTableCell>
+                      <DataTableCell numeric>{row.workerCount}</DataTableCell>
+                      <DataTableCell numeric>{row.lineCount}</DataTableCell>
+                      <DataTableCell numeric>
                         {formatWorkedMinutes(row.totalRegularMinutes + row.totalOvertimeMinutes)}
-                      </td>
-                      <td className="px-3 py-2 text-right tabular-nums">
+                      </DataTableCell>
+                      <DataTableCell numeric>
                         {formatMoney(row.totalPayMinor, row.currency)}
-                      </td>
-                      <td className="px-3 py-2">
+                      </DataTableCell>
+                      <DataTableCell>
                         {row.adjustmentRequired ? (
                           <AttentionBadge code="ADJUSTMENT_REQUIRED" />
                         ) : canPrepare ? (
@@ -205,20 +266,17 @@ export default async function PayrollPage({
                             variant="primary"
                           />
                         ) : null}
-                      </td>
-                    </tr>
+                      </DataTableCell>
+                    </DataTableRow>
                   );
                 })}
               </tbody>
-            </table>
+            </DataTable>
           </DataTableRegion>
         )}
-      </section>
+      </Panel>
 
-      <section aria-labelledby="payroll-batches-heading" className="flex flex-col gap-3">
-        <h2 id="payroll-batches-heading" className="text-lg font-semibold">
-          Payroll batches
-        </h2>
+      <Panel titleId="payroll-batches-heading" title={<>Payroll batches</>}>
         {counts.length > 0 ? (
           <p className="text-sm text-muted-foreground">
             {counts
@@ -230,37 +288,53 @@ export default async function PayrollPage({
             {attentionBatches.length > 0 ? ` · ${attentionBatches.length} need attention` : ""}
           </p>
         ) : null}
+        {batches.length > 0 ? (
+          <FilterBar
+            key={statusFilter ?? "all"}
+            label="Filter payroll batches"
+            resetHref={statusFilter ? (base as Route) : undefined}
+          >
+            <FilterSelect
+              label="Batch status"
+              id="batch-status"
+              name="status"
+              defaultValue={statusFilter ?? ""}
+            >
+              <option value="">All statuses</option>
+              {PAYROLL_BATCH_STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {PAYROLL_BATCH_STATUS_LABELS[status]}
+                </option>
+              ))}
+            </FilterSelect>
+          </FilterBar>
+        ) : null}
         {batches.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No payroll batches yet.</p>
+          <EmptyState
+            headingLevel={3}
+            title="No payroll batches yet."
+            description="Prepare a batch from priced work above."
+          />
         ) : (
           <DataTableRegion aria-label="Payroll batches table">
-            <table className="w-full min-w-[820px] text-left text-sm">
-              <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
+            <DataTable className="min-w-[820px]">
+              <DataTableHead>
                 <tr>
-                  <th scope="col" className={TH}>
-                    Batch
-                  </th>
-                  <th scope="col" className={TH}>
-                    Period
-                  </th>
-                  <th scope="col" className={TH}>
-                    Status
-                  </th>
-                  <th scope="col" className={`${TH} text-right`}>
-                    Workers
-                  </th>
-                  <th scope="col" className={`${TH} text-right`}>
-                    Pay total
-                  </th>
-                  <th scope="col" className={`${TH} text-right`}>
-                    Exports
-                  </th>
+                  <DataTableHeaderCell>Batch</DataTableHeaderCell>
+                  <DataTableHeaderCell>Period</DataTableHeaderCell>
+                  <DataTableHeaderCell>Status</DataTableHeaderCell>
+                  <DataTableHeaderCell numeric>Workers</DataTableHeaderCell>
+                  <DataTableHeaderCell numeric>Pay total</DataTableHeaderCell>
+                  <DataTableHeaderCell numeric>Exports</DataTableHeaderCell>
+                  <DataTableHeaderCell>
+                    <span className="sr-only">Preview</span>
+                  </DataTableHeaderCell>
                 </tr>
-              </thead>
+              </DataTableHead>
               <tbody>
-                {batches.map((batch) => (
-                  <tr key={batch.id} className="border-b border-border align-top last:border-0">
-                    <td className="px-3 py-2">
+                {shownBatches.map((batch) => (
+                  <DataTableRow key={batch.id}>
+                    <DataTableCell>
                       <Link
                         href={`${base}/${batch.id}`}
                         className="font-medium text-primary underline underline-offset-4"
@@ -270,33 +344,79 @@ export default async function PayrollPage({
                       <div className="text-xs text-muted-foreground">
                         Prepared by {batch.createdByName ?? "a former member"}
                       </div>
-                    </td>
-                    <td className="px-3 py-2">
+                    </DataTableCell>
+                    <DataTableCell>
                       {formatPeriod(batch.periodStart, batch.periodEnd)}
-                    </td>
-                    <td className="px-3 py-2">
+                    </DataTableCell>
+                    <DataTableCell>
                       <div className="flex flex-wrap gap-1">
                         <PayrollStatusBadge status={batch.status} />
                         <AttentionBadge code={batch.attention} />
                       </div>
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums">{batch.workerCount}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">
+                    </DataTableCell>
+                    <DataTableCell numeric>{batch.workerCount}</DataTableCell>
+                    <DataTableCell numeric>
                       {formatMoney(batch.totalPayMinor, batch.currency)}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums">{batch.exportCount}</td>
-                  </tr>
+                    </DataTableCell>
+                    <DataTableCell numeric>{batch.exportCount}</DataTableCell>
+                    <DataTableCell>
+                      <DetailDrawerTrigger
+                        triggerLabel="Preview"
+                        triggerAccessibleLabel={`Preview ${batch.reference}`}
+                        title={batch.reference}
+                        description={`${formatPeriod(batch.periodStart, batch.periodEnd)} · ${batch.currency}`}
+                        footer={
+                          <Link
+                            href={`${base}/${batch.id}` as Route}
+                            className="inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary-hover"
+                          >
+                            Open batch
+                          </Link>
+                        }
+                      >
+                        <KeyValueList
+                          items={[
+                            {
+                              label: "Status",
+                              value: (
+                                <span className="flex flex-wrap gap-1">
+                                  <PayrollStatusBadge status={batch.status} />
+                                  <AttentionBadge code={batch.attention} />
+                                </span>
+                              ),
+                            },
+                            {
+                              label: "Period",
+                              value: formatPeriod(batch.periodStart, batch.periodEnd),
+                            },
+                            { label: "Currency", value: batch.currency },
+                            { label: "Workers", value: batch.workerCount },
+                            {
+                              label: "Pay total",
+                              value: formatMoney(batch.totalPayMinor, batch.currency),
+                            },
+                            { label: "Exports", value: batch.exportCount },
+                            {
+                              label: "Prepared by",
+                              value: batch.createdByName ?? "a former member",
+                            },
+                          ]}
+                        />
+                        <p className="text-sm text-muted-foreground">
+                          Review, approval, locking and exports happen on the batch page. Payroll
+                          preparation only — no payment.
+                        </p>
+                      </DetailDrawerTrigger>
+                    </DataTableCell>
+                  </DataTableRow>
                 ))}
               </tbody>
-            </table>
+            </DataTable>
           </DataTableRegion>
         )}
-      </section>
+      </Panel>
 
-      <section aria-labelledby="payroll-reconciliation-heading" className="flex flex-col gap-3">
-        <h2 id="payroll-reconciliation-heading" className="text-lg font-semibold">
-          Reconciliation
-        </h2>
+      <Panel titleId="payroll-reconciliation-heading" title={<>Reconciliation</>}>
         <p className="max-w-2xl text-sm text-muted-foreground">
           Where every current priced pay line stands. Lines in a batch keep the revision they were
           prepared with.
@@ -306,13 +426,10 @@ export default async function PayrollPage({
           label="Payroll reconciliation"
           amountLabel="Pay amount"
         />
-      </section>
+      </Panel>
 
       {settingsEditable ? (
-        <section aria-labelledby="payroll-settings-heading" className="flex flex-col gap-3">
-          <h2 id="payroll-settings-heading" className="text-lg font-semibold">
-            Payroll settings
-          </h2>
+        <Panel titleId="payroll-settings-heading" title={<>Payroll settings</>}>
           <p className="max-w-2xl text-sm text-muted-foreground">
             Payroll periods are calendar dates. Changing them applies to periods not yet used; a new
             period may not overlap one that already has a batch.
@@ -328,7 +445,7 @@ export default async function PayrollPage({
             organisationId={organisationId}
             required={settings.makerCheckerRequired}
           />
-        </section>
+        </Panel>
       ) : null}
     </>
   );
