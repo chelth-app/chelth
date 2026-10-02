@@ -264,6 +264,7 @@ test.describe.serial("time & attendance", () => {
     const table = facility.getByRole("region", { name: "Attendance for this request" });
     await expect(table).toContainText("Gia Geofence");
     await expect(table).toContainText("Inside site area");
+    await qaScreenshot(facility, "s4-facility-attendance");
     await expect(facility.locator("main")).not.toContainText(/40\.71|74\.00|latitude|longitude/i);
     await facility.context().close();
   });

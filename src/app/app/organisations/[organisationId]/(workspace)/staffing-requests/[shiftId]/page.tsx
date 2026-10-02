@@ -2,9 +2,21 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { DataTableRegion } from "@/components/ui/data-table";
+import { Panel } from "@/components/ui/panel";
+
+import {
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeaderCell,
+  DataTableRegion,
+  DataTableRow,
+} from "@/components/ui/data-table";
 import { InlineActionForm } from "@/components/forms/inline-action-form";
-import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { KeyValueList } from "@/components/ui/key-value-list";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatusChip } from "@/components/ui/status-chip";
 import { AttendanceStateBadge, listFacilityShiftAttendance } from "@/features/attendance";
 import { ReadinessBadge } from "@/features/compliance";
 import { loadOrganisationPage, requireCapabilityOrNotFound } from "@/features/organisations";
@@ -53,60 +65,68 @@ export default async function StaffingRequestPage({
 
   return (
     <>
-      <header className="flex flex-col gap-2">
-        <Link
-          href={`/app/organisations/${organisationId}/staffing-requests`}
-          className="w-fit text-sm text-primary underline underline-offset-4"
-        >
-          Staffing requests · {organisation.name}
-        </Link>
-        <h1 className="text-2xl font-semibold">
-          {shift.disciplineName} · {formatShiftDate(shift)}
-        </h1>
-        <div className="flex flex-wrap gap-2">
-          <ShiftStatusBadge status={shift.status} />
-          {shift.status === "open" ? (
-            <FillBadge
-              fillState={shift.fillState}
-              activeCount={shift.activeCount}
-              requestedHeadcount={shift.requestedHeadcount}
-            />
-          ) : null}
-        </div>
-      </header>
+      <PageHeader
+        title={`${shift.disciplineName} · ${formatShiftDate(shift)}`}
+        back={
+          <Link
+            href={`/app/organisations/${organisationId}/staffing-requests`}
+            className="text-primary underline underline-offset-4"
+          >
+            Staffing requests · {organisation.name}
+          </Link>
+        }
+        description={
+          <p className="text-sm">
+            {shift.agencyName} · {shift.locationName}
+          </p>
+        }
+        meta={
+          <>
+            <ShiftStatusBadge status={shift.status} />
+            {shift.status === "open" ? (
+              <FillBadge
+                fillState={shift.fillState}
+                activeCount={shift.activeCount}
+                requestedHeadcount={shift.requestedHeadcount}
+              />
+            ) : null}
+            {shift.relationshipStatus !== "active" ? (
+              <StatusChip tone="warning">Agency relationship not active</StatusChip>
+            ) : null}
+          </>
+        }
+      />
 
-      <section aria-labelledby="request-details-heading" className="flex flex-col gap-3">
-        <h2 id="request-details-heading" className="text-lg font-semibold">
-          Details
-        </h2>
-        <dl className="grid max-w-2xl grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
-          <dt className="text-muted-foreground">Agency</dt>
-          <dd>{shift.agencyName}</dd>
-          <dt className="text-muted-foreground">Location</dt>
-          <dd>{shift.locationName}</dd>
-          <dt className="text-muted-foreground">Time</dt>
-          <dd>{formatShiftTimeRange(shift)}</dd>
-          <dt className="text-muted-foreground">Workers needed</dt>
-          <dd>{shift.requestedHeadcount}</dd>
-          {shift.externalReference ? (
-            <>
-              <dt className="text-muted-foreground">Reference</dt>
-              <dd>{shift.externalReference}</dd>
-            </>
-          ) : null}
-          {shift.instructions ? (
-            <>
-              <dt className="text-muted-foreground">Instructions</dt>
-              <dd className="whitespace-pre-line">{shift.instructions}</dd>
-            </>
-          ) : null}
-          {shift.cancellationReason ? (
-            <>
-              <dt className="text-muted-foreground">Cancelled</dt>
-              <dd>{SHIFT_CANCELLATION_REASON_LABELS[shift.cancellationReason]}</dd>
-            </>
-          ) : null}
-        </dl>
+      <Panel titleId="request-details-heading" title={<>Details</>}>
+        <KeyValueList
+          className="max-w-2xl"
+          items={[
+            { label: "Agency", value: shift.agencyName },
+            { label: "Location", value: shift.locationName },
+            { label: "Time", value: formatShiftTimeRange(shift) },
+            { label: "Timezone", value: shift.timezone },
+            { label: "Workers needed", value: shift.requestedHeadcount },
+            ...(shift.externalReference
+              ? [{ label: "Reference", value: shift.externalReference }]
+              : []),
+            ...(shift.instructions
+              ? [
+                  {
+                    label: "Instructions",
+                    value: <span className="whitespace-pre-line">{shift.instructions}</span>,
+                  },
+                ]
+              : []),
+            ...(shift.cancellationReason
+              ? [
+                  {
+                    label: "Cancelled",
+                    value: SHIFT_CANCELLATION_REASON_LABELS[shift.cancellationReason],
+                  },
+                ]
+              : []),
+          ]}
+        />
         {shift.status === "submitted" &&
         shift.source === "facility" &&
         can(CAPABILITIES.SHIFT_REQUEST) === "granted" ? (
@@ -118,95 +138,95 @@ export default async function StaffingRequestPage({
             />
           </div>
         ) : null}
-      </section>
+      </Panel>
 
       {shift.status === "open" ? (
-        <section aria-labelledby="coming-heading" className="flex flex-col gap-3">
-          <h2 id="coming-heading" className="text-lg font-semibold">
-            Who is coming
-          </h2>
+        <Panel titleId="coming-heading" title={<>Who is coming</>}>
           {workers.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No workers assigned yet.</p>
+            <EmptyState headingLevel={3} title="No workers assigned yet." />
           ) : (
-            <ul className="flex flex-col gap-2">
-              {workers.map((worker) => (
-                <li
-                  key={worker.assignmentId}
-                  className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface p-3"
-                >
-                  <span className="font-medium">{worker.displayName ?? "Worker"}</span>
-                  <span className="text-sm text-muted-foreground">{worker.disciplineName}</span>
-                  <AssignmentStatusBadge status={worker.status} />
-                  <ReadinessBadge status={worker.readiness} />
-                </li>
-              ))}
-            </ul>
+            <DataTableRegion aria-label="Workers coming">
+              <DataTable className="min-w-[32rem]">
+                <DataTableHead>
+                  <tr>
+                    <DataTableHeaderCell>Worker</DataTableHeaderCell>
+                    <DataTableHeaderCell>Discipline</DataTableHeaderCell>
+                    <DataTableHeaderCell>Assignment</DataTableHeaderCell>
+                    <DataTableHeaderCell>Readiness</DataTableHeaderCell>
+                  </tr>
+                </DataTableHead>
+                <tbody>
+                  {workers.map((worker) => (
+                    <DataTableRow key={worker.assignmentId}>
+                      <DataTableCell className="font-medium">
+                        {worker.displayName ?? "Worker"}
+                      </DataTableCell>
+                      <DataTableCell>{worker.disciplineName}</DataTableCell>
+                      <DataTableCell>
+                        <AssignmentStatusBadge status={worker.status} />
+                      </DataTableCell>
+                      <DataTableCell>
+                        <ReadinessBadge status={worker.readiness} />
+                      </DataTableCell>
+                    </DataTableRow>
+                  ))}
+                </tbody>
+              </DataTable>
+            </DataTableRegion>
           )}
-        </section>
+        </Panel>
       ) : null}
 
       {attendance.length > 0 ? (
-        <section aria-labelledby="facility-attendance-heading" className="flex flex-col gap-3">
-          <h2 id="facility-attendance-heading" className="text-lg font-semibold">
-            Attendance
-          </h2>
+        <Panel titleId="facility-attendance-heading" title={<>Attendance</>}>
           <DataTableRegion aria-label="Attendance for this request">
-            <table className="w-full min-w-[560px] text-left text-sm">
-              <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
+            <DataTable className="min-w-[560px]">
+              <DataTableHead>
                 <tr>
-                  <th scope="col" className="px-3 py-2 font-medium">
-                    Worker
-                  </th>
-                  <th scope="col" className="px-3 py-2 font-medium">
-                    Status
-                  </th>
-                  <th scope="col" className="px-3 py-2 font-medium">
-                    Clock in
-                  </th>
-                  <th scope="col" className="px-3 py-2 font-medium">
-                    Clock out
-                  </th>
+                  <DataTableHeaderCell>Worker</DataTableHeaderCell>
+                  <DataTableHeaderCell>Status</DataTableHeaderCell>
+                  <DataTableHeaderCell>Clock in</DataTableHeaderCell>
+                  <DataTableHeaderCell>Clock out</DataTableHeaderCell>
                 </tr>
-              </thead>
+              </DataTableHead>
               <tbody>
                 {attendance.map((row) => (
-                  <tr
-                    key={row.assignmentId}
-                    className="border-b border-border align-top last:border-0"
-                  >
-                    <td className="px-3 py-2 font-medium">{row.workerName ?? "Worker"}</td>
-                    <td className="px-3 py-2">
+                  <DataTableRow key={row.assignmentId}>
+                    <DataTableCell className="font-medium">
+                      {row.workerName ?? "Worker"}
+                    </DataTableCell>
+                    <DataTableCell>
                       <AttendanceStateBadge
                         clockState={row.clockState}
                         needsReview={row.hasOpenException}
                       />
-                    </td>
-                    <td className="px-3 py-2">
+                    </DataTableCell>
+                    <DataTableCell>
                       {formatLocalClockTime(row.clockInAt, shift.timezone)}
                       {row.clockInLocation && row.clockInLocation !== "not_required" ? (
                         <div>
-                          <Badge tone="neutral">
+                          <StatusChip tone="neutral">
                             {GEOFENCE_RESULT_LABELS[row.clockInLocation]}
-                          </Badge>
+                          </StatusChip>
                         </div>
                       ) : null}
-                    </td>
-                    <td className="px-3 py-2">
+                    </DataTableCell>
+                    <DataTableCell>
                       {formatLocalClockTime(row.clockOutAt, shift.timezone)}
                       {row.clockOutLocation && row.clockOutLocation !== "not_required" ? (
                         <div>
-                          <Badge tone="neutral">
+                          <StatusChip tone="neutral">
                             {GEOFENCE_RESULT_LABELS[row.clockOutLocation]}
-                          </Badge>
+                          </StatusChip>
                         </div>
                       ) : null}
-                    </td>
-                  </tr>
+                    </DataTableCell>
+                  </DataTableRow>
                 ))}
               </tbody>
-            </table>
+            </DataTable>
           </DataTableRegion>
-        </section>
+        </Panel>
       ) : null}
     </>
   );

@@ -11,7 +11,9 @@ import {
   DataTableRow,
 } from "@/components/ui/data-table";
 import { WorkspaceNavIcon } from "@/components/layout/workspace-nav-icon";
+import { DetailDrawerTrigger } from "@/components/ui/detail-drawer";
 import { EmptyState } from "@/components/ui/empty-state";
+import { KeyValueList } from "@/components/ui/key-value-list";
 import { FilterBar, FilterField, FilterSelect } from "@/components/ui/filter-bar";
 import { Input } from "@/components/ui/input";
 import { KpiFilterCard, KpiFilterGroup } from "@/components/ui/kpi-filter-card";
@@ -39,9 +41,11 @@ import {
   blockingReasonLabel,
   DISPUTE_REASON_LABELS,
   formatPeriod,
+  FACILITY_STATE_LABELS,
   formatWorkedMinutes,
   TIMESHEET_STATUS_LABELS,
   TIMESHEET_STATUSES,
+  type TimesheetFacilityState,
   type TimesheetStatus,
 } from "@/lib/domain/timesheets";
 
@@ -83,7 +87,7 @@ export default async function TimesheetsPage({
   if (organisation.type === "facility") {
     const access = can(CAPABILITIES.TIMESHEET_FACILITY_SIGNOFF);
     if (access === "not_held") notFound();
-    return <FacilityTimesheets context={context} />;
+    return <FacilityTimesheets context={context} rawState={first((await searchParams).state)} />;
   }
 
   if (can(CAPABILITIES.TIMESHEET_VIEW) !== "not_held") {
@@ -302,7 +306,20 @@ export default async function TimesheetsPage({
   );
 }
 
-async function FacilityTimesheets({ context }: { context: OrganisationPageContext }) {
+const FACILITY_STATE_TONE: Record<TimesheetFacilityState, "info" | "success" | "danger"> = {
+  not_required: "info",
+  pending: "info",
+  signed_off: "success",
+  disputed: "danger",
+};
+
+async function FacilityTimesheets({
+  context,
+  rawState,
+}: {
+  context: OrganisationPageContext;
+  rawState: string | undefined;
+}) {
   const { organisationId, can } = context;
   if (can(CAPABILITIES.TIMESHEET_FACILITY_SIGNOFF) !== "granted") {
     return (
@@ -316,14 +333,90 @@ async function FacilityTimesheets({ context }: { context: OrganisationPageContex
     );
   }
   const entries = await listFacilityTimesheetEntries(organisationId);
+  // Display filter over the facility's own (already loaded) projection.
+  const states = Object.keys(FACILITY_STATE_LABELS) as TimesheetFacilityState[];
+  const stateFilter = states.find((state) => state === rawState);
+  const shown = stateFilter
+    ? entries.filter((entry) => entry.facilityState === stateFilter)
+    : entries;
+  const base = `/app/organisations/${organisationId}/timesheets` as const;
+  const quick = (state: TimesheetFacilityState) => ({
+    count: entries.filter((entry) => entry.facilityState === state).length,
+    href: `${base}?state=${state}` as Route,
+    active: stateFilter === state,
+  });
+  const pending = quick("pending");
+  const signedOff = quick("signed_off");
+  const disputed = quick("disputed");
   return (
     <>
       <Header
         context={context}
         intro="Worked time at your facility that an agency has approved. Sign off each entry, or raise a discrepancy if something is wrong; you cannot change times here. Times are in the facility's timezone."
       />
+      {entries.length > 0 ? (
+        <>
+          <KpiFilterGroup label="Sign-off summary">
+            <KpiFilterCard
+              label="Awaiting sign-off"
+              value={pending.count}
+              supporting="Approved by the agency"
+              icon={<WorkspaceNavIcon name="timesheets" />}
+              href={pending.href}
+              active={pending.active}
+            />
+            <KpiFilterCard
+              label="Signed off"
+              value={signedOff.count}
+              supporting="Confirmed by your facility"
+              icon={<WorkspaceNavIcon name="compliance" />}
+              href={signedOff.href}
+              active={signedOff.active}
+            />
+            <KpiFilterCard
+              label="Discrepancies raised"
+              value={disputed.count}
+              supporting="Waiting for the agency"
+              icon={<WorkspaceNavIcon name="attendance" />}
+              href={disputed.href}
+              active={disputed.active}
+            />
+          </KpiFilterGroup>
+          <FilterBar
+            key={stateFilter ?? "all"}
+            label="Filter entries"
+            resetHref={stateFilter ? (base as Route) : undefined}
+          >
+            <FilterSelect
+              label="Sign-off"
+              id="entry-state"
+              name="state"
+              defaultValue={stateFilter ?? ""}
+            >
+              <option value="">All entries</option>
+              {states.map((state) => (
+                <option key={state} value={state}>
+                  {FACILITY_STATE_LABELS[state]}
+                </option>
+              ))}
+            </FilterSelect>
+          </FilterBar>
+        </>
+      ) : null}
       {entries.length === 0 ? (
         <EmptyState title="No entries awaiting sign-off." />
+      ) : shown.length === 0 ? (
+        <EmptyState
+          title="No entries in this state."
+          action={
+            <Link
+              href={base}
+              className="inline-flex min-h-11 items-center text-sm font-medium text-primary underline underline-offset-4"
+            >
+              Show all entries
+            </Link>
+          }
+        />
       ) : (
         <DataTableRegion aria-label="Facility timesheet entries">
           <DataTable className="min-w-[900px]">
@@ -336,10 +429,13 @@ async function FacilityTimesheets({ context }: { context: OrganisationPageContex
                 <DataTableHeaderCell numeric>Breaks</DataTableHeaderCell>
                 <DataTableHeaderCell numeric>Worked</DataTableHeaderCell>
                 <DataTableHeaderCell>Sign-off</DataTableHeaderCell>
+                <DataTableHeaderCell>
+                  <span className="sr-only">Details</span>
+                </DataTableHeaderCell>
               </tr>
             </DataTableHead>
             <tbody>
-              {entries.map((entry) => {
+              {shown.map((entry) => {
                 const shift = {
                   startAt: entry.scheduledStartAt,
                   endAt: entry.scheduledEndAt,
@@ -387,6 +483,53 @@ async function FacilityTimesheets({ context }: { context: OrganisationPageContex
                           />
                         ) : null}
                       </div>
+                    </DataTableCell>
+                    <DataTableCell>
+                      <DetailDrawerTrigger
+                        triggerLabel="Details"
+                        triggerAccessibleLabel={`Details for ${worker}, ${formatShiftDate(shift)}`}
+                        title={worker}
+                        description={`${entry.agencyName} · ${formatShiftDate(shift)}`}
+                      >
+                        <KeyValueList
+                          items={[
+                            {
+                              label: "Sign-off",
+                              value: (
+                                <StatusChip tone={FACILITY_STATE_TONE[entry.facilityState]}>
+                                  {FACILITY_STATE_LABELS[entry.facilityState]}
+                                </StatusChip>
+                              ),
+                            },
+                            ...(entry.disputeReason && entry.facilityState === "disputed"
+                              ? [
+                                  {
+                                    label: "Discrepancy",
+                                    value: DISPUTE_REASON_LABELS[entry.disputeReason],
+                                  },
+                                ]
+                              : []),
+                            { label: "Agency", value: entry.agencyName },
+                            {
+                              label: "Location",
+                              value: `${entry.facilityName} · ${entry.locationName}`,
+                            },
+                            { label: "Scheduled", value: formatShiftTimeRange(shift) },
+                            {
+                              label: "Worked from – to",
+                              value: `${formatLocalClockTime(entry.effectiveStartAt, entry.timezone)} – ${formatLocalClockTime(entry.effectiveEndAt, entry.timezone)}`,
+                            },
+                            { label: "Breaks", value: formatWorkedMinutes(entry.breakMinutes) },
+                            { label: "Worked", value: formatWorkedMinutes(entry.workedMinutes) },
+                            { label: "Timezone", value: entry.timezone },
+                            { label: "Revision", value: entry.revision },
+                          ]}
+                        />
+                        <p className="text-sm text-muted-foreground">
+                          Sign off or raise a discrepancy from the table. You cannot change times
+                          here.
+                        </p>
+                      </DetailDrawerTrigger>
                     </DataTableCell>
                   </DataTableRow>
                 );

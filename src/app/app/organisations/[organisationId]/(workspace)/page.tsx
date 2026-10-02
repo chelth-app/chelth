@@ -2,7 +2,16 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { DataTableRegion } from "@/components/ui/data-table";
+import { Panel } from "@/components/ui/panel";
+
+import {
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeaderCell,
+  DataTableRegion,
+  DataTableRow,
+} from "@/components/ui/data-table";
 import { InlineActionForm } from "@/components/forms/inline-action-form";
 import { ActivityTimeline } from "@/components/ui/activity-timeline";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +43,7 @@ import { requireAuthIdentity } from "@/lib/auth/session";
 import { auditActionLabel, CAPABILITIES, capabilityState, type CapabilityGrant } from "@/lib/authz";
 
 import { AgencyOperationsOverview } from "./_components/agency-operations-overview";
+import { FacilityOperationsOverview } from "./_components/facility-operations-overview";
 
 export const metadata: Metadata = { title: "Overview" };
 
@@ -102,8 +112,12 @@ export default async function OrganisationPage({
       <PageHeader
         title={organisation.name}
         description={
-          organisation.type === "agency" && workspaceStaff ? (
-            <p>What needs attention, what is happening today and what is coming up.</p>
+          workspaceStaff ? (
+            <p>
+              {organisation.type === "agency"
+                ? "What needs attention, what is happening today and what is coming up."
+                : "Your staffing requests, who is expected and the timesheets waiting for sign-off."}
+            </p>
           ) : undefined
         }
         back={
@@ -130,6 +144,9 @@ export default async function OrganisationPage({
 
       {organisation.type === "agency" && workspaceStaff ? (
         <AgencyOperationsOverview organisationId={organisationId} can={can} />
+      ) : null}
+      {organisation.type === "facility" && workspaceStaff ? (
+        <FacilityOperationsOverview organisationId={organisationId} can={can} />
       ) : null}
 
       {/*
@@ -175,10 +192,7 @@ export default async function OrganisationPage({
       />
 
       {myWorkerRecord ? (
-        <section aria-labelledby="my-worker-heading" className="flex flex-col gap-3">
-          <h2 id="my-worker-heading" className="text-lg font-semibold">
-            My worker record
-          </h2>
+        <Panel titleId="my-worker-heading" title={<>My worker record</>}>
           <dl className="grid max-w-md grid-cols-[auto_1fr] gap-x-6 gap-y-2 rounded-lg border border-border bg-surface p-4 text-sm">
             <dt className="text-muted-foreground">Status</dt>
             <dd>
@@ -187,14 +201,11 @@ export default async function OrganisationPage({
             <dt className="text-muted-foreground">Start date</dt>
             <dd>{myWorkerRecord.startDate ?? "Not started"}</dd>
           </dl>
-        </section>
+        </Panel>
       ) : null}
 
       {partnerRelationships.length > 0 ? (
-        <section aria-labelledby="partners-heading" className="flex flex-col gap-3">
-          <h2 id="partners-heading" className="text-lg font-semibold">
-            Agency relationships
-          </h2>
+        <Panel titleId="partners-heading" title={<>Agency relationships</>}>
           <ul className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface text-sm">
             {partnerRelationships.map((relationship) => (
               <li
@@ -235,47 +246,33 @@ export default async function OrganisationPage({
               )}
             </div>
           ))}
-        </section>
+        </Panel>
       ) : null}
 
       {can(CAPABILITIES.MEMBERSHIP_VIEW) === "granted" ? (
-        <section aria-labelledby="members-heading" className="flex flex-col gap-3">
-          <h2 id="members-heading" className="text-lg font-semibold">
-            Members
-          </h2>
+        <Panel titleId="members-heading" title={<>Members</>}>
           {/* Focusable, labelled scroll region: keyboard users can scroll the table on small screens. */}
           <DataTableRegion aria-label="Members table">
-            <table className="w-full min-w-[40rem] text-left text-sm">
-              <thead className="border-b border-border bg-surface-muted">
+            <DataTable className="min-w-[40rem]">
+              <DataTableHead>
                 <tr>
-                  <th scope="col" className="p-3 font-medium">
-                    Name
-                  </th>
-                  <th scope="col" className="p-3 font-medium">
-                    Status
-                  </th>
-                  <th scope="col" className="p-3 font-medium">
-                    Roles
-                  </th>
-                  <th scope="col" className="p-3 font-medium">
-                    Manage
-                  </th>
+                  <DataTableHeaderCell>Name</DataTableHeaderCell>
+                  <DataTableHeaderCell>Status</DataTableHeaderCell>
+                  <DataTableHeaderCell>Roles</DataTableHeaderCell>
+                  <DataTableHeaderCell>Manage</DataTableHeaderCell>
                 </tr>
-              </thead>
+              </DataTableHead>
               <tbody>
                 {members.map((member) => {
                   const name = member.displayName ?? "Member";
                   const isSelf = member.profileId === identity.userId;
                   return (
-                    <tr
-                      key={member.membershipId}
-                      className="border-b border-border align-top last:border-0"
-                    >
-                      <th scope="row" className="p-3 font-medium">
+                    <DataTableRow key={member.membershipId}>
+                      <th scope="row" className="px-3 py-2.5 font-medium">
                         {name}
                         {isSelf ? <span className="text-muted-foreground"> (you)</span> : null}
                       </th>
-                      <td className="p-3">
+                      <DataTableCell>
                         <StatusChip
                           tone={
                             member.status === "active"
@@ -291,8 +288,8 @@ export default async function OrganisationPage({
                               ? "Suspended"
                               : "Revoked"}
                         </StatusChip>
-                      </td>
-                      <td className="p-3">
+                      </DataTableCell>
+                      <DataTableCell>
                         <ul className="flex flex-col gap-2">
                           {member.roleKeys.map((key) => (
                             <li key={key} className="flex flex-wrap items-center gap-2">
@@ -313,8 +310,8 @@ export default async function OrganisationPage({
                             </li>
                           ))}
                         </ul>
-                      </td>
-                      <td className="flex flex-col gap-2 p-3">
+                      </DataTableCell>
+                      <DataTableCell className="flex flex-col gap-2">
                         {isSelf ? (
                           <span className="text-muted-foreground">—</span>
                         ) : (
@@ -358,21 +355,18 @@ export default async function OrganisationPage({
                             ) : null}
                           </>
                         )}
-                      </td>
-                    </tr>
+                      </DataTableCell>
+                    </DataTableRow>
                   );
                 })}
               </tbody>
-            </table>
+            </DataTable>
           </DataTableRegion>
-        </section>
+        </Panel>
       ) : null}
 
       {can(CAPABILITIES.MEMBERSHIP_INVITE) === "granted" ? (
-        <section aria-labelledby="invites-heading" className="flex flex-col gap-3">
-          <h2 id="invites-heading" className="text-lg font-semibold">
-            Invitations
-          </h2>
+        <Panel titleId="invites-heading" title={<>Invitations</>}>
           <InviteMemberForm organisationId={organisationId} roles={grantableRoles} />
           {invites.length > 0 ? (
             <ul className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface">
@@ -410,14 +404,11 @@ export default async function OrganisationPage({
               ))}
             </ul>
           ) : null}
-        </section>
+        </Panel>
       ) : null}
 
       {can(CAPABILITIES.AUDIT_VIEW) === "granted" ? (
-        <section aria-labelledby="audit-heading" className="flex flex-col gap-3">
-          <h2 id="audit-heading" className="text-lg font-semibold">
-            Recent activity
-          </h2>
+        <Panel titleId="audit-heading" title={<>Recent activity</>}>
           {audit.length === 0 ? (
             <EmptyState
               headingLevel={3}
@@ -425,7 +416,7 @@ export default async function OrganisationPage({
               description="Membership, role and invitation changes will appear here."
             />
           ) : (
-            <div className="rounded-lg border border-border bg-surface p-4">
+            <div>
               <ActivityTimeline
                 label="Recent activity"
                 items={audit.map((event) => ({
@@ -447,7 +438,7 @@ export default async function OrganisationPage({
               />
             </div>
           )}
-        </section>
+        </Panel>
       ) : null}
     </>
   );
