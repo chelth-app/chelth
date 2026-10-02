@@ -1,8 +1,22 @@
-import type { Metadata } from "next";
+import type { Metadata, Route } from "next";
 import Link from "next/link";
+
+import { Panel } from "@/components/ui/panel";
 import { notFound } from "next/navigation";
 
-import { DataTableRegion } from "@/components/ui/data-table";
+import { ActivityTimeline } from "@/components/ui/activity-timeline";
+import {
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeaderCell,
+  DataTableRegion,
+  DataTableRow,
+} from "@/components/ui/data-table";
+import { KeyValueList } from "@/components/ui/key-value-list";
+import { PageHeader } from "@/components/ui/page-header";
+import { SectionTabs } from "@/components/ui/section-tabs";
+import { StatusChip } from "@/components/ui/status-chip";
 import { InlineActionForm } from "@/components/forms/inline-action-form";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -150,30 +164,68 @@ export default async function ShiftPage({
 
   return (
     <>
-      <header className="flex flex-col gap-2">
-        <Link
-          href={`/app/organisations/${organisationId}/shifts`}
-          className="w-fit text-sm text-primary underline underline-offset-4"
-        >
-          Shifts · {organisation.name}
-        </Link>
-        <h1 className="text-2xl font-semibold">
-          {shift.facilityName} · {shift.disciplineName}
-        </h1>
-        <div className="flex flex-wrap gap-2">
-          <ShiftStatusBadge status={shift.status} />
-          {canViewAssignments && shift.status === "open" ? (
-            <FillBadge
-              fillState={deriveFillState(active.length, shift.requestedHeadcount)}
-              activeCount={active.length}
-              requestedHeadcount={shift.requestedHeadcount}
-            />
-          ) : null}
-          <Badge tone="neutral">{SHIFT_SOURCE_LABELS[shift.source]}</Badge>
-          <Badge tone="neutral">{SHIFT_CLASSIFICATION_LABELS[shift.classification]} shift</Badge>
-          {!relationshipActive ? <Badge tone="warning">Relationship not active</Badge> : null}
-        </div>
-      </header>
+      <PageHeader
+        title={`${shift.facilityName} · ${shift.disciplineName}`}
+        back={
+          <Link
+            href={`/app/organisations/${organisationId}/shifts`}
+            className="text-primary underline underline-offset-4"
+          >
+            Shifts · {organisation.name}
+          </Link>
+        }
+        description={
+          <p>
+            {formatShiftDate(shift)} · {shift.locationName}
+          </p>
+        }
+        meta={
+          <>
+            <ShiftStatusBadge status={shift.status} />
+            {canViewAssignments && shift.status === "open" ? (
+              <FillBadge
+                fillState={deriveFillState(active.length, shift.requestedHeadcount)}
+                activeCount={active.length}
+                requestedHeadcount={shift.requestedHeadcount}
+              />
+            ) : null}
+            <Badge tone="neutral">{SHIFT_SOURCE_LABELS[shift.source]}</Badge>
+            <Badge tone="neutral">{SHIFT_CLASSIFICATION_LABELS[shift.classification]} shift</Badge>
+            {!relationshipActive ? (
+              <StatusChip tone="warning">Relationship not active</StatusChip>
+            ) : null}
+          </>
+        }
+      />
+
+      <SectionTabs
+        label="Shift sections"
+        tabs={[
+          { label: "Details", href: "#shift-details-heading" as Route, current: false },
+          ...(canViewAssignments
+            ? [{ label: "Assigned workers", href: "#assignments-heading" as Route, current: false }]
+            : []),
+          ...(canStaff
+            ? [{ label: "Assign", href: "#assign-heading" as Route, current: false }]
+            : []),
+          ...(canViewAttendance && attendance.length > 0
+            ? [{ label: "Attendance", href: "#attendance-heading" as Route, current: false }]
+            : []),
+          ...(canOffer || (canViewAssignments && offers.length > 0)
+            ? [
+                {
+                  label: "Offers",
+                  href: (canOffer ? "#offer-heading" : "#offers-heading") as Route,
+                  current: false,
+                },
+              ]
+            : []),
+          ...(canViewAssignments && decisions.length > 0
+            ? [{ label: "Decisions", href: "#decisions-heading" as Route, current: false }]
+            : []),
+          { label: "Notes", href: "#notes-heading" as Route, current: false },
+        ]}
+      />
 
       {canManageShift && (shift.status === "draft" || shift.status === "submitted") ? (
         <ShiftClassificationForm
@@ -183,40 +235,36 @@ export default async function ShiftPage({
         />
       ) : null}
 
-      <section aria-labelledby="shift-details-heading" className="flex flex-col gap-3">
-        <h2 id="shift-details-heading" className="text-lg font-semibold">
-          Details
-        </h2>
-        <dl className="grid max-w-2xl grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
-          <dt className="text-muted-foreground">Date</dt>
-          <dd>{formatShiftDate(shift)}</dd>
-          <dt className="text-muted-foreground">Time</dt>
-          <dd>{formatShiftTimeRange(shift)}</dd>
-          <dt className="text-muted-foreground">Timezone</dt>
-          <dd>{shift.timezone}</dd>
-          <dt className="text-muted-foreground">Location</dt>
-          <dd>{shift.locationName}</dd>
-          <dt className="text-muted-foreground">Workers needed</dt>
-          <dd>{shift.requestedHeadcount}</dd>
-          {shift.externalReference ? (
-            <>
-              <dt className="text-muted-foreground">Reference</dt>
-              <dd>{shift.externalReference}</dd>
-            </>
-          ) : null}
-          {shift.instructions ? (
-            <>
-              <dt className="text-muted-foreground">Instructions</dt>
-              <dd className="whitespace-pre-line">{shift.instructions}</dd>
-            </>
-          ) : null}
-          {shift.cancellationReason ? (
-            <>
-              <dt className="text-muted-foreground">Cancelled</dt>
-              <dd>{SHIFT_CANCELLATION_REASON_LABELS[shift.cancellationReason]}</dd>
-            </>
-          ) : null}
-        </dl>
+      <Panel titleId="shift-details-heading" title={<>Details</>}>
+        <KeyValueList
+          className="max-w-2xl"
+          items={[
+            { label: "Date", value: formatShiftDate(shift) },
+            { label: "Time", value: formatShiftTimeRange(shift) },
+            { label: "Timezone", value: shift.timezone },
+            { label: "Location", value: shift.locationName },
+            { label: "Workers needed", value: shift.requestedHeadcount },
+            ...(shift.externalReference
+              ? [{ label: "Reference", value: shift.externalReference }]
+              : []),
+            ...(shift.instructions
+              ? [
+                  {
+                    label: "Instructions",
+                    value: <span className="whitespace-pre-line">{shift.instructions}</span>,
+                  },
+                ]
+              : []),
+            ...(shift.cancellationReason
+              ? [
+                  {
+                    label: "Cancelled",
+                    value: SHIFT_CANCELLATION_REASON_LABELS[shift.cancellationReason],
+                  },
+                ]
+              : []),
+          ]}
+        />
         {canManageShift ? (
           <div className="flex flex-wrap gap-2">
             {(shift.status === "draft" || shift.status === "submitted") && relationshipActive ? (
@@ -236,13 +284,10 @@ export default async function ShiftPage({
             ) : null}
           </div>
         ) : null}
-      </section>
+      </Panel>
 
       {canViewAssignments ? (
-        <section aria-labelledby="assignments-heading" className="flex flex-col gap-3">
-          <h2 id="assignments-heading" className="text-lg font-semibold">
-            Assigned workers
-          </h2>
+        <Panel titleId="assignments-heading" title={<>Assigned workers</>}>
           {canAssign && active.length > 0 ? (
             <div>
               <InlineActionForm
@@ -270,17 +315,17 @@ export default async function ShiftPage({
                         live.eligible ? (
                           <ReadinessBadge status="ready" />
                         ) : (
-                          <Badge tone="danger">No longer eligible</Badge>
+                          <StatusChip tone="danger">No longer eligible</StatusChip>
                         )
                       ) : null}
                       {(issuesByAssignment.get(assignment.id) ?? []).map((issue) => (
-                        <Badge
+                        <StatusChip
                           key={issue.id}
-                          tone={issue.severity === "urgent" ? "danger" : "warning"}
+                          tone={issue.severity === "urgent" ? "danger" : "attention"}
                         >
                           {ASSIGNMENT_ISSUE_SEVERITY_LABELS[issue.severity]}:{" "}
                           {ASSIGNMENT_ISSUE_TYPE_LABELS[issue.issueType]}
-                        </Badge>
+                        </StatusChip>
                       ))}
                     </div>
                     {live && !live.eligible ? (
@@ -323,14 +368,11 @@ export default async function ShiftPage({
               </ul>
             </details>
           ) : null}
-        </section>
+        </Panel>
       ) : null}
 
       {canStaff ? (
-        <section aria-labelledby="assign-heading" className="flex flex-col gap-3">
-          <h2 id="assign-heading" className="text-lg font-semibold">
-            Assign a worker
-          </h2>
+        <Panel titleId="assign-heading" title={<>Assign a worker</>}>
           <p className="max-w-2xl text-sm text-muted-foreground">
             Workers who hold this discipline, are compliant for {shift.facilityName} on the shift
             date and have no scheduling conflict. Chelth re-checks every assignment when you submit.
@@ -395,77 +437,63 @@ export default async function ShiftPage({
               </ul>
             </details>
           ) : null}
-        </section>
+        </Panel>
       ) : null}
 
       {canViewAttendance && attendance.length > 0 ? (
-        <section aria-labelledby="attendance-heading" className="flex flex-col gap-3">
-          <h2 id="attendance-heading" className="text-lg font-semibold">
-            Attendance
-          </h2>
+        <Panel titleId="attendance-heading" title={<>Attendance</>}>
           <DataTableRegion aria-label="Attendance for this shift">
-            <table className="w-full min-w-[640px] text-left text-sm">
-              <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
+            <DataTable className="min-w-[640px]">
+              <DataTableHead>
                 <tr>
-                  <th scope="col" className="px-3 py-2 font-medium">
-                    Worker
-                  </th>
-                  <th scope="col" className="px-3 py-2 font-medium">
-                    Status
-                  </th>
-                  <th scope="col" className="px-3 py-2 font-medium">
-                    Clock in
-                  </th>
-                  <th scope="col" className="px-3 py-2 font-medium">
-                    Clock out
-                  </th>
-                  <th scope="col" className="px-3 py-2 font-medium">
-                    Exceptions
-                  </th>
+                  <DataTableHeaderCell>Worker</DataTableHeaderCell>
+                  <DataTableHeaderCell>Status</DataTableHeaderCell>
+                  <DataTableHeaderCell>Clock in</DataTableHeaderCell>
+                  <DataTableHeaderCell>Clock out</DataTableHeaderCell>
+                  <DataTableHeaderCell>Exceptions</DataTableHeaderCell>
                 </tr>
-              </thead>
+              </DataTableHead>
               <tbody>
                 {attendance.map((row) => (
-                  <tr
-                    key={row.assignmentId}
-                    className="border-b border-border align-top last:border-0"
-                  >
-                    <td className="px-3 py-2 font-medium">{row.workerName ?? "Worker"}</td>
-                    <td className="px-3 py-2">
+                  <DataTableRow key={row.assignmentId}>
+                    <DataTableCell className="font-medium">
+                      {row.workerName ?? "Worker"}
+                    </DataTableCell>
+                    <DataTableCell>
                       <AttendanceStateBadge
                         clockState={row.clockState}
                         needsReview={row.needsReview}
                       />
-                    </td>
-                    <td className="px-3 py-2">
+                    </DataTableCell>
+                    <DataTableCell>
                       {formatLocalClockTime(row.clockInAt, row.timezone)}
                       {row.clockInLocation && row.clockInLocation !== "not_required" ? (
                         <div className="text-xs text-muted-foreground">
                           {GEOFENCE_RESULT_LABELS[row.clockInLocation]}
                         </div>
                       ) : null}
-                    </td>
-                    <td className="px-3 py-2">
+                    </DataTableCell>
+                    <DataTableCell>
                       {formatLocalClockTime(row.clockOutAt, row.timezone)}
                       {row.clockOutLocation && row.clockOutLocation !== "not_required" ? (
                         <div className="text-xs text-muted-foreground">
                           {GEOFENCE_RESULT_LABELS[row.clockOutLocation]}
                         </div>
                       ) : null}
-                    </td>
-                    <td className="px-3 py-2">
+                    </DataTableCell>
+                    <DataTableCell>
                       <div className="flex flex-wrap gap-1">
                         {row.openExceptionTypes.map((type) => (
-                          <Badge key={type} tone="warning">
+                          <StatusChip key={type} tone="attention">
                             {ATTENDANCE_EXCEPTION_LABELS[type]}
-                          </Badge>
+                          </StatusChip>
                         ))}
                       </div>
-                    </td>
-                  </tr>
+                    </DataTableCell>
+                  </DataTableRow>
                 ))}
               </tbody>
-            </table>
+            </DataTable>
           </DataTableRegion>
           {attendanceCorrections.length > 0 ? (
             <ul aria-label="Attendance corrections for this shift" className="flex flex-col gap-3">
@@ -497,14 +525,11 @@ export default async function ShiftPage({
               })}
             </ul>
           ) : null}
-        </section>
+        </Panel>
       ) : null}
 
       {canOffer ? (
-        <section aria-labelledby="offer-heading" className="flex flex-col gap-3">
-          <h2 id="offer-heading" className="text-lg font-semibold">
-            Offer shift
-          </h2>
+        <Panel titleId="offer-heading" title={<>Offer shift</>}>
           <p className="max-w-2xl text-sm text-muted-foreground">
             Ask eligible workers to take this shift. Offers do not hold a place: the first workers
             to accept (and still pass every check) are assigned, and the remaining offers close when
@@ -524,14 +549,11 @@ export default async function ShiftPage({
               }))}
             />
           )}
-        </section>
+        </Panel>
       ) : null}
 
       {canViewAssignments && offers.length > 0 ? (
-        <section aria-labelledby="offers-heading" className="flex flex-col gap-3">
-          <h2 id="offers-heading" className="text-lg font-semibold">
-            Offers
-          </h2>
+        <Panel titleId="offers-heading" title={<>Offers</>}>
           <ul aria-label="Offers" className="flex flex-col gap-2">
             {offers.map((offer) => (
               <li
@@ -563,35 +585,29 @@ export default async function ShiftPage({
               </li>
             ))}
           </ul>
-        </section>
+        </Panel>
       ) : null}
 
       {canViewAssignments && decisions.length > 0 ? (
-        <section aria-labelledby="decisions-heading" className="flex flex-col gap-3">
-          <h2 id="decisions-heading" className="text-lg font-semibold">
-            Assignment decisions
-          </h2>
-          <ul className="flex flex-col gap-1 text-sm">
-            {decisions.map((decision) => (
-              <li key={decision.id}>
-                {dateTime.format(new Date(decision.decidedAt))} ·{" "}
-                {workerName.get(decision.workerId) ?? "Worker"} ·{" "}
-                {decision.outcome === "allowed"
-                  ? "Allowed"
-                  : `Refused — ${decision.blockReasons.map((reason) => ASSIGNMENT_BLOCK_REASON_LABELS[reason]).join("; ")}`}
-                {" · "}evaluated for {decision.evaluationDates.join(", ")}
-              </li>
-            ))}
-          </ul>
-        </section>
+        <Panel titleId="decisions-heading" title={<>Assignment decisions</>}>
+          <ActivityTimeline
+            label="Assignment decisions"
+            items={decisions.map((decision) => ({
+              id: decision.id,
+              tone: decision.outcome === "allowed" ? ("success" as const) : ("danger" as const),
+              title:
+                decision.outcome === "allowed"
+                  ? `${workerName.get(decision.workerId) ?? "Worker"} · Allowed`
+                  : `${workerName.get(decision.workerId) ?? "Worker"} · Refused — ${decision.blockReasons.map((reason) => ASSIGNMENT_BLOCK_REASON_LABELS[reason]).join("; ")}`,
+              meta: `${dateTime.format(new Date(decision.decidedAt))} · evaluated for ${decision.evaluationDates.join(", ")}`,
+            }))}
+          />
+        </Panel>
       ) : null}
 
       {canManageShift &&
       (shift.status === "open" || shift.status === "draft" || shift.status === "submitted") ? (
-        <section aria-labelledby="manage-shift-heading" className="flex flex-col gap-4">
-          <h2 id="manage-shift-heading" className="text-lg font-semibold">
-            Manage shift
-          </h2>
+        <Panel titleId="manage-shift-heading" title={<>Manage shift</>}>
           <ShiftDetailsForm
             organisationId={organisationId}
             shiftId={shift.id}
@@ -600,13 +616,10 @@ export default async function ShiftPage({
             externalReference={shift.externalReference}
           />
           <CancelShiftForm organisationId={organisationId} shiftId={shift.id} />
-        </section>
+        </Panel>
       ) : null}
 
-      <section aria-labelledby="notes-heading" className="flex flex-col gap-3">
-        <h2 id="notes-heading" className="text-lg font-semibold">
-          Internal notes
-        </h2>
+      <Panel titleId="notes-heading" title={<>Internal notes</>}>
         <p className="text-sm text-muted-foreground">
           Visible to your agency only — never to the facility or workers.
         </p>
@@ -627,7 +640,7 @@ export default async function ShiftPage({
         {canManageShift ? (
           <ShiftNoteForm organisationId={organisationId} shiftId={shift.id} />
         ) : null}
-      </section>
+      </Panel>
     </>
   );
 }

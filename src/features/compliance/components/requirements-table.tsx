@@ -1,4 +1,5 @@
-import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { StatusChip } from "@/components/ui/status-chip";
 import { formatCalendarDate } from "@/lib/domain/credentials";
 
 import type { Requirement } from "../queries";
@@ -28,7 +29,7 @@ export function RequirementsTable(props: RequirementsTableProps) {
     defaultLastDay,
   } = props;
   if (requirements.length === 0) {
-    return <p className="text-sm text-muted-foreground">No requirements yet.</p>;
+    return <EmptyState headingLevel={3} title="No requirements yet." />;
   }
   return (
     <ul
@@ -60,9 +61,9 @@ export function RequirementsTable(props: RequirementsTableProps) {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <Badge tone={requirement.status === "active" ? "success" : "neutral"}>
+            <StatusChip tone={requirement.status === "active" ? "success" : "neutral"}>
               {requirement.status === "active" ? "Active" : "Inactive"}
-            </Badge>
+            </StatusChip>
             {canManage && requirement.status === "active" ? (
               <DeactivateRequirementForm
                 organisationId={organisationId}

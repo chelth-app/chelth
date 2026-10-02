@@ -19,3 +19,4 @@ export * from "./page-header";
 export * from "./section-tabs";
 export * from "./state-icon";
 export * from "./status-chip";
+export * from "./panel";

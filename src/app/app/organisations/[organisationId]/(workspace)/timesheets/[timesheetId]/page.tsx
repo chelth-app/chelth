@@ -1,10 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+
+import { Panel } from "@/components/ui/panel";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 
 import { InlineActionForm } from "@/components/forms/inline-action-form";
-import { Badge } from "@/components/ui/badge";
+import { ActivityTimeline } from "@/components/ui/activity-timeline";
+import { EmptyState } from "@/components/ui/empty-state";
+import { KeyValueList } from "@/components/ui/key-value-list";
+import { PageHeader } from "@/components/ui/page-header";
 import { loadOrganisationPage } from "@/features/organisations";
 import {
   ApproveTimesheetForms,
@@ -85,40 +90,56 @@ export default async function TimesheetPage({
 
   return (
     <>
-      <header className="flex flex-col gap-2">
-        <Link
-          href={`/app/organisations/${organisationId}/timesheets`}
-          className="w-fit text-sm text-primary underline underline-offset-4"
-        >
-          Timesheets
-        </Link>
-        <h1 className="text-2xl font-semibold">
-          {isWorker ? "My timesheet" : (sheet.workerName ?? "Worker")}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Week {formatPeriod(sheet.periodStart, sheet.periodEnd)}
-          {sheet.revision > 1 ? ` · Revision ${sheet.revision}` : ""}
-        </p>
-        <div className="flex flex-wrap items-center gap-2">
-          <TimesheetStatusBadge status={sheet.status} />
-          {sheet.approvedByName && sheet.agencyApprovedAt ? (
-            <span className="text-sm text-muted-foreground">
-              Approved by {sheet.approvedByName}, {when.format(new Date(sheet.agencyApprovedAt))}
-            </span>
-          ) : null}
-        </div>
-      </header>
+      <PageHeader
+        title={isWorker ? "My timesheet" : (sheet.workerName ?? "Worker")}
+        back={
+          <Link
+            href={`/app/organisations/${organisationId}/timesheets`}
+            className="text-primary underline underline-offset-4"
+          >
+            Timesheets
+          </Link>
+        }
+        description={
+          <p className="text-sm">
+            Week {formatPeriod(sheet.periodStart, sheet.periodEnd)}
+            {sheet.revision > 1 ? ` · Revision ${sheet.revision}` : ""}
+          </p>
+        }
+        meta={
+          <>
+            <TimesheetStatusBadge status={sheet.status} />
+            {sheet.approvedByName && sheet.agencyApprovedAt ? (
+              <span className="text-sm text-muted-foreground">
+                Approved by {sheet.approvedByName}, {when.format(new Date(sheet.agencyApprovedAt))}
+              </span>
+            ) : null}
+          </>
+        }
+      />
 
-      <dl className="grid max-w-lg grid-cols-[auto_1fr] gap-x-6 gap-y-2 rounded-lg border border-border bg-surface p-4 text-sm">
-        <dt className="text-muted-foreground">Worked</dt>
-        <dd className="font-semibold tabular-nums">
-          {formatWorkedMinutes(sheet.totalWorkedMinutes)}
-        </dd>
-        <dt className="text-muted-foreground">Breaks</dt>
-        <dd className="tabular-nums">{formatWorkedMinutes(sheet.totalBreakMinutes)}</dd>
-        <dt className="text-muted-foreground">Shifts</dt>
-        <dd className="tabular-nums">{sheet.entryCount}</dd>
-      </dl>
+      <div className="max-w-xl rounded-lg border border-border bg-surface p-4 shadow-card">
+        <KeyValueList
+          aria-label="Timesheet totals"
+          items={[
+            {
+              label: "Worked",
+              value: (
+                <span className="font-semibold tabular-nums">
+                  {formatWorkedMinutes(sheet.totalWorkedMinutes)}
+                </span>
+              ),
+            },
+            {
+              label: "Breaks",
+              value: (
+                <span className="tabular-nums">{formatWorkedMinutes(sheet.totalBreakMinutes)}</span>
+              ),
+            },
+            { label: "Shifts", value: <span className="tabular-nums">{sheet.entryCount}</span> },
+          ]}
+        />
+      </div>
 
       {sheet.status === "rejected" || (sheet.returnNote && sheet.status === "open") ? (
         <p
@@ -133,10 +154,10 @@ export default async function TimesheetPage({
       ) : null}
 
       {showBlocking && blocking.length > 0 ? (
-        <section aria-labelledby="blocking-heading" className="flex flex-col gap-2">
-          <h2 id="blocking-heading" className="text-lg font-semibold">
-            {isWorker ? "Before you can submit" : "Before this can be approved"}
-          </h2>
+        <Panel
+          titleId="blocking-heading"
+          title={<>{isWorker ? "Before you can submit" : "Before this can be approved"}</>}
+        >
           <ul aria-label="Blocking reasons" className="flex flex-col gap-1 text-sm">
             {blocking.map((reason) => (
               <li key={reason} className="flex flex-col">
@@ -155,7 +176,7 @@ export default async function TimesheetPage({
               Request a correction on My shifts
             </Link>
           ) : null}
-        </section>
+        </Panel>
       ) : null}
 
       {canSubmit ? (
@@ -171,10 +192,7 @@ export default async function TimesheetPage({
         />
       ) : null}
 
-      <section aria-labelledby="entries-heading" className="flex flex-col gap-3">
-        <h2 id="entries-heading" className="text-lg font-semibold">
-          Shifts
-        </h2>
+      <Panel titleId="entries-heading" title={<>Shifts</>}>
         <TimesheetEntriesTable
           entries={entries}
           showFacilityState={sheet.status === "agency_approved" || sheet.status === "locked"}
@@ -185,13 +203,10 @@ export default async function TimesheetPage({
               }
             : {})}
         />
-      </section>
+      </Panel>
 
       {canApprove && disputedEntries.length > 0 ? (
-        <section aria-labelledby="disputes-heading" className="flex flex-col gap-3">
-          <h2 id="disputes-heading" className="text-lg font-semibold">
-            Facility discrepancies
-          </h2>
+        <Panel titleId="disputes-heading" title={<>Facility discrepancies</>}>
           <p className="max-w-2xl text-sm text-muted-foreground">
             Confirm the times stand, or correct the attendance from the entry&apos;s attendance
             history (that creates a new revision for re-approval).
@@ -224,7 +239,7 @@ export default async function TimesheetPage({
               );
             })}
           </ul>
-        </section>
+        </Panel>
       ) : null}
 
       {canApprove && (sheet.status === "agency_approved" || sheet.status === "locked") ? (
@@ -241,38 +256,39 @@ export default async function TimesheetPage({
         </div>
       ) : null}
 
-      <section aria-labelledby="timesheet-history-heading" className="flex flex-col gap-3">
-        <h2 id="timesheet-history-heading" className="text-lg font-semibold">
-          Timesheet history
-        </h2>
+      <Panel titleId="timesheet-history-heading" title={<>Timesheet history</>}>
         {history.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nothing has happened yet.</p>
+          <EmptyState headingLevel={3} title="Nothing has happened yet." />
         ) : (
-          <ol aria-label="Timesheet history" className="flex flex-col gap-2 text-sm">
-            {history.map((item, index) => (
-              <li
-                key={`${item.action}-${item.occurredAt}-${index}`}
-                className="flex flex-wrap items-baseline gap-x-2 border-b border-border pb-2 last:border-0"
-              >
-                <span className="text-muted-foreground tabular-nums">
-                  {when.format(new Date(item.occurredAt))}
-                </span>
-                <span className="font-medium">{HISTORY_ACTION_LABELS[item.action]}</span>
-                {item.revision > 1 ? <Badge tone="neutral">Revision {item.revision}</Badge> : null}
-                {reasonLabel(item.reasonCode) ? (
-                  <span className="text-muted-foreground">{reasonLabel(item.reasonCode)}</span>
-                ) : null}
-                {item.actorName ? (
-                  <span className="text-muted-foreground">· {item.actorName}</span>
-                ) : null}
-                {item.note ? (
-                  <span className="basis-full text-muted-foreground">“{item.note}”</span>
-                ) : null}
-              </li>
-            ))}
-          </ol>
+          <ActivityTimeline
+            label="Timesheet history"
+            items={history.map((item, index) => ({
+              id: `${item.action}-${item.occurredAt}-${index}`,
+              title: (
+                <>
+                  {HISTORY_ACTION_LABELS[item.action]}
+                  {item.revision > 1 ? (
+                    <span className="font-normal text-muted-foreground">
+                      {" "}
+                      · Revision {item.revision}
+                    </span>
+                  ) : null}
+                </>
+              ),
+              meta: (
+                <>
+                  <time dateTime={item.occurredAt} className="tabular-nums">
+                    {when.format(new Date(item.occurredAt))}
+                  </time>
+                  {reasonLabel(item.reasonCode) ? ` · ${reasonLabel(item.reasonCode)}` : ""}
+                  {item.actorName ? ` · ${item.actorName}` : ""}
+                  {item.note ? <span className="block">“{item.note}”</span> : null}
+                </>
+              ),
+            }))}
+          />
         )}
-      </section>
+      </Panel>
     </>
   );
 }

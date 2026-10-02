@@ -1,13 +1,22 @@
-import type { Metadata } from "next";
+import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { DataTableRegion } from "@/components/ui/data-table";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import {
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeaderCell,
+  DataTableRegion,
+  DataTableRow,
+} from "@/components/ui/data-table";
+import { WorkspaceNavIcon } from "@/components/layout/workspace-nav-icon";
+import { EmptyState } from "@/components/ui/empty-state";
+import { FilterBar, FilterField, FilterSelect } from "@/components/ui/filter-bar";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
+import { KpiFilterCard, KpiFilterGroup } from "@/components/ui/kpi-filter-card";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatusChip } from "@/components/ui/status-chip";
 import {
   loadOrganisationPage,
   type OrganisationPageContext,
@@ -33,6 +42,7 @@ import {
   formatWorkedMinutes,
   TIMESHEET_STATUS_LABELS,
   TIMESHEET_STATUSES,
+  type TimesheetStatus,
 } from "@/lib/domain/timesheets";
 
 export const metadata: Metadata = { title: "Timesheets" };
@@ -43,16 +53,18 @@ function first(value: string | string[] | undefined): string | undefined {
 
 function Header({ context, intro }: { context: OrganisationPageContext; intro: string }) {
   return (
-    <header className="flex flex-col gap-2">
-      <Link
-        href={`/app/organisations/${context.organisationId}`}
-        className="w-fit text-sm text-primary underline underline-offset-4"
-      >
-        {context.organisation.name}
-      </Link>
-      <h1 className="text-2xl font-semibold">Timesheets</h1>
-      <p className="max-w-2xl text-sm text-muted-foreground">{intro}</p>
-    </header>
+    <PageHeader
+      title="Timesheets"
+      back={
+        <Link
+          href={`/app/organisations/${context.organisationId}`}
+          className="text-primary underline underline-offset-4"
+        >
+          {context.organisation.name}
+        </Link>
+      }
+      description={<p>{intro}</p>}
+    />
   );
 }
 
@@ -80,105 +92,155 @@ export default async function TimesheetsPage({
       period: first(raw.period),
       status: first(raw.status),
     });
-    const rows = await listAgencyTimesheets(organisationId, filter);
+    const [rows, inPeriod] = await Promise.all([
+      listAgencyTimesheets(organisationId, filter),
+      // Quick-filter counts: the same query for the chosen week, any status.
+      listAgencyTimesheets(organisationId, { period: filter.period }),
+    ]);
+    const base = `/app/organisations/${organisationId}/timesheets` as const;
+    const quick = (status: TimesheetStatus) => {
+      const query = new URLSearchParams({
+        ...(filter.period ? { period: filter.period } : {}),
+        status,
+      });
+      return {
+        count: inPeriod.filter((row) => row.status === status).length,
+        href: `${base}?${query.toString()}` as Route,
+        active: filter.status === status,
+      };
+    };
+    const toApprove = quick("submitted");
+    const open = quick("open");
+    const returned = quick("rejected");
+    const awaitingFacility = quick("agency_approved");
     return (
       <>
         <Header
           context={context}
           intro="Weekly timesheets derived from attendance. Worked time comes only from clock events and approved corrections; it cannot be typed in. Submitted timesheets and discrepancies are listed first."
         />
-        <form method="get" className="flex flex-wrap items-end gap-3">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="timesheet-period">Week starting</Label>
+        <KpiFilterGroup label="Timesheets by status">
+          <KpiFilterCard
+            label="To approve"
+            value={toApprove.count}
+            supporting="Submitted by workers"
+            icon={<WorkspaceNavIcon name="timesheets" />}
+            href={toApprove.href}
+            active={toApprove.active}
+          />
+          <KpiFilterCard
+            label="Open"
+            value={open.count}
+            supporting="Week in progress or not submitted"
+            icon={<WorkspaceNavIcon name="shifts" />}
+            href={open.href}
+            active={open.active}
+          />
+          <KpiFilterCard
+            label="Returned"
+            value={returned.count}
+            supporting="Sent back to the worker"
+            icon={<WorkspaceNavIcon name="compliance" />}
+            href={returned.href}
+            active={returned.active}
+          />
+          <KpiFilterCard
+            label="Awaiting facility"
+            value={awaitingFacility.count}
+            supporting="Approved, facility sign-off pending"
+            icon={<WorkspaceNavIcon name="facilities" />}
+            href={awaitingFacility.href}
+            active={awaitingFacility.active}
+          />
+        </KpiFilterGroup>
+        <FilterBar
+          key={JSON.stringify(filter)}
+          label="Filter timesheets"
+          submitLabel="Show"
+          resetHref={filter.period || filter.status ? (base as Route) : undefined}
+        >
+          <FilterField label="Week starting" htmlFor="timesheet-period">
             <Input id="timesheet-period" name="period" type="date" defaultValue={filter.period} />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="timesheet-status">Status</Label>
-            <Select id="timesheet-status" name="status" defaultValue={filter.status ?? ""}>
-              <option value="">Any status</option>
-              {TIMESHEET_STATUSES.map((status) => (
-                <option key={status} value={status}>
-                  {TIMESHEET_STATUS_LABELS[status]}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <Button type="submit" variant="outline">
-            Show
-          </Button>
-        </form>
+          </FilterField>
+          <FilterSelect
+            label="Status"
+            id="timesheet-status"
+            name="status"
+            defaultValue={filter.status ?? ""}
+          >
+            <option value="">Any status</option>
+            {TIMESHEET_STATUSES.map((status) => (
+              <option key={status} value={status}>
+                {TIMESHEET_STATUS_LABELS[status]}
+              </option>
+            ))}
+          </FilterSelect>
+        </FilterBar>
         {rows.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No timesheets match.</p>
+          <EmptyState
+            title="No timesheets match."
+            description="Timesheets are created from attendance; change the week or status to see others."
+          />
         ) : (
           <DataTableRegion aria-label="Agency timesheets table">
-            <table className="w-full min-w-[840px] text-left text-sm">
-              <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
+            <DataTable className="min-w-[840px]">
+              <DataTableHead>
                 <tr>
-                  <th scope="col" className="px-3 py-2 font-medium">
-                    Worker
-                  </th>
-                  <th scope="col" className="px-3 py-2 font-medium">
-                    Week
-                  </th>
-                  <th scope="col" className="px-3 py-2 font-medium">
-                    Status
-                  </th>
-                  <th scope="col" className="px-3 py-2 text-right font-medium">
-                    Worked
-                  </th>
-                  <th scope="col" className="px-3 py-2 text-right font-medium">
-                    Shifts
-                  </th>
-                  <th scope="col" className="px-3 py-2 font-medium">
-                    Needs attention
-                  </th>
-                  <th scope="col" className="px-3 py-2 font-medium">
-                    Facilities
-                  </th>
+                  <DataTableHeaderCell>Worker</DataTableHeaderCell>
+                  <DataTableHeaderCell>Week</DataTableHeaderCell>
+                  <DataTableHeaderCell>Status</DataTableHeaderCell>
+                  <DataTableHeaderCell numeric>Worked</DataTableHeaderCell>
+                  <DataTableHeaderCell numeric>Shifts</DataTableHeaderCell>
+                  <DataTableHeaderCell>Needs attention</DataTableHeaderCell>
+                  <DataTableHeaderCell>Facilities</DataTableHeaderCell>
                 </tr>
-              </thead>
+              </DataTableHead>
               <tbody>
                 {rows.map((row) => (
-                  <tr key={row.id} className="border-b border-border align-top last:border-0">
-                    <td className="px-3 py-2 font-medium">
+                  <DataTableRow key={row.id}>
+                    <DataTableCell className="font-medium">
                       <Link
                         href={`/app/organisations/${organisationId}/timesheets/${row.id}`}
                         className="text-primary underline underline-offset-4"
                       >
                         {row.workerName ?? "Worker"}
                       </Link>
-                    </td>
-                    <td className="px-3 py-2">{formatPeriod(row.periodStart, row.periodEnd)}</td>
-                    <td className="px-3 py-2">
+                    </DataTableCell>
+                    <DataTableCell>{formatPeriod(row.periodStart, row.periodEnd)}</DataTableCell>
+                    <DataTableCell>
                       <TimesheetStatusBadge status={row.status} />
                       {row.revision > 1 ? (
                         <div className="text-xs text-muted-foreground">Revision {row.revision}</div>
                       ) : null}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums">
+                    </DataTableCell>
+                    <DataTableCell numeric>
                       {formatWorkedMinutes(row.totalWorkedMinutes)}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums">{row.entryCount}</td>
-                    <td className="px-3 py-2">
+                    </DataTableCell>
+                    <DataTableCell numeric>{row.entryCount}</DataTableCell>
+                    <DataTableCell>
                       <div className="flex flex-wrap gap-1">
                         {row.issueCount > 0 ? (
-                          <Badge tone="warning">
+                          <StatusChip tone="attention">
                             {row.issueCount === 1
                               ? "1 shift to resolve"
                               : `${row.issueCount} shifts to resolve`}
-                          </Badge>
+                          </StatusChip>
                         ) : null}
-                        {row.disputedCount > 0 ? <Badge tone="danger">Discrepancy</Badge> : null}
+                        {row.disputedCount > 0 ? (
+                          <StatusChip tone="danger">Discrepancy</StatusChip>
+                        ) : null}
                         {row.pendingFacilityCount > 0 ? (
-                          <Badge tone="info">Awaiting facility</Badge>
+                          <StatusChip tone="info">Awaiting facility</StatusChip>
                         ) : null}
                       </div>
-                    </td>
-                    <td className="px-3 py-2 text-muted-foreground">{row.facilities.join(", ")}</td>
-                  </tr>
+                    </DataTableCell>
+                    <DataTableCell className="text-muted-foreground">
+                      {row.facilities.join(", ")}
+                    </DataTableCell>
+                  </DataTableRow>
                 ))}
               </tbody>
-            </table>
+            </DataTable>
           </DataTableRegion>
         )}
       </>
@@ -195,7 +257,10 @@ export default async function TimesheetsPage({
         intro="Your weekly timesheets, built from your clock-ins, clock-outs, breaks and approved corrections. Submit each week once it has ended."
       />
       {mine.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No timesheets yet.</p>
+        <EmptyState
+          title="No timesheets yet."
+          description="Timesheets appear here once you have worked a shift."
+        />
       ) : (
         <ul aria-label="My timesheets" className="flex flex-col gap-3">
           {mine.map((sheet) => (
@@ -222,9 +287,9 @@ export default async function TimesheetsPage({
                 <ul aria-label="Before you can submit" className="flex flex-wrap gap-1">
                   {sheet.blockingReasons.map((reason) => (
                     <li key={reason}>
-                      <Badge tone={reason === "PERIOD_NOT_ENDED" ? "neutral" : "warning"}>
+                      <StatusChip tone={reason === "PERIOD_NOT_ENDED" ? "neutral" : "warning"}>
                         {blockingReasonLabel(reason)}
-                      </Badge>
+                      </StatusChip>
                     </li>
                   ))}
                 </ul>
@@ -258,35 +323,21 @@ async function FacilityTimesheets({ context }: { context: OrganisationPageContex
         intro="Worked time at your facility that an agency has approved. Sign off each entry, or raise a discrepancy if something is wrong; you cannot change times here. Times are in the facility's timezone."
       />
       {entries.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No entries awaiting sign-off.</p>
+        <EmptyState title="No entries awaiting sign-off." />
       ) : (
         <DataTableRegion aria-label="Facility timesheet entries">
-          <table className="w-full min-w-[900px] text-left text-sm">
-            <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
+          <DataTable className="min-w-[900px]">
+            <DataTableHead>
               <tr>
-                <th scope="col" className="px-3 py-2 font-medium">
-                  Worker
-                </th>
-                <th scope="col" className="px-3 py-2 font-medium">
-                  Date
-                </th>
-                <th scope="col" className="px-3 py-2 font-medium">
-                  Scheduled
-                </th>
-                <th scope="col" className="px-3 py-2 font-medium">
-                  Worked from – to
-                </th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">
-                  Breaks
-                </th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">
-                  Worked
-                </th>
-                <th scope="col" className="px-3 py-2 font-medium">
-                  Sign-off
-                </th>
+                <DataTableHeaderCell>Worker</DataTableHeaderCell>
+                <DataTableHeaderCell>Date</DataTableHeaderCell>
+                <DataTableHeaderCell>Scheduled</DataTableHeaderCell>
+                <DataTableHeaderCell>Worked from – to</DataTableHeaderCell>
+                <DataTableHeaderCell numeric>Breaks</DataTableHeaderCell>
+                <DataTableHeaderCell numeric>Worked</DataTableHeaderCell>
+                <DataTableHeaderCell>Sign-off</DataTableHeaderCell>
               </tr>
-            </thead>
+            </DataTableHead>
             <tbody>
               {entries.map((entry) => {
                 const shift = {
@@ -296,32 +347,30 @@ async function FacilityTimesheets({ context }: { context: OrganisationPageContex
                 };
                 const worker = entry.workerName ?? "Worker";
                 return (
-                  <tr key={entry.id} className="border-b border-border align-top last:border-0">
-                    <td className="px-3 py-2">
+                  <DataTableRow key={entry.id}>
+                    <DataTableCell>
                       <div className="font-medium">{worker}</div>
                       <div className="text-muted-foreground">{entry.agencyName}</div>
-                    </td>
-                    <td className="px-3 py-2">
+                    </DataTableCell>
+                    <DataTableCell>
                       {formatShiftDate(shift)}
                       <div className="text-muted-foreground">
                         {entry.facilityName} · {entry.locationName}
                       </div>
-                    </td>
-                    <td className="px-3 py-2">{formatShiftTimeRange(shift)}</td>
-                    <td className="px-3 py-2">
+                    </DataTableCell>
+                    <DataTableCell>{formatShiftTimeRange(shift)}</DataTableCell>
+                    <DataTableCell>
                       {formatLocalClockTime(entry.effectiveStartAt, entry.timezone)} –{" "}
                       {formatLocalClockTime(entry.effectiveEndAt, entry.timezone)}
                       {entry.hadAttendanceException ? (
                         <div className="text-xs text-muted-foreground">Reviewed by the agency</div>
                       ) : null}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums">
-                      {formatWorkedMinutes(entry.breakMinutes)}
-                    </td>
-                    <td className="px-3 py-2 text-right font-medium tabular-nums">
+                    </DataTableCell>
+                    <DataTableCell numeric>{formatWorkedMinutes(entry.breakMinutes)}</DataTableCell>
+                    <DataTableCell numeric className="font-medium">
                       {formatWorkedMinutes(entry.workedMinutes)}
-                    </td>
-                    <td className="px-3 py-2">
+                    </DataTableCell>
+                    <DataTableCell>
                       <div className="flex flex-col gap-2">
                         <FacilityStateBadge state={entry.facilityState} />
                         {entry.disputeReason && entry.facilityState === "disputed" ? (
@@ -338,12 +387,12 @@ async function FacilityTimesheets({ context }: { context: OrganisationPageContex
                           />
                         ) : null}
                       </div>
-                    </td>
-                  </tr>
+                    </DataTableCell>
+                  </DataTableRow>
                 );
               })}
             </tbody>
-          </table>
+          </DataTable>
         </DataTableRegion>
       )}
     </>

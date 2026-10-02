@@ -1,7 +1,14 @@
 import Link from "next/link";
 
-import { DataTableRegion } from "@/components/ui/data-table";
-import { Badge } from "@/components/ui/badge";
+import {
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeaderCell,
+  DataTableRegion,
+  DataTableRow,
+} from "@/components/ui/data-table";
+import { StatusChip } from "@/components/ui/status-chip";
 import { formatLocalClockTime, GEOFENCE_RESULT_LABELS } from "@/lib/domain/attendance";
 import { formatShiftDate, formatShiftTimeRange } from "@/lib/domain/shifts";
 import { blockingReasonLabel, formatWorkedMinutes } from "@/lib/domain/timesheets";
@@ -31,32 +38,18 @@ export function TimesheetEntriesTable({
   }
   return (
     <DataTableRegion aria-label="Timesheet entries">
-      <table className="w-full min-w-[820px] text-left text-sm">
-        <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
+      <DataTable className="min-w-[820px]">
+        <DataTableHead>
           <tr>
-            <th scope="col" className="px-3 py-2 font-medium">
-              Shift
-            </th>
-            <th scope="col" className="px-3 py-2 font-medium">
-              Scheduled
-            </th>
-            <th scope="col" className="px-3 py-2 font-medium">
-              Clock in
-            </th>
-            <th scope="col" className="px-3 py-2 font-medium">
-              Clock out
-            </th>
-            <th scope="col" className="px-3 py-2 font-medium">
-              Breaks
-            </th>
-            <th scope="col" className="px-3 py-2 text-right font-medium">
-              Worked
-            </th>
-            <th scope="col" className="px-3 py-2 font-medium">
-              Status
-            </th>
+            <DataTableHeaderCell>Shift</DataTableHeaderCell>
+            <DataTableHeaderCell>Scheduled</DataTableHeaderCell>
+            <DataTableHeaderCell>Clock in</DataTableHeaderCell>
+            <DataTableHeaderCell>Clock out</DataTableHeaderCell>
+            <DataTableHeaderCell>Breaks</DataTableHeaderCell>
+            <DataTableHeaderCell numeric>Worked</DataTableHeaderCell>
+            <DataTableHeaderCell>Status</DataTableHeaderCell>
           </tr>
-        </thead>
+        </DataTableHead>
         <tbody>
           {included.map((entry) => {
             const shift = {
@@ -65,8 +58,8 @@ export function TimesheetEntriesTable({
               timezone: entry.timezone,
             };
             return (
-              <tr key={entry.id} className="border-b border-border align-top last:border-0">
-                <td className="px-3 py-2">
+              <DataTableRow key={entry.id}>
+                <DataTableCell>
                   <div className="font-medium">{formatShiftDate(shift)}</div>
                   <div className="text-muted-foreground">
                     {entry.facilityName} · {entry.locationName}
@@ -79,9 +72,9 @@ export function TimesheetEntriesTable({
                       Attendance history
                     </Link>
                   ) : null}
-                </td>
-                <td className="px-3 py-2">{formatShiftTimeRange(shift)}</td>
-                <td className="px-3 py-2">
+                </DataTableCell>
+                <DataTableCell>{formatShiftTimeRange(shift)}</DataTableCell>
+                <DataTableCell>
                   {entry.notWorked
                     ? "—"
                     : formatLocalClockTime(entry.effectiveStartAt, entry.timezone)}
@@ -90,13 +83,13 @@ export function TimesheetEntriesTable({
                       {GEOFENCE_RESULT_LABELS[entry.clockInLocation]}
                     </div>
                   ) : null}
-                </td>
-                <td className="px-3 py-2">
+                </DataTableCell>
+                <DataTableCell>
                   {entry.notWorked
                     ? "—"
                     : formatLocalClockTime(entry.effectiveEndAt, entry.timezone)}
-                </td>
-                <td className="px-3 py-2">
+                </DataTableCell>
+                <DataTableCell>
                   {entry.breaks.length === 0 ? (
                     <span className="text-muted-foreground">None</span>
                   ) : (
@@ -111,40 +104,40 @@ export function TimesheetEntriesTable({
                       ))}
                     </ul>
                   )}
-                </td>
-                <td className="px-3 py-2 text-right font-medium tabular-nums">
+                </DataTableCell>
+                <DataTableCell numeric className="font-medium">
                   {entry.notWorked ? "Not worked" : formatWorkedMinutes(entry.workedMinutes)}
-                </td>
-                <td className="px-3 py-2">
+                </DataTableCell>
+                <DataTableCell>
                   <div className="flex flex-col items-start gap-1">
                     {entry.blockingReasons.map((reason) => (
-                      <Badge key={reason} tone="warning">
+                      <StatusChip key={reason} tone="attention">
                         {blockingReasonLabel(reason)}
-                      </Badge>
+                      </StatusChip>
                     ))}
                     {entry.openExceptionTypes.length > 0 ? (
-                      <Badge tone="warning">Exception to review</Badge>
+                      <StatusChip tone="attention">Exception to review</StatusChip>
                     ) : null}
                     {entry.approvedCorrections > 0 ? (
-                      <Badge tone="neutral">
+                      <StatusChip tone="neutral">
                         {entry.approvedCorrections === 1
                           ? "1 approved correction"
                           : `${entry.approvedCorrections} approved corrections`}
-                      </Badge>
+                      </StatusChip>
                     ) : null}
                     {entry.complete &&
                     entry.blockingReasons.length === 0 &&
                     entry.openExceptionTypes.length === 0 ? (
-                      <Badge tone="success">Complete</Badge>
+                      <StatusChip tone="success">Complete</StatusChip>
                     ) : null}
                     {showFacilityState ? <FacilityStateBadge state={entry.facilityState} /> : null}
                   </div>
-                </td>
-              </tr>
+                </DataTableCell>
+              </DataTableRow>
             );
           })}
         </tbody>
-      </table>
+      </DataTable>
     </DataTableRegion>
   );
 }

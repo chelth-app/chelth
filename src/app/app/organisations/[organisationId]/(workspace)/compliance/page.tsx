@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { Panel } from "@/components/ui/panel";
+
+import { PageHeader } from "@/components/ui/page-header";
+import { StatusChip } from "@/components/ui/status-chip";
 import { listRequirements, RequirementForm, RequirementsTable } from "@/features/compliance";
 import { listCredentialTypes, listDisciplines, listJurisdictions } from "@/features/credentials";
 import {
@@ -30,20 +34,46 @@ export default async function CompliancePage({
 
   return (
     <>
-      <header className="flex flex-col gap-2">
-        <Link
-          href={`/app/organisations/${organisationId}`}
-          className="w-fit text-sm text-primary underline underline-offset-4"
-        >
-          {organisation.name}
-        </Link>
-        <h1 className="text-2xl font-semibold">Credential requirements</h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Baseline requirements apply to every worker at {organisation.name} (or to one discipline).
-          Client facilities can add their own on the facility page. Readiness is always calculated
-          from these requirements and the worker&apos;s evidence — it is never set by hand.
-        </p>
-      </header>
+      <PageHeader
+        title="Credential requirements"
+        back={
+          <Link
+            href={`/app/organisations/${organisationId}`}
+            className="text-primary underline underline-offset-4"
+          >
+            {organisation.name}
+          </Link>
+        }
+        description={
+          <p>
+            Baseline requirements apply to every worker at {organisation.name} (or to one
+            discipline). Client facilities can add their own on the facility page. Readiness is
+            always calculated from these requirements and the worker&apos;s evidence — it is never
+            set by hand.
+          </p>
+        }
+        meta={
+          <>
+            <StatusChip tone="success">
+              {requirements.filter((requirement) => requirement.status === "active").length} active
+            </StatusChip>
+            <StatusChip tone="neutral">
+              {requirements.filter((requirement) => requirement.status !== "active").length}{" "}
+              inactive
+            </StatusChip>
+          </>
+        }
+        primaryAction={
+          manage === "granted" ? (
+            <a
+              href="#add-baseline-heading"
+              className="inline-flex min-h-11 items-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary-hover"
+            >
+              Add requirement
+            </a>
+          ) : undefined
+        }
+      />
 
       {manage === "step_up_required" ? (
         <StepUpNotice returnTo={`/app/organisations/${organisationId}/compliance`}>
@@ -51,10 +81,7 @@ export default async function CompliancePage({
         </StepUpNotice>
       ) : null}
 
-      <section aria-labelledby="baseline-heading" className="flex flex-col gap-3">
-        <h2 id="baseline-heading" className="text-lg font-semibold">
-          Agency baseline
-        </h2>
+      <Panel titleId="baseline-heading" title={<>Agency baseline</>}>
         <RequirementsTable
           organisationId={organisationId}
           requirements={requirements}
@@ -65,13 +92,10 @@ export default async function CompliancePage({
           canManage={manage === "granted"}
           label="Agency baseline requirements"
         />
-      </section>
+      </Panel>
 
       {manage === "granted" ? (
-        <section aria-labelledby="add-baseline-heading" className="flex flex-col gap-3">
-          <h2 id="add-baseline-heading" className="text-lg font-semibold">
-            Add a baseline requirement
-          </h2>
+        <Panel titleId="add-baseline-heading" title={<>Add a baseline requirement</>}>
           <RequirementForm
             organisationId={organisationId}
             credentialTypes={credentialTypes}
@@ -81,7 +105,7 @@ export default async function CompliancePage({
             )}
             effectiveFromHint="Choose the calendar date it applies from. Each shift is checked against its facility's local date."
           />
-        </section>
+        </Panel>
       ) : null}
     </>
   );

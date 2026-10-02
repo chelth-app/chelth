@@ -1,11 +1,21 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+
+import { Panel } from "@/components/ui/panel";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 
-import { DataTableRegion } from "@/components/ui/data-table";
+import {
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeaderCell,
+  DataTableRegion,
+  DataTableRow,
+} from "@/components/ui/data-table";
 import { InlineActionForm } from "@/components/forms/inline-action-form";
-import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatusChip } from "@/components/ui/status-chip";
 import {
   AdjustAttendanceForm,
   type AttendanceHistoryItem,
@@ -158,89 +168,85 @@ export default async function AttendanceRecordPage({
 
   return (
     <>
-      <header className="flex flex-col gap-2">
-        <Link
-          href={`/app/organisations/${organisationId}/attendance`}
-          className="w-fit text-sm text-primary underline underline-offset-4"
-        >
-          Attendance
-        </Link>
-        <h1 className="text-2xl font-semibold">{worker}</h1>
-        <p className="text-sm text-muted-foreground">
-          {row.facilityName} · {row.locationName} · {formatShiftDate(row)} ·{" "}
-          {formatShiftTimeRange(row)} ({row.timezone})
-        </p>
-        <div>
-          <AttendanceStateBadge clockState={row.clockState} needsReview={row.needsReview} />
-        </div>
-      </header>
+      <PageHeader
+        title={worker}
+        back={
+          <Link
+            href={`/app/organisations/${organisationId}/attendance`}
+            className="text-primary underline underline-offset-4"
+          >
+            Attendance
+          </Link>
+        }
+        description={
+          <p className="text-sm">
+            {row.facilityName} · {row.locationName} · {formatShiftDate(row)} ·{" "}
+            {formatShiftTimeRange(row)} ({row.timezone})
+          </p>
+        }
+        meta={
+          <>
+            <AttendanceStateBadge clockState={row.clockState} needsReview={row.needsReview} />
+            {open.length > 0 ? (
+              <StatusChip tone="attention">
+                {open.length === 1 ? "1 open exception" : `${open.length} open exceptions`}
+              </StatusChip>
+            ) : null}
+          </>
+        }
+      />
 
-      <section aria-labelledby="history-heading" className="flex flex-col gap-3">
-        <h2 id="history-heading" className="text-lg font-semibold">
-          History
-        </h2>
+      <Panel titleId="history-heading" title={<>History</>}>
         <p className="max-w-2xl text-sm text-muted-foreground">
           Every recorded event, request and decision, oldest first. Nothing is ever edited or
           removed; corrections are added as new entries.
         </p>
         <DataTableRegion aria-label="Attendance history">
-          <table className="w-full min-w-[720px] text-left text-sm">
-            <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
+          <DataTable className="min-w-[720px]">
+            <DataTableHead>
               <tr>
-                <th scope="col" className="px-3 py-2 font-medium">
-                  When
-                </th>
-                <th scope="col" className="px-3 py-2 font-medium">
-                  What
-                </th>
-                <th scope="col" className="px-3 py-2 font-medium">
-                  Detail
-                </th>
-                <th scope="col" className="px-3 py-2 font-medium">
-                  By
-                </th>
+                <DataTableHeaderCell>When</DataTableHeaderCell>
+                <DataTableHeaderCell>What</DataTableHeaderCell>
+                <DataTableHeaderCell>Detail</DataTableHeaderCell>
+                <DataTableHeaderCell>By</DataTableHeaderCell>
               </tr>
-            </thead>
+            </DataTableHead>
             <tbody>
               {history.map((item) => {
                 const line = describe(item, row.timezone);
                 return (
-                  <tr
-                    key={`${item.kind}-${item.id}`}
-                    className="border-b border-border align-top last:border-0"
-                  >
-                    <td className="px-3 py-2 whitespace-nowrap">{line.when}</td>
-                    <td className="px-3 py-2 font-medium">{line.what}</td>
-                    <td className="px-3 py-2">
+                  <DataTableRow key={`${item.kind}-${item.id}`}>
+                    <DataTableCell className="whitespace-nowrap">{line.when}</DataTableCell>
+                    <DataTableCell className="font-medium">{line.what}</DataTableCell>
+                    <DataTableCell>
                       <ul className="flex flex-col gap-0.5">
                         {line.lines.filter(Boolean).map((detail) => (
                           <li key={detail}>{detail}</li>
                         ))}
                       </ul>
-                    </td>
-                    <td className="px-3 py-2 text-muted-foreground">{line.who || "—"}</td>
-                  </tr>
+                    </DataTableCell>
+                    <DataTableCell className="text-muted-foreground">
+                      {line.who || "—"}
+                    </DataTableCell>
+                  </DataTableRow>
                 );
               })}
             </tbody>
-          </table>
+          </DataTable>
         </DataTableRegion>
-      </section>
+      </Panel>
 
       {open.length > 0 ? (
-        <section aria-labelledby="record-exceptions-heading" className="flex flex-col gap-3">
-          <h2 id="record-exceptions-heading" className="text-lg font-semibold">
-            Open exceptions
-          </h2>
+        <Panel titleId="record-exceptions-heading" title={<>Open exceptions</>}>
           <ul aria-label="Open exceptions for this record" className="flex flex-col gap-2">
             {open.map((exception) => (
               <li
                 key={exception.id}
                 className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface p-3 text-sm"
               >
-                <Badge tone={exception.severity === "urgent" ? "danger" : "warning"}>
+                <StatusChip tone={exception.severity === "urgent" ? "danger" : "attention"}>
                   {ATTENDANCE_EXCEPTION_LABELS[exception.type]}
-                </Badge>
+                </StatusChip>
                 {canReview && exception.type !== "manual_correction_requested" ? (
                   <span className="flex flex-wrap gap-2">
                     <InlineActionForm
@@ -284,14 +290,11 @@ export default async function AttendanceRecordPage({
               </li>
             ))}
           </ul>
-        </section>
+        </Panel>
       ) : null}
 
       {canReview ? (
-        <section aria-labelledby="adjust-heading" className="flex flex-col gap-3">
-          <h2 id="adjust-heading" className="text-lg font-semibold">
-            Record an adjusted time
-          </h2>
+        <Panel titleId="adjust-heading" title={<>Record an adjusted time</>}>
           <p className="max-w-2xl text-sm text-muted-foreground">
             For example after a facility discrepancy. A reason is required, the original event stays
             in the history and {worker} is told about the change.
@@ -302,14 +305,11 @@ export default async function AttendanceRecordPage({
             timezone={row.timezone}
             defaultDate={localDate(row.startAt, row.timezone)}
           />
-        </section>
+        </Panel>
       ) : null}
 
       {evidenceAccess !== "not_held" ? (
-        <section aria-labelledby="evidence-heading" className="flex flex-col gap-2">
-          <h2 id="evidence-heading" className="text-lg font-semibold">
-            Location evidence
-          </h2>
+        <Panel titleId="evidence-heading" title={<>Location evidence</>}>
           {evidenceAccess === "granted" ? (
             <Link
               href={evidencePath}
@@ -322,7 +322,7 @@ export default async function AttendanceRecordPage({
               Raw location evidence requires verification with your authenticator app.
             </StepUpNotice>
           )}
-        </section>
+        </Panel>
       ) : null}
     </>
   );

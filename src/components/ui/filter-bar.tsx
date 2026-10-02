@@ -25,6 +25,10 @@ type FilterBarProps = Omit<FormHTMLAttributes<HTMLFormElement>, "children"> & {
  * Filter row (P3 / P3-F): labelled controls above a native GET form, so
  * filters stay in the URL and work without JavaScript. Fields wrap on narrow
  * screens; there is no global search.
+ *
+ * Controls are uncontrolled (`defaultValue`). Give the bar a `key` derived
+ * from the current filter values so it remounts when a link (e.g. a KPI quick
+ * filter) changes the URL on the client; otherwise it would show stale values.
  */
 export function FilterBar({
   label,

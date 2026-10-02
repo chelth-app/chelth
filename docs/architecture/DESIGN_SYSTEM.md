@@ -189,6 +189,16 @@ Compose pages from these; keep cell content page-specific.
 | `ActivityTimeline`                              | ordered list with semantic dots                                                                                                                                        |
 | `EmptyState`, `ErrorState`, `LoadingState`      | P9: icon tile, title, one sentence, one action; Error keeps `role="alert"` + reference, Loading keeps `role="status"`                                                  |
 
+`Panel` / `PanelLink` (P0-E8-S3): titled card (P2 dashboard panel, P4 record
+section) — a region named by its heading, one header action ("View all →"),
+optional anchor `id`. Record pages also use `SectionTabs` as an in-page
+section list (links to `#heading-id`, no `aria-current`), rendered only for
+sections that exist for the viewer.
+
+`FilterBar` controls are uncontrolled: give the bar a `key` derived from the
+current filter values so it remounts when a quick-filter link changes the URL
+on the client.
+
 `Badge` remains for non-status labels (organisation type, role names).
 
 Ownership: these components are ours. We do not depend on a component

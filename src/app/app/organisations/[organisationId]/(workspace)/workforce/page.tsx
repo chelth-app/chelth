@@ -1,7 +1,22 @@
-import type { Metadata } from "next";
+import type { Metadata, Route } from "next";
 import Link from "next/link";
 
-import { DataTableRegion } from "@/components/ui/data-table";
+import { WorkspaceNavIcon } from "@/components/layout/workspace-nav-icon";
+import type { WorkspaceNavIcon as WorkspaceNavIconName } from "@/components/layout/workspace-navigation-model";
+import {
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeaderCell,
+  DataTableRegion,
+  DataTableRow,
+} from "@/components/ui/data-table";
+import { DetailDrawerTrigger } from "@/components/ui/detail-drawer";
+import { EmptyState } from "@/components/ui/empty-state";
+import { FilterBar, FilterSelect } from "@/components/ui/filter-bar";
+import { KeyValueList } from "@/components/ui/key-value-list";
+import { KpiFilterCard, KpiFilterGroup } from "@/components/ui/kpi-filter-card";
+import { PageHeader } from "@/components/ui/page-header";
 import {
   loadOrganisationPage,
   requireCapabilityOrNotFound,
@@ -9,11 +24,19 @@ import {
 } from "@/features/organisations";
 import { InviteWorkerForm, listWorkers, WorkerStatusBadge } from "@/features/workforce";
 import { CAPABILITIES } from "@/lib/authz";
+import { WORKER_STATUS_LABELS, WORKER_STATUSES, type WorkerStatus } from "@/lib/domain/vocabulary";
 
 export const metadata: Metadata = { title: "Workforce" };
 
+const STATUS_ICON: Record<"active" | "onboarding" | "suspended", WorkspaceNavIconName> = {
+  active: "workforce",
+  onboarding: "timesheets",
+  suspended: "compliance",
+};
+
 export default async function WorkforcePage({
   params,
+  searchParams,
 }: PageProps<"/app/organisations/[organisationId]/workforce">) {
   const context = await loadOrganisationPage((await params).organisationId);
   requireCapabilityOrNotFound(context, CAPABILITIES.WORKER_VIEW);
@@ -21,26 +44,65 @@ export default async function WorkforcePage({
   const workers =
     can(CAPABILITIES.WORKER_VIEW) === "granted" ? await listWorkers(organisationId) : [];
   const inviteState = can(CAPABILITIES.MEMBERSHIP_INVITE);
+  // Display filter over the already-loaded list (no new query).
+  const rawStatus = (await searchParams).status;
+  const statusFilter = WORKER_STATUSES.find(
+    (status) => status === (Array.isArray(rawStatus) ? rawStatus[0] : rawStatus),
+  );
+  const shown = statusFilter ? workers.filter((worker) => worker.status === statusFilter) : workers;
+  const base = `/app/organisations/${organisationId}/workforce` as const;
+  const countOf = (status: WorkerStatus) =>
+    workers.filter((worker) => worker.status === status).length;
 
   return (
     <>
-      <header className="flex flex-col gap-2">
-        <Link
-          href={`/app/organisations/${organisationId}`}
-          className="w-fit text-sm text-primary underline underline-offset-4"
-        >
-          {organisation.name}
-        </Link>
-        <h1 className="text-2xl font-semibold">Workforce</h1>
-        <p className="text-sm text-muted-foreground">
-          Healthcare professionals working with {organisation.name}. Each person&apos;s record here
-          is specific to this agency.
-        </p>
-      </header>
+      <PageHeader
+        title="Workforce"
+        back={
+          <Link
+            href={`/app/organisations/${organisationId}`}
+            className="text-primary underline underline-offset-4"
+          >
+            {organisation.name}
+          </Link>
+        }
+        description={
+          <p>
+            Healthcare professionals working with {organisation.name}. Each person&apos;s record
+            here is specific to this agency.
+          </p>
+        }
+        primaryAction={
+          inviteState === "granted" ? (
+            <a
+              href="#invite-worker-heading"
+              className="inline-flex min-h-11 items-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary-hover"
+            >
+              Invite worker
+            </a>
+          ) : undefined
+        }
+      />
+
+      {workers.length > 0 ? (
+        <KpiFilterGroup label="Workers by status">
+          {(["active", "onboarding", "suspended"] as const).map((status) => (
+            <KpiFilterCard
+              key={status}
+              label={WORKER_STATUS_LABELS[status]}
+              value={countOf(status)}
+              supporting={`of ${workers.length} workers`}
+              icon={<WorkspaceNavIcon name={STATUS_ICON[status]} />}
+              href={`${base}?status=${status}` as Route}
+              active={statusFilter === status}
+            />
+          ))}
+        </KpiFilterGroup>
+      ) : null}
 
       {inviteState === "granted" ? (
         <section aria-labelledby="invite-worker-heading" className="flex flex-col gap-3">
-          <h2 id="invite-worker-heading" className="text-lg font-semibold">
+          <h2 id="invite-worker-heading" className="scroll-mt-24 text-lg font-semibold">
             Invite a healthcare worker
           </h2>
           <InviteWorkerForm organisationId={organisationId} />
@@ -55,49 +117,112 @@ export default async function WorkforcePage({
         <h2 id="workers-heading" className="text-lg font-semibold">
           Workers
         </h2>
+        {workers.length > 0 ? (
+          <FilterBar
+            key={statusFilter ?? "all"}
+            label="Filter workers"
+            resetHref={statusFilter ? (base as Route) : undefined}
+          >
+            <FilterSelect
+              label="Status"
+              id="worker-status"
+              name="status"
+              defaultValue={statusFilter ?? ""}
+            >
+              <option value="">All statuses</option>
+              {WORKER_STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {WORKER_STATUS_LABELS[status]}
+                </option>
+              ))}
+            </FilterSelect>
+          </FilterBar>
+        ) : null}
         {workers.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No workers yet. Invited workers appear here once they accept.
-          </p>
+          <EmptyState
+            headingLevel={3}
+            title="No workers yet."
+            description="Invited workers appear here once they accept."
+          />
+        ) : shown.length === 0 ? (
+          <EmptyState
+            headingLevel={3}
+            title="No workers with this status."
+            action={
+              <Link
+                href={base}
+                className="inline-flex min-h-11 items-center text-sm font-medium text-primary underline underline-offset-4"
+              >
+                Show all workers
+              </Link>
+            }
+          />
         ) : (
-          <DataTableRegion aria-labelledby="workers-heading">
-            <table className="w-full min-w-[32rem] text-left text-sm">
-              <thead className="border-b border-border bg-surface-muted">
+          <DataTableRegion aria-label="Workers table">
+            <DataTable className="min-w-[36rem]">
+              <DataTableHead>
                 <tr>
-                  <th scope="col" className="p-3 font-medium">
-                    Name
-                  </th>
-                  <th scope="col" className="p-3 font-medium">
-                    Status
-                  </th>
-                  <th scope="col" className="p-3 font-medium">
-                    Reference
-                  </th>
-                  <th scope="col" className="p-3 font-medium">
-                    Started
-                  </th>
+                  <DataTableHeaderCell>Name</DataTableHeaderCell>
+                  <DataTableHeaderCell>Status</DataTableHeaderCell>
+                  <DataTableHeaderCell>Reference</DataTableHeaderCell>
+                  <DataTableHeaderCell>Started</DataTableHeaderCell>
+                  <DataTableHeaderCell>
+                    <span className="sr-only">Details</span>
+                  </DataTableHeaderCell>
                 </tr>
-              </thead>
+              </DataTableHead>
               <tbody>
-                {workers.map((worker) => (
-                  <tr key={worker.id} className="border-b border-border last:border-0">
-                    <th scope="row" className="p-3 font-medium">
-                      <Link
-                        href={`/app/organisations/${organisationId}/workforce/${worker.id}`}
-                        className="text-primary underline underline-offset-4"
-                      >
-                        {worker.displayName ?? "Unnamed worker"}
-                      </Link>
-                    </th>
-                    <td className="p-3">
-                      <WorkerStatusBadge status={worker.status} />
-                    </td>
-                    <td className="p-3">{worker.workerReference ?? "—"}</td>
-                    <td className="p-3">{worker.startDate ?? "—"}</td>
-                  </tr>
-                ))}
+                {shown.map((worker) => {
+                  const name = worker.displayName ?? "Unnamed worker";
+                  const href = `${base}/${worker.id}` as Route;
+                  return (
+                    <DataTableRow key={worker.id}>
+                      <th scope="row" className="px-3 py-2.5 font-medium">
+                        <Link href={href} className="text-primary underline underline-offset-4">
+                          {name}
+                        </Link>
+                      </th>
+                      <DataTableCell>
+                        <WorkerStatusBadge status={worker.status} />
+                      </DataTableCell>
+                      <DataTableCell>{worker.workerReference ?? "—"}</DataTableCell>
+                      <DataTableCell>{worker.startDate ?? "—"}</DataTableCell>
+                      <DataTableCell>
+                        <DetailDrawerTrigger
+                          triggerLabel="Details"
+                          triggerAccessibleLabel={`Details for ${name}`}
+                          title={name}
+                          description="Worker record at this agency"
+                          footer={
+                            <Link
+                              href={href}
+                              className="inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary-hover"
+                            >
+                              Open worker record
+                            </Link>
+                          }
+                        >
+                          <KeyValueList
+                            items={[
+                              {
+                                label: "Status",
+                                value: <WorkerStatusBadge status={worker.status} />,
+                              },
+                              { label: "Reference", value: worker.workerReference ?? "—" },
+                              { label: "Start date", value: worker.startDate ?? "Not started" },
+                              { label: "End date", value: worker.endDate ?? "—" },
+                            ]}
+                          />
+                          <p className="text-sm text-muted-foreground">
+                            Readiness, credentials, disciplines and notes are on the worker record.
+                          </p>
+                        </DetailDrawerTrigger>
+                      </DataTableCell>
+                    </DataTableRow>
+                  );
+                })}
               </tbody>
-            </table>
+            </DataTable>
           </DataTableRegion>
         )}
       </section>

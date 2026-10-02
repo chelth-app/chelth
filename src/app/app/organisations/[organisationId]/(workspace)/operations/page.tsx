@@ -1,8 +1,15 @@
-import type { Metadata } from "next";
+import type { Metadata, Route } from "next";
 import Link from "next/link";
+
+import { Panel } from "@/components/ui/panel";
 import { notFound } from "next/navigation";
 
+import { WorkspaceNavIcon } from "@/components/layout/workspace-nav-icon";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { KpiFilterCard, KpiFilterGroup } from "@/components/ui/kpi-filter-card";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatusChip } from "@/components/ui/status-chip";
 import { loadOrganisationPage, requireCapabilityOrNotFound } from "@/features/organisations";
 import {
   explainBlockReasons,
@@ -65,26 +72,53 @@ export default async function OperationsPage({
 
   return (
     <>
-      <header className="flex flex-col gap-2">
-        <Link
-          href={`/app/organisations/${organisationId}`}
-          className="w-fit text-sm text-primary underline underline-offset-4"
-        >
-          {organisation.name}
-        </Link>
-        <h1 className="text-2xl font-semibold">Operations</h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Upcoming work that needs a decision. Chelth re-checks upcoming assignments every hour.
-        </p>
-      </header>
+      <PageHeader
+        title="Operations"
+        back={
+          <Link
+            href={`/app/organisations/${organisationId}`}
+            className="text-primary underline underline-offset-4"
+          >
+            {organisation.name}
+          </Link>
+        }
+        description={
+          <p>
+            Upcoming work that needs a decision. Chelth re-checks upcoming assignments every hour.
+          </p>
+        }
+      />
+
+      <KpiFilterGroup label="Operations attention">
+        {canSeeIssues ? (
+          <KpiFilterCard
+            label="Assignments needing attention"
+            value={issues.length}
+            supporting={`${issues.filter((issue) => issue.severity === "urgent").length} urgent`}
+            icon={<WorkspaceNavIcon name="operations" />}
+            href={`/app/organisations/${organisationId}/operations#attention-heading` as Route}
+          />
+        ) : null}
+        <KpiFilterCard
+          label="Work under inactive relationships"
+          value={affected.length}
+          supporting="Upcoming shifts"
+          icon={<WorkspaceNavIcon name="facilities" />}
+          href={`/app/organisations/${organisationId}/operations#affected-heading` as Route}
+        />
+        <KpiFilterCard
+          label="Notifications not delivered"
+          value={deliveries.length}
+          supporting={`${deliveries.filter((delivery) => delivery.state === "failed").length} failed`}
+          icon={<WorkspaceNavIcon name="requests" />}
+          href={`/app/organisations/${organisationId}/operations#delivery-heading` as Route}
+        />
+      </KpiFilterGroup>
 
       {canSeeIssues ? (
-        <section aria-labelledby="attention-heading" className="flex flex-col gap-3">
-          <h2 id="attention-heading" className="text-lg font-semibold">
-            Assignments needing attention
-          </h2>
+        <Panel titleId="attention-heading" title={<>Assignments needing attention</>}>
           {issues.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nothing needs attention.</p>
+            <EmptyState headingLevel={3} title="Nothing needs attention." />
           ) : (
             <ul aria-label="Assignments needing attention" className="flex flex-col gap-3">
               {issues.map((issue) => (
@@ -101,12 +135,12 @@ export default async function OperationsPage({
                       {formatShiftDate(issue)}
                     </Link>
                     <div className="flex flex-wrap gap-2">
-                      <Badge tone={issue.severity === "urgent" ? "danger" : "warning"}>
+                      <StatusChip tone={issue.severity === "urgent" ? "danger" : "attention"}>
                         {ASSIGNMENT_ISSUE_SEVERITY_LABELS[issue.severity]}
-                      </Badge>
-                      <Badge tone="neutral">
+                      </StatusChip>
+                      <StatusChip tone="neutral">
                         {ASSIGNMENT_STATUS_LABELS[issue.assignmentStatus]}
-                      </Badge>
+                      </StatusChip>
                     </div>
                   </div>
                   <p className="text-sm text-muted-foreground">
@@ -135,15 +169,16 @@ export default async function OperationsPage({
               ))}
             </ul>
           )}
-        </section>
+        </Panel>
       ) : null}
 
-      <section aria-labelledby="affected-heading" className="flex flex-col gap-3">
-        <h2 id="affected-heading" className="text-lg font-semibold">
-          Upcoming work under inactive relationships
-        </h2>
+      <Panel titleId="affected-heading" title={<>Upcoming work under inactive relationships</>}>
         {affected.length === 0 ? (
-          <p className="text-sm text-muted-foreground">None.</p>
+          <EmptyState
+            headingLevel={3}
+            title="No affected upcoming work."
+            description="Shifts appear here when a facility relationship is suspended or ended."
+          />
         ) : (
           <ul aria-label="Affected upcoming shifts" className="flex flex-col gap-2">
             {affected.map((shift) => (
@@ -159,27 +194,24 @@ export default async function OperationsPage({
                 </Link>
                 <span className="flex flex-wrap gap-2">
                   <ShiftStatusBadge status={shift.status} />
-                  <Badge tone="warning">
+                  <StatusChip tone="warning">
                     Relationship{" "}
                     {RELATIONSHIP_STATUS_LABELS[shift.relationshipStatus].toLowerCase()}
-                  </Badge>
+                  </StatusChip>
                   <Badge tone="neutral">{shift.activeCount} assigned</Badge>
                 </span>
               </li>
             ))}
           </ul>
         )}
-      </section>
+      </Panel>
 
-      <section aria-labelledby="delivery-heading" className="flex flex-col gap-3">
-        <h2 id="delivery-heading" className="text-lg font-semibold">
-          Notifications not delivered
-        </h2>
+      <Panel titleId="delivery-heading" title={<>Notifications not delivered</>}>
         <p className="text-sm text-muted-foreground">
           Emails to members of {organisation.name} that are retrying or failed.
         </p>
         {deliveries.length === 0 ? (
-          <p className="text-sm text-muted-foreground">All notifications delivered.</p>
+          <EmptyState headingLevel={3} title="All notifications delivered." />
         ) : (
           <ul aria-label="Undelivered notifications" className="flex flex-col gap-2">
             {deliveries.map((delivery) => (
@@ -193,9 +225,9 @@ export default async function OperationsPage({
                       ? NOTIFICATION_EVENT_LABELS[delivery.event]
                       : delivery.event}
                   </span>
-                  <Badge tone={delivery.state === "failed" ? "danger" : "warning"}>
+                  <StatusChip tone={delivery.state === "failed" ? "danger" : "warning"}>
                     {stateLabel(delivery.state)}
-                  </Badge>
+                  </StatusChip>
                   <span className="text-muted-foreground">
                     to {delivery.recipientName ?? "a member"} · {delivery.attempts} attempt(s)
                   </span>
@@ -221,7 +253,7 @@ export default async function OperationsPage({
             ))}
           </ul>
         )}
-      </section>
+      </Panel>
     </>
   );
 }

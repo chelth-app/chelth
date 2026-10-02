@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { KeyValueList } from "@/components/ui/key-value-list";
 import { KpiFilterCard, KpiFilterGroup } from "@/components/ui/kpi-filter-card";
 import { PageHeader } from "@/components/ui/page-header";
+import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
 import {
   AttendanceSettingsForm,
@@ -142,6 +143,7 @@ export default async function AttendancePage({
       </KpiFilterGroup>
 
       <FilterBar
+        key={`${from ?? ""}_${to ?? ""}`}
         label="Attendance window"
         submitLabel="Show"
         resetHref={base as Route}
@@ -319,140 +321,125 @@ export default async function AttendancePage({
         )}
       </section>
 
-      <section
-        id="correction-requests"
-        aria-labelledby="corrections-heading"
-        className="flex scroll-mt-24 flex-col gap-3"
-      >
-        <h2 id="corrections-heading" className="font-display text-lg font-semibold">
-          Correction requests
-        </h2>
-        {corrections.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No correction requests waiting.</p>
-        ) : (
-          <ul aria-label="Correction requests" className="flex flex-col gap-3">
-            {corrections.map((correction) => {
-              const row = byAssignment.get(correction.assignmentId);
-              const worker = row?.workerName ?? "Worker";
-              return (
-                <li
-                  key={correction.id}
-                  className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-4 text-sm"
-                >
-                  <p>
-                    <span className="font-medium">{worker}</span> asks to set the{" "}
-                    {describeCorrectionTarget(correction.eventType, correction.segment)} to{" "}
-                    <span className="font-medium">
-                      {formatLocalClockTime(correction.requestedTime, row?.timezone ?? "UTC")}
-                    </span>
-                    {row ? ` (${row.facilityName}, ${formatShiftDate(row)})` : ""} ·{" "}
-                    {CORRECTION_REASON_LABELS[correction.reason]}
-                  </p>
-                  {correction.note ? (
-                    <p className="text-muted-foreground">“{correction.note}”</p>
-                  ) : null}
-                  {canReview && row ? (
-                    <CorrectionReviewForms
-                      organisationId={organisationId}
-                      correctionId={correction.id}
-                      workerName={worker}
-                      timezone={row.timezone}
-                      defaultDate={localDate(correction.requestedTime, row.timezone)}
-                    />
-                  ) : null}
-                  <Link
-                    href={recordHref(correction.attendanceId)}
-                    className="w-fit text-xs text-primary underline underline-offset-4"
+      <div className="grid gap-6 xl:grid-cols-2">
+        <Panel id="correction-requests" titleId="corrections-heading" title="Correction requests">
+          {corrections.length === 0 ? (
+            <EmptyState headingLevel={3} title="No correction requests waiting." />
+          ) : (
+            <ul aria-label="Correction requests" className="flex flex-col gap-3">
+              {corrections.map((correction) => {
+                const row = byAssignment.get(correction.assignmentId);
+                const worker = row?.workerName ?? "Worker";
+                return (
+                  <li
+                    key={correction.id}
+                    className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-4 text-sm"
                   >
-                    Open attendance record
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+                    <p>
+                      <span className="font-medium">{worker}</span> asks to set the{" "}
+                      {describeCorrectionTarget(correction.eventType, correction.segment)} to{" "}
+                      <span className="font-medium">
+                        {formatLocalClockTime(correction.requestedTime, row?.timezone ?? "UTC")}
+                      </span>
+                      {row ? ` (${row.facilityName}, ${formatShiftDate(row)})` : ""} ·{" "}
+                      {CORRECTION_REASON_LABELS[correction.reason]}
+                    </p>
+                    {correction.note ? (
+                      <p className="text-muted-foreground">“{correction.note}”</p>
+                    ) : null}
+                    {canReview && row ? (
+                      <CorrectionReviewForms
+                        organisationId={organisationId}
+                        correctionId={correction.id}
+                        workerName={worker}
+                        timezone={row.timezone}
+                        defaultDate={localDate(correction.requestedTime, row.timezone)}
+                      />
+                    ) : null}
+                    <Link
+                      href={recordHref(correction.attendanceId)}
+                      className="w-fit text-xs text-primary underline underline-offset-4"
+                    >
+                      Open attendance record
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Panel>
 
-      <section
-        id="open-exceptions"
-        aria-labelledby="exceptions-heading"
-        className="flex scroll-mt-24 flex-col gap-3"
-      >
-        <h2 id="exceptions-heading" className="font-display text-lg font-semibold">
-          Open exceptions
-        </h2>
-        {exceptions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No open attendance exceptions.</p>
-        ) : (
-          <ul aria-label="Open attendance exceptions" className="flex flex-col gap-2">
-            {exceptions.map((exception) => {
-              const row = byAssignment.get(exception.assignmentId);
-              return (
-                <li
-                  key={exception.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface p-3 text-sm"
-                >
-                  <span className="flex flex-wrap items-center gap-2">
-                    <StatusChip tone={exception.severity === "urgent" ? "danger" : "attention"}>
-                      {ATTENDANCE_EXCEPTION_LABELS[exception.type]}
-                    </StatusChip>
-                    {row
-                      ? `${row.workerName ?? "Worker"} · ${row.facilityName} · ${formatShiftDate(row)}`
-                      : "Outside the selected window"}
-                  </span>
-                  {canReview && exception.type !== "manual_correction_requested" ? (
-                    <span className="flex gap-2">
-                      <InlineActionForm
-                        action={reviewExceptionAction}
-                        fields={{
-                          organisationId,
-                          exceptionId: exception.id,
-                          status: "resolved",
-                          resolution: "acknowledged",
-                        }}
-                        label="Acknowledge"
-                        accessibleLabel={`Acknowledge ${ATTENDANCE_EXCEPTION_LABELS[exception.type]}`}
-                      />
-                      <InlineActionForm
-                        action={reviewExceptionAction}
-                        fields={{
-                          organisationId,
-                          exceptionId: exception.id,
-                          status: "dismissed",
-                          resolution: "not_applicable",
-                        }}
-                        label="Dismiss"
-                        accessibleLabel={`Dismiss ${ATTENDANCE_EXCEPTION_LABELS[exception.type]}`}
-                        variant="ghost"
-                      />
-                      {exception.type === "missed_clock_in" ? (
+        <Panel id="open-exceptions" titleId="exceptions-heading" title="Open exceptions">
+          {exceptions.length === 0 ? (
+            <EmptyState headingLevel={3} title="No open attendance exceptions." />
+          ) : (
+            <ul aria-label="Open attendance exceptions" className="flex flex-col gap-2">
+              {exceptions.map((exception) => {
+                const row = byAssignment.get(exception.assignmentId);
+                return (
+                  <li
+                    key={exception.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface p-3 text-sm"
+                  >
+                    <span className="flex flex-wrap items-center gap-2">
+                      <StatusChip tone={exception.severity === "urgent" ? "danger" : "attention"}>
+                        {ATTENDANCE_EXCEPTION_LABELS[exception.type]}
+                      </StatusChip>
+                      {row
+                        ? `${row.workerName ?? "Worker"} · ${row.facilityName} · ${formatShiftDate(row)}`
+                        : "Outside the selected window"}
+                    </span>
+                    {canReview && exception.type !== "manual_correction_requested" ? (
+                      <span className="flex gap-2">
                         <InlineActionForm
                           action={reviewExceptionAction}
                           fields={{
                             organisationId,
                             exceptionId: exception.id,
                             status: "resolved",
-                            resolution: "not_worked",
+                            resolution: "acknowledged",
                           }}
-                          label="Mark not worked"
-                          accessibleLabel={`Mark not worked: ${row?.workerName ?? "worker"}`}
+                          label="Acknowledge"
+                          accessibleLabel={`Acknowledge ${ATTENDANCE_EXCEPTION_LABELS[exception.type]}`}
+                        />
+                        <InlineActionForm
+                          action={reviewExceptionAction}
+                          fields={{
+                            organisationId,
+                            exceptionId: exception.id,
+                            status: "dismissed",
+                            resolution: "not_applicable",
+                          }}
+                          label="Dismiss"
+                          accessibleLabel={`Dismiss ${ATTENDANCE_EXCEPTION_LABELS[exception.type]}`}
                           variant="ghost"
                         />
-                      ) : null}
-                    </span>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+                        {exception.type === "missed_clock_in" ? (
+                          <InlineActionForm
+                            action={reviewExceptionAction}
+                            fields={{
+                              organisationId,
+                              exceptionId: exception.id,
+                              status: "resolved",
+                              resolution: "not_worked",
+                            }}
+                            label="Mark not worked"
+                            accessibleLabel={`Mark not worked: ${row?.workerName ?? "worker"}`}
+                            variant="ghost"
+                          />
+                        ) : null}
+                      </span>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Panel>
+      </div>
 
       {rules ? (
-        <section aria-labelledby="rules-heading" className="flex flex-col gap-3">
-          <h2 id="rules-heading" className="font-display text-lg font-semibold">
-            Attendance rules
-          </h2>
+        <Panel titleId="rules-heading" title="Attendance rules">
           <p className="max-w-2xl text-sm text-muted-foreground">
             {rules.isDefault ? "Chelth defaults are in use. " : ""}Location checks are configured
             per facility location.
@@ -469,7 +456,7 @@ export default async function AttendancePage({
             Timesheets are weekly. The week start is fixed once the first timesheet exists.
           </p>
           <WeekStartForm organisationId={organisationId} weekStartsOn={weekStartsOn} />
-        </section>
+        </Panel>
       ) : null}
     </>
   );

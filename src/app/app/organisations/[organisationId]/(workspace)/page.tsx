@@ -33,7 +33,9 @@ import { getMyWorkerRecord, WorkerStatusBadge } from "@/features/workforce";
 import { requireAuthIdentity } from "@/lib/auth/session";
 import { auditActionLabel, CAPABILITIES, capabilityState, type CapabilityGrant } from "@/lib/authz";
 
-export const metadata: Metadata = { title: "Organisation" };
+import { AgencyOperationsOverview } from "./_components/agency-operations-overview";
+
+export const metadata: Metadata = { title: "Overview" };
 
 const dateTime = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" });
 
@@ -99,6 +101,11 @@ export default async function OrganisationPage({
     <>
       <PageHeader
         title={organisation.name}
+        description={
+          organisation.type === "agency" && workspaceStaff ? (
+            <p>What needs attention, what is happening today and what is coming up.</p>
+          ) : undefined
+        }
         back={
           <Link href="/app" className="text-primary underline underline-offset-4">
             All organisations
@@ -120,6 +127,10 @@ export default async function OrganisationPage({
       />
 
       {needsStepUp ? <StepUpNotice returnTo={`/app/organisations/${organisationId}`} /> : null}
+
+      {organisation.type === "agency" && workspaceStaff ? (
+        <AgencyOperationsOverview organisationId={organisationId} can={can} />
+      ) : null}
 
       {/*
         Workspace staff navigate with the sidebar (P0-E8-S1), so the section

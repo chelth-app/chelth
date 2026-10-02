@@ -1,5 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Route } from "next";
 import Link from "next/link";
+
+import { Panel } from "@/components/ui/panel";
 import { notFound } from "next/navigation";
 
 import { InlineActionForm } from "@/components/forms/inline-action-form";
@@ -18,10 +20,16 @@ import {
   WorkerStatusBadge,
 } from "@/features/workforce";
 import { Badge } from "@/components/ui/badge";
+import { FilterBar, FilterSelect } from "@/components/ui/filter-bar";
+import { KeyValueList } from "@/components/ui/key-value-list";
+import { PageHeader } from "@/components/ui/page-header";
+import { SectionTabs } from "@/components/ui/section-tabs";
+import { StatusChip } from "@/components/ui/status-chip";
 import {
   getReadiness,
   listComplianceShares,
   listWorkerDisciplines,
+  ReadinessBadge,
   ReadinessPanel,
   revokeComplianceShareAction,
   setDisciplineAction,
@@ -99,40 +107,90 @@ export default async function WorkerPage({
 
   return (
     <>
-      <header className="flex flex-col gap-2">
-        <Link
-          href={`/app/organisations/${organisationId}/workforce`}
-          className="w-fit text-sm text-primary underline underline-offset-4"
-        >
-          {organisation.name} workforce
-        </Link>
-        <h1 className="text-2xl font-semibold">{worker.displayName ?? "Unnamed worker"}</h1>
-        <div>
-          <WorkerStatusBadge status={worker.status} />
-        </div>
-      </header>
+      <PageHeader
+        title={worker.displayName ?? "Unnamed worker"}
+        back={
+          <Link
+            href={`/app/organisations/${organisationId}/workforce`}
+            className="text-primary underline underline-offset-4"
+          >
+            {organisation.name} workforce
+          </Link>
+        }
+        description={
+          <p className="text-sm">
+            {[
+              worker.workerReference ? `Reference ${worker.workerReference}` : null,
+              worker.startDate ? `Started ${worker.startDate}` : "Not started",
+              workerDisciplines.length > 0
+                ? workerDisciplines.map((key) => disciplineName.get(key) ?? key).join(", ")
+                : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
+        }
+        meta={<WorkerStatusBadge status={worker.status} />}
+      />
+
+      <SectionTabs
+        label="Worker record sections"
+        tabs={[
+          { label: "Record", href: "#record-heading" as Route, current: false },
+          ...(canManage === "granted" && worker.status !== "terminated"
+            ? [{ label: "Manage", href: "#manage-heading" as Route, current: false }]
+            : []),
+          ...(readiness
+            ? [{ label: "Readiness", href: "#readiness-heading" as Route, current: false }]
+            : []),
+          ...(workerDisciplines.length > 0 || canManage === "granted"
+            ? [{ label: "Disciplines", href: "#disciplines-heading" as Route, current: false }]
+            : []),
+          ...(can(CAPABILITIES.CREDENTIAL_VIEW) === "granted"
+            ? [{ label: "Credentials", href: "#credentials-heading" as Route, current: false }]
+            : []),
+          ...(relationships.length > 0
+            ? [
+                {
+                  label: "Facility sharing",
+                  href: "#compliance-sharing-heading" as Route,
+                  current: false,
+                },
+              ]
+            : []),
+          ...(canReadNotes
+            ? [{ label: "Notes", href: "#notes-heading" as Route, current: false }]
+            : []),
+        ]}
+      />
 
       {canManage === "step_up_required" ? <StepUpNotice returnTo={returnTo} /> : null}
 
-      <section aria-labelledby="record-heading" className="flex flex-col gap-3">
-        <h2 id="record-heading" className="text-lg font-semibold">
-          Worker record
-        </h2>
-        <dl className="grid max-w-md grid-cols-[auto_1fr] gap-x-6 gap-y-2 rounded-lg border border-border bg-surface p-4 text-sm">
-          <dt className="text-muted-foreground">Reference</dt>
-          <dd>{worker.workerReference ?? "—"}</dd>
-          <dt className="text-muted-foreground">Start date</dt>
-          <dd>{worker.startDate ?? "—"}</dd>
-          <dt className="text-muted-foreground">End date</dt>
-          <dd>{worker.endDate ?? "—"}</dd>
-        </dl>
-      </section>
+      <Panel titleId="record-heading" title={<>Worker record</>}>
+        <KeyValueList
+          className="max-w-2xl"
+          items={[
+            { label: "Status", value: <WorkerStatusBadge status={worker.status} /> },
+            { label: "Reference", value: worker.workerReference ?? "—" },
+            { label: "Start date", value: worker.startDate ?? "—" },
+            { label: "End date", value: worker.endDate ?? "—" },
+            ...(readiness
+              ? [
+                  {
+                    label: "Agency readiness",
+                    value: <ReadinessBadge status={readiness.status} />,
+                  },
+                ]
+              : []),
+            ...(can(CAPABILITIES.CREDENTIAL_VIEW) === "granted"
+              ? [{ label: "Credentials shared", value: credentials.length }]
+              : []),
+          ]}
+        />
+      </Panel>
 
       {canManage === "granted" && worker.status !== "terminated" ? (
-        <section aria-labelledby="manage-heading" className="flex flex-col gap-4">
-          <h2 id="manage-heading" className="text-lg font-semibold">
-            Manage
-          </h2>
+        <Panel titleId="manage-heading" title={<>Manage</>}>
           <div className="flex flex-wrap gap-2">
             {WORKER_STATUS_TRANSITIONS[worker.status].map((status) => (
               <InlineActionForm
@@ -149,43 +207,36 @@ export default async function WorkerPage({
             workerId={worker.id}
             workerReference={worker.workerReference ?? ""}
           />
-        </section>
+        </Panel>
       ) : null}
 
       {readiness ? (
-        <section aria-labelledby="readiness-heading" className="flex flex-col gap-3">
-          <h2 id="readiness-heading" className="text-lg font-semibold">
-            Readiness
-          </h2>
+        <Panel titleId="readiness-heading" title={<>Readiness</>}>
           <ReadinessPanel
             title={`${organisation.name} baseline`}
             readiness={readiness}
             headingId="agency-readiness"
           />
           {facilities.length > 0 ? (
-            <form className="flex flex-wrap items-end gap-2" method="get">
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="font-medium">Check readiness for a facility</span>
-                <select
-                  name="facility"
-                  defaultValue={selectedFacility?.id ?? ""}
-                  className="h-10 rounded-md border border-input-border bg-surface px-2"
-                >
-                  <option value="">Choose a facility</option>
-                  {facilities.map((facility) => (
-                    <option key={facility.id} value={facility.id}>
-                      {facility.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button
-                type="submit"
-                className="h-10 rounded-md border border-input-border bg-surface px-3 text-sm font-medium"
+            <FilterBar
+              key={selectedFacility?.id ?? "none"}
+              label="Facility readiness check"
+              submitLabel="Check"
+            >
+              <FilterSelect
+                label="Check readiness for a facility"
+                id="readiness-facility"
+                name="facility"
+                defaultValue={selectedFacility?.id ?? ""}
               >
-                Check
-              </button>
-            </form>
+                <option value="">Choose a facility</option>
+                {facilities.map((facility) => (
+                  <option key={facility.id} value={facility.id}>
+                    {facility.name}
+                  </option>
+                ))}
+              </FilterSelect>
+            </FilterBar>
           ) : null}
           {facilityReadiness && selectedFacility ? (
             <ReadinessPanel
@@ -194,14 +245,11 @@ export default async function WorkerPage({
               headingId="facility-readiness"
             />
           ) : null}
-        </section>
+        </Panel>
       ) : null}
 
       {workerDisciplines.length > 0 || canManage === "granted" ? (
-        <section aria-labelledby="disciplines-heading" className="flex flex-col gap-3">
-          <h2 id="disciplines-heading" className="text-lg font-semibold">
-            Disciplines
-          </h2>
+        <Panel titleId="disciplines-heading" title={<>Disciplines</>}>
           <ul className="flex flex-wrap gap-2 text-sm">
             {disciplines.map((discipline) => {
               const assigned = workerDisciplines.includes(discipline.key);
@@ -228,14 +276,14 @@ export default async function WorkerPage({
               );
             })}
           </ul>
-        </section>
+        </Panel>
       ) : null}
 
       {can(CAPABILITIES.CREDENTIAL_VIEW) === "granted" ? (
-        <section aria-labelledby="credentials-heading" className="flex flex-col gap-3">
-          <h2 id="credentials-heading" className="text-lg font-semibold">
-            Credentials shared with {organisation.name}
-          </h2>
+        <Panel
+          titleId="credentials-heading"
+          title={<>Credentials shared with {organisation.name}</>}
+        >
           {credentials.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               The worker has not shared any credentials with this agency.
@@ -261,10 +309,10 @@ export default async function WorkerPage({
                       </span>
                     ) : null}
                     {credential.latestVersionNumber === null ? (
-                      <Badge tone="neutral">Not submitted</Badge>
+                      <StatusChip tone="neutral">Not submitted</StatusChip>
                     ) : null}
                     {credential.latestVersionNumber !== null && !credential.documentsCleared ? (
-                      <Badge tone="info">Document not cleared</Badge>
+                      <StatusChip tone="info">Document not cleared</StatusChip>
                     ) : null}
                     <VerificationBadge outcome={credential.agencyVerification} />
                   </span>
@@ -272,14 +320,11 @@ export default async function WorkerPage({
               ))}
             </ul>
           )}
-        </section>
+        </Panel>
       ) : null}
 
       {relationships.length > 0 ? (
-        <section aria-labelledby="compliance-sharing-heading" className="flex flex-col gap-3">
-          <h2 id="compliance-sharing-heading" className="text-lg font-semibold">
-            Share readiness with a facility
-          </h2>
+        <Panel titleId="compliance-sharing-heading" title={<>Share readiness with a facility</>}>
           <p className="text-sm text-muted-foreground">
             A linked facility sees only readiness and reasons for workers you share with it — never
             documents, numbers or notes.
@@ -319,14 +364,11 @@ export default async function WorkerPage({
               );
             })}
           </ul>
-        </section>
+        </Panel>
       ) : null}
 
       {canReadNotes ? (
-        <section aria-labelledby="notes-heading" className="flex flex-col gap-3">
-          <h2 id="notes-heading" className="text-lg font-semibold">
-            Internal notes
-          </h2>
+        <Panel titleId="notes-heading" title={<>Internal notes</>}>
           {can(CAPABILITIES.WORKER_NOTES_MANAGE) === "granted" ? (
             <AddWorkerNoteForm organisationId={organisationId} workerId={worker.id} />
           ) : null}
@@ -345,7 +387,7 @@ export default async function WorkerPage({
               ))}
             </ul>
           )}
-        </section>
+        </Panel>
       ) : null}
     </>
   );

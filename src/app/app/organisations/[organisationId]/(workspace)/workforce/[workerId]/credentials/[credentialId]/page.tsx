@@ -1,8 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+
+import { Panel } from "@/components/ui/panel";
 import { notFound } from "next/navigation";
 
-import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatusChip } from "@/components/ui/status-chip";
 import {
   credentialIdSchema,
   DocumentStatusBadge,
@@ -61,23 +65,30 @@ export default async function CredentialReviewPage({
 
   return (
     <>
-      <header className="flex flex-col gap-2">
-        <Link
-          href={`/app/organisations/${organisationId}/workforce/${worker.id}`}
-          className="w-fit text-sm text-primary underline underline-offset-4"
-        >
-          {worker.displayName ?? "Worker"}
-        </Link>
-        <h1 className="text-2xl font-semibold">{credential.typeName}</h1>
-        <p className="text-sm text-muted-foreground">
-          {[credential.jurisdictionCode, credential.issuingAuthority].filter(Boolean).join(" · ") ||
-            "—"}
-          {credential.credentialNumber ? ` · No. ${credential.credentialNumber}` : ""}
-        </p>
-        {credential.status === "withdrawn" ? (
-          <Badge tone="neutral">Withdrawn by the worker</Badge>
-        ) : null}
-      </header>
+      <PageHeader
+        title={credential.typeName}
+        back={
+          <Link
+            href={`/app/organisations/${organisationId}/workforce/${worker.id}`}
+            className="text-primary underline underline-offset-4"
+          >
+            {worker.displayName ?? "Worker"}
+          </Link>
+        }
+        description={
+          <p className="text-sm">
+            {[credential.jurisdictionCode, credential.issuingAuthority]
+              .filter(Boolean)
+              .join(" · ") || "—"}
+            {credential.credentialNumber ? ` · No. ${credential.credentialNumber}` : ""}
+          </p>
+        }
+        meta={
+          credential.status === "withdrawn" ? (
+            <StatusChip tone="neutral">Withdrawn by the worker</StatusChip>
+          ) : undefined
+        }
+      />
 
       {review === "step_up_required" || verify === "step_up_required" ? (
         <StepUpNotice returnTo={returnTo}>
@@ -86,10 +97,7 @@ export default async function CredentialReviewPage({
         </StepUpNotice>
       ) : null}
 
-      <section aria-labelledby="evidence-heading" className="flex flex-col gap-3">
-        <h2 id="evidence-heading" className="text-lg font-semibold">
-          Evidence
-        </h2>
+      <Panel titleId="evidence-heading" title={<>Evidence</>}>
         <ol className="flex flex-col gap-3">
           {credential.versions
             .filter((version) => version.status === "submitted")
@@ -128,17 +136,12 @@ export default async function CredentialReviewPage({
             })}
         </ol>
         {!latestSubmitted ? (
-          <p className="text-sm text-muted-foreground">
-            Nothing has been submitted for review yet.
-          </p>
+          <EmptyState headingLevel={3} title="Nothing has been submitted for review yet." />
         ) : null}
-      </section>
+      </Panel>
 
       {verify === "granted" && latestSubmitted && credential.status === "active" ? (
-        <section aria-labelledby="decision-heading" className="flex flex-col gap-3">
-          <h2 id="decision-heading" className="text-lg font-semibold">
-            Record a decision
-          </h2>
+        <Panel titleId="decision-heading" title={<>Record a decision</>}>
           <VerificationForm
             organisationId={organisationId}
             workerId={worker.id}
@@ -147,15 +150,12 @@ export default async function CredentialReviewPage({
             versionLabel={`version ${latestSubmitted.number}`}
             facilities={facilities ? facilities.map(({ id, name }) => ({ id, name })) : null}
           />
-        </section>
+        </Panel>
       ) : null}
 
-      <section aria-labelledby="history-heading" className="flex flex-col gap-3">
-        <h2 id="history-heading" className="text-lg font-semibold">
-          {organisation.name} decision history
-        </h2>
+      <Panel titleId="history-heading" title={<>{organisation.name} decision history</>}>
         {ownDecisions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No decisions recorded.</p>
+          <EmptyState headingLevel={3} title="No decisions recorded." />
         ) : (
           <ul className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface text-sm">
             {ownDecisions.map((decision) => (
@@ -181,7 +181,7 @@ export default async function CredentialReviewPage({
             ))}
           </ul>
         )}
-      </section>
+      </Panel>
     </>
   );
 }

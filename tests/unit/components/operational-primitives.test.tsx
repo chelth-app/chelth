@@ -14,6 +14,7 @@ import { FilterBar, FilterSelect } from "@/components/ui/filter-bar";
 import { KeyValueList } from "@/components/ui/key-value-list";
 import { KpiFilterCard } from "@/components/ui/kpi-filter-card";
 import { PageHeader } from "@/components/ui/page-header";
+import { Panel, PanelLink } from "@/components/ui/panel";
 import { SectionTabs } from "@/components/ui/section-tabs";
 import { StatusChip } from "@/components/ui/status-chip";
 
@@ -229,6 +230,29 @@ describe("SectionTabs, FilterBar, KeyValueList, ActivityTimeline", () => {
     const list = screen.getByRole("list", { name: "Recent activity" });
     expect(list.tagName).toBe("OL");
     expect(within(list).getByRole("listitem")).toHaveTextContent("Member invited");
+  });
+});
+
+describe("Panel", () => {
+  it("is a region named by its heading, with one header action", () => {
+    render(
+      <Panel
+        title="Today's schedule"
+        titleId="today"
+        id="today-panel"
+        action={<PanelLink href="/app">View attendance</PanelLink>}
+      >
+        <p>Body</p>
+      </Panel>,
+    );
+    const region = screen.getByRole("region", { name: "Today's schedule" });
+    expect(region).toHaveAttribute("id", "today-panel");
+    // The decorative arrow is not part of the link name.
+    expect(within(region).getByRole("link", { name: "View attendance" })).toHaveAttribute(
+      "href",
+      "/app",
+    );
+    expect(within(region).getByRole("heading", { level: 2 })).toHaveTextContent("Today's schedule");
   });
 });
 

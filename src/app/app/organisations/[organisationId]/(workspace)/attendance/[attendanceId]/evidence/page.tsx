@@ -1,9 +1,21 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+
+import { Panel } from "@/components/ui/panel";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 
-import { DataTableRegion } from "@/components/ui/data-table";
+import {
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeaderCell,
+  DataTableRegion,
+  DataTableRow,
+} from "@/components/ui/data-table";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatusChip } from "@/components/ui/status-chip";
 import {
   getAttendanceRecord,
   listAgencyAttendance,
@@ -97,15 +109,20 @@ export default async function LocationEvidencePage({
 
   return (
     <>
-      <header className="flex flex-col gap-2">
-        <Link href={recordPath} className="w-fit text-sm text-primary underline underline-offset-4">
-          Attendance record
-        </Link>
-        <h1 className="text-2xl font-semibold">Location evidence</h1>
-        <p className="text-sm text-muted-foreground">
-          {row.workerName ?? "Worker"} · {row.facilityName} · {formatShiftDate(row)}
-        </p>
-      </header>
+      <PageHeader
+        title="Location evidence"
+        back={
+          <Link href={recordPath} className="text-primary underline underline-offset-4">
+            Attendance record
+          </Link>
+        }
+        description={
+          <p className="text-sm">
+            {row.workerName ?? "Worker"} · {row.facilityName} · {formatShiftDate(row)}
+          </p>
+        }
+        meta={activeHold ? <StatusChip tone="warning">Legal hold active</StatusChip> : undefined}
+      />
 
       <p
         role="note"
@@ -118,75 +135,50 @@ export default async function LocationEvidencePage({
       </p>
 
       {evidence.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          No location evidence: this site did not check location for this record.
-        </p>
+        <EmptyState
+          title="No location evidence"
+          description="This site did not check location for this record."
+        />
       ) : (
         <DataTableRegion aria-label="Location evidence table">
-          <table className="w-full min-w-[860px] text-left text-sm">
-            <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
+          <DataTable className="min-w-[860px]">
+            <DataTableHead>
               <tr>
-                <th scope="col" className="px-3 py-2 font-medium">
-                  Clock action
-                </th>
-                <th scope="col" className="px-3 py-2 font-medium">
-                  Result
-                </th>
-                <th scope="col" className="px-3 py-2 font-medium">
-                  Recorded (server)
-                </th>
-                <th scope="col" className="px-3 py-2 font-medium">
-                  Captured (device)
-                </th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">
-                  Accuracy
-                </th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">
-                  Distance
-                </th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">
-                  Radius
-                </th>
-                <th scope="col" className="px-3 py-2 font-medium">
-                  Coordinates
-                </th>
+                <DataTableHeaderCell>Clock action</DataTableHeaderCell>
+                <DataTableHeaderCell>Result</DataTableHeaderCell>
+                <DataTableHeaderCell>Recorded (server)</DataTableHeaderCell>
+                <DataTableHeaderCell>Captured (device)</DataTableHeaderCell>
+                <DataTableHeaderCell numeric>Accuracy</DataTableHeaderCell>
+                <DataTableHeaderCell numeric>Distance</DataTableHeaderCell>
+                <DataTableHeaderCell numeric>Radius</DataTableHeaderCell>
+                <DataTableHeaderCell>Coordinates</DataTableHeaderCell>
               </tr>
-            </thead>
+            </DataTableHead>
             <tbody>
               {evidence.map((item) => (
-                <tr
-                  key={`${item.eventType}-${item.recordedAt}`}
-                  className="border-b border-border last:border-0"
-                >
-                  <td className="px-3 py-2 font-medium">
+                <DataTableRow key={`${item.eventType}-${item.recordedAt}`}>
+                  <DataTableCell className="font-medium">
                     {ATTENDANCE_EVENT_LABELS[item.eventType]}
-                  </td>
-                  <td className="px-3 py-2">{GEOFENCE_RESULT_LABELS[item.result]}</td>
-                  <td className="px-3 py-2">{dateTime(item.recordedAt, row.timezone)}</td>
-                  <td className="px-3 py-2">{dateTime(item.deviceCapturedAt, row.timezone)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {metres(item.accuracyMeters)}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {metres(item.distanceMeters)}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">{metres(item.radiusMeters)}</td>
-                  <td className="px-3 py-2 tabular-nums">
+                  </DataTableCell>
+                  <DataTableCell>{GEOFENCE_RESULT_LABELS[item.result]}</DataTableCell>
+                  <DataTableCell>{dateTime(item.recordedAt, row.timezone)}</DataTableCell>
+                  <DataTableCell>{dateTime(item.deviceCapturedAt, row.timezone)}</DataTableCell>
+                  <DataTableCell numeric>{metres(item.accuracyMeters)}</DataTableCell>
+                  <DataTableCell numeric>{metres(item.distanceMeters)}</DataTableCell>
+                  <DataTableCell numeric>{metres(item.radiusMeters)}</DataTableCell>
+                  <DataTableCell className="tabular-nums">
                     {item.latitude !== null && item.longitude !== null
                       ? `${item.latitude.toFixed(5)}, ${item.longitude.toFixed(5)}`
                       : EVIDENCE_STATE_LABELS[item.state]}
-                  </td>
-                </tr>
+                  </DataTableCell>
+                </DataTableRow>
               ))}
             </tbody>
-          </table>
+          </DataTable>
         </DataTableRegion>
       )}
 
-      <section aria-labelledby="retention-heading" className="flex flex-col gap-3">
-        <h2 id="retention-heading" className="text-lg font-semibold">
-          Retention and legal hold
-        </h2>
+      <Panel titleId="retention-heading" title={<>Retention and legal hold</>}>
         <p className="max-w-2xl text-sm text-muted-foreground">
           {retentionDays
             ? `Coordinates are purged ${retentionDays} days after capture. The location result stays with the attendance record.`
@@ -200,10 +192,14 @@ export default async function LocationEvidencePage({
                 key={hold.id}
                 className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface p-3"
               >
-                <span>
-                  {hold.releasedAt ? "Released" : "Active"} hold · placed{" "}
-                  {dateTime(hold.placedAt, row.timezone)} by{" "}
-                  {hold.placedByName ?? "an administrator"}
+                <span className="flex flex-col gap-1">
+                  <StatusChip tone={hold.releasedAt ? "neutral" : "warning"} className="w-fit">
+                    {hold.releasedAt ? "Released" : "Active"} hold
+                  </StatusChip>
+                  <span>
+                    Placed {dateTime(hold.placedAt, row.timezone)} by{" "}
+                    {hold.placedByName ?? "an administrator"}
+                  </span>
                   <span className="block text-muted-foreground">{hold.reason}</span>
                 </span>
                 {hold.releasedAt ? null : (
@@ -220,7 +216,7 @@ export default async function LocationEvidencePage({
         {activeHold ? null : (
           <PlaceHoldForm organisationId={organisationId} attendanceId={record.attendanceId} />
         )}
-      </section>
+      </Panel>
     </>
   );
 }
