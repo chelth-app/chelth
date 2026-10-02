@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { type Browser, expect, type Page, test } from "@playwright/test";
 
 import { createStaffingWorld, isoDay, type StaffingWorld } from "./staffing-fixture";
-import { signIn } from "./support";
+import { expectNoPageOverflow, openWorkspaceSection, signIn } from "./support";
 
 const A11Y_TAGS = ["wcag2a", "wcag2aa", "wcag22aa"];
 /** Server Actions re-render the page; allow for a loaded local stack. */
@@ -11,6 +11,8 @@ const AFTER_ACTION = { timeout: 20_000 };
 async function expectNoA11yViolations(page: Page) {
   const results = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
   expect(results.violations).toEqual([]);
+  // P0-E8-S2: wide tables scroll inside their region, never the page (412 px on mobile).
+  await expectNoPageOverflow(page);
 }
 
 async function signedIn(browser: Browser, email: string): Promise<Page> {
@@ -37,10 +39,7 @@ test.describe.serial("shift requests & assignments", () => {
 
   test("Flow 1: a scheduler creates a shift, sees eligible workers, assigns and sees fill progress", async () => {
     await scheduler.goto(`/app/organisations/${world.agencyId}`);
-    await scheduler
-      .getByRole("navigation", { name: "Organisation sections" })
-      .getByRole("link", { name: "Shifts" })
-      .click();
+    await openWorkspaceSection(scheduler, "Shifts");
     await expect(scheduler.getByRole("heading", { level: 1, name: "Shifts" })).toBeVisible();
 
     await scheduler
@@ -121,10 +120,7 @@ test.describe.serial("shift requests & assignments", () => {
   }) => {
     const facility = await signedIn(browser, world.facilityAdmin.email);
     await facility.goto(`/app/organisations/${world.facilityOrgId}`);
-    await facility
-      .getByRole("navigation", { name: "Organisation sections" })
-      .getByRole("link", { name: "Staffing requests" })
-      .click();
+    await openWorkspaceSection(facility, "Staffing requests");
     await expect(
       facility.getByRole("heading", { level: 1, name: "Staffing requests" }),
     ).toBeVisible();

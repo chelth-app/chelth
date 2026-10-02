@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { DataTableRegion } from "@/components/ui/data-table";
 import {
   loadOrganisationPage,
   requireCapabilityOrNotFound,
@@ -59,12 +60,7 @@ export default async function WorkforcePage({
             No workers yet. Invited workers appear here once they accept.
           </p>
         ) : (
-          <div
-            role="region"
-            aria-labelledby="workers-heading"
-            tabIndex={0}
-            className="overflow-x-auto rounded-lg border border-border bg-surface"
-          >
+          <DataTableRegion aria-labelledby="workers-heading">
             <table className="w-full min-w-[32rem] text-left text-sm">
               <thead className="border-b border-border bg-surface-muted">
                 <tr>
@@ -102,7 +98,7 @@ export default async function WorkforcePage({
                 ))}
               </tbody>
             </table>
-          </div>
+          </DataTableRegion>
         )}
       </section>
     </>

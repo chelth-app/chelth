@@ -5,6 +5,7 @@ import { PageContainer } from "@/components/layout/page-container";
 import { MAIN_CONTENT_ID } from "@/components/layout/skip-link";
 import { BrandLogo } from "@/components/shared/brand-logo";
 import {
+  ActivityTimeline,
   Badge,
   Button,
   Card,
@@ -13,11 +14,29 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeaderCell,
+  DataTablePagination,
+  DataTableRegion,
+  DataTableRow,
+  EmptyState,
   ErrorState,
+  FilterBar,
+  FilterSelect,
   FormField,
   Input,
+  KeyValueList,
+  KpiFilterCard,
+  KpiFilterGroup,
   LoadingState,
+  PageHeader,
+  SectionTabs,
+  StatusChip,
+  type StatusTone,
 } from "@/components/ui";
+import { DetailDrawerTrigger } from "@/components/ui/detail-drawer";
 import { isProduction } from "@/config/env.public";
 
 import { DialogDemo } from "./dialog-demo";
@@ -98,6 +117,119 @@ export default function DesignSystemPage() {
               <DialogDemo />
             </CardFooter>
           </Card>
+        </section>
+
+        <section aria-labelledby="operational-heading" className="flex flex-col gap-6">
+          <h2 id="operational-heading" className="text-lg font-semibold">
+            Operational primitives (P0-E8-S2)
+          </h2>
+          <div className="rounded-lg border border-border bg-background p-4">
+            <PageHeader
+              title="Page title"
+              titleId="ds-page-title"
+              description="One supporting sentence under a Manrope 32/40 title."
+              back={<span className="text-muted-foreground">Breadcrumb slot</span>}
+              primaryAction={<Button>Primary action</Button>}
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(["neutral", "info", "success", "warning", "danger", "attention"] as StatusTone[]).map(
+              (tone) => (
+                <StatusChip key={tone} tone={tone}>
+                  {tone.charAt(0).toUpperCase() + tone.slice(1)}
+                </StatusChip>
+              ),
+            )}
+          </div>
+          <KpiFilterGroup label="Example summary">
+            <KpiFilterCard
+              label="Needs review"
+              value={3}
+              supporting="2 urgent"
+              href="/design-system"
+              active
+            />
+            <KpiFilterCard label="Scheduled" value={12} supporting="Today" href="/design-system" />
+            <KpiFilterCard label="Static figure" value={4} supporting="Not a link" />
+          </KpiFilterGroup>
+          <SectionTabs
+            label="Example tabs"
+            tabs={[
+              { label: "Current view", href: "/design-system", current: true, count: 4 },
+              { label: "Other view", href: "/", current: false },
+            ]}
+          />
+          <FilterBar label="Example filters" resetHref="/design-system">
+            <FilterSelect label="Status" id="ds-filter-status" name="status" defaultValue="">
+              <option value="">All statuses</option>
+              <option value="open">Open</option>
+            </FilterSelect>
+          </FilterBar>
+          <DataTableRegion aria-label="Example table">
+            <DataTable className="min-w-[36rem]">
+              <DataTableHead>
+                <tr>
+                  <DataTableHeaderCell>Worker</DataTableHeaderCell>
+                  <DataTableHeaderCell>Status</DataTableHeaderCell>
+                  <DataTableHeaderCell numeric>Hours</DataTableHeaderCell>
+                  <DataTableHeaderCell>
+                    <span className="sr-only">Details</span>
+                  </DataTableHeaderCell>
+                </tr>
+              </DataTableHead>
+              <tbody>
+                <DataTableRow selected>
+                  <DataTableCell className="font-medium">Example worker</DataTableCell>
+                  <DataTableCell>
+                    <StatusChip tone="attention">Needs review</StatusChip>
+                  </DataTableCell>
+                  <DataTableCell numeric>8.0</DataTableCell>
+                  <DataTableCell>
+                    <DetailDrawerTrigger
+                      triggerLabel="Details"
+                      triggerAccessibleLabel="Details for Example worker"
+                      title="Example worker"
+                      description="Drawer for quick inspection; the record keeps its own page."
+                      footer={<Button className="w-full">Primary action</Button>}
+                    >
+                      <KeyValueList
+                        items={[
+                          {
+                            label: "Status",
+                            value: <StatusChip tone="attention">Needs review</StatusChip>,
+                          },
+                          { label: "Hours", value: "8.0" },
+                        ]}
+                      />
+                      <ActivityTimeline
+                        label="Example activity"
+                        items={[
+                          { id: "a", title: "Clocked in", meta: "09:02", tone: "success" },
+                          {
+                            id: "b",
+                            title: "Late clock-in recorded",
+                            meta: "09:02",
+                            tone: "attention",
+                          },
+                        ]}
+                      />
+                    </DetailDrawerTrigger>
+                  </DataTableCell>
+                </DataTableRow>
+              </tbody>
+            </DataTable>
+          </DataTableRegion>
+          <DataTablePagination
+            label="Example pages"
+            summary="Showing 1 row"
+            nextHref="/design-system"
+          />
+          <EmptyState
+            headingLevel={3}
+            title="Nothing here yet"
+            description="One sentence that explains what will appear and why."
+            action={<Button variant="outline">One recovery action</Button>}
+          />
         </section>
 
         <section aria-labelledby="states-heading" className="flex flex-col gap-3">

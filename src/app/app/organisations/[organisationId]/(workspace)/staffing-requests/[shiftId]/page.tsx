@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { DataTableRegion } from "@/components/ui/data-table";
 import { InlineActionForm } from "@/components/forms/inline-action-form";
 import { Badge } from "@/components/ui/badge";
 import { AttendanceStateBadge, listFacilityShiftAttendance } from "@/features/attendance";
@@ -149,12 +150,7 @@ export default async function StaffingRequestPage({
           <h2 id="facility-attendance-heading" className="text-lg font-semibold">
             Attendance
           </h2>
-          <div
-            role="region"
-            aria-label="Attendance for this request"
-            tabIndex={0}
-            className="overflow-x-auto rounded-lg border border-border bg-surface"
-          >
+          <DataTableRegion aria-label="Attendance for this request">
             <table className="w-full min-w-[560px] text-left text-sm">
               <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
                 <tr>
@@ -209,7 +205,7 @@ export default async function StaffingRequestPage({
                 ))}
               </tbody>
             </table>
-          </div>
+          </DataTableRegion>
         </section>
       ) : null}
     </>

@@ -5,7 +5,7 @@ import { zonedLocalToInstant } from "@/lib/domain/attendance";
 
 import { generateTotp } from "../support/totp";
 import { arrangePastWork, createStaffingWorld, type StaffingWorld } from "./staffing-fixture";
-import { signIn } from "./support";
+import { expectNoPageOverflow, qaScreenshot, signIn } from "./support";
 
 const A11Y_TAGS = ["wcag2a", "wcag2aa", "wcag22aa"];
 const AFTER_ACTION = { timeout: 20_000 };
@@ -14,6 +14,8 @@ const TZ = "America/New_York";
 async function expectNoA11yViolations(page: Page) {
   const results = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
   expect(results.violations).toEqual([]);
+  // P0-E8-S2: wide tables scroll inside their region, never the page (412 px on mobile).
+  await expectNoPageOverflow(page);
 }
 
 async function must<T>(promise: PromiseLike<{ data: T; error: unknown }>): Promise<NonNullable<T>> {
@@ -205,6 +207,7 @@ test.describe.serial("pay & bill rates and pricing", () => {
     const table = admin.getByRole("region", { name: "Ready for pricing table" });
     const row = table.getByRole("row", { name: /Tia Priced/ });
     await expect(row).toContainText("Ready for pricing");
+    await qaScreenshot(admin, "pricing-finance-list");
     await expectNoA11yViolations(admin);
     await row.getByRole("button", { name: "Price timesheet for Tia Priced" }).click();
     await expect(row).toHaveCount(0, AFTER_ACTION);
@@ -217,6 +220,7 @@ test.describe.serial("pay & bill rates and pricing", () => {
     await expect(lines).toContainText("$437.90");
     await expect(admin.getByLabel("Totals")).toContainText("$660.88");
     await expect(admin.getByLabel("Totals")).toContainText("$901.90");
+    await qaScreenshot(admin, "pricing-detail");
     await expectNoA11yViolations(admin);
     await admin.context().close();
   });

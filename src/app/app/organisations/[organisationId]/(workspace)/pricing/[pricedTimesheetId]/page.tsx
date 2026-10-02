@@ -3,6 +3,17 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 
+import {
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeaderCell,
+  DataTableRegion,
+  DataTableRow,
+} from "@/components/ui/data-table";
+import { KeyValueList } from "@/components/ui/key-value-list";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatusChip } from "@/components/ui/status-chip";
 import { loadOrganisationPage, requireCapabilityOrNotFound } from "@/features/organisations";
 import { getPricedTimesheet, listPricedLines } from "@/features/pricing";
 import { CAPABILITIES } from "@/lib/authz";
@@ -48,87 +59,106 @@ export default async function PricedTimesheetPage({
 
   return (
     <>
-      <header className="flex flex-col gap-2">
-        <Link
-          href={`/app/organisations/${organisationId}/pricing?state=priced`}
-          className="w-fit text-sm text-primary underline underline-offset-4"
-        >
-          Pricing
-        </Link>
-        <h1 className="text-2xl font-semibold">{priced.workerName ?? "Worker"}</h1>
-        <p className="text-sm text-muted-foreground">
-          Week {formatPeriod(priced.periodStart, priced.periodEnd)} · Timesheet revision{" "}
-          {priced.revision}
-          {priced.revision < priced.currentRevision
-            ? ` (superseded by revision ${priced.currentRevision})`
-            : ""}{" "}
-          · Priced {when.format(new Date(priced.pricedAt))}
-          {priced.pricedByName ? ` by ${priced.pricedByName}` : ""} · Calculation version{" "}
-          {priced.calculationVersion}
-        </p>
-      </header>
+      <PageHeader
+        title={priced.workerName ?? "Worker"}
+        back={
+          <Link
+            href={`/app/organisations/${organisationId}/pricing?state=priced`}
+            className="text-primary underline underline-offset-4"
+          >
+            Pricing
+          </Link>
+        }
+        description={
+          <p className="text-sm">
+            Week {formatPeriod(priced.periodStart, priced.periodEnd)} · Timesheet revision{" "}
+            {priced.revision}
+            {priced.revision < priced.currentRevision
+              ? ` (superseded by revision ${priced.currentRevision})`
+              : ""}{" "}
+            · Priced {when.format(new Date(priced.pricedAt))}
+            {priced.pricedByName ? ` by ${priced.pricedByName}` : ""} · Calculation version{" "}
+            {priced.calculationVersion}
+          </p>
+        }
+        meta={
+          priced.revision < priced.currentRevision ? (
+            <StatusChip tone="warning">Superseded</StatusChip>
+          ) : (
+            <StatusChip tone="success">Current snapshot</StatusChip>
+          )
+        }
+      />
 
-      <dl
-        aria-label="Totals"
-        className="grid max-w-xl grid-cols-[auto_1fr] gap-x-6 gap-y-2 rounded-lg border border-border bg-surface p-4 text-sm"
-      >
-        <dt className="text-muted-foreground">Worked (from the locked timesheet)</dt>
-        <dd className="tabular-nums">{formatWorkedMinutes(priced.totalRawMinutes)}</dd>
-        <dt className="text-muted-foreground">Priced time</dt>
-        <dd className="tabular-nums">{formatWorkedMinutes(priced.totalPricedMinutes)}</dd>
-        <dt className="text-muted-foreground">Pay</dt>
-        <dd className="font-semibold tabular-nums">
-          {formatMoney(priced.totalPayMinor, priced.currency)}
-        </dd>
-        <dt className="text-muted-foreground">Bill</dt>
-        <dd className="font-semibold tabular-nums">
-          {formatMoney(priced.totalBillMinor, priced.currency)}
-        </dd>
-        <dt className="text-muted-foreground">Margin (derived)</dt>
-        <dd className="tabular-nums">
-          {formatMoney(marginMinor(priced.totalBillMinor, priced.totalPayMinor), priced.currency)}
-        </dd>
-      </dl>
+      <div className="flex max-w-xl flex-col gap-3 rounded-lg border border-border bg-surface p-4 shadow-card">
+        <h2 className="font-display text-lg font-semibold">Totals</h2>
+        <KeyValueList
+          aria-label="Totals"
+          items={[
+            {
+              label: "Worked (from the locked timesheet)",
+              value: (
+                <span className="tabular-nums">{formatWorkedMinutes(priced.totalRawMinutes)}</span>
+              ),
+            },
+            {
+              label: "Priced time",
+              value: (
+                <span className="tabular-nums">
+                  {formatWorkedMinutes(priced.totalPricedMinutes)}
+                </span>
+              ),
+            },
+            {
+              label: "Pay",
+              value: (
+                <span className="font-semibold tabular-nums">
+                  {formatMoney(priced.totalPayMinor, priced.currency)}
+                </span>
+              ),
+            },
+            {
+              label: "Bill",
+              value: (
+                <span className="font-semibold tabular-nums">
+                  {formatMoney(priced.totalBillMinor, priced.currency)}
+                </span>
+              ),
+            },
+            {
+              label: "Margin (derived)",
+              value: (
+                <span className="tabular-nums">
+                  {formatMoney(
+                    marginMinor(priced.totalBillMinor, priced.totalPayMinor),
+                    priced.currency,
+                  )}
+                </span>
+              ),
+            },
+          ]}
+        />
+      </div>
 
-      <div
-        role="region"
-        aria-label="Priced lines"
-        tabIndex={0}
-        className="overflow-x-auto rounded-lg border border-border bg-surface"
-      >
-        <table className="w-full min-w-[1040px] text-left text-sm">
-          <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
+      <h2 className="font-display text-lg font-semibold">Priced lines</h2>
+      <DataTableRegion aria-label="Priced lines">
+        <DataTable className="min-w-[1040px]">
+          <DataTableHead>
             <tr>
-              <th scope="col" className="px-3 py-2 font-medium">
-                Shift
-              </th>
-              <th scope="col" className="px-3 py-2 text-right font-medium">
-                Worked
-              </th>
-              <th scope="col" className="px-3 py-2 text-right font-medium">
-                Priced
-              </th>
-              <th scope="col" className="px-3 py-2 text-right font-medium">
-                Pay rate
-              </th>
-              <th scope="col" className="px-3 py-2 text-right font-medium">
-                Pay
-              </th>
-              <th scope="col" className="px-3 py-2 text-right font-medium">
-                Bill rate
-              </th>
-              <th scope="col" className="px-3 py-2 text-right font-medium">
-                Bill
-              </th>
-              <th scope="col" className="px-3 py-2 font-medium">
-                Applied
-              </th>
+              <DataTableHeaderCell>Shift</DataTableHeaderCell>
+              <DataTableHeaderCell numeric>Worked</DataTableHeaderCell>
+              <DataTableHeaderCell numeric>Priced</DataTableHeaderCell>
+              <DataTableHeaderCell numeric>Pay rate</DataTableHeaderCell>
+              <DataTableHeaderCell numeric>Pay</DataTableHeaderCell>
+              <DataTableHeaderCell numeric>Bill rate</DataTableHeaderCell>
+              <DataTableHeaderCell numeric>Bill</DataTableHeaderCell>
+              <DataTableHeaderCell>Applied</DataTableHeaderCell>
             </tr>
-          </thead>
+          </DataTableHead>
           <tbody>
             {lines.map((line) => (
-              <tr key={line.lineNumber} className="border-b border-border align-top last:border-0">
-                <td className="px-3 py-2">
+              <DataTableRow key={line.lineNumber}>
+                <DataTableCell>
                   <div className="font-medium">
                     {dateFormat.format(new Date(`${line.localDate}T00:00:00Z`))}
                   </div>
@@ -136,9 +166,9 @@ export default async function PricedTimesheetPage({
                     {line.facilityName} · {line.disciplineName} ·{" "}
                     {SHIFT_CLASSIFICATION_LABELS[line.classification]}
                   </div>
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums">{line.rawMinutes} min</td>
-                <td className="px-3 py-2 text-right tabular-nums">
+                </DataTableCell>
+                <DataTableCell numeric>{line.rawMinutes} min</DataTableCell>
+                <DataTableCell numeric>
                   {line.pricedMinutes} min
                   {line.payOvertimeMinutes > 0 ? (
                     <div className="text-xs text-muted-foreground">
@@ -150,20 +180,20 @@ export default async function PricedTimesheetPage({
                       {line.billOvertimeMinutes} min bill overtime
                     </div>
                   ) : null}
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums">
+                </DataTableCell>
+                <DataTableCell numeric>
                   {formatHourlyRate(line.payRateMinor, line.currency)}
-                </td>
-                <td className="px-3 py-2 text-right font-medium tabular-nums">
+                </DataTableCell>
+                <DataTableCell numeric className="font-medium">
                   {formatMoney(line.payAmountMinor, line.currency)}
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums">
+                </DataTableCell>
+                <DataTableCell numeric>
                   {formatHourlyRate(line.billRateMinor, line.currency)}
-                </td>
-                <td className="px-3 py-2 text-right font-medium tabular-nums">
+                </DataTableCell>
+                <DataTableCell numeric className="font-medium">
                   {formatMoney(line.billAmountMinor, line.currency)}
-                </td>
-                <td className="px-3 py-2 text-xs text-muted-foreground">
+                </DataTableCell>
+                <DataTableCell className="text-xs text-muted-foreground">
                   <div>
                     Rate v{line.rateVersion} · {RATE_PRECEDENCE_LABELS[line.ratePrecedence]}
                   </div>
@@ -173,12 +203,12 @@ export default async function PricedTimesheetPage({
                     · Bill:{" "}
                     {describeOvertime(line.billOvertimeNumerator, line.billOvertimeDenominator)}
                   </div>
-                </td>
-              </tr>
+                </DataTableCell>
+              </DataTableRow>
             ))}
           </tbody>
-        </table>
-      </div>
+        </DataTable>
+      </DataTableRegion>
       <p className="max-w-3xl text-xs text-muted-foreground">
         Amounts: minutes × hourly rate ÷ 60 per line, rounded half up to the cent; overtime minutes
         use the configured multiplier. Totals are the sum of lines. This snapshot never changes.

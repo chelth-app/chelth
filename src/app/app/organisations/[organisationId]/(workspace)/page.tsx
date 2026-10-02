@@ -2,8 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { DataTableRegion } from "@/components/ui/data-table";
 import { InlineActionForm } from "@/components/forms/inline-action-form";
+import { ActivityTimeline } from "@/components/ui/activity-timeline";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatusChip } from "@/components/ui/status-chip";
 import {
   assignableRoles,
   AssignRoleForm,
@@ -22,7 +27,7 @@ import {
 } from "@/features/organisations";
 import { RelationshipStatusBadge, listPartnerRelationships } from "@/features/facilities";
 import { listSharedWorkerCompliance, ReadinessBadge } from "@/features/compliance";
-import { OrganisationSections, StepUpNotice } from "@/features/organisations";
+import { isWorkspaceStaff, OrganisationSections, StepUpNotice } from "@/features/organisations";
 import { COMPLIANCE_REASON_LABELS } from "@/lib/domain/credentials";
 import { getMyWorkerRecord, WorkerStatusBadge } from "@/features/workforce";
 import { requireAuthIdentity } from "@/lib/auth/session";
@@ -51,6 +56,7 @@ export default async function OrganisationPage({
   const can = (capability: Parameters<typeof capabilityState>[1]) =>
     capabilityState(grants, capability);
   const needsStepUp = grants.some((grant) => !grant.isSatisfied);
+  const workspaceStaff = isWorkspaceStaff(grants.map((grant) => grant.capabilityKey));
 
   const [roles, members, invites, audit] = await Promise.all([
     listRoles(organisation.type),
@@ -91,28 +97,39 @@ export default async function OrganisationPage({
 
   return (
     <>
-      <header className="flex flex-col gap-2">
-        <Link href="/app" className="w-fit text-sm text-primary underline underline-offset-4">
-          All organisations
-        </Link>
-        <h1 className="text-2xl font-semibold">{organisation.name}</h1>
-        <div className="flex flex-wrap gap-2">
-          <Badge tone="brand">{organisation.type === "agency" ? "Agency" : "Facility"}</Badge>
-          {organisation.status !== "active" ? (
-            <Badge tone="warning">Organisation suspended</Badge>
-          ) : null}
-          {me?.roleKeys.map((key) => (
-            <Badge key={key} tone="info">
-              {roleName.get(key) ?? key}
-            </Badge>
-          ))}
-        </div>
-      </header>
+      <PageHeader
+        title={organisation.name}
+        back={
+          <Link href="/app" className="text-primary underline underline-offset-4">
+            All organisations
+          </Link>
+        }
+        meta={
+          <>
+            <Badge tone="brand">{organisation.type === "agency" ? "Agency" : "Facility"}</Badge>
+            {organisation.status !== "active" ? (
+              <StatusChip tone="warning">Organisation suspended</StatusChip>
+            ) : null}
+            {me?.roleKeys.map((key) => (
+              <Badge key={key} tone="info">
+                {roleName.get(key) ?? key}
+              </Badge>
+            ))}
+          </>
+        }
+      />
 
       {needsStepUp ? <StepUpNotice returnTo={`/app/organisations/${organisationId}`} /> : null}
 
+      {/*
+        Workspace staff navigate with the sidebar (P0-E8-S1), so the section
+        link grid is not repeated here. Self-service links (My shifts, My
+        credentials) are not in the sidebar and stay. Self-service-only members
+        are on the personal frame and keep every link they can use.
+      */}
       <OrganisationSections
         organisationId={organisationId}
+        selfServiceOnly={workspaceStaff}
         showWorkforce={can(CAPABILITIES.WORKER_VIEW) !== "not_held"}
         showFacilities={can(CAPABILITIES.FACILITY_VIEW) !== "not_held"}
         showCompliance={can(CAPABILITIES.CREDENTIAL_REQUIREMENTS_VIEW) !== "not_held"}
@@ -216,12 +233,7 @@ export default async function OrganisationPage({
             Members
           </h2>
           {/* Focusable, labelled scroll region: keyboard users can scroll the table on small screens. */}
-          <div
-            role="region"
-            aria-labelledby="members-heading"
-            tabIndex={0}
-            className="overflow-x-auto rounded-lg border border-border bg-surface"
-          >
+          <DataTableRegion aria-label="Members table">
             <table className="w-full min-w-[40rem] text-left text-sm">
               <thead className="border-b border-border bg-surface-muted">
                 <tr>
@@ -253,7 +265,7 @@ export default async function OrganisationPage({
                         {isSelf ? <span className="text-muted-foreground"> (you)</span> : null}
                       </th>
                       <td className="p-3">
-                        <Badge
+                        <StatusChip
                           tone={
                             member.status === "active"
                               ? "success"
@@ -267,7 +279,7 @@ export default async function OrganisationPage({
                             : member.status === "suspended"
                               ? "Suspended"
                               : "Revoked"}
-                        </Badge>
+                        </StatusChip>
                       </td>
                       <td className="p-3">
                         <ul className="flex flex-col gap-2">
@@ -341,7 +353,7 @@ export default async function OrganisationPage({
                 })}
               </tbody>
             </table>
-          </div>
+          </DataTableRegion>
         </section>
       ) : null}
 
@@ -395,25 +407,35 @@ export default async function OrganisationPage({
           <h2 id="audit-heading" className="text-lg font-semibold">
             Recent activity
           </h2>
-          <ul className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface text-sm">
-            {audit.map((event) => (
-              <li key={event.id} className="flex flex-wrap justify-between gap-2 p-3">
-                <span>
-                  {auditActionLabel(event.action)}
-                  <span className="text-muted-foreground">
-                    {" "}
-                    by{" "}
-                    {event.actorProfileId
-                      ? (memberName.get(event.actorProfileId) ?? "a former member")
-                      : "the platform"}
-                  </span>
-                </span>
-                <time dateTime={event.occurredAt} className="text-muted-foreground">
-                  {dateTime.format(new Date(event.occurredAt))}
-                </time>
-              </li>
-            ))}
-          </ul>
+          {audit.length === 0 ? (
+            <EmptyState
+              headingLevel={3}
+              title="No activity yet"
+              description="Membership, role and invitation changes will appear here."
+            />
+          ) : (
+            <div className="rounded-lg border border-border bg-surface p-4">
+              <ActivityTimeline
+                label="Recent activity"
+                items={audit.map((event) => ({
+                  id: event.id,
+                  title: auditActionLabel(event.action),
+                  meta: (
+                    <>
+                      by{" "}
+                      {event.actorProfileId
+                        ? (memberName.get(event.actorProfileId) ?? "a former member")
+                        : "the platform"}{" "}
+                      ·{" "}
+                      <time dateTime={event.occurredAt}>
+                        {dateTime.format(new Date(event.occurredAt))}
+                      </time>
+                    </>
+                  ),
+                }))}
+              />
+            </div>
+          )}
         </section>
       ) : null}
     </>

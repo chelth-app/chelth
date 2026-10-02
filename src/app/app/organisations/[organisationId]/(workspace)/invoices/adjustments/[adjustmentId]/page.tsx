@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 
+import { DataTableRegion } from "@/components/ui/data-table";
 import { InlineActionForm } from "@/components/forms/inline-action-form";
 import {
   AttentionBadge,
@@ -35,7 +36,6 @@ import { formatPeriod, formatWorkedMinutes } from "@/lib/domain/timesheets";
 export const metadata: Metadata = { title: "Invoice adjustment draft" };
 
 const idSchema = z.uuid();
-const TABLE_REGION = "relative overflow-x-auto rounded-lg border border-border bg-surface";
 const TH = "px-3 py-2 font-medium";
 const dateFormat = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
@@ -261,12 +261,7 @@ export default async function InvoiceAdjustmentPage({
         <h2 id="inv-adjustment-lines-heading" className="text-lg font-semibold">
           Changed lines
         </h2>
-        <div
-          role="region"
-          aria-label="Invoice adjustment lines"
-          tabIndex={0}
-          className={TABLE_REGION}
-        >
+        <DataTableRegion aria-label="Invoice adjustment lines">
           <table className="w-full min-w-[880px] text-left text-sm">
             <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
               <tr>
@@ -335,7 +330,7 @@ export default async function InvoiceAdjustmentPage({
               ))}
             </tbody>
           </table>
-        </div>
+        </DataTableRegion>
       </section>
 
       <section aria-labelledby="inv-adjustment-history-heading" className="flex flex-col gap-3">

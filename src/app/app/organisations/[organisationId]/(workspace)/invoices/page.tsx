@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { DataTableRegion } from "@/components/ui/data-table";
 import { InlineActionForm } from "@/components/forms/inline-action-form";
 import {
   AttentionBadge,
@@ -30,7 +31,6 @@ import { formatPeriod, formatWorkedMinutes } from "@/lib/domain/timesheets";
 
 export const metadata: Metadata = { title: "Invoices" };
 
-const TABLE_REGION = "relative overflow-x-auto rounded-lg border border-border bg-surface";
 const TH = "px-3 py-2 font-medium";
 
 /**
@@ -131,12 +131,7 @@ export default async function InvoicesPage({
           facilities.map((facility) => (
             <div key={facility} className="flex flex-col gap-2">
               <h3 className="text-base font-semibold">{facility}</h3>
-              <div
-                role="region"
-                aria-label={`Billable work for ${facility}`}
-                tabIndex={0}
-                className={TABLE_REGION}
-              >
+              <DataTableRegion aria-label={`Billable work for ${facility}`}>
                 <table className="w-full min-w-[680px] text-left text-sm">
                   <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
                     <tr>
@@ -206,7 +201,7 @@ export default async function InvoicesPage({
                       })}
                   </tbody>
                 </table>
-              </div>
+              </DataTableRegion>
             </div>
           ))
         )}
@@ -229,12 +224,7 @@ export default async function InvoicesPage({
         {drafts.length === 0 ? (
           <p className="text-sm text-muted-foreground">No invoice drafts yet.</p>
         ) : (
-          <div
-            role="region"
-            aria-label="Invoice drafts table"
-            tabIndex={0}
-            className={TABLE_REGION}
-          >
+          <DataTableRegion aria-label="Invoice drafts table">
             <table className="w-full min-w-[820px] text-left text-sm">
               <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
                 <tr>
@@ -287,7 +277,7 @@ export default async function InvoicesPage({
                 ))}
               </tbody>
             </table>
-          </div>
+          </DataTableRegion>
         )}
       </section>
 

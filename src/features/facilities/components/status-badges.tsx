@@ -1,4 +1,4 @@
-import { Badge, type BadgeProps } from "@/components/ui/badge";
+import { StatusChip, type StatusTone } from "@/components/ui/status-chip";
 import {
   FACILITY_STATUS_LABELS,
   type FacilityStatus,
@@ -6,13 +6,13 @@ import {
   type RelationshipStatus,
 } from "@/lib/domain/vocabulary";
 
-const FACILITY_TONE: Record<FacilityStatus, NonNullable<BadgeProps["tone"]>> = {
+const FACILITY_TONE: Record<FacilityStatus, StatusTone> = {
   active: "success",
   inactive: "neutral",
   archived: "warning",
 };
 
-const RELATIONSHIP_TONE: Record<RelationshipStatus, NonNullable<BadgeProps["tone"]>> = {
+const RELATIONSHIP_TONE: Record<RelationshipStatus, StatusTone> = {
   pending: "info",
   active: "success",
   suspended: "warning",
@@ -20,9 +20,11 @@ const RELATIONSHIP_TONE: Record<RelationshipStatus, NonNullable<BadgeProps["tone
 };
 
 export function FacilityStatusBadge({ status }: { status: FacilityStatus }) {
-  return <Badge tone={FACILITY_TONE[status]}>{FACILITY_STATUS_LABELS[status]}</Badge>;
+  return <StatusChip tone={FACILITY_TONE[status]}>{FACILITY_STATUS_LABELS[status]}</StatusChip>;
 }
 
 export function RelationshipStatusBadge({ status }: { status: RelationshipStatus }) {
-  return <Badge tone={RELATIONSHIP_TONE[status]}>{RELATIONSHIP_STATUS_LABELS[status]}</Badge>;
+  return (
+    <StatusChip tone={RELATIONSHIP_TONE[status]}>{RELATIONSHIP_STATUS_LABELS[status]}</StatusChip>
+  );
 }

@@ -1,10 +1,10 @@
 import { cn } from "@/lib/utils/cn";
 
-import { Spinner } from "./spinner";
+import { StateIcon } from "./state-icon";
 
 type LoadingStateProps = { label?: string; className?: string };
 
-/** Announces loading politely to screen readers via role="status". */
+/** Loading state (P9). Announces politely to screen readers via role="status". */
 export function LoadingState({ label = "Loading…", className }: LoadingStateProps) {
   return (
     <div
@@ -14,7 +14,7 @@ export function LoadingState({ label = "Loading…", className }: LoadingStatePr
         className,
       )}
     >
-      <Spinner size="lg" decorative className="text-primary" />
+      <StateIcon name="loading" />
       <p className="text-sm">{label}</p>
     </div>
   );

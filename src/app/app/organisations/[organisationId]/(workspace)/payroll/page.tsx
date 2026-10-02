@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { DataTableRegion } from "@/components/ui/data-table";
 import { InlineActionForm } from "@/components/forms/inline-action-form";
 import {
   AttentionBadge,
@@ -38,7 +39,6 @@ import { formatPeriod, formatWorkedMinutes } from "@/lib/domain/timesheets";
 
 export const metadata: Metadata = { title: "Payroll" };
 
-const TABLE_REGION = "relative overflow-x-auto rounded-lg border border-border bg-surface";
 const TH = "px-3 py-2 font-medium";
 
 /**
@@ -145,12 +145,7 @@ export default async function PayrollPage({
         {ready.length === 0 && held.length === 0 ? (
           <p className="text-sm text-muted-foreground">All priced work is in a batch.</p>
         ) : (
-          <div
-            role="region"
-            aria-label="Unprepared payroll work"
-            tabIndex={0}
-            className={TABLE_REGION}
-          >
+          <DataTableRegion aria-label="Unprepared payroll work">
             <table className="w-full min-w-[760px] text-left text-sm">
               <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
                 <tr>
@@ -216,7 +211,7 @@ export default async function PayrollPage({
                 })}
               </tbody>
             </table>
-          </div>
+          </DataTableRegion>
         )}
       </section>
 
@@ -238,12 +233,7 @@ export default async function PayrollPage({
         {batches.length === 0 ? (
           <p className="text-sm text-muted-foreground">No payroll batches yet.</p>
         ) : (
-          <div
-            role="region"
-            aria-label="Payroll batches table"
-            tabIndex={0}
-            className={TABLE_REGION}
-          >
+          <DataTableRegion aria-label="Payroll batches table">
             <table className="w-full min-w-[820px] text-left text-sm">
               <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
                 <tr>
@@ -299,7 +289,7 @@ export default async function PayrollPage({
                 ))}
               </tbody>
             </table>
-          </div>
+          </DataTableRegion>
         )}
       </section>
 

@@ -15,7 +15,7 @@ import {
   type Person,
   type StaffingWorld,
 } from "./staffing-fixture";
-import { signIn } from "./support";
+import { expectNoPageOverflow, qaScreenshot, signIn } from "./support";
 
 /*
  * P0-E8-S1 shared Agency / Facility workspace shell: capability-driven
@@ -29,6 +29,8 @@ const SCREENSHOTS = process.env.SHELL_SCREENSHOTS_DIR;
 async function expectNoA11yViolations(page: Page) {
   const results = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
   expect(results.violations).toEqual([]);
+  // P0-E8-S2: wide tables scroll inside their region, never the page (412 px on mobile).
+  await expectNoPageOverflow(page);
 }
 
 async function signedIn(browser: Browser, email: string): Promise<Page> {
@@ -145,6 +147,42 @@ test.describe.serial("workspace shell", () => {
 
     await expectNoInventedChrome(page);
     await expectNoA11yViolations(page);
+
+    // P0-E8-S2 Overview cleanup: the section link grid no longer repeats the sidebar.
+    await expect(page.getByRole("navigation", { name: "Organisation sections" })).toHaveCount(0);
+    for (const label of AGENCY_ADMIN_NAV.slice(1)) {
+      await expect(
+        page.getByRole("main").getByRole("link", { name: label, exact: true }),
+      ).toHaveCount(0);
+    }
+    // Administration that the sidebar does not carry stays on the Overview
+    // (privileged sections such as Invitations wait for MFA step-up, as before).
+    await expect(page.getByRole("heading", { name: "Members" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Members table" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Verify now" })).toBeVisible();
+    await qaScreenshot(page, "overview-after-cleanup");
+
+    // Representative finance page on the shared primitives: route tabs + empty state.
+    await page.goto(`/app/organisations/${world.agencyId}/pricing?state=priced`);
+    await expect(page.getByRole("heading", { level: 1, name: "Pricing" })).toBeVisible();
+    const queues = page.getByRole("navigation", { name: "Pricing queues" });
+    await expect(queues.getByRole("link", { name: "Priced" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await expect(queues.getByRole("tab")).toHaveCount(0);
+    await expect(
+      page.getByRole("heading", { level: 2, name: "Nothing has been priced yet." }),
+    ).toBeVisible();
+    await qaScreenshot(page, "empty-state");
+    await expectNoA11yViolations(page);
+    await queues.getByRole("link", { name: "Needs attention" }).click();
+    await expect(page).toHaveURL(/state=attention/);
+    await expect(
+      page.getByRole("navigation", { name: "Pricing queues" }).getByRole("link", {
+        name: "Needs attention",
+      }),
+    ).toHaveAttribute("aria-current", "page");
   });
 
   test("agency scheduler: only routes they can open, each one renders", async ({
@@ -297,6 +335,14 @@ test.describe.serial("workspace shell", () => {
       await page.goto(path);
       await expect(page.getByRole("navigation", { name: "Account" })).toBeVisible();
       await expect(page.getByRole("navigation", { name: "Workspace" })).toHaveCount(0);
+      if (path.endsWith(world.agencyId)) {
+        // Self-service members keep their section links (no sidebar on the personal frame).
+        await expect(
+          page
+            .getByRole("navigation", { name: "Organisation sections" })
+            .getByRole("link", { name: "My shifts" }),
+        ).toBeVisible();
+      }
       await expect(page.getByRole("button", { name: "Open navigation" })).toHaveCount(0);
     }
   });

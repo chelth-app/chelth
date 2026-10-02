@@ -1,7 +1,8 @@
 import type { Route } from "next";
 import Link from "next/link";
 
-import { Badge } from "@/components/ui/badge";
+import { DataTableRegion } from "@/components/ui/data-table";
+import { StatusChip, type StatusTone } from "@/components/ui/status-chip";
 import {
   attentionLabel,
   financialStatusTone,
@@ -29,15 +30,21 @@ import type {
 
 const when = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" });
 
+/** Domain tone → shared status tone ("brand" — approved/locked — reads as in progress). */
+function chipTone(status: PayrollBatchStatus | InvoiceDraftStatus): StatusTone {
+  const tone = financialStatusTone(status);
+  return tone === "brand" ? "info" : tone;
+}
+
 export function PayrollStatusBadge({ status }: { status: PayrollBatchStatus }) {
-  return <Badge tone={financialStatusTone(status)}>{PAYROLL_BATCH_STATUS_LABELS[status]}</Badge>;
+  return <StatusChip tone={chipTone(status)}>{PAYROLL_BATCH_STATUS_LABELS[status]}</StatusChip>;
 }
 
 export function InvoiceStatusBadge({ status }: { status: InvoiceDraftStatus }) {
   return (
-    <Badge tone={status === "voided" ? "neutral" : financialStatusTone(status)}>
+    <StatusChip tone={status === "voided" ? "neutral" : chipTone(status)}>
       {INVOICE_DRAFT_STATUS_LABELS[status]}
-    </Badge>
+    </StatusChip>
   );
 }
 
@@ -50,12 +57,11 @@ export function AttentionBadge({ code }: { code: string | null }) {
       : code === "ADJUSTMENT_IN_PROGRESS"
         ? "info"
         : code === "ADJUSTMENT_REQUIRED"
-          ? "warning"
+          ? "attention"
           : "danger";
-  return <Badge tone={tone}>{label}</Badge>;
+  return <StatusChip tone={tone}>{label}</StatusChip>;
 }
 
-const TABLE_REGION = "relative overflow-x-auto rounded-lg border border-border bg-surface";
 const TH = "px-3 py-2 font-medium";
 
 /** Generated files with their integrity metadata. Downloads are audited POSTs. */
@@ -75,7 +81,7 @@ export function ExportsTable({
     return <p className="text-sm text-muted-foreground">No exports have been generated yet.</p>;
   }
   return (
-    <div role="region" aria-label={label} tabIndex={0} className={TABLE_REGION}>
+    <DataTableRegion aria-label={label}>
       <table className="w-full min-w-[880px] text-left text-sm">
         <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
           <tr>
@@ -157,7 +163,7 @@ export function ExportsTable({
           ))}
         </tbody>
       </table>
-    </div>
+    </DataTableRegion>
   );
 }
 
@@ -206,7 +212,7 @@ export function ReconciliationTable({
       a.currency.localeCompare(b.currency),
   );
   return (
-    <div role="region" aria-label={label} tabIndex={0} className={TABLE_REGION}>
+    <DataTableRegion aria-label={label}>
       <table className="w-full min-w-[520px] text-left text-sm">
         <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
           <tr>
@@ -248,7 +254,7 @@ export function ReconciliationTable({
           ))}
         </tbody>
       </table>
-    </div>
+    </DataTableRegion>
   );
 }
 
@@ -267,7 +273,7 @@ export function IssuesTable({
   showFacility: boolean;
 }) {
   return (
-    <div role="region" aria-label={label} tabIndex={0} className={TABLE_REGION}>
+    <DataTableRegion aria-label={label}>
       <table className="w-full min-w-[760px] text-left text-sm">
         <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
           <tr>
@@ -334,6 +340,6 @@ export function IssuesTable({
           ))}
         </tbody>
       </table>
-    </div>
+    </DataTableRegion>
   );
 }

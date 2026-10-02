@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 
+import { DataTableRegion } from "@/components/ui/data-table";
 import { InlineActionForm } from "@/components/forms/inline-action-form";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -182,12 +183,7 @@ export default async function AttendanceRecordPage({
           Every recorded event, request and decision, oldest first. Nothing is ever edited or
           removed; corrections are added as new entries.
         </p>
-        <div
-          role="region"
-          aria-label="Attendance history"
-          tabIndex={0}
-          className="overflow-x-auto rounded-lg border border-border bg-surface"
-        >
+        <DataTableRegion aria-label="Attendance history">
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
               <tr>
@@ -228,7 +224,7 @@ export default async function AttendanceRecordPage({
               })}
             </tbody>
           </table>
-        </div>
+        </DataTableRegion>
       </section>
 
       {open.length > 0 ? (

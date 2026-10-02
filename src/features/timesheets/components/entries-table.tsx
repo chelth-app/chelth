@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { DataTableRegion } from "@/components/ui/data-table";
 import { Badge } from "@/components/ui/badge";
 import { formatLocalClockTime, GEOFENCE_RESULT_LABELS } from "@/lib/domain/attendance";
 import { formatShiftDate, formatShiftTimeRange } from "@/lib/domain/shifts";
@@ -29,12 +30,7 @@ export function TimesheetEntriesTable({
     return <p className="text-sm text-muted-foreground">No work in this week.</p>;
   }
   return (
-    <div
-      role="region"
-      aria-label="Timesheet entries"
-      tabIndex={0}
-      className="overflow-x-auto rounded-lg border border-border bg-surface"
-    >
+    <DataTableRegion aria-label="Timesheet entries">
       <table className="w-full min-w-[820px] text-left text-sm">
         <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
           <tr>
@@ -149,6 +145,6 @@ export function TimesheetEntriesTable({
           })}
         </tbody>
       </table>
-    </div>
+    </DataTableRegion>
   );
 }

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 
+import { DataTableRegion } from "@/components/ui/data-table";
 import {
   getAttendanceRecord,
   listAgencyAttendance,
@@ -121,12 +122,7 @@ export default async function LocationEvidencePage({
           No location evidence: this site did not check location for this record.
         </p>
       ) : (
-        <div
-          role="region"
-          aria-label="Location evidence table"
-          tabIndex={0}
-          className="overflow-x-auto rounded-lg border border-border bg-surface"
-        >
+        <DataTableRegion aria-label="Location evidence table">
           <table className="w-full min-w-[860px] text-left text-sm">
             <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
               <tr>
@@ -184,7 +180,7 @@ export default async function LocationEvidencePage({
               ))}
             </tbody>
           </table>
-        </div>
+        </DataTableRegion>
       )}
 
       <section aria-labelledby="retention-heading" className="flex flex-col gap-3">

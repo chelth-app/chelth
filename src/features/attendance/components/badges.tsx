@@ -1,4 +1,4 @@
-import { Badge, type BadgeProps } from "@/components/ui/badge";
+import { StatusChip, type StatusTone } from "@/components/ui/status-chip";
 import {
   ATTENDANCE_STATE_LABELS,
   type AttendanceClockState,
@@ -6,7 +6,7 @@ import {
   deriveAttendanceState,
 } from "@/lib/domain/attendance";
 
-const TONE: Record<AttendanceState, NonNullable<BadgeProps["tone"]>> = {
+const TONE: Record<AttendanceState, StatusTone> = {
   not_started: "neutral",
   clocked_in: "info",
   on_break: "info",
@@ -22,5 +22,5 @@ export function AttendanceStateBadge({
   needsReview: boolean;
 }) {
   const state = deriveAttendanceState(clockState, needsReview);
-  return <Badge tone={TONE[state]}>{ATTENDANCE_STATE_LABELS[state]}</Badge>;
+  return <StatusChip tone={TONE[state]}>{ATTENDANCE_STATE_LABELS[state]}</StatusChip>;
 }

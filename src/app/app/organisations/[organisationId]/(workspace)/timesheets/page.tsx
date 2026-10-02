@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { DataTableRegion } from "@/components/ui/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -109,12 +110,7 @@ export default async function TimesheetsPage({
         {rows.length === 0 ? (
           <p className="text-sm text-muted-foreground">No timesheets match.</p>
         ) : (
-          <div
-            role="region"
-            aria-label="Agency timesheets table"
-            tabIndex={0}
-            className="overflow-x-auto rounded-lg border border-border bg-surface"
-          >
+          <DataTableRegion aria-label="Agency timesheets table">
             <table className="w-full min-w-[840px] text-left text-sm">
               <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
                 <tr>
@@ -183,7 +179,7 @@ export default async function TimesheetsPage({
                 ))}
               </tbody>
             </table>
-          </div>
+          </DataTableRegion>
         )}
       </>
     );
@@ -264,12 +260,7 @@ async function FacilityTimesheets({ context }: { context: OrganisationPageContex
       {entries.length === 0 ? (
         <p className="text-sm text-muted-foreground">No entries awaiting sign-off.</p>
       ) : (
-        <div
-          role="region"
-          aria-label="Facility timesheet entries"
-          tabIndex={0}
-          className="overflow-x-auto rounded-lg border border-border bg-surface"
-        >
+        <DataTableRegion aria-label="Facility timesheet entries">
           <table className="w-full min-w-[900px] text-left text-sm">
             <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
               <tr>
@@ -353,7 +344,7 @@ async function FacilityTimesheets({ context }: { context: OrganisationPageContex
               })}
             </tbody>
           </table>
-        </div>
+        </DataTableRegion>
       )}
     </>
   );

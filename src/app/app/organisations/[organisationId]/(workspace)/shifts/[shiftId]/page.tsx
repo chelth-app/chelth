@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { DataTableRegion } from "@/components/ui/data-table";
 import { InlineActionForm } from "@/components/forms/inline-action-form";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -402,12 +403,7 @@ export default async function ShiftPage({
           <h2 id="attendance-heading" className="text-lg font-semibold">
             Attendance
           </h2>
-          <div
-            role="region"
-            aria-label="Attendance for this shift"
-            tabIndex={0}
-            className="overflow-x-auto rounded-lg border border-border bg-surface"
-          >
+          <DataTableRegion aria-label="Attendance for this shift">
             <table className="w-full min-w-[640px] text-left text-sm">
               <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
                 <tr>
@@ -470,7 +466,7 @@ export default async function ShiftPage({
                 ))}
               </tbody>
             </table>
-          </div>
+          </DataTableRegion>
           {attendanceCorrections.length > 0 ? (
             <ul aria-label="Attendance corrections for this shift" className="flex flex-col gap-3">
               {attendanceCorrections.map((correction) => {

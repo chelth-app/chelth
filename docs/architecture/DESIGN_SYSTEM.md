@@ -46,8 +46,13 @@ environments.
 | Border `#DDE5E3` on inputs | 1.28:1 (form controls need 3:1)                     | `input-border` `#64748B`                                    |
 | Warning `#B57A31` as text  | 3.63:1 on white                                     | status text via `warning-soft-foreground`                   |
 
-Status colours (`danger`, `warning`, `success`, `info` and their `-soft`
-pairs) are not yet aligned to the brand semantic palette (see the B3 report).
+Status colours (P0-E8-S2) are derived from the brand semantic palette
+(`--chelth-success`, `-warning`, `-critical`, `-info`, `-slate`): soft
+background = brand colour 12% on white, soft foreground = brand colour 62% +
+Ink 38%, indicator = the brand colour. Tones: `neutral`, `info`, `success`,
+`warning`, `danger`, `attention` (Critical + Warning). Text on its soft
+background: 5.55–6.91:1. `danger` (destructive button) = Critical, white text
+5.14:1.
 
 ### Contrast (WCAG 2.2 AA verified)
 
@@ -164,6 +169,27 @@ Shell tokens (`globals.css`, derived only from `brand.css`):
 | `Select`                                           | native `<select>`: robust keyboard/screen-reader support on every platform                                                            |
 | `Spinner`, `LoadingState`                          | `role="status"`                                                                                                                       |
 | `ErrorState`                                       | `role="alert"`; shows safe message and optional reference only                                                                        |
+
+### Operational primitives (P0-E8-S2)
+
+Compose pages from these; keep cell content page-specific.
+
+| Component                                       | Notes                                                                                                                                                                  |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PageHeader`                                    | one `h1` (Manrope 600, 32/40, -0.03em; 28/36 on phones), supporting copy (Inter 16/24), `back`, `meta`, `primaryAction`, `secondaryActions` slots                      |
+| `KpiFilterCard`, `KpiFilterGroup`               | real counts only (no charts, sparklines or deltas); link or static; active = `aria-current="true"` + visible "Showing" + heavier border                                |
+| `FilterBar`, `FilterField`, `FilterSelect`      | named native GET form, labels above controls, submit + optional clear link + actions; wraps on phones; no global search                                                |
+| `DataTableRegion`                               | THE scroll container for wide tables: `relative overflow-x-auto`, `role="region"`, required name, `tabIndex=0`. A unit test fails if bypassed                          |
+| `DataTable` (+`Head`/`HeaderCell`/`Row`/`Cell`) | density, header, hover, `selected` (`aria-selected` + Mint Mist), `numeric` cells                                                                                      |
+| `DataTablePagination`                           | cursor pagination as a named `nav`; 44 px links                                                                                                                        |
+| `StatusChip`                                    | soft chip + decorative dot; six semantic tones; the text carries the meaning. Domain status badges render through it                                                   |
+| `SectionTabs`                                   | route tabs: a named `nav` of links with `aria-current="page"` (never ARIA tabs for navigation); scrolls inside itself on phones                                        |
+| `DetailDrawer`, `DetailDrawerTrigger`           | P5: native modal `<dialog>` — right panel on desktop (sm/md/lg widths), full-screen sheet on phones; Escape, focus trap, focus return. Never replaces the record route |
+| `KeyValueList`                                  | `dl` of label/value pairs; stacks on phones                                                                                                                            |
+| `ActivityTimeline`                              | ordered list with semantic dots                                                                                                                                        |
+| `EmptyState`, `ErrorState`, `LoadingState`      | P9: icon tile, title, one sentence, one action; Error keeps `role="alert"` + reference, Loading keeps `role="status"`                                                  |
+
+`Badge` remains for non-status labels (organisation type, role names).
 
 Ownership: these components are ours. We do not depend on a component
 framework runtime. If a complex primitive (combobox, date picker, menu) is

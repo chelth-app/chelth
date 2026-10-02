@@ -1,7 +1,7 @@
-import { Badge, type BadgeProps } from "@/components/ui/badge";
+import { StatusChip, type StatusTone } from "@/components/ui/status-chip";
 import { WORKER_STATUS_LABELS, type WorkerStatus } from "@/lib/domain/vocabulary";
 
-const TONE: Record<WorkerStatus, NonNullable<BadgeProps["tone"]>> = {
+const TONE: Record<WorkerStatus, StatusTone> = {
   onboarding: "info",
   active: "success",
   inactive: "neutral",
@@ -10,5 +10,5 @@ const TONE: Record<WorkerStatus, NonNullable<BadgeProps["tone"]>> = {
 };
 
 export function WorkerStatusBadge({ status }: { status: WorkerStatus }) {
-  return <Badge tone={TONE[status]}>{WORKER_STATUS_LABELS[status]}</Badge>;
+  return <StatusChip tone={TONE[status]}>{WORKER_STATUS_LABELS[status]}</StatusChip>;
 }

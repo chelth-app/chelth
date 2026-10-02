@@ -1,0 +1,59 @@
+import type { Route } from "next";
+import Link from "next/link";
+
+import { cn } from "@/lib/utils/cn";
+
+export type SectionTab = {
+  label: string;
+  href: Route;
+  current: boolean;
+  /** Optional real count shown after the label. */
+  count?: number;
+};
+
+/**
+ * Section / page tabs that NAVIGATE (each tab is a URL). Rendered as a
+ * labelled nav of links with `aria-current="page"` — deliberately not ARIA
+ * tabs, which are for in-place panels. Scrolls horizontally on phones
+ * without widening the page.
+ */
+export function SectionTabs({
+  label,
+  tabs,
+  className,
+}: {
+  label: string;
+  tabs: readonly SectionTab[];
+  className?: string;
+}) {
+  return (
+    <nav
+      aria-label={label}
+      className={cn("relative overflow-x-auto border-b border-border", className)}
+    >
+      <ul className="flex min-w-max gap-1">
+        {tabs.map((tab) => (
+          <li key={tab.href}>
+            <Link
+              href={tab.href}
+              aria-current={tab.current ? "page" : undefined}
+              className={cn(
+                "-mb-px inline-flex min-h-11 items-center gap-2 border-b-2 px-3 text-sm font-medium",
+                tab.current
+                  ? "border-primary font-semibold text-chelth-navy"
+                  : "border-transparent text-muted-foreground hover:border-chelth-border-strong hover:text-foreground",
+              )}
+            >
+              {tab.label}
+              {tab.count !== undefined ? (
+                <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs text-foreground tabular-nums">
+                  {tab.count}
+                </span>
+              ) : null}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}

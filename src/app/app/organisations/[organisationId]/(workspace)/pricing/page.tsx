@@ -1,8 +1,20 @@
-import type { Metadata } from "next";
+import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { Badge } from "@/components/ui/badge";
+import {
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeaderCell,
+  DataTablePagination,
+  DataTableRegion,
+  DataTableRow,
+} from "@/components/ui/data-table";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
+import { SectionTabs } from "@/components/ui/section-tabs";
+import { StatusChip } from "@/components/ui/status-chip";
 import { loadOrganisationPage, requireCapabilityOrNotFound } from "@/features/organisations";
 import {
   listPricingQueue,
@@ -59,89 +71,77 @@ export default async function PricingPage({
   const last = rows.at(-1);
   const base = `/app/organisations/${organisationId}/pricing` as const;
 
+  const currentTab = TABS.find((tab) => tab.state === filter.state) ?? TABS[0];
+
   return (
     <>
-      <header className="flex flex-col gap-2">
-        <Link
-          href={`/app/organisations/${organisationId}`}
-          className="w-fit text-sm text-primary underline underline-offset-4"
-        >
-          {organisation.name}
-        </Link>
-        <h1 className="text-2xl font-semibold">Pricing</h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Locked timesheets priced with the rates in force on each work date. Worked minutes come
-          only from the locked approval. Pricing calculates amounts; it does not pay workers or bill
-          facilities.
-        </p>
-      </header>
-
-      <nav aria-label="Pricing queues" className="flex flex-wrap gap-2">
-        {TABS.map((tab) => (
+      <PageHeader
+        title="Pricing"
+        back={
           <Link
-            key={tab.state}
-            href={`${base}?state=${tab.state}`}
-            aria-current={filter.state === tab.state ? "page" : undefined}
-            className={
-              filter.state === tab.state
-                ? "rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"
-                : "rounded-md border border-input-border bg-surface px-3 py-1.5 text-sm font-medium hover:bg-surface-muted"
-            }
+            href={`/app/organisations/${organisationId}`}
+            className="text-primary underline underline-offset-4"
           >
-            {tab.label}
+            {organisation.name}
           </Link>
-        ))}
-      </nav>
+        }
+        description={
+          <p>
+            Locked timesheets priced with the rates in force on each work date. Worked minutes come
+            only from the locked approval. Pricing calculates amounts; it does not pay workers or
+            bill facilities.
+          </p>
+        }
+      />
+
+      <SectionTabs
+        label="Pricing queues"
+        tabs={TABS.map((tab) => ({
+          label: tab.label,
+          href: `${base}?state=${tab.state}` as Route,
+          current: filter.state === tab.state,
+        }))}
+      />
 
       {rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          {filter.state === "attention"
-            ? "No blocked timesheets."
-            : filter.state === "ready"
-              ? "No locked timesheets are waiting to be priced."
-              : "Nothing has been priced yet."}
-        </p>
+        <EmptyState
+          title={
+            filter.state === "attention"
+              ? "No blocked timesheets."
+              : filter.state === "ready"
+                ? "No locked timesheets are waiting to be priced."
+                : "Nothing has been priced yet."
+          }
+          description={
+            filter.state === "attention"
+              ? "Timesheets that cannot be priced, for example because a rate is missing, appear here."
+              : filter.state === "ready"
+                ? "Timesheets appear here once they are locked after approval."
+                : "Priced timesheets appear here with their pay and bill totals."
+          }
+        />
       ) : (
-        <div
-          role="region"
-          aria-label={`${TABS.find((tab) => tab.state === filter.state)?.label ?? "Pricing"} table`}
-          tabIndex={0}
-          className="overflow-x-auto rounded-lg border border-border bg-surface"
-        >
-          <table className="w-full min-w-[820px] text-left text-sm">
-            <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
+        <DataTableRegion aria-label={`${currentTab.label} table`}>
+          <DataTable className="min-w-[820px]">
+            <DataTableHead>
               <tr>
-                <th scope="col" className="px-3 py-2 font-medium">
-                  Worker
-                </th>
-                <th scope="col" className="px-3 py-2 font-medium">
-                  Week
-                </th>
-                <th scope="col" className="px-3 py-2 font-medium">
-                  Facilities
-                </th>
-                <th scope="col" className="px-3 py-2 text-right font-medium">
-                  Worked
-                </th>
+                <DataTableHeaderCell>Worker</DataTableHeaderCell>
+                <DataTableHeaderCell>Week</DataTableHeaderCell>
+                <DataTableHeaderCell>Facilities</DataTableHeaderCell>
+                <DataTableHeaderCell numeric>Worked</DataTableHeaderCell>
                 {filter.state === "priced" ? (
                   <>
-                    <th scope="col" className="px-3 py-2 text-right font-medium">
-                      Pay
-                    </th>
-                    <th scope="col" className="px-3 py-2 text-right font-medium">
-                      Bill
-                    </th>
+                    <DataTableHeaderCell numeric>Pay</DataTableHeaderCell>
+                    <DataTableHeaderCell numeric>Bill</DataTableHeaderCell>
                   </>
                 ) : (
-                  <th scope="col" className="px-3 py-2 font-medium">
-                    Status
-                  </th>
+                  <DataTableHeaderCell>Status</DataTableHeaderCell>
                 )}
-                <th scope="col" className="px-3 py-2 font-medium">
+                <DataTableHeaderCell>
                   <span className="sr-only">Actions</span>
-                </th>
+                </DataTableHeaderCell>
               </tr>
-            </thead>
+            </DataTableHead>
             <tbody>
               {rows.map((row) => (
                 <QueueRow
@@ -154,17 +154,17 @@ export default async function PricingPage({
                 />
               ))}
             </tbody>
-          </table>
-        </div>
+          </DataTable>
+        </DataTableRegion>
       )}
-      {rows.length === 50 && last ? (
-        <Link
-          href={`${base}?state=${filter.state}&after=${last.periodStart}_${last.pricedTimesheetId ?? last.timesheetId}`}
-          className="w-fit text-sm text-primary underline underline-offset-4"
-        >
-          Next page
-        </Link>
-      ) : null}
+      <DataTablePagination
+        label="Pricing queue pages"
+        nextHref={
+          rows.length === 50 && last
+            ? (`${base}?state=${filter.state}&after=${last.periodStart}_${last.pricedTimesheetId ?? last.timesheetId}` as Route)
+            : null
+        }
+      />
     </>
   );
 }
@@ -184,8 +184,8 @@ function QueueRow({
 }) {
   const worker = row.workerName ?? "Worker";
   return (
-    <tr className="border-b border-border align-top last:border-0">
-      <td className="px-3 py-2 font-medium">
+    <DataTableRow>
+      <DataTableCell className="font-medium">
         {row.pricedTimesheetId ? (
           <Link
             href={`/app/organisations/${organisationId}/pricing/${row.pricedTimesheetId}`}
@@ -196,25 +196,23 @@ function QueueRow({
         ) : (
           worker
         )}
-      </td>
-      <td className="px-3 py-2">
+      </DataTableCell>
+      <DataTableCell>
         {formatPeriod(row.periodStart, row.periodEnd)}
         {row.revision > 1 ? (
           <div className="text-xs text-muted-foreground">Revision {row.revision}</div>
         ) : null}
-      </td>
-      <td className="px-3 py-2 text-muted-foreground">{row.facilities.join(", ")}</td>
-      <td className="px-3 py-2 text-right tabular-nums">
-        {formatWorkedMinutes(row.workedMinutes)}
-      </td>
+      </DataTableCell>
+      <DataTableCell className="text-muted-foreground">{row.facilities.join(", ")}</DataTableCell>
+      <DataTableCell numeric>{formatWorkedMinutes(row.workedMinutes)}</DataTableCell>
       {state === "priced" ? (
         <>
-          <td className="px-3 py-2 text-right tabular-nums">
+          <DataTableCell numeric>
             {row.currency && row.totalPayMinor !== null
               ? formatMoney(row.totalPayMinor, row.currency)
               : "—"}
-          </td>
-          <td className="px-3 py-2 text-right tabular-nums">
+          </DataTableCell>
+          <DataTableCell numeric>
             {row.currency && row.totalBillMinor !== null
               ? formatMoney(row.totalBillMinor, row.currency)
               : "—"}
@@ -223,17 +221,17 @@ function QueueRow({
                 Superseded by revision {row.currentRevision}
               </div>
             ) : null}
-          </td>
+          </DataTableCell>
         </>
       ) : (
-        <td className="px-3 py-2">
+        <DataTableCell>
           {state === "attention" ? (
             <ul aria-label={`Pricing issues for ${worker}`} className="flex flex-col gap-1">
               {row.issues.map((issue) => (
                 <li key={`${issue.entryId}-${issue.code}`} className="flex flex-col">
-                  <Badge tone="danger" className="w-fit">
+                  <StatusChip tone="attention" className="w-fit">
                     {pricingIssueLabel(issue.code)}
-                  </Badge>
+                  </StatusChip>
                   <span className="text-xs text-muted-foreground">
                     {issue.localDate}
                     {issue.classification
@@ -244,11 +242,11 @@ function QueueRow({
               ))}
             </ul>
           ) : (
-            <Badge tone="info">Ready for pricing</Badge>
+            <StatusChip tone="info">Ready for pricing</StatusChip>
           )}
-        </td>
+        </DataTableCell>
       )}
-      <td className="px-3 py-2">
+      <DataTableCell>
         <div className="flex flex-col gap-1">
           {state !== "priced" && canRun ? (
             <PriceTimesheetForm
@@ -268,7 +266,7 @@ function QueueRow({
             </Link>
           ) : null}
         </div>
-      </td>
-    </tr>
+      </DataTableCell>
+    </DataTableRow>
   );
 }

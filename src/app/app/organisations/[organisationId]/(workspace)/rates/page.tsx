@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { DataTableRegion } from "@/components/ui/data-table";
 import { InlineActionForm } from "@/components/forms/inline-action-form";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import {
@@ -133,12 +134,7 @@ export default async function RatesPage({
               return (
                 <li key={card.id} aria-label={scope} className="flex flex-col gap-2">
                   <h3 className="text-sm font-semibold">{scope}</h3>
-                  <div
-                    role="region"
-                    aria-label={`Versions: ${scope}`}
-                    tabIndex={0}
-                    className="overflow-x-auto rounded-lg border border-border bg-surface"
-                  >
+                  <DataTableRegion aria-label={`Versions: ${scope}`}>
                     <table className="w-full min-w-[760px] text-left text-sm">
                       <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
                         <tr>
@@ -212,7 +208,7 @@ export default async function RatesPage({
                         })}
                       </tbody>
                     </table>
-                  </div>
+                  </DataTableRegion>
                   {canManage ? (
                     <NewVersionForm
                       organisationId={organisationId}
@@ -246,12 +242,7 @@ export default async function RatesPage({
           for pay and bill. These settings are calculations you configure, not legal advice: you
           remain responsible for the law and contracts that apply.
         </p>
-        <div
-          role="region"
-          aria-label="Pricing policies"
-          tabIndex={0}
-          className="overflow-x-auto rounded-lg border border-border bg-surface"
-        >
+        <DataTableRegion aria-label="Pricing policies">
           <table className="w-full min-w-[640px] text-left text-sm">
             <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
               <tr>
@@ -339,7 +330,7 @@ export default async function RatesPage({
               ) : null}
             </tbody>
           </table>
-        </div>
+        </DataTableRegion>
         {canManage ? (
           <div className="flex flex-col gap-4">
             <RoundingPolicyForm organisationId={organisationId} today={today} />

@@ -1,6 +1,7 @@
 import type { Route } from "next";
 import Link from "next/link";
 
+import { DataTableRegion } from "@/components/ui/data-table";
 import { InlineActionForm } from "@/components/forms/inline-action-form";
 import { Badge } from "@/components/ui/badge";
 import { adjustmentStateLabel } from "@/lib/domain/financial";
@@ -19,7 +20,6 @@ import type {
 import { AttentionBadge, InvoiceStatusBadge, PayrollStatusBadge } from "./financial-tables";
 import { SignedAmount } from "./signed-amount";
 
-const TABLE_REGION = "relative overflow-x-auto rounded-lg border border-border bg-surface";
 const TH = "px-3 py-2 font-medium";
 
 function StateCell({ state }: { state: string }) {
@@ -45,12 +45,7 @@ export function PayrollAdjustmentCandidates({
   }
   const base = `/app/organisations/${organisationId}/payroll`;
   return (
-    <div
-      role="region"
-      aria-label="Payroll adjustments required"
-      tabIndex={0}
-      className={TABLE_REGION}
-    >
+    <DataTableRegion aria-label="Payroll adjustments required">
       <table className="w-full min-w-[900px] text-left text-sm">
         <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
           <tr>
@@ -138,7 +133,7 @@ export function PayrollAdjustmentCandidates({
           ))}
         </tbody>
       </table>
-    </div>
+    </DataTableRegion>
   );
 }
 
@@ -153,7 +148,7 @@ export function PayrollAdjustmentsTable({
     return <p className="text-sm text-muted-foreground">No payroll adjustments yet.</p>;
   }
   return (
-    <div role="region" aria-label="Payroll adjustments table" tabIndex={0} className={TABLE_REGION}>
+    <DataTableRegion aria-label="Payroll adjustments table">
       <table className="w-full min-w-[860px] text-left text-sm">
         <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
           <tr>
@@ -212,7 +207,7 @@ export function PayrollAdjustmentsTable({
           ))}
         </tbody>
       </table>
-    </div>
+    </DataTableRegion>
   );
 }
 
@@ -238,12 +233,7 @@ export function InvoiceAdjustmentCandidates({
       {facilities.map((facility) => (
         <div key={facility} className="flex flex-col gap-2">
           <h3 className="text-base font-semibold">{facility}</h3>
-          <div
-            role="region"
-            aria-label={`Invoice adjustments required for ${facility}`}
-            tabIndex={0}
-            className={TABLE_REGION}
-          >
+          <DataTableRegion aria-label={`Invoice adjustments required for ${facility}`}>
             <table className="w-full min-w-[860px] text-left text-sm">
               <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
                 <tr>
@@ -344,7 +334,7 @@ export function InvoiceAdjustmentCandidates({
                   ))}
               </tbody>
             </table>
-          </div>
+          </DataTableRegion>
         </div>
       ))}
     </>
@@ -362,7 +352,7 @@ export function InvoiceAdjustmentsTable({
     return <p className="text-sm text-muted-foreground">No invoice adjustment drafts yet.</p>;
   }
   return (
-    <div role="region" aria-label="Invoice adjustments table" tabIndex={0} className={TABLE_REGION}>
+    <DataTableRegion aria-label="Invoice adjustments table">
       <table className="w-full min-w-[860px] text-left text-sm">
         <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
           <tr>
@@ -426,6 +416,6 @@ export function InvoiceAdjustmentsTable({
           ))}
         </tbody>
       </table>
-    </div>
+    </DataTableRegion>
   );
 }
