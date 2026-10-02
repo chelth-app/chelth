@@ -6,6 +6,7 @@ import {
   enrolAuthenticator,
   followEmailLink,
   PASSWORD,
+  qaScreenshot,
   signIn,
   signUp,
   signUpAndConfirm,
@@ -205,6 +206,7 @@ test.describe("organisation access", () => {
     await signUpAndConfirm(invitee, "Ivy Invitee", inviteeEmail);
     await invitee.getByRole("link", { name: "Review invitation" }).click();
     await expect(invitee.getByText("Invite Flow Agency")).toBeVisible();
+    await qaScreenshot(invitee, "s7-invite-preview");
     await invitee.getByRole("button", { name: "Accept invitation" }).click();
     await expect(
       invitee.getByRole("heading", { level: 1, name: "Invite Flow Agency" }),

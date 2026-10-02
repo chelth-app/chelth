@@ -9,7 +9,7 @@ import { ERROR_CODES } from "@/lib/errors/error-codes";
  * the safe generic message and the digest (support reference) are shown; the
  * real error is logged server-side by src/instrumentation.ts.
  */
-export default function WorkspaceError({
+export default function PersonalError({
   error,
   reset,
 }: {
@@ -19,7 +19,7 @@ export default function WorkspaceError({
   return (
     <SystemState
       tone="error"
-      title="This page could not be loaded"
+      title="Something went wrong"
       description={ERROR_CODES.INTERNAL.message}
       reference={error.digest}
       action={<Button onClick={reset}>Try again</Button>}

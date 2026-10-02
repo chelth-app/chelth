@@ -9,7 +9,7 @@ import { ERROR_CODES } from "@/lib/errors/error-codes";
  * the safe generic message and the digest (support reference) are shown; the
  * real error is logged server-side by src/instrumentation.ts.
  */
-export default function WorkspaceError({
+export default function WorkerError({
   error,
   reset,
 }: {

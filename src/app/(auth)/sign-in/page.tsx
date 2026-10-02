@@ -18,13 +18,19 @@ export default async function SignInPage({ searchParams }: PageProps<"/sign-in">
       title="Sign in"
       description="Access your CHELTH account."
       footer={
-        <div className="flex flex-col gap-2">
-          <Link href="/forgot-password" className="text-primary underline underline-offset-4">
+        <div className="flex flex-col items-center">
+          <Link
+            href="/forgot-password"
+            className="inline-flex min-h-11 items-center font-medium text-primary underline underline-offset-4"
+          >
             Forgotten your password?
           </Link>
           <p>
             New to CHELTH?{" "}
-            <Link href="/sign-up" className="text-primary underline underline-offset-4">
+            <Link
+              href="/sign-up"
+              className="inline-flex min-h-11 items-center font-medium text-primary underline underline-offset-4"
+            >
               Create an account
             </Link>
           </p>
