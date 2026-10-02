@@ -2,9 +2,10 @@
 
 import "./globals.css";
 
+import { SystemState } from "@/components/ui/system-state";
 import { ERROR_CODES } from "@/lib/errors/error-codes";
 
-/** Last-resort boundary when the root layout itself fails. Keep dependency-free. */
+/** Last-resort boundary when the root layout itself fails. Keep dependency-light. */
 export default function GlobalError({
   error,
   reset,
@@ -14,20 +15,23 @@ export default function GlobalError({
 }) {
   return (
     <html lang="en-GB">
-      <body className="min-h-dvh">
-        <main className="mx-auto flex max-w-xl flex-col gap-3 px-4 py-16" role="alert">
-          <h1 className="text-2xl font-semibold">Something went wrong</h1>
-          <p className="text-muted-foreground">{ERROR_CODES.INTERNAL.message}</p>
-          {error.digest ? (
-            <p className="text-xs text-subtle-foreground">Reference: {error.digest}</p>
-          ) : null}
-          <button
-            type="button"
-            onClick={reset}
-            className="h-11 w-fit rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground"
-          >
-            Try again
-          </button>
+      <body className="min-h-dvh bg-background">
+        <main className="flex min-h-dvh items-center justify-center px-4 py-16">
+          <SystemState
+            tone="error"
+            title="Something went wrong"
+            description={ERROR_CODES.INTERNAL.message}
+            reference={error.digest}
+            action={
+              <button
+                type="button"
+                onClick={reset}
+                className="inline-flex min-h-11 items-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground"
+              >
+                Try again
+              </button>
+            }
+          />
         </main>
       </body>
     </html>

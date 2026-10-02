@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { StateIcon } from "@/components/ui/state-icon";
 import { listMfaFactors, MfaChallengeForm } from "@/features/identity";
 import { getSafeRedirectPath } from "@/lib/security/safe-redirect";
 
@@ -12,9 +13,12 @@ export default async function VerifyPage({ searchParams }: PageProps<"/app/secur
   const safeNext = getSafeRedirectPath(typeof next === "string" ? next : undefined, "/app");
 
   return (
-    <>
-      <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold">Verify it&apos;s you</h1>
+    <div className="mx-auto flex w-full max-w-md flex-col gap-5 rounded-lg border border-border bg-surface p-6 shadow-card sm:p-8">
+      <header className="flex flex-col items-start gap-3">
+        <StateIcon name="lock" />
+        <h1 className="font-display text-2xl leading-8 font-semibold text-chelth-navy">
+          Verify it&apos;s you
+        </h1>
         <p className="text-sm text-muted-foreground">
           Enter the code from your authenticator app to continue with administration tasks.
         </p>
@@ -32,6 +36,6 @@ export default async function VerifyPage({ searchParams }: PageProps<"/app/secur
           </Link>
         </p>
       )}
-    </>
+    </div>
   );
 }

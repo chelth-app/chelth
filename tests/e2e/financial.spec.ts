@@ -145,6 +145,7 @@ test.describe.serial("payroll preparation and invoice drafting", () => {
     const page = await signedIn(browser, finance.email);
     await page.goto(path);
     await page.getByRole("link", { name: "Verify now" }).click();
+    await qaScreenshot(page, "s7-mfa-verify");
     await page.getByLabel("Authentication code").fill(generateTotp(finance.totpSecret ?? ""));
     await page.getByRole("button", { name: "Verify" }).click();
     await expect(page).toHaveURL(new RegExp(`${path}$`), AFTER_ACTION);

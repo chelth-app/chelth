@@ -34,6 +34,8 @@ import {
   PageHeader,
   SectionTabs,
   StatusChip,
+  stateActionClass,
+  SystemState,
   type StatusTone,
 } from "@/components/ui";
 import { DetailDrawerTrigger } from "@/components/ui/detail-drawer";
@@ -230,6 +232,32 @@ export default function DesignSystemPage() {
             description="One sentence that explains what will appear and why."
             action={<Button variant="outline">One recovery action</Button>}
           />
+        </section>
+
+        <section aria-labelledby="system-states-heading" className="flex flex-col gap-3">
+          <h2 id="system-states-heading" className="text-lg font-semibold">
+            System states (P0-E8-S7)
+          </h2>
+          <div className="grid gap-4 md:grid-cols-2">
+            <SystemState
+              headingLevel={2}
+              title="Page not found"
+              description="This page does not exist, or it is not available to you."
+              action={
+                <a href="/design-system" className={stateActionClass}>
+                  Back to your workspaces
+                </a>
+              }
+            />
+            <SystemState
+              headingLevel={2}
+              tone="error"
+              title="This page could not be loaded"
+              description="Something went wrong. Please try again."
+              reference="ref-123"
+              action={<Button>Try again</Button>}
+            />
+          </div>
         </section>
 
         <section aria-labelledby="states-heading" className="flex flex-col gap-3">

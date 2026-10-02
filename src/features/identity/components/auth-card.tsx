@@ -1,9 +1,6 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { MAIN_CONTENT_ID } from "@/components/layout/skip-link";
-import { BrandLogo } from "@/components/shared/brand-logo";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { AuthCanvas } from "@/components/layout/auth-canvas";
 
 type AuthCardProps = {
   title: string;
@@ -12,26 +9,20 @@ type AuthCardProps = {
   footer?: ReactNode;
 };
 
-/** Centred card layout shared by the authentication pages. */
+/** P9 auth card on the brand canvas, shared by every authentication page. */
 export function AuthCard({ title, description, children, footer }: AuthCardProps) {
   return (
-    <main
-      id={MAIN_CONTENT_ID}
-      className="flex min-h-dvh items-start justify-center px-4 py-12 sm:items-center"
-    >
-      <div className="flex w-full max-w-md flex-col gap-6">
-        <Link href="/" className="w-fit rounded-sm">
-          <BrandLogo height={48} priority />
-        </Link>
-        <Card>
-          <CardHeader>
-            <h1 className="text-xl font-semibold text-foreground">{title}</h1>
-            {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">{children}</CardContent>
-        </Card>
-        {footer ? <div className="text-sm text-muted-foreground">{footer}</div> : null}
+    <AuthCanvas>
+      <div className="flex flex-col gap-5 rounded-lg border border-border bg-surface p-6 shadow-card sm:p-8">
+        <div className="flex flex-col gap-1.5">
+          <h1 className="font-display text-2xl leading-8 font-semibold text-chelth-navy">
+            {title}
+          </h1>
+          {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
+        </div>
+        <div className="flex flex-col gap-4">{children}</div>
       </div>
-    </main>
+      {footer ? <div className="text-center text-sm text-muted-foreground">{footer}</div> : null}
+    </AuthCanvas>
   );
 }

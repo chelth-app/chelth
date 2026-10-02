@@ -1,0 +1,394 @@
+P0-E8-S7 — AUTH + SYSTEM STATES
+Branch: p0-e8-visual-implementation (base e81933d, S6 committed)
+Date: 2026-10-02
+Status: complete, uncommitted, awaiting review. Final responsive sweep not started.
+
+======================================================================
+1. EXECUTIVE SUMMARY
+======================================================================
+Every auth surface now uses one P9 canvas (AuthCanvas): Off White with a
+flat Mint Mist band, the canonical primary logo centred, and a centred white
+card with a Manrope heading. The surfaces are:
+  - sign in;
+  - sign up;
+  - forgot password;
+  - reset password;
+  - invite;
+  - auth error.
+
+System states use one primitive, SystemState: icon tile, the page h1, one
+sentence, an optional support reference, and one recovery action. Each state
+renders inside the frame that owns the route:
+  - workspace shell (Agency / Facility);
+  - worker shell;
+  - personal frame;
+  - auth canvas (unmatched routes and errors outside any frame).
+
+The security pages (Security, Verify it's you, Account) use P6 card language.
+
+No Supabase auth, redirect, invite, recovery, MFA/AAL2, Server Action, RLS,
+database, capability or tenancy behaviour changed.
+
+======================================================================
+2. REFERENCES USED
+======================================================================
+- DERIVATION-MAP P9: auth = centred white card (P6 card and form
+  language, teal primary, 44 px controls) on the P8 brand canvas
+  (off-white with mint), canonical logo-primary; system states inside P1
+  with icon tile, title, one sentence, one action.
+- P8 Hero reference (canvas colours only), P6 Settings (card language).
+- S1–S6 reports; DESIGN_SYSTEM.md; CHELTH-PRODUCT-TYPOGRAPHY.md;
+  brand.css (unchanged); public/brand/chelth (logo-primary.svg).
+
+======================================================================
+3. AUTH CANVAS
+======================================================================
+src/components/layout/auth-canvas.tsx:
+  - <main id="main-content"> with Off White, plus a decorative flat Mint
+    Mist top band (aria-hidden, border-bottom);
+  - no gradient, glow, glass or illustration (no approved wave asset
+    exists in public/brand);
+  - BrandLogo variant "primary" at 48 px, centred, linking home;
+  - a centred column of max-w-md.
+
+AuthCard (src/features/identity/components/auth-card.tsx), same API as
+before:
+  - white bordered card with shadow-card;
+  - Manrope 24/32 Navy h1 and supporting copy;
+  - content;
+  - centred footer.
+All auth pages use it unchanged.
+
+======================================================================
+4. SIGN IN
+======================================================================
+- Heading "Sign in", copy unchanged.
+- Fields labelled "Email address" and "Password" (FormField, unchanged).
+- Primary "Sign in" (44 px).
+- Footer links "Forgotten your password?" and "Create an account" are now
+  44 px targets.
+- Show-password: not added (not previously supported).
+- The redirect-if-signed-in behaviour, the safe `next` handling and the
+  MFA path are unchanged.
+
+======================================================================
+5. SIGN UP
+======================================================================
+Same frame; heading, copy and fields unchanged.
+
+The invite vs normal distinction is unchanged: the invite page links to
+sign-up, and the pending invite cookie is untouched. Email confirmation is
+unchanged.
+
+======================================================================
+6. PASSWORD RECOVERY
+======================================================================
+Forgot password and reset password use the same frame. The "Reset link
+required" state (no recovery session) is unchanged inside the card.
+
+The hardened token-hash route (/auth/confirm → /reset-password) and the
+backend are unchanged. The existing identity tests still prove:
+  - the uniform response;
+  - the email link;
+  - setting a new password;
+  - a hosted-style link without `next`;
+  - a used link refused (otp_expired);
+  - no session → explanation.
+
+The auth error page (/auth/error) is now a P9 SystemState: "We couldn't
+verify that link", the safe AUTH_LINK_INVALID message, and two recovery
+actions:
+  - Sign in;
+  - Request a new link.
+
+======================================================================
+7. INVITE FLOW
+======================================================================
+Signed out (identical for valid, invalid and missing tokens, as before):
+  - the same heading and copy;
+  - a numbered "what to do next" list (sign in or create an account with
+    the invited email → verify email → review and accept);
+  - 44 px Sign in / Create account.
+
+Signed in with a valid invite:
+  - "You have been invited to join <organisation> as <role>." (unchanged);
+  - a details list: Organisation type and Expires;
+  - "Accepting adds this role to your account…";
+  - the unchanged AcceptInviteForm.
+
+Invalid invite: "Invitation unavailable" (unchanged).
+
+"Who is inviting" is shown as the organisation. The preview RPC exposes no
+inviter person, and none was added. No token data is shown. Token lifecycle,
+email match, expiry / rotation and error mapping are unchanged.
+
+======================================================================
+8. MFA / SECURITY VERIFY
+======================================================================
+/app/security/verify, in the personal frame:
+  - a centred P6 card with a lock StateIcon;
+  - h1 "Verify it's you", copy unchanged;
+  - MfaChallengeForm (unchanged), or the existing "Set one up" link.
+
+Security: PageHeader plus an "Authenticator app" Panel. Enrolment and
+factors are unchanged.
+
+Account: PageHeader.
+
+AAL2 and step-up are unchanged. The financial and identity flows still step
+up via "Verify now" → code.
+
+======================================================================
+9. NOT FOUND / ACCESS DENIED
+======================================================================
+New not-found boundaries (each keeps the 404 status; no loading.js):
+
+  Boundary                        Frame
+  ------------------------------  ----------------------------------------
+  (workspace)/not-found.tsx       renders inside the workspace layout's
+                                  frame: AppShell for staff, WorkerShell
+                                  for self-service-only members, personal
+                                  frame for invisible or invalid org ids
+  (self-service)/not-found.tsx    WorkerShell
+  root not-found.tsx              auth canvas (unmatched routes)
+
+Copy: "Page not found" / "This page does not exist, or it is not available
+to you." / "Back to your workspaces" (/app). It is the same text for "does
+not exist" and "not yours".
+
+Access denied: the product returns 404 for authorisation privacy, and that
+is preserved. No "You don't have permission" page was added. Step-up
+remains the existing StepUpNotice ("Verify now").
+
+E2E proves:
+  - another tenant's organisation and a random id render byte-identical
+    main text with status 404;
+  - no "permission / access denied / forbidden" wording;
+  - the other organisation's name is not leaked.
+
+======================================================================
+10. ERROR STATES
+======================================================================
+SystemState with tone "error" (role="alert"), h1, the safe
+ERROR_CODES.INTERNAL message, "Reference: <digest>", and "Try again"
+(reset):
+
+  Boundary                      Location               Frame
+  ----------------------------  ---------------------  ---------------------
+  This page could not be        (workspace)/error.tsx  workspace shell
+  loaded                                               (restyled)
+  This page could not be        (self-service)/        worker shell (new)
+  loaded                        error.tsx
+  Something went wrong          (personal)/error.tsx   personal frame (new)
+  Something went wrong          root error.tsx         auth canvas
+  Something went wrong          global-error.tsx       own html; same
+                                                       component
+
+Messages are never implementation details. A unit test proves a thrown
+message containing "secret" / "line 42" is not shown.
+
+======================================================================
+11. LOADING STATES
+======================================================================
+No loading.tsx was added. It would introduce Suspense boundaries that change
+navigation and streaming (and could change 404 status codes for streamed
+not-found responses), which the stage forbids for visual polish.
+
+LoadingState (S2 P9 style: icon tile, role=status) remains available and is
+shown on the design-system reference.
+
+======================================================================
+12. RESPONSIVE BEHAVIOUR
+======================================================================
+Each auth surface is checked at 375 / 412 / 768 / 1024 / 1280 (E2E):
+  - no page overflow;
+  - the card centred within max-w-md;
+  - footer links and buttons at least 44 px (sign-in measured).
+
+System states are centred cards inside their frames and stack on phones.
+
+======================================================================
+13. ACCESSIBILITY
+======================================================================
+- Exactly one h1 on every auth surface (E2E).
+- Labelled inputs (FormField).
+- Errors: FormAlert / ErrorState role="alert"; system errors role="alert".
+- The decorative band and icon tiles are aria-hidden.
+- Canonical logo alt text.
+- Visible focus (global ring).
+- 44 px targets.
+- Text-based states.
+- axe passes on:
+    - all six auth surfaces;
+    - unmatched 404;
+    - workspace 404;
+    - worker 404;
+    - MFA verify.
+
+======================================================================
+14. FUNCTIONAL PRESERVATION
+======================================================================
+Unchanged:
+  - Supabase auth;
+  - redirect semantics (safe next);
+  - invite token rules;
+  - password recovery;
+  - MFA / AAL2;
+  - Server Actions;
+  - RLS, database, capabilities, tenancy;
+  - every heading and button text used by flows (Sign in, Create your
+    account, Reset your password, Choose a new password, You have been
+    invited to CHELTH, Invitation unavailable, We couldn't verify that
+    link, Page not found, Verify it's you, Set one up, Accept invitation).
+
+The invite details list deliberately does not repeat the organisation or
+role names, which already appear in the sentence. This keeps existing text
+queries unique.
+
+Tests were not weakened. identity.spec and financial.spec gained screenshot
+calls only.
+
+======================================================================
+15. SCREENSHOT QA
+======================================================================
+Captured with QA_SCREENSHOTS_DIR in the session scratchpad (not committed),
+each at 412 px and 1280 px:
+  - s7-sign-in;
+  - s7-sign-up;
+  - s7-forgot-password;
+  - s7-reset-password;
+  - s7-invite;
+  - s7-invite-preview;
+  - s7-auth-error;
+  - s7-mfa-verify (with factor, from the finance step-up);
+  - s7-mfa-verify-no-factor;
+  - s7-workspace-not-found;
+  - s7-worker-not-found;
+  - s7-error-states (workspace / worker / personal error language and
+    not-found, on the design-system reference).
+
+Loading: no loading.tsx (see §11); LoadingState is on the design-system page.
+
+Compared with the P9 derivation: centred white card on the brand canvas,
+canonical primary logo, teal primary, 44 px controls, and system states
+inside the owning frame. The canvas uses a flat Mint Mist band instead of the
+P8 wave artwork (§18).
+
+======================================================================
+16. TESTS
+======================================================================
+New E2E: tests/e2e/system-states.spec.ts (14 tests × desktop + mobile = 28):
+  - Six auth surfaces: one h1 with the expected heading, canonical
+    logo-primary.svg, axe, and no overflow at 375 / 412 / 768 / 1024 /
+    1280.
+  - Sign-in: labelled fields; button and links at least 44 px.
+  - Unmatched route: 404 on the canvas, axe.
+  - Workspace 404 (scheduler → payroll): status 404, inside the
+    workspace shell (user control present), axe.
+  - Worker 404 (worker → payroll): inside the worker shell, axe.
+  - Tenant-safe: another tenant's org and a random org give identical main
+    text, status 404, no permission wording or name leak.
+  - MFA verify (no factor): the P6 card in the personal frame, "Set one
+    up" link, axe.
+  - Error and not-found reference states render (design-system).
+
+New unit: tests/unit/components/system-states.test.tsx (4 tests):
+  - SystemState: h1, action, no alert for not-found;
+  - workspace / worker / personal error boundaries: role alert, h1, safe
+    message, reference, no leaked internals, "Try again" calls reset.
+
+Existing auth tests still pass:
+  - sign-up → verify → sign in;
+  - wrong credentials uniform;
+  - password reset (uniform request, link, hosted link, used link, no
+    session);
+  - unverified accounts;
+  - MFA step-up → invite → accept;
+  - cross-tenant 404s;
+  - foundation 404 and auth-error.
+
+Validation:
+
+  Command               Result
+  --------------------  --------------------------------------------------
+  npm run format:check  pass
+  npm run lint          pass (0 warnings)
+  npm run typecheck     pass
+  npm test              28 files, 334 tests passed
+  npm run build         pass
+  npm run check:bundle  OK (64 browser files, no secrets)
+  npx playwright test   204 passed, 2 skipped (the existing desktop-only
+                        keyboard tests in foundation.spec), 0 failed
+                        (final clean run)
+
+The first full run found one regression from this stage: the invite details
+list repeated the role name ("Healthcare Worker"), making an existing
+workforce-facilities text query ambiguous. The row was removed (§14), and
+workforce-facilities and identity re-ran 26/26.
+
+No database tests were run, because no backend code changed.
+
+======================================================================
+17. FILES CHANGED
+======================================================================
+Added:
+  src/components/layout/auth-canvas.tsx
+  src/components/ui/system-state.tsx
+  src/app/app/(personal)/error.tsx
+  src/app/app/organisations/[organisationId]/(self-service)/error.tsx
+  src/app/app/organisations/[organisationId]/(self-service)/not-found.tsx
+  src/app/app/organisations/[organisationId]/(workspace)/not-found.tsx
+  tests/e2e/system-states.spec.ts
+  tests/unit/components/system-states.test.tsx
+  docs/reports/P0-E8-S7-auth-system-states.txt
+
+Modified:
+  src/features/identity/components/auth-card.tsx
+  src/app/(auth)/sign-in/page.tsx, sign-up/page.tsx,
+      forgot-password/page.tsx  (44 px footer links)
+  src/app/invite/page.tsx
+  src/app/auth/error/page.tsx
+  src/app/not-found.tsx
+  src/app/error.tsx
+  src/app/global-error.tsx
+  src/app/app/(personal)/security/page.tsx, security/verify/page.tsx,
+      account/page.tsx
+  src/app/app/organisations/[organisationId]/(workspace)/error.tsx
+  src/app/(internal)/design-system/page.tsx  (system-state reference)
+  src/components/ui/index.ts
+  tests/e2e/identity.spec.ts, tests/e2e/financial.spec.ts
+      (screenshot calls)
+
+======================================================================
+18. KNOWN VISUAL DIFFERENCES
+======================================================================
+1. No mint wave artwork: there is no approved asset in public/brand, so the
+   canvas uses a flat Mint Mist band (no gradient or improvised artwork).
+2. No show-password toggle (not previously supported).
+3. The invite names the organisation, not an inviting person (the preview
+   has no inviter).
+4. No explicit "Access denied" page: privacy-preserving 404s are kept by
+   design.
+5. No route loading skeletons (§11).
+6. The reset-password "link required" state is an ErrorState inside the
+   auth card (h2 under the card h1), not a separate full-page state.
+
+======================================================================
+19. GIT STATUS
+======================================================================
+Branch p0-e8-visual-implementation. HEAD e81933d ("feat: implement Chelth
+worker mobile experience", S6). All S7 changes are uncommitted (§17);
+nothing is staged or committed. No secrets were found.
+
+======================================================================
+20. RECOMMENDED S8 SCOPE
+======================================================================
+Final responsive and consistency sweep across all frames at 375 / 412 / 768
+/ 1024 / 1280:
+  - compact 2-column KPI cards on phones;
+  - flatten nested list borders inside Panels;
+  - long metadata labels wrapping on phones;
+  - the remaining non-adopted pages' headers (/app chooser, design-system);
+  - a home page (/) brand pass, if in scope;
+  - a final pass of the brand QA gate (logo, tokens, typography, no
+    gradients, teal restraint).

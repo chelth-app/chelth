@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { PageHeader } from "@/components/ui/page-header";
+import { Panel } from "@/components/ui/panel";
 import { Badge } from "@/components/ui/badge";
 import { listMfaFactors, MfaEnrollment } from "@/features/identity";
 import { getAssurance } from "@/lib/auth/session";
@@ -18,12 +20,14 @@ export default async function SecurityPage({ searchParams }: PageProps<"/app/sec
 
   return (
     <>
-      <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold">Security</h1>
-        <p className="text-sm text-muted-foreground">
-          Administration in CHELTH requires verification with an authenticator app.
-        </p>
-      </header>
+      <PageHeader
+        title="Security"
+        description={
+          <p className="text-sm">
+            Administration in CHELTH requires verification with an authenticator app.
+          </p>
+        }
+      />
 
       {notice === "mfa-enabled" ? (
         <p
@@ -34,10 +38,7 @@ export default async function SecurityPage({ searchParams }: PageProps<"/app/sec
         </p>
       ) : null}
 
-      <section aria-labelledby="mfa-heading" className="flex flex-col gap-3">
-        <h2 id="mfa-heading" className="text-lg font-semibold">
-          Authenticator app
-        </h2>
+      <Panel titleId="mfa-heading" title={<>Authenticator app</>}>
         <p className="text-sm">
           This session:{" "}
           {assurance.current === "aal2" ? (
@@ -63,7 +64,7 @@ export default async function SecurityPage({ searchParams }: PageProps<"/app/sec
         ) : (
           <MfaEnrollment next={safeNext} />
         )}
-      </section>
+      </Panel>
     </>
   );
 }
