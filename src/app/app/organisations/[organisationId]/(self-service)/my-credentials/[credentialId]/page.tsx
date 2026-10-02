@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { Panel } from "@/components/ui/panel";
 import { InlineActionForm } from "@/components/forms/inline-action-form";
-import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatusChip } from "@/components/ui/status-chip";
 import {
   credentialIdSchema,
   DocumentStatusBadge,
@@ -51,33 +53,34 @@ export default async function MyCredentialPage({
 
   return (
     <>
-      <header className="flex flex-col gap-2">
-        <Link
-          href={`/app/organisations/${organisationId}/my-credentials`}
-          className="w-fit text-sm text-primary underline underline-offset-4"
-        >
-          My credentials
-        </Link>
-        <h1 className="text-2xl font-semibold">{credential.typeName}</h1>
-        <p className="text-sm text-muted-foreground">
-          {[
-            credential.jurisdictionCode,
-            credential.issuingAuthority,
-            credential.credentialNumber ? `No. ${credential.credentialNumber}` : null,
-          ]
-            .filter(Boolean)
-            .join(" · ") || "—"}
-        </p>
-        {!isActive ? <Badge tone="neutral">Withdrawn</Badge> : null}
-      </header>
+      <PageHeader
+        title={credential.typeName}
+        back={
+          <Link
+            href={`/app/organisations/${organisationId}/my-credentials`}
+            className="text-primary underline underline-offset-4"
+          >
+            My credentials
+          </Link>
+        }
+        description={
+          <p className="text-sm">
+            {[
+              credential.jurisdictionCode,
+              credential.issuingAuthority,
+              credential.credentialNumber ? `No. ${credential.credentialNumber}` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ") || "—"}
+          </p>
+        }
+        meta={!isActive ? <StatusChip tone="neutral">Withdrawn</StatusChip> : undefined}
+      />
 
-      <section aria-labelledby="sharing-heading" className="flex flex-col gap-2">
-        <h2 id="sharing-heading" className="text-lg font-semibold">
-          Sharing with {organisation.name}
-        </h2>
+      <Panel titleId="sharing-heading" title={<>Sharing with {organisation.name}</>}>
         {activeShare ? (
           <div className="flex flex-wrap items-center gap-3 text-sm">
-            <Badge tone="info">Shared</Badge>
+            <StatusChip tone="info">Shared</StatusChip>
             <InlineActionForm
               action={revokeShareAction}
               fields={{ ...base, shareId: activeShare.id }}
@@ -87,7 +90,7 @@ export default async function MyCredentialPage({
           </div>
         ) : isActive ? (
           <div className="flex flex-wrap items-center gap-3 text-sm">
-            <Badge tone="neutral">Not shared</Badge>
+            <StatusChip tone="neutral">Not shared</StatusChip>
             <InlineActionForm
               action={shareCredentialAction}
               fields={base}
@@ -95,12 +98,9 @@ export default async function MyCredentialPage({
             />
           </div>
         ) : null}
-      </section>
+      </Panel>
 
-      <section aria-labelledby="versions-heading" className="flex flex-col gap-3">
-        <h2 id="versions-heading" className="text-lg font-semibold">
-          Versions
-        </h2>
+      <Panel titleId="versions-heading" title={<>Versions</>}>
         <ol className="flex flex-col gap-3">
           {credential.versions.map((version) => (
             <li
@@ -113,13 +113,13 @@ export default async function MyCredentialPage({
                   {version.issueDate ? ` · issued ${version.issueDate}` : ""}
                   {version.expiryDate ? ` · expires ${version.expiryDate}` : ""}
                 </span>
-                <Badge tone={version.status === "submitted" ? "info" : "neutral"}>
+                <StatusChip tone={version.status === "submitted" ? "info" : "neutral"}>
                   {version.status === "draft"
                     ? "Draft"
                     : version.status === "submitted"
                       ? "Submitted"
                       : "Withdrawn"}
-                </Badge>
+                </StatusChip>
               </div>
               {version.documents.length > 0 ? (
                 <ul className="flex flex-col gap-2">
@@ -168,12 +168,9 @@ export default async function MyCredentialPage({
             <NewVersionForm {...base} />
           </div>
         ) : null}
-      </section>
+      </Panel>
 
-      <section aria-labelledby="verification-heading" className="flex flex-col gap-3">
-        <h2 id="verification-heading" className="text-lg font-semibold">
-          Verification by agencies
-        </h2>
+      <Panel titleId="verification-heading" title={<>Verification by agencies</>}>
         {credential.verifications.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No agency has reviewed this credential yet.
@@ -203,13 +200,10 @@ export default async function MyCredentialPage({
             ))}
           </ul>
         )}
-      </section>
+      </Panel>
 
       {isActive ? (
-        <section aria-labelledby="withdraw-heading" className="flex flex-col gap-2">
-          <h2 id="withdraw-heading" className="text-lg font-semibold">
-            Withdraw
-          </h2>
+        <Panel titleId="withdraw-heading" title={<>Withdraw</>}>
           <p className="text-sm text-muted-foreground">
             Withdrawing stops this credential counting anywhere. History is kept.
           </p>
@@ -219,7 +213,7 @@ export default async function MyCredentialPage({
             label="Withdraw credential"
             variant="danger"
           />
-        </section>
+        </Panel>
       ) : null}
     </>
   );

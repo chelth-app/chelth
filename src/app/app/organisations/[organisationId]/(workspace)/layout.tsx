@@ -15,6 +15,7 @@ import { requireAuthIdentity } from "@/lib/auth/session";
 import { capabilityState } from "@/lib/authz";
 
 import { PersonalFrame } from "../../../_components/personal-frame";
+import { WorkerFrame } from "../_components/worker-frame";
 
 const TYPE_LABEL = { agency: "Agency", facility: "Facility" } as const;
 
@@ -24,8 +25,8 @@ const TYPE_LABEL = { agency: "Agency", facility: "Facility" } as const;
  * The navigation is derived from the caller's capabilities in this
  * organisation (UI hint only — every page still applies its own gate and
  * every operation is re-authorised by the database). Members with
- * self-service access only, and ids the caller cannot see (the page renders
- * 404), keep the personal frame.
+ * self-service access only get the P7 worker frame; ids the caller cannot
+ * see (the page renders 404) keep the personal frame.
  */
 export default async function WorkspaceLayout({
   children,
@@ -44,7 +45,8 @@ export default async function WorkspaceLayout({
 
   const grants = await getMyCapabilities(organisationId);
   if (!isWorkspaceStaff(grants.map((grant) => grant.capabilityKey))) {
-    return <PersonalFrame>{children}</PersonalFrame>;
+    // Self-service-only members (workers): the P7 worker frame (P0-E8-S6).
+    return <WorkerFrame rawOrganisationId={organisationId}>{children}</WorkerFrame>;
   }
 
   const [profile, memberships, roles, myWorkerRecord] = await Promise.all([

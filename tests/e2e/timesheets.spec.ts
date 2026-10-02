@@ -16,7 +16,7 @@ import {
   createStaffingWorld,
   type StaffingWorld,
 } from "./staffing-fixture";
-import { expectNoPageOverflow, signIn } from "./support";
+import { expectNoPageOverflow, qaScreenshot, signIn } from "./support";
 
 const A11Y_TAGS = ["wcag2a", "wcag2aa", "wcag22aa"];
 const AFTER_ACTION = { timeout: 20_000 };
@@ -208,6 +208,7 @@ test.describe.serial("timesheets & attendance review", () => {
     const entries = tia.getByRole("region", { name: "Timesheet entries" });
     await expect(entries).toContainText("7 h 30 min");
     await expect(entries).toContainText("4 h");
+    await qaScreenshot(tia, "s6-timesheet-detail");
     await tia.getByRole("button", { name: "Submit timesheet" }).click();
     // The page re-renders from the database: the form is gone and the status has changed.
     await expect(tia.locator("main header")).toContainText("Submitted", AFTER_ACTION);

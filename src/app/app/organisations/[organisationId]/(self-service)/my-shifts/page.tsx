@@ -1,9 +1,13 @@
-import type { Metadata } from "next";
-import Link from "next/link";
+import type { Metadata, Route } from "next";
 import { notFound } from "next/navigation";
 
 import { InlineActionForm } from "@/components/forms/inline-action-form";
-import { Badge } from "@/components/ui/badge";
+import { DetailDrawerTrigger } from "@/components/ui/detail-drawer";
+import { EmptyState } from "@/components/ui/empty-state";
+import { KeyValueList } from "@/components/ui/key-value-list";
+import { PageHeader } from "@/components/ui/page-header";
+import { SectionTabs } from "@/components/ui/section-tabs";
+import { StatusChip } from "@/components/ui/status-chip";
 import {
   AttendanceStateBadge,
   BreakControl,
@@ -35,6 +39,7 @@ import {
   ASSIGNMENT_CANCELLATION_REASON_LABELS,
   formatShiftDate,
   formatShiftTimeRange,
+  hasEnded,
   localDate,
 } from "@/lib/domain/shifts";
 import { formatWorkedMinutes } from "@/lib/domain/timesheets";
@@ -46,8 +51,11 @@ function exceptionLabel(type: string): string {
 export const metadata: Metadata = { title: "My shifts" };
 
 /** The worker's own assignments at one agency. Nobody else's are ever shown. */
+const CARD = "flex flex-col gap-3 rounded-lg border border-border bg-surface p-4 shadow-card";
+
 export default async function MyShiftsPage({
   params,
+  searchParams,
 }: PageProps<"/app/organisations/[organisationId]/my-shifts">) {
   const { organisationId, organisation } = await loadOrganisationPage(
     (await params).organisationId,
@@ -59,39 +67,51 @@ export default async function MyShiftsPage({
     listMyShiftOffers(organisationId),
     listMyAttendance(organisationId),
   ]);
+  // Display filter over the worker's own assignments (no new query).
+  const showPast = (await searchParams).view === "past";
+  const base = `/app/organisations/${organisationId}/my-shifts` as const;
+  const shownAssignments = assignments.filter((assignment) =>
+    showPast ? hasEnded(assignment) : !hasEnded(assignment),
+  );
+  const attendanceByAssignment = new Map(attendance.map((item) => [item.assignmentId, item]));
 
   return (
     <>
-      <header className="flex flex-col gap-2">
-        <Link
-          href={`/app/organisations/${organisationId}`}
-          className="w-fit text-sm text-primary underline underline-offset-4"
-        >
-          {organisation.name}
-        </Link>
-        <h1 className="text-2xl font-semibold">My shifts</h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Shifts {organisation.name} has assigned to you. Times are in the facility&apos;s timezone.
-          Accept to confirm you will work the shift, or decline if you cannot.
-        </p>
-      </header>
+      <PageHeader
+        title="My shifts"
+        description={
+          <p className="text-sm">
+            Shifts {organisation.name} has assigned to you. Times are in the facility&apos;s
+            timezone. Accept to confirm you will work the shift, or decline if you cannot.
+          </p>
+        }
+      />
 
       <section aria-labelledby="my-attendance-heading" className="flex flex-col gap-3">
-        <h2 id="my-attendance-heading" className="text-lg font-semibold">
+        <h2
+          id="my-attendance-heading"
+          className="font-display text-lg font-semibold text-chelth-navy"
+        >
           Attendance
         </h2>
         {attendance.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No accepted shifts around today.</p>
+          <EmptyState
+            headingLevel={3}
+            title="No accepted shifts around today."
+            description="Clock-in opens shortly before an accepted shift starts."
+          />
         ) : (
           <ul aria-label="My attendance" className="flex flex-col gap-3">
             {attendance.map((item) => (
               <li
                 key={item.assignmentId}
                 aria-label={`Attendance: ${item.facilityName} ${formatShiftDate(item)}`}
-                className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4"
+                className={CARD}
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-medium">{item.facilityName}</span>
+                  <span className="font-display text-base font-semibold text-chelth-navy">
+                    {item.facilityName}
+                  </span>
                   <AttendanceStateBadge
                     clockState={item.clockState}
                     needsReview={item.exceptions.some(
@@ -103,11 +123,25 @@ export default async function MyShiftsPage({
                 <p className="text-sm">
                   {formatShiftDate(item)} · {formatShiftTimeRange(item)}
                 </p>
-                <p className="text-sm text-muted-foreground">
-                  {item.locationName} · Clocked in{" "}
-                  {formatLocalClockTime(item.clockInAt, item.timezone)} · Clocked out{" "}
-                  {formatLocalClockTime(item.clockOutAt, item.timezone)}
-                </p>
+                <KeyValueList
+                  className="rounded-md bg-surface-muted p-3"
+                  items={[
+                    { label: "Location", value: item.locationName },
+                    {
+                      label: "Clocked in",
+                      value: formatLocalClockTime(item.clockInAt, item.timezone),
+                    },
+                    {
+                      label: "Clocked out",
+                      value: formatLocalClockTime(item.clockOutAt, item.timezone),
+                    },
+                  ]}
+                />
+                {item.canEndBreak ? (
+                  <p role="status" className="text-sm font-medium">
+                    You are on a break. End it before you clock out.
+                  </p>
+                ) : null}
                 {item.workedMinutes !== null ? (
                   <p className="text-sm">
                     Worked{" "}
@@ -131,7 +165,7 @@ export default async function MyShiftsPage({
                     facilityName={item.facilityName}
                   />
                 ) : item.canClockOut ? (
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
+                  <div className="flex flex-col gap-2">
                     <ClockControl
                       organisationId={organisationId}
                       assignmentId={item.assignmentId}
@@ -157,15 +191,15 @@ export default async function MyShiftsPage({
                   <ul aria-label="Attendance notes" className="flex flex-wrap gap-1">
                     {item.exceptions.map((exception, index) => (
                       <li key={`${exception.type}-${index}`}>
-                        <Badge
+                        <StatusChip
                           tone={
                             exception.status === "open" || exception.status === "under_review"
-                              ? "warning"
+                              ? "attention"
                               : "neutral"
                           }
                         >
                           {exceptionLabel(exception.type)}
-                        </Badge>
+                        </StatusChip>
                       </li>
                     ))}
                   </ul>
@@ -217,11 +251,15 @@ export default async function MyShiftsPage({
                     })}
                   </ul>
                 ) : null}
-                <details className="text-sm">
-                  <summary className="cursor-pointer text-primary">
+                <details className="rounded-md border border-border text-sm">
+                  <summary className="flex min-h-11 cursor-pointer items-center px-3 font-medium text-primary">
                     Request a time correction
                   </summary>
-                  <div className="mt-3">
+                  <div className="flex flex-col gap-3 border-t border-border p-3">
+                    <p className="text-muted-foreground">
+                      Your original clock record stays exactly as recorded. A correction is added
+                      alongside it for your agency to review.
+                    </p>
                     <CorrectionRequestForm
                       organisationId={organisationId}
                       assignmentId={item.assignmentId}
@@ -237,21 +275,21 @@ export default async function MyShiftsPage({
       </section>
 
       <section aria-labelledby="my-offers-heading" className="flex flex-col gap-3">
-        <h2 id="my-offers-heading" className="text-lg font-semibold">
+        <h2 id="my-offers-heading" className="font-display text-lg font-semibold text-chelth-navy">
           Offers
         </h2>
         {offers.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No shift offers right now.</p>
+          <EmptyState headingLevel={3} title="No shift offers right now." />
         ) : (
           <ul aria-label="Shift offers" className="flex flex-col gap-3">
             {offers.map((offer) => (
               <li
                 key={offer.id}
                 aria-label={`Offer: ${offer.facilityName} ${formatShiftDate(offer)}`}
-                className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-4"
+                className={CARD}
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-medium">
+                  <span className="font-display text-base font-semibold text-chelth-navy">
                     {offer.facilityName} · {offer.disciplineName}
                   </span>
                   <OfferStatusBadge status={offer.status} />
@@ -290,21 +328,42 @@ export default async function MyShiftsPage({
       </section>
 
       <section aria-labelledby="my-shifts-heading" className="flex flex-col gap-3">
-        <h2 id="my-shifts-heading" className="text-lg font-semibold">
+        <h2 id="my-shifts-heading" className="font-display text-lg font-semibold text-chelth-navy">
           Assignments
         </h2>
-        {assignments.length === 0 ? (
-          <p className="text-sm text-muted-foreground">You have no assignments yet.</p>
+        <SectionTabs
+          label="Assignment period"
+          tabs={[
+            { label: "Upcoming", href: base as Route, current: !showPast },
+            { label: "Past", href: `${base}?view=past` as Route, current: showPast },
+          ]}
+        />
+        {shownAssignments.length === 0 ? (
+          <EmptyState
+            headingLevel={3}
+            title={
+              assignments.length === 0
+                ? "You have no assignments yet."
+                : showPast
+                  ? "No past assignments."
+                  : "You have no upcoming assignments."
+            }
+            description={
+              showPast
+                ? "Assignments move here once the shift has ended."
+                : "New assignments and accepted offers appear here."
+            }
+          />
         ) : (
           <ul aria-label="My assignments" className="flex flex-col gap-3">
-            {assignments.map((assignment) => (
+            {shownAssignments.map((assignment) => (
               <li
                 key={assignment.id}
                 aria-label={`${assignment.facilityName} ${formatShiftDate(assignment)}`}
-                className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-4"
+                className={CARD}
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-medium">
+                  <span className="font-display text-base font-semibold text-chelth-navy">
                     {assignment.facilityName} · {assignment.disciplineName}
                   </span>
                   <div className="flex flex-wrap gap-2">
@@ -331,6 +390,63 @@ export default async function MyShiftsPage({
                     {ASSIGNMENT_CANCELLATION_REASON_LABELS[assignment.cancellationReason]}
                   </p>
                 ) : null}
+                <DetailDrawerTrigger
+                  triggerLabel="Shift details"
+                  triggerAccessibleLabel={`Shift details: ${assignment.facilityName} ${formatShiftDate(assignment)}`}
+                  triggerClassName="w-fit px-0"
+                  title={assignment.facilityName}
+                  description={`${formatShiftDate(assignment)} · ${formatShiftTimeRange(assignment)}`}
+                >
+                  <KeyValueList
+                    items={[
+                      { label: "Date", value: formatShiftDate(assignment) },
+                      { label: "Time", value: formatShiftTimeRange(assignment) },
+                      { label: "Timezone", value: assignment.timezone },
+                      { label: "Facility", value: assignment.facilityName },
+                      { label: "Location", value: assignment.locationName },
+                      { label: "Discipline", value: assignment.disciplineName },
+                      {
+                        label: "Assignment",
+                        value: <AssignmentStatusBadge status={assignment.status} />,
+                      },
+                      ...(assignment.instructions
+                        ? [
+                            {
+                              label: "Instructions",
+                              value: (
+                                <span className="whitespace-pre-line">
+                                  {assignment.instructions}
+                                </span>
+                              ),
+                            },
+                          ]
+                        : []),
+                      ...(attendanceByAssignment.get(assignment.id)
+                        ? [
+                            {
+                              label: "Attendance",
+                              value: (
+                                <AttendanceStateBadge
+                                  clockState={
+                                    attendanceByAssignment.get(assignment.id)?.clockState ??
+                                    "not_started"
+                                  }
+                                  needsReview={false}
+                                />
+                              ),
+                            },
+                          ]
+                        : []),
+                    ]}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    {assignment.canRespond
+                      ? "Next: accept or decline this shift on My shifts."
+                      : attendanceByAssignment.get(assignment.id)?.canClockIn
+                        ? "Next: clock in from the Attendance card when you arrive."
+                        : "Attendance opens shortly before the shift starts."}
+                  </p>
+                </DetailDrawerTrigger>
                 {assignment.canRespond ? (
                   <div className="flex flex-wrap gap-2">
                     <InlineActionForm

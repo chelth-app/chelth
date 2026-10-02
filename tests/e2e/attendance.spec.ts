@@ -209,10 +209,29 @@ test.describe.serial("time & attendance", () => {
     await expect(gia.getByRole("region", { name: "Location check" })).toContainText(
       "uses your location only for this attendance action",
     );
+    // P0-E8-S6: no background tracking is implied; one read, after the worker continues.
+    await expect(gia.getByRole("region", { name: "Location check" })).toContainText(
+      "never in the background",
+    );
+    await qaScreenshot(gia, "s6-clock-in-explanation");
+    await expectNoA11yViolations(gia);
+
+    // Weak GPS: a blocking site refuses an imprecise reading, and nothing is recorded.
+    await gia.context().setGeolocation({ ...SITE, accuracy: 900 });
+    await gia.getByRole("button", { name: "Share location and clock in" }).click();
+    await expect(
+      gia.getByRole("alert").filter({ hasText: "Location not precise enough" }),
+    ).toBeVisible(AFTER_ACTION);
+    await qaScreenshot(gia, "s6-weak-gps");
+
+    await gia.context().setGeolocation({ ...FAR_AWAY, accuracy: 20 });
+    await gia.getByRole("button", { name: "Clock in at Mercy Rehab" }).click();
     await gia.getByRole("button", { name: "Share location and clock in" }).click();
     await expect(gia.getByRole("alert").filter({ hasText: "outside the site area" })).toBeVisible(
       AFTER_ACTION,
     );
+    await expect(gia.getByRole("alert").filter({ hasText: "Outside the site area" })).toBeVisible();
+    await qaScreenshot(gia, "s6-outside-geofence");
 
     await gia.context().setGeolocation({ ...SITE, accuracy: 20 });
     await gia.getByRole("button", { name: "Clock in at Mercy Rehab" }).click();

@@ -1,0 +1,513 @@
+P0-E8-S6 — WORKER MOBILE EXPERIENCE
+Branch: p0-e8-visual-implementation (base 0a83140, S5 committed)
+Date: 2026-10-02
+Status: complete, uncommitted, awaiting review. Auth/System States and the final
+responsive sweep not started.
+
+======================================================================
+1. EXECUTIVE SUMMARY
+======================================================================
+Worker self-service now uses a dedicated P7 worker shell, WorkerShell. It
+has:
+  - a compact header (Shift Mark, agency, "Worker · name");
+  - one centred content column;
+  - a bottom navigation of real destinations: Shifts, Timesheets,
+    Credentials, More;
+  - a "More" sheet:
+      - agency home;
+      - Account;
+      - Security;
+      - Switch workspace (existing memberships, via
+        selectOrganisationAction);
+      - All workspaces (/app);
+      - Sign out.
+
+It is never the Agency sidebar or P1 shell, at any width.
+
+Restyled in P7 card language:
+  - My shifts (attendance cards, offers, assignments with Upcoming / Past
+    tabs and a Shift details drawer);
+  - clock in / out (a "Verify your location" panel with explicit
+    privacy text, a location-check status, plain-language refusal titles
+    and a success confirmation);
+  - breaks;
+  - the correction-request entry;
+  - worker timesheets;
+  - credentials.
+
+No database, migration, RLS, capability, Server Action, RPC, rule or tenancy
+behaviour changed.
+
+======================================================================
+2. REFERENCES USED
+======================================================================
+Chelth_Worker mobile Flow:
+  - locked PNG (My Shifts, Shift Details, Check-In / Check-Out, Timesheet
+    Handoff);
+  - LOCKED-DESIGN-SPEC.md;
+  - ATTENDANCE-GEOFENCE-FLOW.md (success / weak GPS / outside / permission
+    states);
+  - WORKER-MOBILE-INTERACTIONS.md.
+
+Also:
+  - DERIVATION-MAP P7;
+  - S1–S5 reports;
+  - DESIGN_SYSTEM.md, CHELTH-PRODUCT-TYPOGRAPHY.md, brand.css (unchanged).
+
+======================================================================
+3. WORKER MOBILE SHELL
+======================================================================
+Components:
+  - src/components/layout/worker-shell.tsx (client): header, content
+    column (max-w-xl, 576 px), fixed bottom nav, More sheet (native modal
+    <dialog>).
+  - src/app/app/organisations/[organisationId]/_components/
+    worker-frame.tsx (server): loads the organisation, worker record,
+    capabilities, profile and memberships, then renders WorkerShell. It
+    falls back to the personal frame when there is no worker record (the
+    page then applies its own 404, as before).
+
+Where it applies:
+  - (self-service) layout: My shifts, My credentials (+ detail), for
+    everyone with a worker record;
+  - (workspace) layout, self-service-only members (agency healthcare
+    workers): Overview and their own Timesheets.
+  - Staff who are also workers keep the workspace shell on staff pages and
+    get the worker shell on their self-service pages.
+
+The S1 layout separation is unchanged; only the frame chosen for
+self-service changed.
+
+======================================================================
+4. BOTTOM NAVIGATION
+======================================================================
+<nav aria-label="Worker">: icon + text, 64 px targets, aria-current="page",
+and an active top bar plus semibold label (not colour-only).
+
+  Item         Destination            Shown when
+  -----------  ---------------------  --------------------------------------
+  Shifts       my-shifts              always (worker record)
+  Timesheets   timesheets             the route shows the worker's OWN
+                                      timesheets (no timesheet.view;
+                                      reviewers see the agency list in the
+                                      workspace shell)
+  Credentials  my-credentials         worker not terminated (same rule as
+                                      the Overview)
+  More         sheet (button,         always
+               aria-haspopup="dialog")
+
+Labels are "Shifts" / "Credentials", which keeps the existing "My shifts" /
+"My credentials" links unique.
+
+There is no Home tab, messaging, earnings, wallet or availability; the agency
+home is in More.
+
+======================================================================
+5. MY SHIFTS
+======================================================================
+- PageHeader (copy unchanged).
+- Attendance: P7 cards with:
+    - facility (display face);
+    - state chip;
+    - date and time;
+    - Location / Clocked in / Clocked out as a key-value block;
+    - the one next action (clock in, break, clock out);
+    - attendance notes as chips;
+    - own correction requests and outcomes;
+    - "Request a time correction".
+  Empty state: "No accepted shifts around today.".
+- Offers: cards with time, location, "Respond by…" and Accept / Decline
+  (unchanged component and rules).
+- Assignments: SectionTabs "Assignment period" (Upcoming / Past,
+  ?view=past). This is a display filter over the worker's own assignments.
+  Cards keep Accept / Decline, instructions and cancellation reason, plus a
+  "Shift details" drawer.
+- Empty states keep "You have no assignments yet."; "No past
+  assignments." / "You have no upcoming assignments." are added.
+
+No availability controls.
+
+======================================================================
+6. OFFERS
+======================================================================
+RespondToOffer is unchanged:
+  - Accept re-runs the full assignment gate on the server;
+  - ineligibility reasons are listed;
+  - Decline;
+  - expiry and state as before.
+
+Only the card styling changed. The existing assignment-operations flows
+(accept and decline offers) pass.
+
+======================================================================
+7. SHIFT DETAIL
+======================================================================
+There is no worker shift-detail route, and no new route was created. Shift
+detail is the modal DetailDrawer on each assignment ("Shift details: <facility>
+<date>"). It shows:
+  - date, time, timezone;
+  - facility, location, discipline;
+  - assignment state;
+  - instructions;
+  - attendance state (when present);
+  - the next required action in words.
+
+Only fields from the worker's own projection are shown: no agency notes, no
+other workers, no pay.
+
+======================================================================
+8. CLOCK IN / CLOCK OUT
+======================================================================
+ClockControl logic is unchanged:
+  - one-shot getCurrentPosition, only after the worker continues;
+  - server time;
+  - same server actions;
+  - no faked success.
+
+States now presented (from existing data and error codes):
+
+  State                 What the worker sees
+  --------------------  --------------------------------------------------
+  Ready                 full-width "Clock in" (clock-out uses the outline
+                        style)
+  Explanation           "Verify your location" region (named "Location
+  (before permission)   check"), with the reason and the privacy points;
+                        "Share location and clock in" / "Not now"
+  Requesting location   "Checking your location…" (role=status)
+  Weak GPS              alert "Location not precise enough" plus the server
+                        message (LOCATION_ACCURACY_TOO_LOW)
+  Outside area          alert "Outside the site area" plus the server
+                        message (OUTSIDE_GEOFENCE)
+  Location unavailable  "Location not available" / "Location needed for
+  or required           this site"
+  Allowed with review   success "Clocked in. Recorded. Your agency will
+                        review this attendance." (exception codes present)
+  Success               "Clocked in." / "Clocked out." with "Recorded at
+                        Chelth's server time."
+
+Clock-out is offered whenever the server allows it (canClockOut). It is
+hidden only during an active break, which is the existing rule, with an
+explanation (§10).
+
+======================================================================
+9. LOCATION PRIVACY
+======================================================================
+The explanation appears before any location request and states:
+  - the site checks you are on site when you clock in / out;
+  - Chelth uses your location only for this attendance action and does not
+    track you;
+  - your location is read once, when you continue, and never in the
+    background;
+  - your agency sees the result, and precise location is kept as
+    restricted evidence.
+
+Coordinates are never shown to the worker. Sites without location checks
+never prompt (E2E).
+
+======================================================================
+10. BREAKS
+======================================================================
+BreakControl is unchanged: "Start break" (outline), "End break" (primary),
+server time, no location.
+
+The card shows the "On break" chip and "You are on a break. End it before you
+clock out." (role=status). Clock out returns once the break ends (E2E).
+
+Event semantics are unchanged.
+
+======================================================================
+11. CORRECTIONS
+======================================================================
+"Request a time correction" is a 44 px disclosure inside the card. It
+explains: "Your original clock record stays exactly as recorded. A correction
+is added alongside it for your agency to review."
+
+CorrectionRequestForm is unchanged (reason, date, actual time, "Send
+correction request"). The worker's own requests and outcomes are listed under
+"My correction requests".
+
+The model stays append-only.
+
+======================================================================
+12. TIMESHEETS
+======================================================================
+Worker list ("My timesheets"):
+  - P7 cards: week link, status chip;
+  - worked time emphasised, with "From your attendance — not typed in";
+  - shift count;
+  - "Ready to submit" chip, or blocking-reason chips.
+
+The worker detail keeps the S3 record layout (PageHeader, totals, entries,
+ActivityTimeline history). Submission and the blocking reasons are unchanged.
+
+Agency approval controls are not shown to workers; the existing isWorker
+gating is unchanged.
+
+======================================================================
+13. CREDENTIALS
+======================================================================
+List:
+  - PageHeader with "Add a credential";
+  - readiness panel;
+  - Panels;
+  - Shared / Not shared / Withdrawn chips;
+  - empty state.
+
+Detail:
+  - PageHeader;
+  - Panels;
+  - Shared / Not shared / version status chips;
+  - document scan states (DocumentStatusBadge);
+  - verification states.
+
+Upload flow, security scan, submit, share / revoke and withdraw are
+unchanged. "Awaiting security scan" and "Submitted" never read as approved
+(E2E).
+
+======================================================================
+14. WORKSPACE SWITCHING
+======================================================================
+More → "Switch workspace" lists the caller's other existing memberships.
+Each is a form posting to the existing selectOrganisationAction.
+
+Also in More: "All workspaces" (/app chooser), Account and Security.
+
+There is no new identity or membership behaviour. E2E switches a worker into
+their facility membership.
+
+======================================================================
+15. RESPONSIVE BEHAVIOUR
+======================================================================
+- Mobile-first at 412 px.
+- Verified at 375, 768 and 1280: no page overflow, bottom nav present, no
+  sidebar, content column at most 576 px (centred on wide screens).
+- The bottom nav respects safe-area insets.
+- Main content has bottom padding so the nav never covers actions.
+- Drawers and the More sheet are native modal dialogs (the sheet docks to
+  the bottom).
+
+======================================================================
+16. ACCESSIBILITY
+======================================================================
+- One h1 per page; Panel h2s.
+- Named nav "Worker" with aria-current.
+- More: aria-haspopup / aria-expanded; the modal sheet is named "More";
+  Escape returns focus to More (E2E).
+- Location explanation before permission.
+- role="status" for checking, success and break; role="alert" for
+  refusals, with a plain title.
+- Targets at least 44 px (nav items 64 px).
+- Labelled forms.
+- Status always in text.
+- axe passes on My shifts, the More sheet, the Shift details drawer,
+  break active, correction form, timesheets, credentials and the
+  location explanation, at 412 px and desktop.
+
+======================================================================
+17. PRIVACY / DATA EXPOSURE
+======================================================================
+Only existing worker-own projections are read:
+  - listMyShiftAssignments;
+  - listMyShiftOffers;
+  - listMyAttendance;
+  - listMyTimesheets;
+  - listMyCredentials;
+  - getReadiness (self).
+WorkerFrame adds no data beyond identity, memberships and the worker record.
+
+E2E checks:
+  - the Shift details drawer has no other workers' names and no "$";
+  - worker timesheets have no other workers and no "$";
+  - payroll, invoices, pricing, rates, workforce, attendance, operations
+    and shifts return 404 for a worker.
+
+======================================================================
+18. FUNCTIONAL PRESERVATION
+======================================================================
+Unchanged:
+  - database, migrations, RLS, capabilities;
+  - Server Actions, RPCs;
+  - attendance, offer, geofence, correction, timesheet and credential
+    rules;
+  - AAL2;
+  - tenancy;
+  - every button and list name used by flows.
+
+New UI state: the ?view=past display filter on My shifts only.
+
+Test changes:
+  - workspace-shell.spec: the worker test now asserts the P7 worker nav
+    (it previously asserted the S1 personal frame, which this stage
+    replaces) and no workspace sidebar.
+  - attendance.spec Flow 3 gained the weak-GPS refusal and the privacy text
+    check.
+  - Two flows gained screenshot calls.
+
+Nothing was weakened.
+
+======================================================================
+19. SCREENSHOT QA
+======================================================================
+Captured with QA_SCREENSHOTS_DIR in the session scratchpad (not committed),
+each at 412 px and 1280 px:
+  - s6-my-shifts;
+  - s6-shift-detail;
+  - s6-clock-in-explanation;
+  - s6-weak-gps;
+  - s6-outside-geofence;
+  - s6-clocked-in;
+  - s6-break-active;
+  - s6-clocked-out;
+  - s6-correction-request;
+  - s6-timesheets;
+  - s6-timesheet-detail;
+  - s6-credentials;
+  - s6-credential-upload;
+  - s6-more-sheet.
+Offers are exercised by assignment-operations.spec.
+
+Compared with the P7 reference:
+
+Matches:
+  - compact branded header;
+  - My shifts title with tabs;
+  - shift cards with status chips and one primary full-width action;
+  - "Verify your location" panel with pin tile;
+  - check-in success confirmation;
+  - outlined clock-out;
+  - bottom navigation;
+  - timesheet handoff "from attendance" framing.
+
+======================================================================
+20. TESTS
+======================================================================
+New: tests/e2e/worker-mobile.spec.ts (5 tests × desktop + mobile = 10):
+  1. Worker shell:
+       - nav is exactly Shifts / Timesheets / Credentials, with
+         aria-current;
+       - no workspace nav or sidebar;
+       - More sheet (Account, Security, All workspaces, Sign out, Switch
+         workspace);
+       - axe; Escape and focus return;
+       - switching to the facility membership.
+  2. My shifts:
+       - Upcoming tab current;
+       - accept assignment;
+       - Shift details drawer (focus, content, no other workers or $,
+         axe, Escape);
+       - Past tab URL and empty state.
+  3. Attendance at a site with no location check:
+       - no explanation;
+       - clock in;
+       - start break ("You are on a break", clock out hidden);
+       - end break, clock out;
+       - correction entry explains the append-only model; axe.
+  4. Timesheets and credentials:
+       - nav aria-current;
+       - no other workers or $;
+       - axe;
+       - eight agency / finance routes return 404.
+  5. Responsive: 375 / 768 / 1280 with nav present, no sidebar, no
+     overflow, column at most 576 px.
+
+attendance.spec Flow 3 additions:
+  - explanation includes "never in the background", plus axe;
+  - weak GPS → "Location not precise enough";
+  - outside → "Outside the site area";
+  - inside → clocked in.
+
+Existing worker flows still pass:
+  - clock in / out;
+  - late exception;
+  - correction request and approval;
+  - offers accept / decline;
+  - timesheet submission;
+  - credential upload / scan / submit / verify.
+
+Validation:
+
+  Command               Result
+  --------------------  --------------------------------------------------
+  npm run format:check  pass
+  npm run lint          pass (0 warnings)
+  npm run typecheck     pass
+  npm test              27 files, 330 tests passed
+  npm run build         pass
+  npm run check:bundle  OK (63 browser files, no secrets)
+  npx playwright test   178 passed, 2 skipped (the existing desktop-only
+                        keyboard tests in foundation.spec), 0 failed
+
+No database tests were run, because no backend code changed.
+
+======================================================================
+21. FILES CHANGED
+======================================================================
+Added:
+  src/components/layout/worker-shell.tsx
+  src/app/app/organisations/[organisationId]/_components/worker-frame.tsx
+  tests/e2e/worker-mobile.spec.ts
+  docs/reports/P0-E8-S6-worker-mobile-experience.txt
+
+Modified:
+  src/app/app/organisations/[organisationId]/(self-service)/layout.tsx
+      (WorkerFrame)
+  src/app/app/organisations/[organisationId]/(workspace)/layout.tsx
+      (self-service-only members → WorkerFrame)
+  (self-service)/my-shifts/page.tsx
+  (self-service)/my-credentials/page.tsx
+  (self-service)/my-credentials/[credentialId]/page.tsx
+  (workspace)/timesheets/page.tsx (worker list cards)
+  src/features/attendance/components/clock-control.tsx (P7 states; same
+      logic)
+  tests/e2e/attendance.spec.ts
+  tests/e2e/workspace-shell.spec.ts
+  tests/e2e/timesheets.spec.ts
+  tests/e2e/credentials-compliance.spec.ts
+
+======================================================================
+22. KNOWN VISUAL DIFFERENCES
+======================================================================
+1. No notification bell, avatar photo, facility photos, map, facility
+   contact phone or parking notes (no product data). No "Home" tab; the
+   agency home is in More.
+2. Shift detail is a drawer, not a full page (no worker route exists).
+3. No "Today" tab: the Attendance section is the "today" view (the
+   existing projection around today), with Upcoming / Past for
+   assignments.
+4. The check-in step list ("Checking location ✓ / Within radius ✓") is a
+   single status line plus a result panel; the server decides, so no
+   client-side pre-checks are shown.
+5. Clock-out is a neutral outline button, not red: danger colour is
+   reserved for destructive actions.
+6. No sticky bottom action bar: each card's single next action is inline,
+   above the fixed navigation, to avoid duplicate controls.
+7. The timesheet handoff has no editable break / notes fields: worker
+   timesheets are derived from attendance and cannot be typed, which is
+   the existing rule.
+8. Requirements chips on shift details are not shown (readiness lives on
+   My credentials).
+
+======================================================================
+23. GIT STATUS
+======================================================================
+Branch p0-e8-visual-implementation. HEAD 0a83140 ("feat: implement Chelth
+finance surfaces", S5). All S6 changes are uncommitted (§21); nothing is
+staged or committed. No secrets were found.
+
+======================================================================
+24. RECOMMENDED S7 SCOPE
+======================================================================
+Auth and system states (P9):
+  - sign-in / sign-up / reset / invite on the brand canvas with the
+    canonical primary logo;
+  - not-found and access-denied inside the right frame (workspace, worker
+    or personal);
+  - loading states.
+
+Then the final responsive sweep across all frames (375 / 412 / 768 / 1024 /
+1280).
+
+Candidate polish:
+  - compact 2-column KPI cards on phones;
+  - flatten nested list borders inside Panels;
+  - optional sticky next-action bar on My shifts, if the product wants it.

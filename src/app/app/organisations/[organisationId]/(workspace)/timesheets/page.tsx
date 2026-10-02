@@ -270,23 +270,30 @@ export default async function TimesheetsPage({
           {mine.map((sheet) => (
             <li
               key={sheet.id}
-              className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-4"
+              className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4 shadow-card"
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <Link
                   href={`/app/organisations/${organisationId}/timesheets/${sheet.id}`}
-                  className="font-medium text-primary underline underline-offset-4"
+                  className="font-display text-base font-semibold text-primary underline underline-offset-4"
                 >
                   {formatPeriod(sheet.periodStart, sheet.periodEnd)}
                 </Link>
                 <TimesheetStatusBadge status={sheet.status} />
               </div>
               <p className="text-sm">
-                {formatWorkedMinutes(sheet.totalWorkedMinutes)} worked ·{" "}
-                {sheet.entryCount === 1 ? "1 shift" : `${sheet.entryCount} shifts`}
+                <span className="font-semibold tabular-nums">
+                  {formatWorkedMinutes(sheet.totalWorkedMinutes)}
+                </span>{" "}
+                worked · {sheet.entryCount === 1 ? "1 shift" : `${sheet.entryCount} shifts`}
+                <span className="block text-xs text-muted-foreground">
+                  From your attendance — not typed in
+                </span>
               </p>
               {sheet.canSubmit ? (
-                <p className="text-sm font-medium text-primary">Ready to submit</p>
+                <StatusChip tone="success" className="w-fit">
+                  Ready to submit
+                </StatusChip>
               ) : sheet.status === "open" || sheet.status === "rejected" ? (
                 <ul aria-label="Before you can submit" className="flex flex-wrap gap-1">
                   {sheet.blockingReasons.map((reason) => (
