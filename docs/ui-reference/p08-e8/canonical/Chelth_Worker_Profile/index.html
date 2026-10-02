@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chelth Worker Profile — Locked Interactive Reference</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:#eef8f5}
+body{display:grid;place-items:start center}
+.prototype{
+  position:relative;
+  width:min(100vw,1536px);
+  aspect-ratio:1536/1024;
+  overflow:hidden;
+  background:#f8fbfa;
+}
+.prototype img{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:fill;
+  user-select:none;
+  pointer-events:none;
+}
+.hotspot{
+  position:absolute;
+  z-index:20;
+  border:0;
+  padding:0;
+  margin:0;
+  background:transparent;
+  cursor:pointer;
+}
+.hotspot:focus-visible{
+  outline:3px solid rgba(18,107,103,.5);
+  outline-offset:1px;
+  border-radius:6px;
+}
+
+/* Top actions */
+#messageBtn{left:73.3%;top:10.95%;width:7.5%;height:4.1%}
+#assignBtn{left:81.1%;top:10.95%;width:9.2%;height:4.1%}
+#moreBtn{left:90.75%;top:10.95%;width:7.4%;height:4.1%}
+
+/* Availability action */
+#updateAvailability{left:88.25%;top:20.55%;width:8.95%;height:4.0%}
+
+/* Profile tabs */
+.tab{top:34.7%;height:4.3%}
+#tabOverview{left:14.1%;width:5.9%}
+#tabCredentials{left:20.0%;width:6.5%}
+#tabAssignments{left:26.5%;width:7.2%}
+#tabSchedule{left:33.7%;width:6.0%}
+#tabTimesheets{left:39.7%;width:6.6%}
+#tabDocuments{left:46.3%;width:6.3%}
+#tabActivity{left:52.6%;width:5.7%}
+#tabNotes{left:58.3%;width:5.2%}
+
+/* Overview edit buttons */
+#editInfo{left:37.7%;top:50.5%;width:4.5%;height:3.8%}
+#editPrefs{left:66.7%;top:50.5%;width:4.5%;height:3.8%}
+
+/* Next shift actions */
+#viewShift{left:73.45%;top:53.35%;width:13.0%;height:4.15%}
+#addCalendar{left:86.65%;top:53.35%;width:11.0%;height:4.15%}
+#viewAllShifts{left:93.6%;top:39.8%;width:4.4%;height:3.3%}
+
+/* Credential actions */
+#viewAllCredentials{left:93.4%;top:59.25%;width:4.6%;height:3.3%}
+.credential-hit{left:72.8%;width:25.3%;height:4.0%}
+.credential-hit.c1{top:62.0%}
+.credential-hit.c2{top:66.0%}
+.credential-hit.c3{top:70.0%}
+.credential-hit.c4{top:74.0%}
+
+/* Recent activity */
+#viewAllActivity{left:93.4%;top:78.25%;width:4.6%;height:3.2%}
+.activity-hit{left:72.8%;width:25.2%;height:4.3%}
+.activity-hit.a1{top:81.1%}
+.activity-hit.a2{top:85.0%}
+.activity-hit.a3{top:89.0%}
+.activity-hit.a4{top:93.0%}
+
+/* Availability day chips */
+.avail-hit{top:25.2%;height:5.0%;width:3.9%}
+.avail-hit.d1{left:67.8%}.avail-hit.d2{left:72.0%}.avail-hit.d3{left:76.2%}.avail-hit.d4{left:80.4%}
+.avail-hit.d5{left:84.6%}.avail-hit.d6{left:88.8%}.avail-hit.d7{left:93.0%}
+
+/* Feedback only, no visual redesign */
+.toast{
+  position:absolute;
+  left:50%;
+  bottom:2%;
+  transform:translateX(-50%) translateY(14px);
+  z-index:40;
+  padding:10px 14px;
+  border-radius:8px;
+  background:rgba(23,39,45,.94);
+  color:#fff;
+  font:600 12px/1.3 Inter,Arial,sans-serif;
+  opacity:0;
+  pointer-events:none;
+  transition:.18s ease;
+  box-shadow:0 8px 20px rgba(0,0,0,.14);
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+@media(prefers-reduced-motion:reduce){.toast{transition:none}}
+</style>
+</head>
+<body>
+<main class="prototype" id="prototype" aria-label="Chelth Worker Profile locked interaction reference">
+  <img src="assets/chelth-worker-profile-locked.png" alt="Chelth Worker Profile page">
+
+  <button id="messageBtn" class="hotspot" data-action="Open message composer for Aisha Patel" type="button" aria-label="Message worker"></button>
+  <button id="assignBtn" class="hotspot" data-action="Open Assign to Shift flow for Aisha Patel" type="button" aria-label="Assign worker to shift"></button>
+  <button id="moreBtn" class="hotspot" data-action="Open additional worker actions" type="button" aria-label="More worker actions"></button>
+
+  <button id="updateAvailability" class="hotspot" data-action="Open availability editor" type="button" aria-label="Update worker availability"></button>
+
+  <button id="tabOverview" class="hotspot tab" data-action="Show Overview tab" type="button"></button>
+  <button id="tabCredentials" class="hotspot tab" data-action="Show Credentials tab" type="button"></button>
+  <button id="tabAssignments" class="hotspot tab" data-action="Show Assignments tab" type="button"></button>
+  <button id="tabSchedule" class="hotspot tab" data-action="Show Schedule tab" type="button"></button>
+  <button id="tabTimesheets" class="hotspot tab" data-action="Show Timesheets tab" type="button"></button>
+  <button id="tabDocuments" class="hotspot tab" data-action="Show Documents tab" type="button"></button>
+  <button id="tabActivity" class="hotspot tab" data-action="Show Activity tab" type="button"></button>
+  <button id="tabNotes" class="hotspot tab" data-action="Show Notes tab" type="button"></button>
+
+  <button id="editInfo" class="hotspot" data-action="Edit professional information" type="button"></button>
+  <button id="editPrefs" class="hotspot" data-action="Edit skills and preferences" type="button"></button>
+
+  <button id="viewShift" class="hotspot" data-action="Open next scheduled shift details" type="button"></button>
+  <button id="addCalendar" class="hotspot" data-action="Add next shift to calendar" type="button"></button>
+  <button id="viewAllShifts" class="hotspot" data-action="Open all shifts for this worker" type="button"></button>
+
+  <button id="viewAllCredentials" class="hotspot" data-action="Open all credentials for this worker" type="button"></button>
+  <button class="hotspot credential-hit c1" data-action="Open CNA License details" type="button"></button>
+  <button class="hotspot credential-hit c2" data-action="Open BLS Certification details" type="button"></button>
+  <button class="hotspot credential-hit c3" data-action="Open TB Screening details" type="button"></button>
+  <button class="hotspot credential-hit c4" data-action="Open Background Check details" type="button"></button>
+
+  <button id="viewAllActivity" class="hotspot" data-action="Open full worker activity history" type="button"></button>
+  <button class="hotspot activity-hit a1" data-action="Open completed shift activity" type="button"></button>
+  <button class="hotspot activity-hit a2" data-action="Open credential verification activity" type="button"></button>
+  <button class="hotspot activity-hit a3" data-action="Open shift assignment activity" type="button"></button>
+  <button class="hotspot activity-hit a4" data-action="Open availability update activity" type="button"></button>
+
+  <button class="hotspot avail-hit d1" data-action="Edit Monday availability" type="button"></button>
+  <button class="hotspot avail-hit d2" data-action="Edit Tuesday availability" type="button"></button>
+  <button class="hotspot avail-hit d3" data-action="Edit Wednesday availability" type="button"></button>
+  <button class="hotspot avail-hit d4" data-action="Edit Thursday availability" type="button"></button>
+  <button class="hotspot avail-hit d5" data-action="Edit Friday availability" type="button"></button>
+  <button class="hotspot avail-hit d6" data-action="Edit Saturday availability" type="button"></button>
+  <button class="hotspot avail-hit d7" data-action="Edit Sunday availability" type="button"></button>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</main>
+
+<script>
+(() => {
+  const toast = document.getElementById('toast');
+  let timer;
+
+  function feedback(message){
+    clearTimeout(timer);
+    toast.textContent = message;
+    toast.classList.add('show');
+    timer = setTimeout(()=>toast.classList.remove('show'),1400);
+  }
+
+  document.querySelectorAll('[data-action]').forEach(el=>{
+    el.addEventListener('click',()=>feedback(el.dataset.action));
+  });
+})();
+</script>
+</body>
+</html>

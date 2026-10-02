@@ -1,0 +1,247 @@
+CHELTH HOMEPAGE HERO — LOCKED IMPLEMENTATION PACKAGE
+
+STATUS
+LOCKED. This hero direction is approved.
+
+PURPOSE
+Implement the approved Chelth homepage hero in the Chelth application without redesigning it.
+
+SOURCE OF TRUTH
+1. index.html — visual + interaction reference
+2. Existing Chelth brand files already in the repo:
+   docs/brand/CHELTH-BRAND-GUIDELINES.md
+   docs/brand/CHELTH-DESIGN-TOKENS.md
+   docs/brand/CLAUDE-CHELTH-BRAND-RULES.md
+3. Canonical logo assets already in:
+   public/brand/chelth/
+
+IMPORTANT
+Do not redesign, reinterpret, simplify, modernize, or replace the approved composition.
+
+LOCKED VISUAL RULES
+
+1. BACKGROUND DESIGN IS LOCKED
+Preserve the exact approved visual language:
+- off-white base
+- pale mint sweep in top-right
+- layered mint / teal waves in lower-left
+- white contour lines
+- subtle dotted detail on right
+- no new radial blobs
+- no alternate background composition
+- no additional gradients beyond what is represented in the reference
+
+2. LOGO
+Use the canonical approved Chelth Shift Mark / wordmark from public/brand/chelth/.
+Do not redraw or approximate the logo.
+
+3. TYPOGRAPHY
+- Manrope for display / marketing headings
+- Inter for UI and body copy
+
+4. HERO COPY
+Headline:
+Healthcare workforce operations that keep every shift moving.
+
+Supporting copy:
+Chelth brings scheduling, staffing requests, credential readiness, shift coverage, and day-to-day coordination into one clear operational platform.
+
+Primary CTA:
+Book a Demo
+
+Secondary CTA:
+See How Chelth Works
+
+5. SLIDESHOW
+The hero image area is a seamless slideshow.
+
+NON-NEGOTIABLE:
+- NO image border
+- NO framed carousel container
+- NO visible rectangular image edge
+- NO image card shadow
+- NO rounded slideshow box
+- imagery must blend directly into the hero background using edge masks / fades
+
+Slide order:
+01 — Supervisor showing Black nurse the shift dashboard
+02 — Coverage / staffing activity
+03 — Nurse scheduling on computer
+04 — Operational dashboard
+
+Interaction:
+- autoplay approximately every 6.5 seconds
+- soft crossfade
+- slight 1.025 → 1 scale transition
+- pause on hover/focus
+- resume after manual interaction
+- dots for direct navigation
+- keyboard left/right navigation
+- pointer/touch swipe where practical
+- respect prefers-reduced-motion
+
+6. SIDE SIGNAL CARDS
+Card positions remain fixed.
+Only the content changes with the active slide.
+
+Slide 01 — Coordination
+Left:
+Open Shifts
+12
+Across 3 facilities
+
+Right top:
+Workers Available
+16
+Across 4 roles
+
+Right bottom:
+Pending Confirmations
+7
+Need follow-up today
+
+Slide 02 — Coverage
+Left:
+Open Shifts
+12
+Across 3 facilities
+
+Right top:
+Staffing Requests
+4
+Need review
+
+Right bottom:
+Pending Confirmations
+7
+Need follow-up today
+
+Slide 03 — Workforce
+Left:
+Available Workers
+16
+Across 4 roles
+
+Right top:
+Credentials Expiring
+2
+In the next 30 days
+
+Right bottom:
+Workers Ready
+11
+Cleared for upcoming shifts
+
+Slide 04 — Operations
+Left:
+Needs Attention
+4
+Open operational items
+
+Right top:
+Today’s Coverage
+18
+Across 5 facilities
+
+Right bottom:
+Pending
+6
+Awaiting confirmation
+
+IMPORTANT:
+These are illustrative operational states, not performance claims.
+
+7. EXPLAINER RAIL
+The explainer is intentionally SMALL and secondary.
+
+Do not enlarge it.
+
+It should:
+- remain compact
+- sit below the main image subject area
+- avoid covering important people/UI
+- update with each slide
+- use subtle white/translucent surface treatment
+- not compete visually with the hero headline or side cards
+
+Slide 01:
+Coordinate the shift with clarity.
+Give supervisors and healthcare professionals one clear view of schedules, staffing needs and what requires attention.
+
+Slide 02:
+See what still needs coverage.
+Keep open shifts, staffing requests and outstanding confirmations visible before they become urgent.
+
+Slide 03:
+Keep your workforce ready.
+Bring availability, credential readiness and upcoming assignments together around the work ahead.
+
+Slide 04:
+Run the operation from one clear view.
+Bring shifts, staffing requests, workforce readiness, credentials and facility activity together in one operational view.
+
+8. CAPABILITY STRIP
+Preserve the four approved capabilities:
+- Staffing Requests
+- Credential Readiness
+- Shift Coverage
+- Facility Visibility
+
+9. MOBILE
+Do not simply shrink the desktop layout.
+
+On smaller screens:
+- preserve headline hierarchy
+- keep CTA targets at least ~44px
+- slideshow remains seamless
+- move signal cards below the image if overlap becomes crowded
+- move explainer below image
+- preserve slide dots
+- maintain readable body text
+
+10. DO NOT INTRODUCE
+- glassmorphism-heavy styling
+- neon effects
+- AI aesthetic
+- additional floating decorative cards
+- excessive gradients
+- extra charts
+- unapproved background graphics
+- alternate logo treatments
+- fake trust logos or customer logos
+
+IMPLEMENTATION APPROACH
+Use the project's native component system and existing architecture.
+Do not replace app routing, auth, schema, data logic, or existing business logic.
+
+ASSET HANDLING
+For implementation, move approved slide imagery to a stable public path such as:
+public/brand/chelth/hero/
+
+Suggested filenames:
+hero-slide-01-coordination.webp
+hero-slide-02-coverage.webp
+hero-slide-03-workforce.webp
+hero-slide-04-operations.webp
+
+Optimize large PNGs to WebP/AVIF as appropriate without materially changing crop, quality, or visual appearance.
+
+QA GATE
+Before completion verify:
+- locked background design preserved
+- canonical Chelth logo used
+- no visible slideshow border/frame
+- slide order correct
+- side card data updates correctly
+- explainer remains compact
+- autoplay and manual controls work
+- mobile does not overlap or clip
+- no unsupported metrics/claims added
+- no brand drift introduced
+
+REPORT
+Save a plain-text implementation report under:
+docs/reports/
+
+Suggested filename:
+CHELTH-B3-3-hero-locked-implementation.txt

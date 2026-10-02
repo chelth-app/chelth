@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chelth Payroll + Invoices — Locked Interactive Reference</title>
+<style>
+:root{
+  --canvas-w:1536;
+  --canvas-h:1024;
+  --panel-start:1192;
+  --panel-width:344;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:#eef8f5}
+body{display:grid;place-items:start center}
+.prototype{
+  position:relative;
+  width:min(100vw,1536px);
+  aspect-ratio:1536/1024;
+  overflow:hidden;
+  background:#f8fbfa;
+}
+.main-view{
+  position:absolute;
+  inset:0 auto 0 0;
+  width:calc(var(--panel-start)/var(--canvas-w)*100%);
+  overflow:hidden;
+  transition:width .26s ease;
+}
+.prototype.panel-closed .main-view{width:100%}
+.main-view img{
+  position:absolute;
+  inset:0 auto 0 0;
+  width:calc(100%*var(--canvas-w)/var(--panel-start));
+  height:100%;
+  object-fit:fill;
+  object-position:left top;
+  max-width:none;
+  user-select:none;
+  pointer-events:none;
+  transition:width .26s ease;
+}
+.prototype.panel-closed .main-view img{width:100%;object-fit:fill}
+
+.detail-panel{
+  position:absolute;
+  top:0;right:0;
+  width:calc(var(--panel-width)/var(--canvas-w)*100%);
+  height:100%;
+  overflow:hidden;
+  z-index:20;
+  transform:translateX(0);
+  opacity:1;
+  transition:transform .26s ease,opacity .18s ease;
+  background:#f8fbfa;
+}
+.prototype.panel-closed .detail-panel{
+  transform:translateX(100%);
+  opacity:0;
+  pointer-events:none;
+}
+.detail-panel img{
+  position:absolute;
+  top:0;
+  left:calc(-1*var(--panel-start)/var(--panel-width)*100%);
+  width:calc(var(--canvas-w)/var(--panel-width)*100%);
+  height:100%;
+  object-fit:fill;
+  max-width:none;
+  user-select:none;
+  pointer-events:none;
+}
+
+.hotspot{
+  position:absolute;
+  z-index:40;
+  border:0;
+  margin:0;
+  padding:0;
+  background:transparent;
+  cursor:pointer;
+}
+.hotspot:focus-visible{
+  outline:3px solid rgba(18,107,103,.5);
+  outline-offset:1px;
+  border-radius:6px;
+}
+
+/* Drawer */
+#closePanel{right:1.35%;top:11.2%;width:3%;height:4.2%}
+#reopenPanel{right:0;top:9%;width:2.2%;height:82%;display:none}
+.prototype.panel-closed #reopenPanel{display:block}
+
+/* Payroll / Invoices toggle */
+#payrollTab{left:16.55%;top:16.1%;width:6.65%;height:3.65%}
+#invoicesTab{left:23.8%;top:16.1%;width:6.6%;height:3.65%}
+
+/* Top period */
+#topPeriod{left:60.7%;top:9.8%;width:16.0%;height:4.2%}
+
+/* KPI cards */
+.kpi{top:20.2%;height:11.4%}
+#payrollReady{left:16.5%;width:15.0%}
+#payrollExceptions{left:31.8%;width:15.0%}
+#invoicesDraft{left:47.1%;width:15.0%}
+#outstandingInvoices{left:62.4%;width:14.4%}
+
+/* Filters */
+.filter{top:33.35%;height:4.25%}
+#periodFilter{left:16.5%;width:15.7%}
+#facilityFilter{left:32.6%;width:10.8%}
+#statusFilter{left:44.0%;width:9.8%}
+#searchFilter{left:54.2%;width:22.6%}
+
+/* Payroll controls */
+#exportBtn{left:60.9%;top:38.7%;width:6.1%;height:3.5%}
+#processPayroll{left:67.6%;top:38.7%;width:9.2%;height:3.5%}
+
+/* Payroll rows */
+.row-hit{left:16.6%;width:60.2%;height:4.15%}
+.row-hit.r1{top:46.0%}.row-hit.r2{top:50.15%}.row-hit.r3{top:54.30%}.row-hit.r4{top:58.45%}
+.row-hit.r5{top:62.60%}.row-hit.r6{top:66.75%}.row-hit.r7{top:70.90%}.row-hit.r8{top:75.05%}
+
+/* Activity */
+#viewAllActivity{left:68.1%;top:77.4%;width:8.2%;height:3.2%}
+.activity{left:16.6%;width:60.2%;height:4.1%}
+.activity.a1{top:83.3%}.activity.a2{top:87.4%}.activity.a3{top:91.5%}.activity.a4{top:95.0%}
+
+/* Drawer content / actions */
+#auditHistory{left:78.6%;top:68.0%;width:19.5%;height:13.0%}
+#approvePayroll{left:78.6%;top:83.0%;width:19.5%;height:4.2%}
+#reviewPayroll{left:78.6%;top:87.8%;width:19.5%;height:4.2%}
+#viewTimesheets{left:78.6%;top:92.6%;width:9.7%;height:4.2%}
+#viewRate{left:88.5%;top:92.6%;width:9.6%;height:4.2%}
+
+.toast{
+  position:absolute;
+  left:50%;
+  bottom:1.5%;
+  transform:translateX(-50%) translateY(14px);
+  z-index:60;
+  padding:10px 14px;
+  border-radius:8px;
+  background:rgba(23,39,45,.94);
+  color:#fff;
+  font:600 12px/1.3 Inter,Arial,sans-serif;
+  opacity:0;
+  pointer-events:none;
+  transition:.18s ease;
+  box-shadow:0 8px 20px rgba(0,0,0,.14);
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media(prefers-reduced-motion:reduce){
+  .main-view,.main-view img,.detail-panel,.toast{transition:none}
+}
+</style>
+</head>
+<body>
+<main class="prototype" id="prototype" aria-label="Chelth Payroll and Invoices locked interaction reference">
+  <div class="main-view"><img src="assets/chelth-payroll-invoices-locked.png" alt="Chelth Payroll and Invoices dashboard"></div>
+  <aside class="detail-panel" id="detailPanel" aria-label="Payroll Details panel"><img src="assets/chelth-payroll-invoices-locked.png" alt=""></aside>
+
+  <button id="closePanel" class="hotspot" type="button" aria-label="Close payroll details"></button>
+  <button id="reopenPanel" class="hotspot" type="button" aria-label="Reopen payroll details"></button>
+
+  <button id="payrollTab" class="hotspot" data-action="Show Payroll view"></button>
+  <button id="invoicesTab" class="hotspot" data-action="Show Invoices view"></button>
+
+  <button id="topPeriod" class="hotspot" data-action="Change payroll or billing period"></button>
+
+  <button id="payrollReady" class="hotspot kpi" data-action="Filter: Payroll Ready"></button>
+  <button id="payrollExceptions" class="hotspot kpi" data-action="Filter: Payroll Exceptions"></button>
+  <button id="invoicesDraft" class="hotspot kpi" data-action="Filter: Invoice Drafts"></button>
+  <button id="outstandingInvoices" class="hotspot kpi" data-action="Filter: Outstanding Invoices"></button>
+
+  <button id="periodFilter" class="hotspot filter" data-action="Change active pay period"></button>
+  <button id="facilityFilter" class="hotspot filter" data-action="Filter by facility"></button>
+  <button id="statusFilter" class="hotspot filter" data-action="Filter by status"></button>
+  <button id="searchFilter" class="hotspot filter" data-action="Search payroll or invoices"></button>
+
+  <button id="exportBtn" class="hotspot" data-action="Export current Payroll or Invoices view"></button>
+  <button id="processPayroll" class="hotspot" data-action="Start payroll processing flow"></button>
+
+  <button class="hotspot row-hit r1" data-action="Open payroll details"></button>
+  <button class="hotspot row-hit r2" data-action="Open payroll details"></button>
+  <button class="hotspot row-hit r3" data-action="Open payroll details"></button>
+  <button class="hotspot row-hit r4" data-action="Open payroll details"></button>
+  <button class="hotspot row-hit r5" data-action="Open payroll details"></button>
+  <button class="hotspot row-hit r6" data-action="Open payroll details"></button>
+  <button class="hotspot row-hit r7" data-action="Open payroll details"></button>
+  <button class="hotspot row-hit r8" data-action="Open payroll details"></button>
+
+  <button id="viewAllActivity" class="hotspot" data-action="View all billing activity"></button>
+  <button class="hotspot activity a1" data-action="Open billing activity"></button>
+  <button class="hotspot activity a2" data-action="Open billing activity"></button>
+  <button class="hotspot activity a3" data-action="Open billing activity"></button>
+  <button class="hotspot activity a4" data-action="Open billing activity"></button>
+
+  <button id="auditHistory" class="hotspot" data-action="Review payroll audit history"></button>
+  <button id="approvePayroll" class="hotspot" data-action="Approve payroll"></button>
+  <button id="reviewPayroll" class="hotspot" data-action="Review payroll calculation"></button>
+  <button id="viewTimesheets" class="hotspot" data-action="Open included timesheets"></button>
+  <button id="viewRate" class="hotspot" data-action="Open applied rate details"></button>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</main>
+
+<script>
+(() => {
+  const root = document.getElementById('prototype');
+  const panel = document.getElementById('detailPanel');
+  const toast = document.getElementById('toast');
+  let timer;
+
+  function openPanel(){
+    root.classList.remove('panel-closed');
+    panel.setAttribute('aria-hidden','false');
+  }
+
+  function closePanel(){
+    root.classList.add('panel-closed');
+    panel.setAttribute('aria-hidden','true');
+  }
+
+  function feedback(message){
+    clearTimeout(timer);
+    toast.textContent = message;
+    toast.classList.add('show');
+    timer = setTimeout(()=>toast.classList.remove('show'),1400);
+  }
+
+  document.getElementById('closePanel').addEventListener('click',closePanel);
+  document.getElementById('reopenPanel').addEventListener('click',openPanel);
+
+  document.querySelectorAll('.row-hit,.activity').forEach(el=>{
+    el.addEventListener('click',()=>{
+      openPanel();
+      feedback(el.dataset.action);
+    });
+  });
+
+  document.querySelectorAll('[data-action]').forEach(el=>{
+    if(el.classList.contains('row-hit') || el.classList.contains('activity')) return;
+    el.addEventListener('click',()=>feedback(el.dataset.action));
+  });
+
+  root.addEventListener('keydown',e=>{
+    if(e.key==='Escape') closePanel();
+  });
+})();
+</script>
+</body>
+</html>

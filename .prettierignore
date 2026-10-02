@@ -17,3 +17,5 @@ supabase/templates
 src/styles/brand.css
 docs/brand
 public/brand
+# Locked approved UI references (P0-E8): kept byte-for-byte as delivered.
+docs/ui-reference/p08-e8/canonical

@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chelth Workforce — Locked Interactive Reference</title>
+<style>
+:root{
+  --canvas-w:1536;
+  --canvas-h:1024;
+  --panel-start:1178;
+  --panel-width:358;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:#eef8f5}
+body{display:grid;place-items:start center}
+.prototype{
+  position:relative;
+  width:min(100vw,1536px);
+  aspect-ratio:1536/1024;
+  overflow:hidden;
+  background:#f8fbfa;
+}
+.main-view{
+  position:absolute;
+  inset:0 auto 0 0;
+  width:calc(var(--panel-start)/var(--canvas-w)*100%);
+  overflow:hidden;
+  transition:width .26s ease;
+}
+.prototype.panel-closed .main-view{width:100%}
+.main-view img{
+  position:absolute;
+  inset:0 auto 0 0;
+  width:calc(100%*var(--canvas-w)/var(--panel-start));
+  height:100%;
+  object-fit:fill;
+  object-position:left top;
+  max-width:none;
+  user-select:none;
+  pointer-events:none;
+  transition:width .26s ease;
+}
+.prototype.panel-closed .main-view img{width:100%;object-fit:fill}
+.detail-panel{
+  position:absolute;
+  top:0;right:0;
+  width:calc(var(--panel-width)/var(--canvas-w)*100%);
+  height:100%;
+  overflow:hidden;
+  z-index:20;
+  transform:translateX(0);
+  opacity:1;
+  transition:transform .26s ease,opacity .18s ease;
+  background:#f8fbfa;
+}
+.prototype.panel-closed .detail-panel{
+  transform:translateX(100%);
+  opacity:0;
+  pointer-events:none;
+}
+.detail-panel img{
+  position:absolute;
+  top:0;
+  left:calc(-1*var(--panel-start)/var(--panel-width)*100%);
+  width:calc(var(--canvas-w)/var(--panel-width)*100%);
+  height:100%;
+  object-fit:fill;
+  max-width:none;
+  user-select:none;
+  pointer-events:none;
+}
+.hotspot{
+  position:absolute;
+  z-index:40;
+  border:0;
+  margin:0;
+  padding:0;
+  background:transparent;
+  cursor:pointer;
+}
+.hotspot:focus-visible{
+  outline:3px solid rgba(18,107,103,.5);
+  outline-offset:1px;
+  border-radius:5px;
+}
+#closePanel{right:1.35%;top:16.4%;width:3%;height:4.2%}
+#reopenPanel{right:0;top:10%;width:2.3%;height:82%;display:none}
+.prototype.panel-closed #reopenPanel{display:block}
+
+/* Header / summary actions */
+#addProfessional{left:87.25%;top:10.6%;width:11.2%;height:4.9%}
+.summary-hit{top:17.2%;height:8.9%}
+.summary-hit.s1{left:14.2%;width:15.1%}
+.summary-hit.s2{left:29.65%;width:15.1%}
+.summary-hit.s3{left:45.1%;width:15.1%}
+.summary-hit.s4{left:60.55%;width:15.1%}
+
+/* Filters */
+.filter-hit{top:27.45%;height:4.35%}
+.filter-hit.f1{left:14.2%;width:11.2%}
+.filter-hit.f2{left:25.5%;width:8.4%}
+.filter-hit.f3{left:34.0%;width:11.2%}
+.filter-hit.f4{left:45.4%;width:11.6%}
+.filter-hit.f5{left:57.2%;width:11.0%}
+.filter-hit.f6{left:68.35%;width:8.3%}
+
+/* Table rows */
+.row-hit{left:14.1%;width:62.4%;height:5.15%}
+.row-hit.r1{top:38.0%}.row-hit.r2{top:43.25%}.row-hit.r3{top:48.5%}.row-hit.r4{top:53.75%}.row-hit.r5{top:59.0%}
+.row-hit.r6{top:64.25%}.row-hit.r7{top:69.5%}.row-hit.r8{top:74.75%}.row-hit.r9{top:80.0%}.row-hit.r10{top:85.25%}
+
+/* Drawer tabs */
+.tab-hit{top:39.0%;height:4.2%}
+.tab-hit.t1{left:78.1%;width:5.5%}
+.tab-hit.t2{left:83.7%;width:6.6%}
+.tab-hit.t3{left:90.35%;width:6.3%}
+.tab-hit.t4{left:96.7%;width:3.0%}
+
+/* Drawer actions */
+#assignShift{left:78.0%;top:86.45%;width:20.8%;height:4.25%}
+#messageBtn{left:78.0%;top:91.6%;width:10.2%;height:4.25%}
+#viewCredentials{left:88.45%;top:91.6%;width:10.35%;height:4.25%}
+
+/* Bottom pagination */
+.page-hit{top:92.65%;height:4.5%}
+.page-hit.p1{left:58.3%;width:2.2%}
+.page-hit.p2{left:60.9%;width:2.2%}
+.page-hit.p3{left:63.5%;width:2.2%}
+.page-hit.p4{left:66.1%;width:2.2%}
+.page-hit.p5{left:68.7%;width:2.2%}
+.page-hit.p6{left:71.3%;width:2.2%}
+
+/* Minimal non-design system toast for interaction feedback.
+   Hidden unless an action without alternate locked visual is clicked. */
+.toast{
+  position:absolute;
+  left:50%;
+  bottom:2%;
+  transform:translateX(-50%) translateY(14px);
+  z-index:60;
+  padding:10px 14px;
+  border-radius:8px;
+  background:rgba(23,39,45,.94);
+  color:#fff;
+  font:600 12px/1.3 Inter,Arial,sans-serif;
+  opacity:0;
+  pointer-events:none;
+  transition:.18s ease;
+  box-shadow:0 8px 20px rgba(0,0,0,.14);
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media(prefers-reduced-motion:reduce){
+  .main-view,.main-view img,.detail-panel,.toast{transition:none}
+}
+</style>
+</head>
+<body>
+<main class="prototype" id="prototype" aria-label="Chelth Workforce locked interaction reference">
+  <div class="main-view"><img src="assets/chelth-workforce-locked.png" alt="Chelth Workforce page"></div>
+  <aside class="detail-panel" id="detailPanel" aria-label="Professional Details panel"><img src="assets/chelth-workforce-locked.png" alt=""></aside>
+
+  <button id="closePanel" class="hotspot" type="button" aria-label="Close professional details"></button>
+  <button id="reopenPanel" class="hotspot" type="button" aria-label="Reopen professional details"></button>
+
+  <button id="addProfessional" class="hotspot" type="button" aria-label="Add professional"></button>
+
+  <button class="hotspot summary-hit s1" data-feedback="Filter: Available Now" type="button"></button>
+  <button class="hotspot summary-hit s2" data-feedback="Filter: On Assignment" type="button"></button>
+  <button class="hotspot summary-hit s3" data-feedback="Filter: Needs Attention" type="button"></button>
+  <button class="hotspot summary-hit s4" data-feedback="Filter: Credential Ready" type="button"></button>
+
+  <button class="hotspot filter-hit f1" data-feedback="Professional filter" type="button"></button>
+  <button class="hotspot filter-hit f2" data-feedback="Role filter" type="button"></button>
+  <button class="hotspot filter-hit f3" data-feedback="Availability filter" type="button"></button>
+  <button class="hotspot filter-hit f4" data-feedback="Credential status filter" type="button"></button>
+  <button class="hotspot filter-hit f5" data-feedback="Facility filter" type="button"></button>
+  <button class="hotspot filter-hit f6" data-feedback="Search workforce" type="button"></button>
+
+  <button class="hotspot row-hit r1" type="button" aria-label="Open Aisha Patel details"></button>
+  <button class="hotspot row-hit r2" type="button" aria-label="Open Michael Torres details"></button>
+  <button class="hotspot row-hit r3" type="button" aria-label="Open Emily Carter details"></button>
+  <button class="hotspot row-hit r4" type="button" aria-label="Open James Wilson details"></button>
+  <button class="hotspot row-hit r5" type="button" aria-label="Open Sophia Kim details"></button>
+  <button class="hotspot row-hit r6" type="button" aria-label="Open Daniel Brooks details"></button>
+  <button class="hotspot row-hit r7" type="button" aria-label="Open Olivia Martin details"></button>
+  <button class="hotspot row-hit r8" type="button" aria-label="Open Ethan Rodriguez details"></button>
+  <button class="hotspot row-hit r9" type="button" aria-label="Open Mia Thompson details"></button>
+  <button class="hotspot row-hit r10" type="button" aria-label="Open David Chen details"></button>
+
+  <button class="hotspot tab-hit t1" data-feedback="Professional Details: Overview tab" type="button"></button>
+  <button class="hotspot tab-hit t2" data-feedback="Professional Details: Credentials tab" type="button"></button>
+  <button class="hotspot tab-hit t3" data-feedback="Professional Details: Assignments tab" type="button"></button>
+  <button class="hotspot tab-hit t4" data-feedback="Professional Details: Activity tab" type="button"></button>
+
+  <button id="assignShift" class="hotspot" type="button" aria-label="Assign professional to shift"></button>
+  <button id="messageBtn" class="hotspot" type="button" aria-label="Message professional"></button>
+  <button id="viewCredentials" class="hotspot" type="button" aria-label="View credentials"></button>
+
+  <button class="hotspot page-hit p1" data-feedback="Previous page" type="button"></button>
+  <button class="hotspot page-hit p2" data-feedback="Page 1" type="button"></button>
+  <button class="hotspot page-hit p3" data-feedback="Page 2" type="button"></button>
+  <button class="hotspot page-hit p4" data-feedback="Page 3" type="button"></button>
+  <button class="hotspot page-hit p5" data-feedback="Page 4" type="button"></button>
+  <button class="hotspot page-hit p6" data-feedback="Next page" type="button"></button>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</main>
+
+<script>
+(() => {
+  const root = document.getElementById('prototype');
+  const panel = document.getElementById('detailPanel');
+  const toast = document.getElementById('toast');
+  let toastTimer;
+
+  function openPanel(){
+    root.classList.remove('panel-closed');
+    panel.setAttribute('aria-hidden','false');
+  }
+  function closePanel(){
+    root.classList.add('panel-closed');
+    panel.setAttribute('aria-hidden','true');
+  }
+  function feedback(message){
+    clearTimeout(toastTimer);
+    toast.textContent = message;
+    toast.classList.add('show');
+    toastTimer = setTimeout(()=>toast.classList.remove('show'),1400);
+  }
+
+  document.getElementById('closePanel').addEventListener('click',closePanel);
+  document.getElementById('reopenPanel').addEventListener('click',openPanel);
+
+  document.querySelectorAll('.row-hit').forEach((row) => {
+    row.addEventListener('click', openPanel);
+  });
+
+  document.getElementById('addProfessional').addEventListener('click',()=>feedback('Open Add Professional flow'));
+  document.getElementById('assignShift').addEventListener('click',()=>feedback('Open Assign to Shift flow'));
+  document.getElementById('messageBtn').addEventListener('click',()=>feedback('Open message composer'));
+  document.getElementById('viewCredentials').addEventListener('click',()=>feedback('Open Credentials view'));
+
+  document.querySelectorAll('[data-feedback]').forEach((el)=>{
+    el.addEventListener('click',()=>feedback(el.dataset.feedback));
+  });
+
+  root.addEventListener('keydown',(e)=>{
+    if(e.key==='Escape') closePanel();
+  });
+})();
+</script>
+</body>
+</html>

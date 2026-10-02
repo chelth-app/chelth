@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chelth Staffing Requests — Locked Reference</title>
+<style>
+:root{
+  --canvas-w:1536;
+  --canvas-h:1024;
+  --panel-start:1178;
+  --panel-width:358;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:#eef8f5}
+body{display:grid;place-items:start center}
+.prototype{
+  position:relative;
+  width:min(100vw,1536px);
+  aspect-ratio:1536/1024;
+  overflow:hidden;
+  background:#f8fbfa;
+}
+.main-view{
+  position:absolute;
+  inset:0 auto 0 0;
+  width:calc(var(--panel-start)/var(--canvas-w)*100%);
+  overflow:hidden;
+  transition:width .26s ease;
+}
+.prototype.panel-closed .main-view{width:100%}
+.main-view img{
+  position:absolute;
+  inset:0 auto 0 0;
+  width:calc(100%*var(--canvas-w)/var(--panel-start));
+  height:100%;
+  object-fit:fill;
+  object-position:left top;
+  max-width:none;
+  user-select:none;
+  pointer-events:none;
+  transition:width .26s ease;
+}
+.prototype.panel-closed .main-view img{
+  width:100%;
+  object-fit:fill;
+}
+.detail-panel{
+  position:absolute;
+  top:0;right:0;
+  width:calc(var(--panel-width)/var(--canvas-w)*100%);
+  height:100%;
+  overflow:hidden;
+  z-index:20;
+  transform:translateX(0);
+  opacity:1;
+  transition:transform .26s ease,opacity .18s ease;
+  background:#f8fbfa;
+}
+.prototype.panel-closed .detail-panel{
+  transform:translateX(100%);
+  opacity:0;
+  pointer-events:none;
+}
+.detail-panel img{
+  position:absolute;
+  top:0;
+  left:calc(-1*var(--panel-start)/var(--panel-width)*100%);
+  width:calc(var(--canvas-w)/var(--panel-width)*100%);
+  height:100%;
+  object-fit:fill;
+  max-width:none;
+  user-select:none;
+  pointer-events:none;
+}
+.hotspot{
+  position:absolute;
+  z-index:40;
+  border:0;
+  margin:0;
+  padding:0;
+  background:transparent;
+  cursor:pointer;
+}
+.hotspot:focus-visible{
+  outline:3px solid rgba(18,107,103,.5);
+  outline-offset:1px;
+  border-radius:5px;
+}
+
+/* X button in the locked right-side Request Details panel */
+#closePanel{
+  right:1.35%;
+  top:16.5%;
+  width:3%;
+  height:4.2%;
+}
+
+/* Invisible reopen strip when panel is closed */
+#reopenPanel{
+  right:0;
+  top:11%;
+  width:2.3%;
+  height:80%;
+  display:none;
+}
+.prototype.panel-closed #reopenPanel{display:block}
+
+/* Request rows — transparent hit areas only */
+.row-hit{left:14.1%;width:62.2%;height:5.45%}
+.row-hit.r1{top:39.0%}
+.row-hit.r2{top:44.45%}
+.row-hit.r3{top:49.9%}
+.row-hit.r4{top:55.35%}
+.row-hit.r5{top:60.8%}
+.row-hit.r6{top:66.25%}
+.row-hit.r7{top:71.7%}
+.row-hit.r8{top:77.15%}
+.row-hit.r9{top:82.6%}
+.row-hit.r10{top:88.05%}
+
+@media(prefers-reduced-motion:reduce){
+  .main-view,.main-view img,.detail-panel{transition:none}
+}
+</style>
+</head>
+<body>
+<main class="prototype" id="prototype" aria-label="Chelth Staffing Requests locked reference">
+  <div class="main-view">
+    <img src="assets/chelth-staffing-requests-locked.png" alt="Chelth Staffing Requests dashboard">
+  </div>
+
+  <aside class="detail-panel" id="detailPanel" aria-label="Request Details panel">
+    <img src="assets/chelth-staffing-requests-locked.png" alt="">
+  </aside>
+
+  <button id="closePanel" class="hotspot" type="button" aria-label="Close request details"></button>
+  <button id="reopenPanel" class="hotspot" type="button" aria-label="Reopen request details"></button>
+
+  <button class="hotspot row-hit r1" type="button" aria-label="Open request details row 1"></button>
+  <button class="hotspot row-hit r2" type="button" aria-label="Open request details row 2"></button>
+  <button class="hotspot row-hit r3" type="button" aria-label="Open request details row 3"></button>
+  <button class="hotspot row-hit r4" type="button" aria-label="Open request details row 4"></button>
+  <button class="hotspot row-hit r5" type="button" aria-label="Open request details row 5"></button>
+  <button class="hotspot row-hit r6" type="button" aria-label="Open request details row 6"></button>
+  <button class="hotspot row-hit r7" type="button" aria-label="Open request details row 7"></button>
+  <button class="hotspot row-hit r8" type="button" aria-label="Open request details row 8"></button>
+  <button class="hotspot row-hit r9" type="button" aria-label="Open request details row 9"></button>
+  <button class="hotspot row-hit r10" type="button" aria-label="Open request details row 10"></button>
+</main>
+
+<script>
+(() => {
+  const root = document.getElementById('prototype');
+  const detailPanel = document.getElementById('detailPanel');
+
+  function openPanel(){
+    root.classList.remove('panel-closed');
+    detailPanel.setAttribute('aria-hidden','false');
+  }
+  function closePanel(){
+    root.classList.add('panel-closed');
+    detailPanel.setAttribute('aria-hidden','true');
+  }
+
+  document.getElementById('closePanel').addEventListener('click',closePanel);
+  document.getElementById('reopenPanel').addEventListener('click',openPanel);
+  document.querySelectorAll('.row-hit').forEach(el=>el.addEventListener('click',openPanel));
+  root.addEventListener('keydown',e=>{if(e.key==='Escape')closePanel()});
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,679 @@
+CHELTH — P0-E8-S0 VISUAL REFERENCE AUDIT + DERIVATION MAP
+Stage report · 2026-10-02 · branch p0-e8-visual-implementation (from ac5eb7d) · documentation only
+
+Companion file: docs/ui-reference/p08-e8/DERIVATION-MAP.md. The tables are in the map;
+this report summarises them and records how the audit was done.
+
+======================================================================
+1. EXECUTIVE SUMMARY
+======================================================================
+I inspected the whole approved library: 15 reference families, 95 files. Every Markdown
+spec was read, every HTML file was read (base64 payloads stripped where embedded), and
+all 17 images were viewed, including the 2 screenshots that exist only as data URIs
+inside index.html. No reference file was changed.
+
+The library is highly regular. 13 of the 15 families are desktop app screens that share
+one shell and, in 8 cases, one page skeleton. Nine canonical parents cover every current
+Chelth surface:
+
+  P1 App Shell
+  P2 Operations Overview
+  P3 Operational Workspace, with variants:
+       M  monitoring board
+       F  finance ledger
+       C  calendar
+  P4 Record Profile
+  P5 Details Drawer
+  P6 Settings
+  P7 Worker Mobile
+  P8 Marketing Hero
+  P9 Auth/system states (derived)
+
+All 44 current route files map to a parent. No current screen needs a new mockup.
+
+Only 2 genuine visual gaps exist; both are interaction models the library never shows:
+  G1  agency/facility workspaces on phones and tablets;
+  G2  workspace switching for accounts with several memberships.
+
+The audit also found 10 reference conflicts that need a product decision, not design
+(§F of the map). The most important:
+  - the Payroll reference shows payment states (Sent/Paid/Overdue/ACH) that P0-E7
+    forbids;
+  - finance references use a blue primary instead of brand teal;
+  - several sidebar items have no Chelth route (Reports, Notifications centre,
+    consolidated Settings, agency Credentials register, agency Staffing Requests);
+  - the top-bar global search and notifications bell have no backing feature.
+
+No product behaviour, route, component or schema was changed.
+
+======================================================================
+2. REFERENCE LIBRARY INVENTORY
+======================================================================
+Location: docs/ui-reference/p08-e8/canonical/. The folder name "p08-e8" (likely "p0-e8")
+was kept unchanged.
+
+The HTML files fall into three kinds:
+  - "hotspot" overlays: transparent buttons over a locked PNG. They document
+    interactions only; the PNG is the visual source of truth.
+  - "real markup": genuine HTML/CSS (Settings sections, the Hero page).
+  - "embedded": the screenshot exists only as a data URI inside index.html.
+
+For each family: files; screen and platform; key visual patterns; key interactions;
+related references.
+
+Chelth_Operations_Overview
+  Files: README, CLAUDE-IMPLEMENTATION, OPERATIONS-OVERVIEW-INTERACTIONS,
+         CHELTH-PRODUCT-TYPOGRAPHY, index.html (hotspots, 2 MB with the screenshot
+         embedded), assets/…-locked.png.
+  Screen: agency dashboard; desktop only.
+  Visual patterns: KPI cards with no sparklines; table panels; readiness donut;
+         expiration bar list; coverage chart.
+  Interactions: KPI → filtered workspace; rows → selected record; range select.
+  Related: shell for all; typography file used by all.
+
+Chelth Shifts Interactive
+  Files: README, LOCKED-DESIGN-SPEC, CLAUDE-IMPLEMENTATION, index.html (hotspots),
+         list + calendar PNGs.
+  Screen: Shifts list and calendar; desktop.
+  Visual patterns: filters; 4 KPI cards; List/Calendar toggle; dense table; week
+         grid; Shift Details drawer with Details/Notes/Activity tabs.
+  Interactions: view toggle; row/block → drawer; close → table expands; Escape.
+
+Chelth_Staffing_Requests_LOCKED_Claude
+  Files: README, LOCKED-DESIGN-SPEC, CLAUDE-IMPLEMENTATION, index.html (hotspots), PNG.
+  Screen: agency request queue; desktop.
+  Visual patterns: checkbox column; quantity and n/m progress; pagination; Request
+         Details drawer (coverage bar, requirements, assigned and suggested workers,
+         activity).
+  Interactions: row → drawer; Find Workers / Contact Facility / Edit Request.
+
+Chelth_Workforce
+  Files: README, LOCKED-DESIGN-SPEC, CLAUDE-IMPLEMENTATION, WORKFORCE-INTERACTIONS,
+         index.html (hotspots), PNG.
+  Screen: workforce directory; desktop.
+  Visual patterns: avatar rows; availability and credential chips; Professional
+         Details drawer with 4 tabs.
+  Interactions: KPI filters; 6 filters; tabs; Add Professional / Assign / Message /
+         View Credentials.
+
+Chelth_Worker_Profile
+  Files: README, LOCKED-DESIGN-SPEC, CLAUDE-IMPLEMENTATION,
+         WORKER-PROFILE-INTERACTIONS, index.html (hotspots), PNG.
+  Screen: full-page worker record; desktop; the mobile behaviour is described in text
+         only.
+  Visual patterns: breadcrumb; identity header; summary band; availability chips;
+         8 tabs; KPI row; card grid.
+  Interactions: tab switching; Edit per card; deep links that keep the worker
+         context.
+
+Chelth_Credentials
+  Files: README, LOCKED-DESIGN-SPEC, CLAUDE-IMPLEMENTATION, CREDENTIALS-INTERACTIONS,
+         CREDENTIALS-DATA-RULES, index.html (embedded screenshot, 4 MB).
+  Screen: agency credential register; desktop.
+  Visual patterns: P3 skeleton; Credential Details drawer (document, verification,
+         expiration timeline).
+  Interactions: KPI filters; Review Credential / Request Update / View Professional.
+
+Chelth_Facilities
+  Files: README, LOCKED-DESIGN-SPEC, CLAUDE-IMPLEMENTATION, FACILITIES-INTERACTIONS,
+         index.html (hotspots), PNG.
+  Screen: facility hub; desktop.
+  Visual patterns: thumbnail rows; Facility Details drawer with 4 tabs and stat tiles.
+  Interactions: Create Request / View Shifts / Message Facility.
+
+Chelth_Notifications
+  Files: README, LOCKED-DESIGN-SPEC, CLAUDE-IMPLEMENTATION, NOTIFICATIONS-INTERACTIONS,
+         NOTIFICATIONS-DATA-RULES, index.html (embedded screenshot, 4 MB).
+  Screen: attention centre; desktop.
+  Visual patterns: P3 plus a view-tab strip with counts and a bulk "Mark all as
+         read"; Activity Details drawer.
+  Interactions: tabs; read/archive kept separate from resolution.
+
+Chelth_Attendance
+  Files: README, LOCKED-DESIGN-SPEC, CLAUDE-IMPLEMENTATION, ATTENDANCE-INTERACTIONS,
+         ATTENDANCE-GEOFENCE-INTEGRATION, index.html (hotspots), PNG.
+  Screen: attendance board (P3-M); desktop.
+  Visual patterns: table plus exceptions, verification donut and activity panels;
+         drawer with map evidence and a 2×2 action grid.
+  Interactions: Approve Override / Message / View Shift / Mark Resolved; date and
+         status filters.
+
+Chelth_Rates_Pricing
+  Files: README, LOCKED-DESIGN-SPEC, CLAUDE-IMPLEMENTATION, RATES-PRICING-INTERACTIONS,
+         RATES-PRICING-DATA-RULES, index.html (hotspots), PNG.
+  Screen: rate cards (P3-F); desktop.
+  Visual patterns: labelled filters; Export plus primary action; pricing activity
+         ledger; Rate Details drawer with usage and audit history.
+  Interactions: Edit / Duplicate / Deactivate / View Related Shifts.
+  Note: blue primary (F3).
+
+Chelth_Payroll_Invoices
+  Files: README, LOCKED-DESIGN-SPEC, CLAUDE-IMPLEMENTATION,
+         PAYROLL-INVOICES-INTERACTIONS, PAYROLL-INVOICES-DATA-RULES, index.html
+         (hotspots), PNG.
+  Screen: payroll mode only (P3-F); desktop.
+  Visual patterns: Payroll|Invoices toggle; worker-row payroll run; billing activity
+         ledger; Payroll Details drawer.
+  Interactions: Approve / Review / View Timesheets / View Rate / Process / Export.
+  Note: payment states and a blue primary (F1–F3).
+
+Chelth_Settings
+  Files: README, LOCKED-DESIGN-SPEC, CLAUDE-IMPLEMENTATION, SETTINGS-INTERACTIONS,
+         SETTINGS-SECTIONS, SETTINGS-DATA-RULES, index.html (real markup for 9
+         sections plus the embedded Organization screenshot), PNG.
+  Screen: settings (P6); desktop.
+  Visual patterns: secondary vertical navigation; form-grid cards; toggle rows;
+         member and session tables; danger zone.
+  Interactions: section switching; save/cancel; dirty state.
+  Note: hard-coded approximate palette (F4).
+
+Chelth_Worker mobile Flow
+  Files: README, LOCKED-DESIGN-SPEC, CLAUDE-IMPLEMENTATION,
+         WORKER-MOBILE-INTERACTIONS, ATTENDANCE-GEOFENCE-FLOW, index.html (hotspots),
+         4-phone PNG.
+  Screens: My Shifts, Shift Details, Check-In/Out, Timesheet Handoff; mobile.
+  Visual patterns: header; segmented tabs; shift cards; bottom navigation; sticky
+         CTA; verification steps; prefilled form.
+  Interactions: geofence states (permission, weak GPS, outside, override).
+
+Chelth_Hero
+  Files: README, CLAUDE-IMPLEMENTATION-PROMPT.txt, index.html (real markup, 14 MB
+         with embedded slides), 4 slide PNGs, logo SVG.
+  Screen: public homepage hero; desktop and mobile rules.
+  Visual patterns: locked mint-wave background; borderless slideshow; signal cards;
+         explainer; capability strip.
+  Note: the logo SVG is byte-identical (sha1 aa3f01f…) to
+        public/brand/chelth/logo-primary.svg.
+
+Hero slides 01–04 are marketing composites. Slides 01, 03 and 04 contain an earlier
+dashboard variant with trend deltas and sparklines and different nav labels. They are
+not app references.
+
+======================================================================
+3. CURRENT ROUTE INVENTORY
+======================================================================
+44 route files under src/app.
+
+Authenticated organisation routes (35 pages), under /app/organisations/[id]:
+  - hub
+  - operations
+  - shifts, shifts/[shiftId]
+  - staffing-requests, staffing-requests/[shiftId]
+  - attendance, attendance/[attendanceId], attendance/[attendanceId]/evidence
+  - timesheets, timesheets/[timesheetId]
+  - workforce, workforce/[workerId], workforce/[workerId]/credentials/[credentialId]
+  - compliance
+  - facilities, facilities/[facilityId]
+  - rates
+  - pricing, pricing/[pricedTimesheetId]
+  - payroll, payroll/[batchId], payroll/adjustments/[adjustmentId]
+  - invoices, invoices/[draftId], invoices/adjustments/[adjustmentId]
+  - my-shifts
+  - my-credentials, my-credentials/[credentialId]
+
+Account routes:
+  /app (organisation chooser), /app/account, /app/security, /app/security/verify
+
+Public and system routes:
+  - auth: /, /sign-in, /sign-up, /forgot-password, /reset-password, /invite,
+    /auth/error
+  - route handlers: /auth/confirm, /invite/[token], /app/exports/[id]/download,
+    /api/health, /api/internal/notifications/dispatch
+  - system states: not-found, error, global-error
+  - internal: /(internal)/design-system
+
+Gates come from code:
+  - requireCapabilityOrNotFound plus organisation.type checks;
+  - worker pages are keyed on the user's own worker record.
+
+Current shell: a top header (Shift Mark, then Organisations / Security / Account / Sign
+out), a max-w-6xl PageContainer, and organisation section links rendered as buttons on
+the hub. There is no sidebar.
+
+The audit did not find, and did not invent, any of these routes:
+  - an agency Staffing Requests queue (facility requests are shifts with source =
+    facility);
+  - an agency-wide Credentials register;
+  - an in-app Notifications centre;
+  - Reports;
+  - a consolidated Settings page;
+  - a dashboard (the hub is the organisation landing).
+
+======================================================================
+4. CANONICAL VISUAL PARENTS
+======================================================================
+Full fields per parent are in DERIVATION-MAP §A.
+
+  P1  App Shell: dark-teal sidebar, top bar (search, bell, user), off-white canvas.
+  P2  Operations Overview: KPI cards plus a grid of table and chart panels.
+  P3  Operational Workspace: KPI quick-filters, filter bar, dense table, pagination
+      and a collapsible right drawer. Shared by 8 references.
+        M  monitoring board (Attendance)
+        F  finance ledger (Rates, Payroll): labelled filters, export, activity
+           ledger, mode toggle
+        C  calendar (Shifts)
+  P4  Record Profile (Worker Profile): breadcrumb, identity header with actions,
+      summary band, tabs, card grid. Also the parent for document records.
+  P5  Details Drawer: the most reused component; the parent of the mobile sheet.
+  P6  Settings: secondary navigation, form cards, toggle rows, save bar, danger zone.
+  P7  Worker Mobile: 4-step connected flow, bottom navigation, sticky CTA.
+  P8  Marketing Hero: the public landing; its canvas and logo also serve auth.
+  P9  Auth and system states: derived from P8 and P6; no dedicated reference.
+
+======================================================================
+5. AGENCY WORKSPACE MAPPING
+======================================================================
+Overview / hub → P2. Admin parts (members, invites, roles, audit, partners) → P6.
+
+Operations queue → P3 (Notifications tabs).
+
+Shifts → P3, with P3-C if a calendar is built from existing data.
+  Shift detail → P5 drawer summary plus a P4 record. The full record keeps
+  assignments, eligibility decisions, offers, attendance, notes and cancel/complete.
+
+Staffing requests (agency): reference without a route. It derives from Shifts filtered
+to source = facility; a new route needs approval (F6, F7).
+
+Attendance → P3-M. Record → P5/P4. Evidence (privileged, AAL2) → P4.
+
+Timesheets → P3, with the detail page → P4.
+
+Workforce → P3. Worker record → P4, the exact reference.
+
+Credential review → P5 Credential Details content on a P4 page.
+
+Compliance requirements → P6.
+
+Facilities → P3. Facility detail → P4, with P6 cards for locations, geofence and
+requirements.
+
+Rates and Pricing → P3-F. Priced timesheet → P4.
+
+Payroll and Invoices → P3-F, with mode toggle semantics. Batch, draft and adjustment
+records → P4 (F1, F2).
+
+======================================================================
+6. FACILITY WORKSPACE MAPPING
+======================================================================
+There is one facility shell (P1 with facility nav). Admin, Scheduler and Supervisor
+differ only by capability.
+
+  Facility hub/overview → P2 (facility-scoped panels) + P6 Team (admin only).
+
+  Staffing requests → P3 Staffing Requests, as the facility sees it:
+    - "New Request" = submit, for admin and scheduler (shift.request);
+    - the supervisor can only view.
+  Request detail → P5 Request Details drawer anatomy + P3-M attendance rows, using the
+  facility-safe worker projection.
+
+  Timesheet sign-off → P3 + P3-M action grid. Admin and supervisor only
+  (timesheet.facility_signoff).
+
+  Attendance visibility → P3-M rows inside the request detail. No coordinates are ever
+  shown to facilities.
+
+  Supervisor experience = the facility shell with Overview, Staffing Requests (view)
+  and Timesheets sign-off. No request creation, no member admin.
+
+======================================================================
+7. WORKER EXPERIENCE MAPPING
+======================================================================
+P7 for every worker surface. On desktop it renders as a centred mobile-width column;
+there is no separate desktop worker shell.
+
+  My Shifts → screens 1–3:
+    - offers accept/decline = a ShiftCard with two actions;
+    - breaks = extra states on screen 3 (the reference marks breaks "optional future",
+      but the product already has them);
+    - correction requests = a form screen in screen-4 language.
+
+  My timesheets → screen 4 per entry, plus weekly list rows.
+
+  My credentials → P7 list + form + the P6 file-upload row:
+    - evidence upload;
+    - scan states;
+    - agency sharing.
+
+  Bottom nav: Home/My Shifts · Timesheets · Credentials · More (account, security,
+  switch workspace).
+
+======================================================================
+8. FINANCE MAPPING
+======================================================================
+Family P3-F (Rates + Pricing, Payroll + Invoices) for lists, and P4 for document
+records (batch, draft, adjustments, priced timesheet).
+
+Required substitutions (§F):
+
+  F1  Never show Sent/Paid/Overdue/ACH/Outstanding.
+      Use Draft · Reviewed · Approved · Locked · Exported · Voided, plus supported
+      KPIs.
+
+  F2  Rows are batches and drafts, not workers.
+      Worker totals and lines live in the P4 record.
+      "Process Payroll" means "Prepare batch"; it is not money movement.
+
+  F3  The primary colour stays brand teal, not the reference blue.
+
+Everything P0-E7 added must survive:
+  - adjustments and their signed deltas;
+  - reconciliation;
+  - checksummed exports and audited downloads;
+  - maker/checker;
+  - step-up notices.
+
+======================================================================
+9. AUTH / SYSTEM-STATE MAPPING
+======================================================================
+Auth (sign-in, sign-up, forgot and reset password, invite, auth error) → P9:
+  - a centred P6 card on the P8 brand canvas;
+  - the canonical logo-primary;
+  - FormField controls;
+  - teal primary;
+  - 44 px targets.
+
+/app/security (MFA enrolment) and step-up verify → P6 Security card and a P9 card.
+
+Loading, empty, error, not-found and access-denied render inside P1 using a card with
+an icon tile, a title, one sentence and one action. They reuse ErrorState and
+LoadingState.
+
+No mockups are required. An optional design review is suggested for the auth
+composition.
+
+======================================================================
+10. SCREENS THAT NEED NO NEW MOCKUP
+======================================================================
+Every current screen. Per-screen derivations, role differences and the functional
+elements to preserve are in DERIVATION-MAP §C.
+
+Reuse is aggressive:
+  - facility screens derive from agency parents;
+  - supervisor views = the facility shell;
+  - credential review = the Credentials drawer;
+  - timesheets = P3 + P4;
+  - finance = P3-F + P4;
+  - every worker variant = P7.
+
+======================================================================
+11. GENUINE VISUAL GAPS
+======================================================================
+G1  Agency and facility workspaces on phones and tablets.
+    Why: all 13 desktop references are desktop-only, and the specs defer to a
+      "responsive app-shell pattern" that does not exist.
+    Minimum design needed:
+      - one mobile frame of a P3 screen: navigation, stacked rows, full-height
+        details sheet;
+      - a tablet rule: drawer as overlay or side-by-side.
+
+G2  Workspace switching and multi-membership.
+    Why: Chelth accounts can hold agency, facility and worker memberships at once;
+      the references show one workspace and one role.
+    Minimum design needed:
+      - the user-menu/switcher frame;
+      - the /app chooser;
+      - how a staff-and-worker user moves between P1 and P7.
+
+Decided derivations, not gaps (optional review): auth (P9), document records (P4),
+facility overview (P2), worker offers/breaks/corrections/credentials (P7).
+
+======================================================================
+12. SHARED COMPONENT CONSOLIDATION PLAN
+======================================================================
+Usage counts were measured in src. Each entry gives the proposed canonical role, its
+reference parent, the change needed, and the risk.
+
+  AppShell (new): wraps app/layout.tsx.
+    Parent P1. Replaces the top-header shell for organisation routes.
+    Risk: MEDIUM — every page re-renders inside it; E2E selectors for header links.
+
+  WorkspaceSidebar + SidebarNavItem (from OrganisationSections, 1 file).
+    Parent P1. Capability-filtered nav built from the same props the hub computes
+    today.
+    Risk: LOW–MEDIUM.
+
+  WorkspaceHeader (from the app/layout header).
+    Parent P1. User menu, workspace switcher (G2), no fake search or bell (F10).
+    Risk: LOW.
+
+  PageContainer (6 files).
+    Becomes the content-region wrapper inside the shell. Widen beyond max-w-6xl when
+    a drawer is present.
+    Risk: LOW.
+
+  PageHeader (new; today an inline header in about 30 pages).
+    Parent P1–P3. Title, supporting copy, primary action, back/breadcrumb slot.
+    Risk: LOW.
+
+  KpiFilterCard (new).
+    Parent P2/P3. Link or filter button, with no charts.
+    Risk: LOW.
+
+  FilterBar / FilterSelect / SearchField (from native Select, 21 files).
+    Parent P3. A styled wrapper over the native select; keep native semantics.
+    Risk: LOW.
+
+  DataTable + DataTableRegion (new; 29 hand-written tables).
+    Parent P3. A `relative` region with an aria-label, selectable rows and pagination.
+    Fixes the overflow (§13).
+    Risk: MEDIUM — table-specific E2E selectors use role/name, so keep accessible
+    names.
+
+  StatusChip (Badge, 32 files).
+    Parent all. Add a leading dot or icon variant and status tints aligned to tokens
+    (F4).
+    Risk: LOW — the text stays the source of meaning.
+
+  AttentionBadge (8 files).
+    Parent P3. Becomes a StatusChip preset.
+    Risk: LOW.
+
+  DetailDrawer (new).
+    Parent P5. Right column on desktop (Escape, focus return); full-height sheet on
+    mobile (G1); deep-link pages remain.
+    Risk: MEDIUM — a new interaction; must not replace detail routes.
+
+  SectionTabs / PageTabs (from the pricing aria-current tabs).
+    Parent P3/P4. Accessible tabs or link-tabs.
+    Risk: LOW.
+
+  ActionMenu (new).
+    Parent P3/P4. Row kebab and "More". Needs a headless menu primitive vetted for CSP
+    (DESIGN_SYSTEM).
+    Risk: MEDIUM (CSP).
+
+  ActivityTimeline (from HistoryList, 4 files).
+    Parent P3–P5. Generalise to coloured-dot entries.
+    Risk: LOW.
+
+  KeyValueList (new; dl patterns in about 15 pages).
+    Parent P4/P5.
+    Risk: LOW.
+
+  EmptyState (new) and LoadingState / ErrorState (1 and 5 files).
+    Parent P9. Icon tile, title, sentence, action.
+    Risk: LOW.
+
+  MobileShell / BottomNav / StickyCta / SegmentedControl (new).
+    Parent P7. Worker routes only.
+    Risk: MEDIUM.
+
+  StepUpNotice (17 files), InlineActionForm (19), FormField (32), SubmitButton (38),
+  FormAlert (39), Button, Dialog, Card.
+    Keep as is and restyle through tokens only. They carry behaviour (AAL2, a11y) that
+    must not change.
+
+No second design system is introduced. All new primitives go in src/components/ui or
+src/components/layout and consume the existing tokens.
+
+======================================================================
+13. RESPONSIVE / MOBILE FINDINGS
+======================================================================
+22 table regions share one hand-written class string:
+  - 8 financial regions are `relative` (fixed in P0-E7-S3);
+  - 14 are not, in 12 files: attendance (×3 pages), timesheets (page + entries-table),
+    shifts/[id], staffing-requests/[id], workforce, rates, pricing (×2), the
+    organisation hub.
+
+Code inspection shows the escaping `sr-only` header — the cause of the measured 817 px
+page width in S3 — only on rates and pricing. The S3 report's list (attendance,
+timesheets, pricing, rates, shifts, workforce) was based on pattern similarity, not
+measurement. This report corrects that: the pattern is unsafe everywhere, but the
+confirmed escape is on two pages.
+
+Recommended single fix (S2):
+  - a DataTableRegion primitive (`relative overflow-x-auto`, role=region, tabIndex=0,
+    required aria-label) adopted by all 22 regions;
+  - a Playwright guard asserting documentElement.scrollWidth <= clientWidth at 412 px
+    on every table route.
+
+Other responsive observations:
+  - inputs must stay 16 px on touch (F5);
+  - the worker flow is mobile-first by design (P7);
+  - desktop-shell mobile behaviour is G1.
+
+======================================================================
+14. KNOWN FUNCTIONAL ELEMENTS MISSING FROM MOCKUPS
+======================================================================
+The full list is DERIVATION-MAP §D. Summary:
+  - AAL2 step-up;
+  - shift lifecycle, sources, classification, eligibility decisions and offers;
+  - attendance corrections, adjustments, breaks, evidence holds and privileged
+    evidence;
+  - timesheet revisions, expected-revision approval, reopen, facility sign-off and
+    disputes;
+  - credential versions, scan states, audited access, sharing and effective-dated
+    requirements;
+  - the pricing queue and snapshots;
+  - finance batches, drafts, adjustments, reconciliation, checksummed exports,
+    maker/checker and settings;
+  - partner relationships and suspension impact;
+  - members, invites and audit;
+  - multi-membership.
+
+Reference features with no Chelth equivalent must not be faked (§F):
+  - ratings, skills, availability, messaging;
+  - global search;
+  - in-app notifications;
+  - Reports;
+  - payment states;
+  - "Awaiting Facility".
+
+======================================================================
+15. RECOMMENDED IMPLEMENTATION ORDER
+======================================================================
+Prerequisite decisions (approval, no code): F1–F10 and gaps G1/G2. The minimum new
+design for G1 and G2 should be ready before S1 finishes its mobile and switcher parts.
+
+  S1  Shared App Shell + Navigation (P1): desktop shell, capability nav for agency and
+      facility, header and user menu, interim mobile behaviour per the G1 decision.
+  S2  Shared Operational UI Primitives (P3/P5/P9): PageHeader, KPI card, FilterBar,
+      DataTable + DataTableRegion (overflow fix), StatusChip tints, DetailDrawer,
+      tabs, KeyValueList, ActivityTimeline, Empty/Loading/Error.
+  S3  Agency Operational Surfaces: Shifts, Workforce + Worker record (P4), Facilities,
+      Credentials/compliance, Attendance (P3-M), Timesheets, Operations queue,
+      Overview (P2).
+  S4  Facility Surfaces: staffing requests, request detail, timesheet sign-off, facility
+      overview. Pure reuse of S2/S3.
+  S5  Worker Mobile Experience (P7): My Shifts, attendance and breaks, corrections,
+      timesheets, credentials, bottom nav.
+  S6  Finance Surfaces (P3-F + P4) with the F1–F3 substitutions.
+  S7  Settings (P6) consolidation of administrative surfaces. This creates a route over
+      existing actions and needs approval (F6).
+  S8  Auth + System States (P9) and Marketing Hero (P8, its own locked package).
+  S9  Responsive / Accessibility Consistency Sweep: axe on every route, overflow guard,
+      reduced motion, focus order.
+
+Rationale: shell and primitives first, so every later stage is composition only.
+Facility follows agency because it reuses the same parents. Finance comes late because
+it depends on the most primitives and has the most substitutions.
+
+======================================================================
+16. PROPOSED S1 SCOPE (for approval)
+======================================================================
+P0-E8-S1 — Shared App Shell + Navigation
+
+In scope:
+  1. Promote CHELTH-PRODUCT-TYPOGRAPHY.md into docs/brand/ (F5) and add the missing
+     shell tokens to the token layer (sidebar gradient, canvas tint) after a
+     side-by-side check against the references. brand.css stays authoritative (F4).
+  2. AppShell for /app/organisations/[id]/** :
+       - WorkspaceSidebar with the canonical logo-reverse;
+       - capability-filtered nav for the agency and facility workspaces (§G of the
+         map). Items only for existing routes; no Reports, no Notifications centre
+         (F6).
+  3. WorkspaceHeader: user block (name, role, menu with Account, Security, Sign out)
+     and the workspace switcher per the approved G2 frame. No search field, no unread
+     bell (F10).
+  4. PageContainer adapted to the shell content region. Every existing page renders
+     unchanged inside it.
+  5. Interim narrow-viewport behaviour per the G1 decision (for example a menu button
+     opening the nav as an overlay). Pages themselves are not restyled.
+  6. Worker routes: unchanged in S1; they get P7 in S5.
+  7. Tests: E2E for nav visibility per role (admin, scheduler, finance, facility admin,
+     supervisor, worker); axe on the shell; mobile overflow guard on the shell.
+
+Out of scope:
+  - page restyling;
+  - new routes (Settings, agency Staffing Requests, Credentials register);
+  - search;
+  - notifications;
+  - any backend, schema, RLS, capability or action change.
+
+Decisions needed before S1:
+  - G1 interim mobile shell behaviour;
+  - G2 switcher placement;
+  - F3 (teal) and F10 (no search or bell), confirmed;
+  - whether the organisation hub becomes "Overview" now (P2 content in S3) or keeps its
+    current content inside the shell until S3.
+
+======================================================================
+17. FILES CHANGED
+======================================================================
+New:
+  docs/ui-reference/p08-e8/DERIVATION-MAP.md
+  docs/reports/P0-E8-S0-visual-reference-audit.txt
+
+Modified (tooling, one line):
+  .prettierignore
+    Adds `docs/ui-reference/p08-e8/canonical`.
+
+    Why: `npm run format:check` already failed at clean HEAD ac5eb7d, with 65 files,
+    all of them locked reference files committed with the library. Reformatting them
+    would change approved references, which this stage forbids.
+
+    The change follows the existing precedent for the locked brand sources
+    (`docs/brand`, `public/brand`, `src/styles/brand.css`, "kept byte-for-byte as
+    approved").
+
+    No reference file, application source, migration or test was changed. Revert the
+    line if a different policy is preferred.
+
+Read-only inspection performed:
+  - git;
+  - file reads;
+  - one read-only SELECT of public.role_capabilities on the local database.
+
+======================================================================
+18. GIT STATUS
+======================================================================
+Branch p0-e8-visual-implementation at ac5eb7d ("docs: add approved Chelth UI reference
+library").
+
+Working tree after S0:
+   M .prettierignore
+  ?? docs/reports/P0-E8-S0-visual-reference-audit.txt
+  ?? docs/ui-reference/p08-e8/DERIVATION-MAP.md
+
+Nothing was committed or pushed. The reference files are unchanged (empty diff under
+docs/ui-reference/p08-e8/canonical).
+
+Validation:
+  git status            clean apart from the three files above
+  npm run format:check  PASS ("All matched files use Prettier code style!"). Before the
+                        .prettierignore line it failed at clean HEAD (65 locked
+                        reference files).
+  npm run lint          PASS (eslint --max-warnings=0)
+
+No application code changed, so database migrations and tests were not run, per the
+S0 instruction.
