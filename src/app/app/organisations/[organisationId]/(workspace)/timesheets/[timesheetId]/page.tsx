@@ -217,7 +217,7 @@ export default async function TimesheetPage({
               return (
                 <li
                   key={entry.id}
-                  className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-4 text-sm"
+                  className="flex flex-col gap-2 rounded-md bg-surface-muted p-4 text-sm"
                 >
                   <p>
                     <span className="font-medium">

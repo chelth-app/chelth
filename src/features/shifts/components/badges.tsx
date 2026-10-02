@@ -48,7 +48,7 @@ export function FillBadge({
   requestedHeadcount: number;
 }) {
   return (
-    <StatusChip tone={FILL_TONE[fillState]}>
+    <StatusChip tone={FILL_TONE[fillState]} className="whitespace-nowrap">
       {FILL_STATE_LABELS[fillState]} · {activeCount} of {requestedHeadcount}
     </StatusChip>
   );

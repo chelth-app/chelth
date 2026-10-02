@@ -289,7 +289,7 @@ export default async function WorkerPage({
               The worker has not shared any credentials with this agency.
             </p>
           ) : (
-            <ul className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface text-sm">
+            <ul className="flex flex-col divide-y divide-border border-y border-border text-sm">
               {credentials.map((credential) => (
                 <li
                   key={credential.credentialId}
@@ -329,7 +329,7 @@ export default async function WorkerPage({
             A linked facility sees only readiness and reasons for workers you share with it — never
             documents, numbers or notes.
           </p>
-          <ul className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface text-sm">
+          <ul className="flex flex-col divide-y divide-border border-y border-border text-sm">
             {relationships.map((relationship) => {
               const share = complianceShares.find(
                 (item) => item.relationshipId === relationship.relationshipId,
@@ -375,7 +375,7 @@ export default async function WorkerPage({
           {notes.length === 0 ? (
             <p className="text-sm text-muted-foreground">No notes.</p>
           ) : (
-            <ul className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface text-sm">
+            <ul className="flex flex-col divide-y divide-border border-y border-border text-sm">
               {notes.map((note) => (
                 <li key={note.id} className="flex flex-col gap-1 p-3">
                   <p className="whitespace-pre-wrap">{note.body}</p>

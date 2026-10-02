@@ -193,7 +193,7 @@ export default async function OrganisationPage({
 
       {myWorkerRecord ? (
         <Panel titleId="my-worker-heading" title={<>My worker record</>}>
-          <dl className="grid max-w-md grid-cols-[auto_1fr] gap-x-6 gap-y-2 rounded-lg border border-border bg-surface p-4 text-sm">
+          <dl className="grid max-w-md grid-cols-[auto_1fr] gap-x-6 gap-y-2 rounded-md bg-surface-muted p-4 text-sm">
             <dt className="text-muted-foreground">Status</dt>
             <dd>
               <WorkerStatusBadge status={myWorkerRecord.status} />
@@ -206,7 +206,7 @@ export default async function OrganisationPage({
 
       {partnerRelationships.length > 0 ? (
         <Panel titleId="partners-heading" title={<>Agency relationships</>}>
-          <ul className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface text-sm">
+          <ul className="flex flex-col divide-y divide-border border-y border-border text-sm">
             {partnerRelationships.map((relationship) => (
               <li
                 key={relationship.relationshipId}
@@ -223,7 +223,7 @@ export default async function OrganisationPage({
               {workers.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No workers shared yet.</p>
               ) : (
-                <ul className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface text-sm">
+                <ul className="flex flex-col divide-y divide-border border-y border-border text-sm">
                   {workers.map((sharedWorker) => (
                     <li key={sharedWorker.workerId} className="flex flex-col gap-2 p-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -369,7 +369,7 @@ export default async function OrganisationPage({
         <Panel titleId="invites-heading" title={<>Invitations</>}>
           <InviteMemberForm organisationId={organisationId} roles={grantableRoles} />
           {invites.length > 0 ? (
-            <ul className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface">
+            <ul className="flex flex-col divide-y divide-border border-y border-border">
               {invites.map((invite) => (
                 <li
                   key={invite.id}

@@ -122,10 +122,7 @@ export default async function OperationsPage({
           ) : (
             <ul aria-label="Assignments needing attention" className="flex flex-col gap-3">
               {issues.map((issue) => (
-                <li
-                  key={issue.id}
-                  className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-4"
-                >
+                <li key={issue.id} className="flex flex-col gap-2 rounded-md bg-surface-muted p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <Link
                       href={shiftLink(issue.shiftId)}
@@ -184,7 +181,7 @@ export default async function OperationsPage({
             {affected.map((shift) => (
               <li
                 key={shift.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface p-3 text-sm"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-surface-muted p-3 text-sm"
               >
                 <Link
                   href={shiftLink(shift.id)}
@@ -217,7 +214,7 @@ export default async function OperationsPage({
             {deliveries.map((delivery) => (
               <li
                 key={delivery.id}
-                className="flex flex-col gap-1 rounded-lg border border-border bg-surface p-3 text-sm"
+                className="flex flex-col gap-1 rounded-md bg-surface-muted p-3 text-sm"
               >
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">

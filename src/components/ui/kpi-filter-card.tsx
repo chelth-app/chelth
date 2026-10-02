@@ -40,13 +40,13 @@ export function KpiFilterCard({
       {icon ? (
         <span
           aria-hidden="true"
-          className="inline-flex size-10 shrink-0 items-center justify-center rounded-md bg-chelth-mint-mist text-chelth-teal-dark"
+          className="hidden size-10 shrink-0 items-center justify-center rounded-md bg-chelth-mint-mist text-chelth-teal-dark sm:inline-flex"
         >
           {icon}
         </span>
       ) : null}
       <span className="flex min-w-0 flex-col">
-        <span className="font-display text-[1.625rem] leading-[1.875rem] font-semibold text-chelth-navy tabular-nums">
+        <span className="font-display text-[1.375rem] leading-7 font-semibold text-chelth-navy tabular-nums sm:text-[1.625rem] sm:leading-[1.875rem]">
           {value}
         </span>
         <span className="text-sm font-medium text-foreground">{label}</span>
@@ -56,8 +56,8 @@ export function KpiFilterCard({
     </>
   );
   const classes = cn(
-    "flex min-h-11 items-start gap-3 rounded-lg border bg-surface p-4 shadow-card",
-    active ? "border-2 border-primary p-[15px]" : "border-border",
+    "flex min-h-11 min-w-0 items-start gap-3 rounded-lg border bg-surface p-3 break-words shadow-card sm:p-4",
+    active ? "border-2 border-primary p-[11px] sm:p-[15px]" : "border-border",
     href && "transition-colors hover:border-primary/60 hover:bg-surface-muted/50",
     className,
   );
@@ -69,7 +69,10 @@ export function KpiFilterCard({
   );
 }
 
-/** Responsive row of KPI cards: 1 column on phones, 2 on tablets, up to 4. */
+/**
+ * Responsive row of KPI cards: 2 compact columns on phones (icon tile hidden,
+ * tighter padding), 2 on tablets, 4 from xl.
+ */
 export function KpiFilterGroup({
   label,
   children,
@@ -81,10 +84,7 @@ export function KpiFilterGroup({
   className?: string;
 }) {
   return (
-    <section
-      aria-label={label}
-      className={cn("grid gap-3 sm:grid-cols-2 xl:grid-cols-4", className)}
-    >
+    <section aria-label={label} className={cn("grid grid-cols-2 gap-3 xl:grid-cols-4", className)}>
       {children}
     </section>
   );

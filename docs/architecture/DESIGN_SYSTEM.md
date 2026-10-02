@@ -174,20 +174,20 @@ Shell tokens (`globals.css`, derived only from `brand.css`):
 
 Compose pages from these; keep cell content page-specific.
 
-| Component                                       | Notes                                                                                                                                                                  |
-| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PageHeader`                                    | one `h1` (Manrope 600, 32/40, -0.03em; 28/36 on phones), supporting copy (Inter 16/24), `back`, `meta`, `primaryAction`, `secondaryActions` slots                      |
-| `KpiFilterCard`, `KpiFilterGroup`               | real counts only (no charts, sparklines or deltas); link or static; active = `aria-current="true"` + visible "Showing" + heavier border                                |
-| `FilterBar`, `FilterField`, `FilterSelect`      | named native GET form, labels above controls, submit + optional clear link + actions; wraps on phones; no global search                                                |
-| `DataTableRegion`                               | THE scroll container for wide tables: `relative overflow-x-auto`, `role="region"`, required name, `tabIndex=0`. A unit test fails if bypassed                          |
-| `DataTable` (+`Head`/`HeaderCell`/`Row`/`Cell`) | density, header, hover, `selected` (`aria-selected` + Mint Mist), `numeric` cells                                                                                      |
-| `DataTablePagination`                           | cursor pagination as a named `nav`; 44 px links                                                                                                                        |
-| `StatusChip`                                    | soft chip + decorative dot; six semantic tones; the text carries the meaning. Domain status badges render through it                                                   |
-| `SectionTabs`                                   | route tabs: a named `nav` of links with `aria-current="page"` (never ARIA tabs for navigation); scrolls inside itself on phones                                        |
-| `DetailDrawer`, `DetailDrawerTrigger`           | P5: native modal `<dialog>` — right panel on desktop (sm/md/lg widths), full-screen sheet on phones; Escape, focus trap, focus return. Never replaces the record route |
-| `KeyValueList`                                  | `dl` of label/value pairs; stacks on phones                                                                                                                            |
-| `ActivityTimeline`                              | ordered list with semantic dots                                                                                                                                        |
-| `EmptyState`, `ErrorState`, `LoadingState`      | P9: icon tile, title, one sentence, one action; Error keeps `role="alert"` + reference, Loading keeps `role="status"`                                                  |
+| Component                                       | Notes                                                                                                                                                                                              |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PageHeader`                                    | one `h1` (Manrope 600, 32/40, -0.03em; 28/36 on phones), supporting copy (Inter 16/24), `back`, `meta`, `primaryAction`, `secondaryActions` slots                                                  |
+| `KpiFilterCard`, `KpiFilterGroup`               | real counts only (no charts, sparklines or deltas); 2 compact columns on phones (icon tile hidden), 4 from xl; link or static; active = `aria-current="true"` + visible "Showing" + heavier border |
+| `FilterBar`, `FilterField`, `FilterSelect`      | named native GET form, labels above controls, submit + optional clear link + actions; wraps on phones; no global search                                                                            |
+| `DataTableRegion`                               | THE scroll container for wide tables: `relative overflow-x-auto`, `role="region"`, required name, `tabIndex=0`. A unit test fails if bypassed                                                      |
+| `DataTable` (+`Head`/`HeaderCell`/`Row`/`Cell`) | density, header, hover, `selected` (`aria-selected` + Mint Mist), `numeric` cells                                                                                                                  |
+| `DataTablePagination`                           | cursor pagination as a named `nav`; 44 px links                                                                                                                                                    |
+| `StatusChip`                                    | soft chip + decorative dot; six semantic tones; the text carries the meaning. Domain status badges render through it                                                                               |
+| `SectionTabs`                                   | route tabs: a named `nav` of links with `aria-current="page"` (never ARIA tabs for navigation); scrolls inside itself on phones                                                                    |
+| `DetailDrawer`, `DetailDrawerTrigger`           | P5: native modal `<dialog>` — right panel on desktop (sm/md/lg widths), full-screen sheet on phones; Escape, focus trap, focus return. Never replaces the record route                             |
+| `KeyValueList`                                  | `dl` of label/value pairs; stacks on phones                                                                                                                                                        |
+| `ActivityTimeline`                              | ordered list with semantic dots                                                                                                                                                                    |
+| `EmptyState`, `ErrorState`, `LoadingState`      | P9: icon tile, title, one sentence, one action; Error keeps `role="alert"` + reference, Loading keeps `role="status"`                                                                              |
 
 `Panel` / `PanelLink` (P0-E8-S3): titled card (P2 dashboard panel, P4 record
 section) — a region named by its heading, one header action ("View all →"),

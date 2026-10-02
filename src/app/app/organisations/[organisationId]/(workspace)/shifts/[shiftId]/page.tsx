@@ -306,7 +306,7 @@ export default async function ShiftPage({
                 return (
                   <li
                     key={assignment.id}
-                    className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-4"
+                    className="flex flex-col gap-2 rounded-md bg-surface-muted p-4"
                   >
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-medium">{assignment.workerName}</span>
@@ -384,7 +384,7 @@ export default async function ShiftPage({
               {eligible.map((candidate) => (
                 <li
                   key={candidate.workerId}
-                  className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-border bg-surface p-3"
+                  className="flex flex-wrap items-start justify-between gap-2 rounded-md bg-surface-muted p-3"
                 >
                   <span className="flex items-center gap-2 font-medium">
                     {candidate.displayName ?? "Worker"}{" "}
@@ -410,7 +410,7 @@ export default async function ShiftPage({
                 {unavailable.map((candidate) => (
                   <li
                     key={candidate.workerId}
-                    className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3"
+                    className="flex flex-col gap-2 rounded-md bg-surface-muted p-3"
                   >
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <span className="font-medium">{candidate.displayName ?? "Worker"}</span>
@@ -503,7 +503,7 @@ export default async function ShiftPage({
                 return (
                   <li
                     key={correction.id}
-                    className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3 text-sm"
+                    className="flex flex-col gap-2 rounded-md bg-surface-muted p-3 text-sm"
                   >
                     <p>
                       <span className="font-medium">{worker}</span> asks to set the{" "}
@@ -558,7 +558,7 @@ export default async function ShiftPage({
             {offers.map((offer) => (
               <li
                 key={offer.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface p-3 text-sm"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-surface-muted p-3 text-sm"
               >
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{offer.workerName}</span>

@@ -178,7 +178,7 @@ export default async function FacilityPage({
         {locations.length === 0 ? (
           <p className="text-sm text-muted-foreground">No locations yet.</p>
         ) : (
-          <ul className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface text-sm">
+          <ul className="flex flex-col divide-y divide-border border-y border-border text-sm">
             {locations.map((location) => (
               <li key={location.id} className="flex flex-wrap justify-between gap-2 p-3">
                 <span className="font-medium">{location.name}</span>

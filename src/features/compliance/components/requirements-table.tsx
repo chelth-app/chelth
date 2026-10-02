@@ -34,7 +34,7 @@ export function RequirementsTable(props: RequirementsTableProps) {
   return (
     <ul
       aria-label={label}
-      className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface text-sm"
+      className="flex flex-col divide-y divide-border border-y border-border text-sm"
     >
       {requirements.map((requirement) => (
         <li key={requirement.id} className="flex flex-wrap items-center justify-between gap-2 p-3">

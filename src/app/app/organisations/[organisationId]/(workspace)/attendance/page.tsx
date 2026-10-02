@@ -333,7 +333,7 @@ export default async function AttendancePage({
                 return (
                   <li
                     key={correction.id}
-                    className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-4 text-sm"
+                    className="flex flex-col gap-2 rounded-md bg-surface-muted p-4 text-sm"
                   >
                     <p>
                       <span className="font-medium">{worker}</span> asks to set the{" "}
@@ -379,7 +379,7 @@ export default async function AttendancePage({
                 return (
                   <li
                     key={exception.id}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface p-3 text-sm"
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-surface-muted p-3 text-sm"
                   >
                     <span className="flex flex-wrap items-center gap-2">
                       <StatusChip tone={exception.severity === "urgent" ? "danger" : "attention"}>

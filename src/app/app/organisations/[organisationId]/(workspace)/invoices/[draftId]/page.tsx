@@ -117,13 +117,19 @@ export default async function InvoiceDraftPage({
       ) : null}
 
       {draft.attention === "ADJUSTMENT_REQUIRED" ? (
-        <p role="status" className="rounded-md border border-border bg-warning-soft p-3 text-sm">
+        <p
+          role="status"
+          className="rounded-md border border-border bg-warning-soft p-3 text-sm text-warning-soft-foreground"
+        >
           Adjustment required: some billed work was revised after this draft was locked. The draft
           stays exactly as approved; record the difference as an adjustment.
         </p>
       ) : null}
       {blocked ? (
-        <p role="alert" className="rounded-md border border-border bg-danger-soft p-3 text-sm">
+        <p
+          role="alert"
+          className="rounded-md border border-border bg-danger-soft p-3 text-sm text-danger-soft-foreground"
+        >
           Some work in this draft was revised after it was prepared, so it cannot be approved or
           locked. Void the draft and create it again.
         </p>

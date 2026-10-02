@@ -106,7 +106,7 @@ export default async function CredentialReviewPage({
               return (
                 <li
                   key={version.id}
-                  className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-4 text-sm"
+                  className="flex flex-col gap-2 rounded-md bg-surface-muted p-4 text-sm"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="font-medium">
@@ -157,7 +157,7 @@ export default async function CredentialReviewPage({
         {ownDecisions.length === 0 ? (
           <EmptyState headingLevel={3} title="No decisions recorded." />
         ) : (
-          <ul className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface text-sm">
+          <ul className="flex flex-col divide-y divide-border border-y border-border text-sm">
             {ownDecisions.map((decision) => (
               <li
                 key={decision.id}

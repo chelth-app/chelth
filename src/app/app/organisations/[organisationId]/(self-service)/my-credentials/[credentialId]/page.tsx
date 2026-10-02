@@ -105,7 +105,7 @@ export default async function MyCredentialPage({
           {credential.versions.map((version) => (
             <li
               key={version.id}
-              className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4 text-sm"
+              className="flex flex-col gap-3 rounded-md bg-surface-muted p-4 text-sm"
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="font-medium">
@@ -176,7 +176,7 @@ export default async function MyCredentialPage({
             No agency has reviewed this credential yet.
           </p>
         ) : (
-          <ul className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface text-sm">
+          <ul className="flex flex-col divide-y divide-border border-y border-border text-sm">
             {credential.verifications.map((verification) => (
               <li
                 key={verification.id}

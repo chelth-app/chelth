@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { PageHeader } from "@/components/ui/page-header";
+import { StatusChip } from "@/components/ui/status-chip";
 import { Panel } from "@/components/ui/panel";
-import { Badge } from "@/components/ui/badge";
 import { listMfaFactors, MfaEnrollment } from "@/features/identity";
 import { getAssurance } from "@/lib/auth/session";
 import { getSafeRedirectPath } from "@/lib/security/safe-redirect";
@@ -42,9 +42,9 @@ export default async function SecurityPage({ searchParams }: PageProps<"/app/sec
         <p className="text-sm">
           This session:{" "}
           {assurance.current === "aal2" ? (
-            <Badge tone="success">Verified with authenticator</Badge>
+            <StatusChip tone="success">Verified with authenticator</StatusChip>
           ) : (
-            <Badge tone="neutral">Password only</Badge>
+            <StatusChip tone="neutral">Password only</StatusChip>
           )}
         </p>
         {factors.length > 0 ? (
