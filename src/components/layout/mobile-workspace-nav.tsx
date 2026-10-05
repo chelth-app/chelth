@@ -63,7 +63,7 @@ export function MobileWorkspaceNav({ id, open, onOpenChange, groups }: MobileWor
         <button
           type="button"
           onClick={() => onOpenChange(false)}
-          className="absolute top-4 right-3 inline-flex size-11 items-center justify-center rounded-md text-shell-sidebar-foreground hover:bg-shell-sidebar-hover focus-visible:outline-shell-sidebar-focus"
+          className="absolute top-4 right-3 z-10 inline-flex size-11 items-center justify-center rounded-md text-shell-sidebar-foreground hover:bg-shell-sidebar-hover focus-visible:outline-shell-sidebar-focus"
         >
           <ShellGlyph name="close" />
           <span className="sr-only">Close navigation</span>

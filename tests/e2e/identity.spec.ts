@@ -39,7 +39,7 @@ test.describe("authentication", () => {
     await expect(page.getByText("You are not a member of any organisation yet.")).toBeVisible();
 
     await createAgency(page, "Signup Agency");
-    await expect(page.locator("main header").getByText("Agency Admin")).toBeVisible();
+    await expect(page.getByRole("banner").getByText("Agency Admin", { exact: true })).toBeVisible();
     // Privileged capabilities need step-up at AAL1.
     await expect(page.getByRole("note")).toContainText(
       "requires verification with your authenticator app",
@@ -209,8 +209,9 @@ test.describe("organisation access", () => {
     await qaScreenshot(invitee, "s7-invite-preview");
     await invitee.getByRole("button", { name: "Accept invitation" }).click();
     await expect(
-      invitee.getByRole("heading", { level: 1, name: "Invite Flow Agency" }),
+      invitee.getByRole("heading", { level: 1, name: "Operations Overview" }),
     ).toBeVisible();
+    await expect(invitee.getByRole("banner")).toContainText("Invite Flow Agency");
     await expect(invitee.getByText("Scheduler").first()).toBeVisible();
 
     // Replaying the same link after acceptance gives the uniform invalid message.

@@ -10,8 +10,10 @@ export {
 export { AssignWorkerButton } from "./components/assign-worker-button";
 export {
   AssignmentStatusBadge,
+  FILL_TONE,
   FillBadge,
   OfferStatusBadge,
+  SHIFT_TONE,
   ShiftStatusBadge,
 } from "./components/badges";
 export { CreateShiftForm } from "./components/create-shift-form";

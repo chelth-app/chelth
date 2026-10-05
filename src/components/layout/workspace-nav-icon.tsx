@@ -93,13 +93,26 @@ const PATHS: Record<IconName, ReactNode> = {
   ),
 };
 
-export function WorkspaceNavIcon({ name, className }: { name: IconName; className?: string }) {
+export function WorkspaceNavIcon({
+  name,
+  className,
+  strokeWidth = 1.75,
+  duotone = false,
+}: {
+  name: IconName;
+  className?: string;
+  /** Heavier strokes for large tiles (locked P2 KPI icons). */
+  strokeWidth?: number;
+  /** Duotone: the same outline with a soft tinted fill (locked P2 KPI tiles). */
+  duotone?: boolean;
+}) {
   return (
     <svg
       viewBox="0 0 24 24"
-      fill="none"
+      fill={duotone ? "currentColor" : "none"}
+      fillOpacity={duotone ? 0.28 : undefined}
       stroke="currentColor"
-      strokeWidth={1.75}
+      strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"

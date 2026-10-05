@@ -5,14 +5,19 @@ import {
   ASSIGNMENT_BLOCK_REASON_LABELS,
   ASSIGNMENT_BLOCK_REASONS,
   ASSIGNMENT_CANCELLATION_REASONS,
+  daysUntilDate,
   deriveFillState,
+  disciplineNameParts,
   formatShiftDate,
   formatShiftTimeRange,
+  formatShiftTimeRangeParts,
   isActiveAssignment,
   localDate,
   SHIFT_STATUS_TRANSITIONS,
   SHIFT_STATUSES,
   shiftDurationHours,
+  startsLocalToday,
+  startsWithin,
 } from "@/lib/domain/shifts";
 import { ERROR_CODES, normalizeError } from "@/lib/errors";
 
@@ -120,5 +125,57 @@ describe("shift time display (always in the shift's own timezone)", () => {
         timezone: "America/New_York",
       }),
     ).toBe("4:00 PM – 12:00 AM EDT");
+  });
+});
+
+describe("discipline display parts", () => {
+  it("splits a trailing short code and leaves other names whole", () => {
+    expect(disciplineNameParts("Certified Nursing Assistant (CNA)")).toEqual({
+      name: "Certified Nursing Assistant",
+      code: "CNA",
+    });
+    expect(disciplineNameParts("Registered Nurse (RN)")).toEqual({
+      name: "Registered Nurse",
+      code: "RN",
+    });
+    expect(disciplineNameParts("LPN / LVN")).toEqual({ name: "LPN / LVN", code: null });
+  });
+});
+
+describe("time range parts and start windows", () => {
+  it("splits the range from its zone and rejoins to the full label", () => {
+    const times = {
+      startAt: "2026-10-06T11:00:00Z",
+      endAt: "2026-10-06T19:00:00Z",
+      timezone: "America/New_York",
+    };
+    expect(formatShiftTimeRangeParts(times)).toEqual({ range: "7:00 AM – 3:00 PM", zone: "EDT" });
+    expect(formatShiftTimeRange(times)).toBe("7:00 AM – 3:00 PM EDT");
+  });
+
+  it("knows whether a shift starts within a window", () => {
+    const inHours = (hours: number) => ({
+      startAt: new Date(Date.now() + hours * 3_600_000).toISOString(),
+    });
+    expect(startsWithin(inHours(2), 24)).toBe(true);
+    expect(startsWithin(inHours(30), 24)).toBe(false);
+    expect(startsWithin(inHours(-1), 24)).toBe(true);
+  });
+});
+
+describe("local-today and day-count helpers", () => {
+  it("knows whether a shift starts today in its own timezone", () => {
+    const now = new Date().toISOString();
+    expect(startsLocalToday({ startAt: now, timezone: "UTC" })).toBe(true);
+    const later = new Date(Date.now() + 3 * 86_400_000).toISOString();
+    expect(startsLocalToday({ startAt: later, timezone: "UTC" })).toBe(false);
+  });
+
+  it("counts whole days until a date", () => {
+    const inDays = (days: number) =>
+      new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+    expect(daysUntilDate(inDays(0))).toBe(0);
+    expect(daysUntilDate(inDays(20))).toBe(20);
+    expect(daysUntilDate(inDays(-2))).toBe(-2);
   });
 });

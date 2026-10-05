@@ -37,6 +37,9 @@ test.describe("workforce", () => {
     await expectNoA11yViolations(page);
 
     const workerEmail = uniqueEmail("e2e-s3-worker");
+    // Locked Workforce: "Add Professional" reveals the existing invite form.
+    await page.getByRole("link", { name: "Add Professional" }).click();
+    await expect(page.getByRole("heading", { name: "Invite a healthcare worker" })).toBeVisible();
     await page.getByLabel("Worker email address").fill(workerEmail);
     await page.getByRole("button", { name: "Invite worker" }).click();
     // Email delivery is disabled in tests: the link is shown once instead.

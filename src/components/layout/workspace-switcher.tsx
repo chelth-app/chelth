@@ -102,15 +102,19 @@ export function WorkspaceSwitcher({
       >
         <span
           aria-hidden="true"
-          className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-chelth-mint-mist text-sm font-semibold text-chelth-teal-dark"
+          className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-chelth-mint-mist text-[15px] font-semibold text-chelth-teal-dark lg:size-[46px]"
         >
           {initialsOf(user)}
         </span>
         <span className="sr-only">Account and workspace menu:</span>
         <span className="sr-only flex-col sm:not-sr-only sm:flex sm:max-w-56">
-          <span className="truncate text-sm font-semibold text-foreground">{name}</span>
+          <span className="truncate text-[15px] leading-5 font-semibold text-chelth-navy lg:text-[15.25px] lg:leading-[22px] lg:font-medium">
+            {name}
+          </span>
           {workspace.roleLabel ? (
-            <span className="truncate text-xs text-muted-foreground">{workspace.roleLabel}</span>
+            <span className="truncate text-sm leading-5 text-muted-foreground lg:mt-1.5 lg:text-[14px] lg:leading-[22px]">
+              {workspace.roleLabel}
+            </span>
           ) : null}
         </span>
         <ShellGlyph
@@ -183,6 +187,13 @@ export function WorkspaceSwitcher({
         ) : null}
 
         <ul className="flex flex-col border-b border-border p-2">
+          {otherWorkspaces.length === 0 ? (
+            <li>
+              <Link href="/app" className={menuRow}>
+                All workspaces
+              </Link>
+            </li>
+          ) : null}
           <li>
             <Link href="/app/account" className={menuRow}>
               Account

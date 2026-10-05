@@ -101,13 +101,22 @@ test.describe.serial("agency operational surfaces", () => {
     const admin = await signedIn(browser, world.admin.email);
     await admin.goto(`/app/organisations/${world.agencyId}`);
     const summary = admin.getByRole("region", { name: "Operations summary" });
-    await expect(summary.getByRole("link", { name: /Open shifts/ })).toContainText(/[1-9]/);
-    await expect(summary.getByRole("link", { name: /Timesheets to approve/ })).toBeVisible();
+    await expect(summary.getByRole("link", { name: /Open Shifts/ })).toContainText(/[1-9]/);
+    // Locked P2 KPI slots, each a real count: open, pending confirmations, issues, requests.
+    await expect(summary.getByRole("link", { name: /Pending Confirmations/ })).toBeVisible();
+    await expect(summary.getByRole("link", { name: /Facility Requests/ })).toBeVisible();
+    await expect(summary.getByRole("link", { name: /Open Shifts/ })).toHaveAttribute(
+      "href",
+      new RegExp(
+        `/app/organisations/${world.agencyId}/shifts\\?status=open&from=\\d{4}-\\d{2}-\\d{2}$`,
+      ),
+    );
     await expect(
-      admin.getByRole("region", { name: "Upcoming open shifts" }).getByRole("link", {
-        name: "Mercy Rehab",
-      }),
-    ).toHaveAttribute("href", `/app/organisations/${world.agencyId}/shifts/${shiftId}`);
+      admin.getByRole("region", { name: "Staffing Requests", exact: true }),
+    ).toBeVisible();
+    await expect(admin.getByRole("list", { name: "Upcoming shifts by staffing" })).toContainText(
+      "Unfilled",
+    );
     await expect(admin.getByRole("list", { name: "Workers by status" })).toContainText("Active");
     // Administration stays on the Overview.
     await expect(admin.getByRole("heading", { name: "Members" })).toBeVisible();
@@ -120,10 +129,12 @@ test.describe.serial("agency operational surfaces", () => {
     const fin = await signedIn(browser, finance.email);
     await fin.goto(`/app/organisations/${world.agencyId}`);
     const finSummary = fin.getByRole("region", { name: "Operations summary" });
-    await expect(finSummary.getByRole("link", { name: /Timesheets to approve/ })).toBeVisible();
-    await expect(finSummary.getByRole("link", { name: /Open shifts/ })).toHaveCount(0);
+    await expect(finSummary.getByRole("link", { name: /Timesheets to Approve/ })).toBeVisible();
+    await expect(finSummary.getByRole("link", { name: /Open Shifts/ })).toHaveCount(0);
     await expect(fin.getByRole("region", { name: "Today's schedule" })).toHaveCount(0);
-    await expect(fin.getByRole("region", { name: "Upcoming open shifts" })).toHaveCount(0);
+    await expect(fin.getByRole("region", { name: "Staffing requests" })).toHaveCount(0);
+    await expect(fin.getByRole("region", { name: "Shift Coverage" })).toHaveCount(0);
+    await expect(fin.getByRole("region", { name: "Coverage Outlook" })).toHaveCount(0);
     await expect(fin.getByRole("region", { name: "Workforce" })).toHaveCount(0);
     await fin.context().close();
   });
@@ -153,7 +164,9 @@ test.describe.serial("agency operational surfaces", () => {
     await expectNoA11yViolations(scheduler);
 
     const trigger = row.getByRole("button", { name: /^Details for Mercy Rehab/ });
-    const drawer = await expectDrawerRoundTrip(scheduler, trigger, /^Mercy Rehab ·/);
+    const drawer = await expectDrawerRoundTrip(scheduler, trigger, "Shift Details");
+    await expect(drawer).toContainText("Mercy Rehab");
+    await expect(drawer).toContainText("Certified Nursing Assistant (CNA)");
     await expect(drawer).toContainText("0 of 2");
     await qaScreenshot(scheduler, "s3-shifts-drawer-open");
     await expectNoA11yViolations(scheduler);
@@ -199,7 +212,8 @@ test.describe.serial("agency operational surfaces", () => {
     await expectNoA11yViolations(admin);
 
     const trigger = table.getByRole("button", { name: "Details for Wendy Ready" });
-    const drawer = await expectDrawerRoundTrip(admin, trigger, "Wendy Ready");
+    const drawer = await expectDrawerRoundTrip(admin, trigger, "Professional Details");
+    await expect(drawer).toContainText("Wendy Ready");
     await expect(drawer.getByRole("link", { name: "Open worker record" })).toBeVisible();
     await qaScreenshot(admin, "s3-workforce-drawer-open");
     await expectNoA11yViolations(admin);

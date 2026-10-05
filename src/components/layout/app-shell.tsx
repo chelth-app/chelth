@@ -41,8 +41,8 @@ export function WorkspaceHeader({
   ...switcher
 }: WorkspaceHeaderProps) {
   return (
-    <header className="sticky top-0 z-30 border-b border-border bg-background">
-      <div className="flex min-h-16 items-center gap-3 px-4 sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-30 bg-background lg:bg-[rgba(240,247,253,0.78)] lg:backdrop-blur-[10px] lg:backdrop-saturate-150">
+      <div className="flex min-h-[68px] items-center gap-3 px-4 sm:px-6 lg:min-h-[76px] lg:pr-[19px] lg:pl-[30px]">
         <button
           type="button"
           aria-haspopup="dialog"
@@ -56,10 +56,24 @@ export function WorkspaceHeader({
         </button>
         <BrandLogo variant="mark" height={28} decorative className="shrink-0 lg:hidden" />
         <div className="min-w-0 flex-1">
-          <p className="truncate font-display text-base font-semibold text-chelth-navy">
-            {workspace.name}
-          </p>
-          <p className="truncate text-xs text-muted-foreground">
+          {/* Below lg: the workspace identity heads the bar. */}
+          <div className="lg:hidden">
+            <p className="truncate font-display text-[17px] leading-6 font-semibold text-chelth-navy">
+              {workspace.name}
+            </p>
+            <p className="truncate text-xs text-muted-foreground">
+              {workspace.typeLabel} workspace
+              {workspace.suspended ? " · Suspended" : ""}
+            </p>
+          </div>
+          {/*
+            Locked P1 (lg+): the reference has a search field here, which Chelth
+            does not have. The workspace identity sits quietly on that line
+            instead, leaving the open space of the reference bar.
+          */}
+          <p className="hidden truncate text-[13px] leading-5 text-muted-foreground lg:block">
+            <span className="font-medium text-slate-600">{workspace.name}</span>
+            <span aria-hidden="true"> · </span>
             {workspace.typeLabel} workspace
             {workspace.suspended ? " · Suspended" : ""}
           </p>
@@ -90,7 +104,7 @@ export function AppShell({ navigation, children, ...header }: AppShellProps) {
   const navigationId = useId();
 
   return (
-    <div className="min-h-dvh bg-background lg:grid lg:grid-cols-[15rem_minmax(0,1fr)]">
+    <div className="min-h-dvh bg-background lg:grid lg:grid-cols-[214px_minmax(0,1fr)] lg:bg-[radial-gradient(120%_60%_at_100%_100%,rgba(196,234,224,0.35),transparent_60%),linear-gradient(180deg,#fafcfe_0%,#f6fafc_45%,#f1f9fa_100%)]">
       <aside aria-label="Workspace sidebar" className="hidden lg:sticky lg:top-0 lg:block lg:h-dvh">
         <WorkspaceSidebar groups={navigation} />
       </aside>
@@ -101,8 +115,8 @@ export function AppShell({ navigation, children, ...header }: AppShellProps) {
           navigationOpen={navigationOpen}
           onOpenNavigation={() => setNavigationOpen(true)}
         />
-        <main id={MAIN_CONTENT_ID} className="flex-1 py-6 lg:py-8">
-          <PageContainer size="wide" className="flex flex-col gap-8">
+        <main id={MAIN_CONTENT_ID} className="flex-1 pt-3 pb-10 lg:pt-2.5">
+          <PageContainer size="wide" className="flex flex-col gap-5">
             {children}
           </PageContainer>
         </main>

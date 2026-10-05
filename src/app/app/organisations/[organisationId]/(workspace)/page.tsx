@@ -69,6 +69,10 @@ export default async function OrganisationPage({
     capabilityState(grants, capability);
   const needsStepUp = grants.some((grant) => !grant.isSatisfied);
   const workspaceStaff = isWorkspaceStaff(grants.map((grant) => grant.capabilityKey));
+  const agencyOverview = organisation.type === "agency" && workspaceStaff;
+  // Agency Operations Overview: administration stays here but sits below a quiet
+  // divider, without card elevation, so it does not compete with operations.
+  const adminPanel = agencyOverview ? "shadow-none" : undefined;
 
   const [roles, members, invites, audit] = await Promise.all([
     listRoles(organisation.type),
@@ -109,40 +113,55 @@ export default async function OrganisationPage({
 
   return (
     <>
-      <PageHeader
-        title={organisation.name}
-        description={
-          workspaceStaff ? (
-            <p>
-              {organisation.type === "agency"
-                ? "What needs attention, what is happening today and what is coming up."
-                : "Your staffing requests, who is expected and the timesheets waiting for sign-off."}
-            </p>
-          ) : undefined
-        }
-        back={
-          <Link href="/app" className="text-primary underline underline-offset-4">
-            All organisations
-          </Link>
-        }
-        meta={
-          <>
-            <Badge tone="brand">{organisation.type === "agency" ? "Agency" : "Facility"}</Badge>
-            {organisation.status !== "active" ? (
+      {agencyOverview ? (
+        // Locked P2 header: title + one line of copy; workspace and role are in the top bar.
+        <PageHeader
+          variant="reference"
+          className="ref-overview xl:-mb-1.5"
+          title="Operations Overview"
+          description={<p>Here&apos;s what&apos;s happening across your facilities today.</p>}
+          meta={
+            organisation.status !== "active" ? (
               <StatusChip tone="warning">Organisation suspended</StatusChip>
-            ) : null}
-            {me?.roleKeys.map((key) => (
-              <Badge key={key} tone="info">
-                {roleName.get(key) ?? key}
-              </Badge>
-            ))}
-          </>
-        }
-      />
+            ) : undefined
+          }
+        />
+      ) : (
+        <PageHeader
+          title={organisation.name}
+          description={
+            workspaceStaff ? (
+              <p>
+                {organisation.type === "agency"
+                  ? "What needs attention, what is happening today and what is coming up."
+                  : "Your staffing requests, who is expected and the timesheets waiting for sign-off."}
+              </p>
+            ) : undefined
+          }
+          back={
+            <Link href="/app" className="text-primary underline underline-offset-4">
+              All organisations
+            </Link>
+          }
+          meta={
+            <>
+              <Badge tone="brand">{organisation.type === "agency" ? "Agency" : "Facility"}</Badge>
+              {organisation.status !== "active" ? (
+                <StatusChip tone="warning">Organisation suspended</StatusChip>
+              ) : null}
+              {me?.roleKeys.map((key) => (
+                <Badge key={key} tone="info">
+                  {roleName.get(key) ?? key}
+                </Badge>
+              ))}
+            </>
+          }
+        />
+      )}
 
       {needsStepUp ? <StepUpNotice returnTo={`/app/organisations/${organisationId}`} /> : null}
 
-      {organisation.type === "agency" && workspaceStaff ? (
+      {agencyOverview ? (
         <AgencyOperationsOverview organisationId={organisationId} can={can} />
       ) : null}
       {organisation.type === "facility" && workspaceStaff ? (
@@ -249,8 +268,20 @@ export default async function OrganisationPage({
         </Panel>
       ) : null}
 
+      {agencyOverview &&
+      (can(CAPABILITIES.MEMBERSHIP_VIEW) === "granted" ||
+        can(CAPABILITIES.MEMBERSHIP_INVITE) === "granted" ||
+        can(CAPABILITIES.AUDIT_VIEW) === "granted") ? (
+        <div className="mt-4 flex items-center gap-3" aria-hidden="true">
+          <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+            Administration
+          </span>
+          <span className="h-px flex-1 bg-border" />
+        </div>
+      ) : null}
+
       {can(CAPABILITIES.MEMBERSHIP_VIEW) === "granted" ? (
-        <Panel titleId="members-heading" title={<>Members</>}>
+        <Panel titleId="members-heading" title={<>Members</>} className={adminPanel}>
           {/* Focusable, labelled scroll region: keyboard users can scroll the table on small screens. */}
           <DataTableRegion aria-label="Members table">
             <DataTable className="min-w-[40rem]">
@@ -366,7 +397,7 @@ export default async function OrganisationPage({
       ) : null}
 
       {can(CAPABILITIES.MEMBERSHIP_INVITE) === "granted" ? (
-        <Panel titleId="invites-heading" title={<>Invitations</>}>
+        <Panel titleId="invites-heading" title={<>Invitations</>} className={adminPanel}>
           <InviteMemberForm organisationId={organisationId} roles={grantableRoles} />
           {invites.length > 0 ? (
             <ul className="flex flex-col divide-y divide-border border-y border-border">
@@ -408,7 +439,7 @@ export default async function OrganisationPage({
       ) : null}
 
       {can(CAPABILITIES.AUDIT_VIEW) === "granted" ? (
-        <Panel titleId="audit-heading" title={<>Recent activity</>}>
+        <Panel titleId="audit-heading" title={<>Recent activity</>} className={adminPanel}>
           {audit.length === 0 ? (
             <EmptyState
               headingLevel={3}

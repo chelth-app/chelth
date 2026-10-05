@@ -62,12 +62,51 @@ test.describe.serial("final responsive, accessibility and brand sweep", () => {
     });
     if (created.error) throw created.error;
     shiftId = created.data;
+    // S9A.1 QA density: more real upcoming work through the public API — a
+    // filled shift, a larger unfilled one and two facility staffing requests.
+    const locationId = locations.data[0]?.id ?? "";
+    const more = async (day: number, start: string, end: string, headcount: number) => {
+      const result = await world.scheduler.client.rpc("create_shift", {
+        p_agency_facility_id: world.facilityId,
+        p_facility_location_id: locationId,
+        p_discipline_key: "cna",
+        p_shift_date: isoDay(day),
+        p_start_time: start,
+        p_end_time: end,
+        p_requested_headcount: headcount,
+        p_open: true,
+      });
+      if (result.error) throw result.error;
+      return result.data;
+    };
+    const filledShift = await more(5, "19:00", "07:00", 1);
+    await more(7, "07:00", "15:00", 3);
+    for (const [day, start, end] of [
+      [4, "15:00", "23:00"],
+      [6, "07:00", "15:00"],
+    ] as const) {
+      const request = await world.facilityAdmin.client.rpc("submit_facility_shift_request", {
+        p_relationship_id: world.relationshipId,
+        p_facility_location_id: locationId,
+        p_discipline_key: "cna",
+        p_shift_date: isoDay(day),
+        p_start_time: start,
+        p_end_time: end,
+        p_requested_headcount: 2,
+      });
+      if (request.error) throw request.error;
+    }
     const worker = await world.wendy.client
       .from("agency_workers")
       .select("id")
       .eq("agency_organisation_id", world.agencyId);
     if (worker.error) throw worker.error;
     wendyWorkerId = worker.data[0]?.id ?? "";
+    const assigned = await world.scheduler.client.rpc("assign_worker_to_shift", {
+      p_shift_id: filledShift,
+      p_agency_worker_id: wendyWorkerId,
+    });
+    if (assigned.error) throw assigned.error;
   });
 
   test("agency and finance frames", async ({ browser }) => {
@@ -91,6 +130,23 @@ test.describe.serial("final responsive, accessibility and brand sweep", () => {
       [`${base}/invoices`, "finance-invoices"],
     ] as const) {
       await sweep(page, path, name);
+    }
+    // S9A.1: the Shifts details drawer open (modal), desktop and phone.
+    await page.goto(`${base}/shifts`);
+    for (const width of [1280, 412]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page
+        .getByRole("region", { name: "Shifts table" })
+        .getByRole("button", { name: /^Details for / })
+        .first()
+        .click();
+      const drawer = page.getByRole("dialog", { name: "Shift Details" });
+      await expect(drawer).toBeVisible();
+      await qaScreenshot(page, "s9a1-shifts-drawer-open");
+      const results = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
+      expect(results.violations, `shifts drawer @ ${width}px`).toEqual([]);
+      await page.keyboard.press("Escape");
+      await expect(drawer).toBeHidden();
     }
     await page.context().close();
   });

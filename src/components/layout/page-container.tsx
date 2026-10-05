@@ -16,8 +16,9 @@ export function PageContainer({ className, size = "default", ...props }: PageCon
   return (
     <div
       className={cn(
-        "mx-auto w-full px-4 sm:px-6 lg:px-8",
-        size === "wide" ? "max-w-screen-2xl" : "max-w-6xl",
+        "mx-auto w-full px-4 sm:px-6",
+        // Wide: the locked P1 content gutters beside the 214 px sidebar (30 px / 19 px).
+        size === "wide" ? "max-w-screen-2xl lg:pr-[19px] lg:pl-[30px]" : "max-w-6xl lg:px-8",
         className,
       )}
       {...props}

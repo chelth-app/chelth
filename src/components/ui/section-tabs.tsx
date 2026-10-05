@@ -29,7 +29,10 @@ export function SectionTabs({
   return (
     <nav
       aria-label={label}
-      className={cn("relative overflow-x-auto border-b border-border", className)}
+      className={cn(
+        "relative overflow-x-auto border-b border-border in-[.chelth-locked]:border-[rgba(18,107,103,0.14)]",
+        className,
+      )}
     >
       <ul className="flex min-w-max gap-1">
         {tabs.map((tab) => (
@@ -39,9 +42,11 @@ export function SectionTabs({
               aria-current={tab.current ? "page" : undefined}
               className={cn(
                 "-mb-px inline-flex min-h-11 items-center gap-2 border-b-2 px-3 text-sm font-medium",
+                // Locked tab treatment (C/D): 14.5 px, ink active label, 3 px underline.
+                "in-[.chelth-locked]:border-b-[3px] in-[.chelth-locked]:text-[14.5px]",
                 tab.current
-                  ? "border-primary font-semibold text-chelth-navy"
-                  : "border-transparent text-muted-foreground hover:border-chelth-border-strong hover:text-foreground",
+                  ? "border-primary font-semibold text-chelth-navy in-[.chelth-locked]:font-bold"
+                  : "border-transparent text-muted-foreground hover:border-chelth-border-strong hover:text-foreground in-[.chelth-locked]:text-slate-500 in-[.chelth-locked]:hover:text-chelth-navy",
               )}
             >
               {tab.label}

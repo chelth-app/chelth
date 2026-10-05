@@ -106,8 +106,11 @@ export default async function WorkerPage({
   const returnTo = `/app/organisations/${organisationId}/workforce/${worker.id}`;
 
   return (
-    <>
+    // Locked Chelth visual system (docs/ui-reference/CHELTH-LOCKED-VISUAL-SYSTEM.md):
+    // palette, panel surface, chips, tabs and CTAs are inherited through the scope.
+    <div className="chelth-locked flex flex-col gap-5">
       <PageHeader
+        variant="reference"
         title={worker.displayName ?? "Unnamed worker"}
         back={
           <Link
@@ -118,7 +121,7 @@ export default async function WorkerPage({
           </Link>
         }
         description={
-          <p className="text-sm">
+          <p>
             {[
               worker.workerReference ? `Reference ${worker.workerReference}` : null,
               worker.startDate ? `Started ${worker.startDate}` : "Not started",
@@ -378,8 +381,10 @@ export default async function WorkerPage({
             <ul className="flex flex-col divide-y divide-border border-y border-border text-sm">
               {notes.map((note) => (
                 <li key={note.id} className="flex flex-col gap-1 p-3">
-                  <p className="whitespace-pre-wrap">{note.body}</p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="whitespace-pre-wrap text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)]">
+                    {note.body}
+                  </p>
+                  <p className="text-xs text-slate-600">
                     {note.authorName ?? "A former colleague"} ·{" "}
                     {dateTime.format(new Date(note.createdAt))}
                   </p>
@@ -389,6 +394,6 @@ export default async function WorkerPage({
           )}
         </Panel>
       ) : null}
-    </>
+    </div>
   );
 }

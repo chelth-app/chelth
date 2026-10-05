@@ -59,6 +59,10 @@ test.describe.serial("assignment operations: offers, readiness, suspension", () 
     browser,
   }) => {
     await scheduler.goto(`/app/organisations/${world.agencyId}/shifts`);
+    // Locked P3: the existing form is revealed by "+ Create shift" (same route, same action).
+    await expect(scheduler.getByRole("heading", { name: "Create a shift" })).toBeHidden();
+    await scheduler.getByRole("link", { name: "Create shift" }).click();
+    await expect(scheduler.getByRole("heading", { name: "Create a shift" })).toBeVisible();
     await scheduler
       .getByRole("combobox", { name: "Facility and location" })
       .selectOption({ label: "Mercy Rehab — Mercy Main (America/New_York)" });

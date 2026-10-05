@@ -41,6 +41,10 @@ test.describe.serial("shift requests & assignments", () => {
     await scheduler.goto(`/app/organisations/${world.agencyId}`);
     await openWorkspaceSection(scheduler, "Shifts");
     await expect(scheduler.getByRole("heading", { level: 1, name: "Shifts" })).toBeVisible();
+    // Locked P3: the existing form is revealed by "+ Create shift" (same route, same action).
+    await expect(scheduler.getByRole("heading", { name: "Create a shift" })).toBeHidden();
+    await scheduler.getByRole("link", { name: "Create shift" }).click();
+    await expect(scheduler.getByRole("heading", { name: "Create a shift" })).toBeVisible();
 
     await scheduler
       .getByRole("combobox", { name: "Facility and location" })

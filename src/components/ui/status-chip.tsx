@@ -36,6 +36,8 @@ export function StatusChip({ tone = "neutral", className, ...props }: StatusChip
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium",
         "before:size-1.5 before:shrink-0 before:rounded-full before:content-['']",
+        // Locked chip (G): 26 px, 8 px radius, semibold, a larger solid marker.
+        "in-[.chelth-locked]:h-[26px] in-[.chelth-locked]:rounded-lg in-[.chelth-locked]:py-0 in-[.chelth-locked]:font-semibold in-[.chelth-locked]:before:size-2",
         statusChipTones[tone],
         className,
       )}

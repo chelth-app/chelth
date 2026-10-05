@@ -12,7 +12,8 @@ import {
 
 type Tone = StatusTone;
 
-const SHIFT_TONE: Record<ShiftStatus, Tone> = {
+/** Shared with the locked-reference chips (same semantics everywhere). */
+export const SHIFT_TONE: Record<ShiftStatus, Tone> = {
   draft: "neutral",
   submitted: "info",
   open: "info",
@@ -20,7 +21,7 @@ const SHIFT_TONE: Record<ShiftStatus, Tone> = {
   completed: "success",
 };
 
-const FILL_TONE: Record<FillState, Tone> = {
+export const FILL_TONE: Record<FillState, Tone> = {
   unfilled: "warning",
   partially_filled: "info",
   filled: "success",

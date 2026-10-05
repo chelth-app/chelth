@@ -77,14 +77,20 @@
    * (Mint) 6.22:1, on hover 7.35:1 / 5.02:1. Active pill (Deep Teal): white
    * text and icon only, 6.32:1 (Mint would be 4.31:1, so it is not used there).
    */
-  --color-shell-sidebar: var(--chelth-teal-dark);
-  --color-shell-sidebar-deep: color-mix(in srgb, var(--chelth-teal-dark) 72%, var(--chelth-navy));
+  /*
+   * Locked P1 reference values (sampled from the approved
+   * chelth-operations-overview-locked.png; the reference is the approval).
+   * White text on the sidebar: 14.7:1; on the active pill: 8.5:1.
+   */
+  --color-shell-sidebar: #012b37;
+  --color-shell-sidebar-deep: #003a45;
+  --color-shell-canvas: #f6fafc;
   --color-shell-sidebar-foreground: var(--chelth-white);
   --color-shell-sidebar-muted: var(--chelth-mint);
   --color-shell-sidebar-hover: color-mix(in srgb, var(--chelth-white) 8%, transparent);
-  --color-shell-sidebar-active: var(--chelth-teal);
+  --color-shell-sidebar-active: #005e64;
   --color-shell-sidebar-indicator: var(--chelth-mint);
-  --color-shell-sidebar-divider: color-mix(in srgb, var(--chelth-white) 18%, transparent);
+  --color-shell-sidebar-divider: color-mix(in srgb, var(--chelth-white) 22%, transparent);
   --color-shell-sidebar-focus: var(--chelth-white); /* focus ring on the dark sidebar */
 
   /*
@@ -199,4 +205,34 @@
       scroll-behavior: auto !important;
     }
   }
+}
+
+/*
+ * Operations Overview reference palette (locked P2, approved PNG sampling).
+ * The locked Chelth application palette (established on Operations
+ * Overview), scoped to `.ref-overview` / `.chelth-locked` on the pages built to
+ * the locked references — other pages keep the standard palette. Chip text on its soft tint
+ * stays >= 4.5:1 (amber 4.7, teal-green 5.2, blue 6.6, coral 6.4).
+ */
+.ref-overview,
+.chelth-locked {
+  /*
+   * The brand-equivalent utilities are `@theme inline` (they compile straight to
+   * the --chelth-* variables), so the scope redefines those; soft tints and chip
+   * text are mixed from them and follow.
+   */
+  --chelth-teal: #007a70;
+  --chelth-teal-dark: #005a60;
+  --chelth-mint: #86e6cf;
+  --chelth-mint-mist: #e1f6f0;
+  --chelth-info: #2f74f0;
+  --chelth-critical: #e5484d;
+  --chelth-warning: #e08a0a;
+  --chelth-success: #12a383;
+  --chelth-slate: #7a8aa6;
+  --chelth-ink: #16243f;
+  --chelth-navy: #0c1e46;
+  /* Non-inline theme tokens. */
+  --color-muted-foreground: #56647f;
+  --color-surface-muted: #eef4f7;
 }

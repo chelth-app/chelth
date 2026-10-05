@@ -126,7 +126,10 @@ test.describe.serial("workspace shell", () => {
   }, testInfo) => {
     const page = await signedIn(browser, world.admin.email);
     await page.goto(`/app/organisations/${world.agencyId}`);
-    await expect(page.getByRole("heading", { level: 1, name: world.agencyName })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Operations Overview" }),
+    ).toBeVisible();
+    await expect(page.getByRole("banner")).toContainText(world.agencyName);
 
     const nav = await openWorkspaceNav(page, testInfo);
     expect(await navLabels(nav)).toEqual(AGENCY_ADMIN_NAV);

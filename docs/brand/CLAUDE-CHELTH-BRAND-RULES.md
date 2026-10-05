@@ -16,6 +16,14 @@ CSS tokens:
 Canonical logo assets:
 `public/brand/chelth/`
 
+Locked application visual system (approved; governs all app UI pages):
+`docs/ui-reference/CHELTH-LOCKED-VISUAL-SYSTEM.md`
+
+Subsequent pages must reuse that system's implementations (shell, depth,
+drawer, typography, palette, surfaces, chips, icons, canvas, CTAs) unchanged.
+Where its approved gradients, frost or wave conflict with the generic
+implementation defaults below, the locked system wins for application UI.
+
 ## Non-negotiable logo rule
 
 The approved Chelth logo is the locked **Shift Mark**.

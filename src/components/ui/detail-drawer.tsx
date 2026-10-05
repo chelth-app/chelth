@@ -8,6 +8,14 @@ const WIDTHS = {
   sm: "sm:max-w-sm",
   md: "sm:max-w-md",
   lg: "sm:max-w-xl",
+  /**
+   * Locked P3 "Shift Details" card (reference px / 0.87): 374 px wide, 110 px
+   * from the top, 11 px from the right, 8 px from the bottom, 18 px radius.
+   * Still the same modal dialog; phones keep the full-height sheet.
+   */
+  panel: "sm:max-w-[385px]",
+  /** Locked Workforce "Professional Details" card (reference px / 0.888): 387 px wide, 178 px from the top. */
+  profile: "sm:max-w-[397px]",
 } as const;
 
 type DetailDrawerProps = {
@@ -40,6 +48,7 @@ export function DetailDrawer({
   width = "md",
 }: DetailDrawerProps) {
   const ref = useRef<HTMLDialogElement>(null);
+  const panel = width === "panel" || width === "profile";
   const titleId = useId();
   const descriptionId = useId();
 
@@ -68,17 +77,46 @@ export function DetailDrawer({
       aria-describedby={description ? descriptionId : undefined}
       onClose={() => onOpenChange(false)}
       className={cn(
-        "m-0 ml-auto h-dvh max-h-none w-full max-w-none border-0 bg-transparent p-0 text-foreground",
+        // text-left: the dialog may be rendered inside a right-aligned table cell.
+        "m-0 ml-auto h-dvh max-h-none w-full max-w-none border-0 bg-transparent p-0 text-left text-foreground",
         "backdrop:bg-chelth-ink/30",
+        // Locked P3: docked beside the contracted page on wide screens — no dim.
+        panel && "min-[1536px]:backdrop:bg-transparent",
         WIDTHS[width],
       )}
     >
-      <div className="flex h-full flex-col border-l border-border bg-surface shadow-elevated">
-        <header className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
+      <div
+        className={cn(
+          "flex h-full flex-col border-l border-border bg-surface shadow-elevated",
+          panel &&
+            (width === "profile"
+              ? "sm:mt-[178px] sm:mr-2.5 sm:h-[calc(100%-188px)]"
+              : "sm:mt-[110px] sm:mr-[11px] sm:h-[calc(100%-118px)]"),
+          panel &&
+            "sm:overflow-hidden sm:rounded-[18px] sm:border-chelth-border/70 sm:shadow-[0_10px_30px_rgba(21,45,49,0.10)]",
+          // Locked Workforce profile surface: cool-white → mint luminosity, soft teal
+          // border, diffused elevation that lifts it above the workspace.
+          width === "profile" &&
+            "bg-[linear-gradient(180deg,#ffffff_0%,#fbfefd_42%,#f2faf7_100%)] sm:border-[rgba(18,107,103,0.14)] sm:shadow-[0_24px_60px_-12px_rgba(9,40,52,0.22),0_8px_20px_rgba(9,40,52,0.08)]",
+        )}
+      >
+        <header
+          className={cn(
+            "flex items-start justify-between gap-3",
+            panel
+              ? "items-center py-1.5 pr-[7px] pl-5 sm:min-h-16"
+              : "border-b border-border px-5 py-4",
+          )}
+        >
           <div className="flex min-w-0 flex-col gap-1">
             <h2
               id={titleId}
-              className="font-display text-lg leading-6 font-semibold text-chelth-navy"
+              className={cn(
+                "font-display text-lg leading-6 font-semibold text-chelth-navy",
+                panel && "sm:text-[20px] sm:font-extrabold sm:tracking-[-0.02em]",
+                width === "profile" &&
+                  "text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)] [-webkit-text-stroke:0.2px_currentColor] sm:text-[20.5px]",
+              )}
             >
               {title}
             </h2>
@@ -108,7 +146,18 @@ export function DetailDrawer({
             <span className="sr-only">Close details</span>
           </button>
         </header>
-        <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">{children}</div>
+        {/* Named, focusable region so keyboard users can scroll long content (as DataTableRegion). */}
+        <div
+          role="region"
+          aria-labelledby={titleId}
+          tabIndex={0}
+          className={cn(
+            "flex flex-1 flex-col overflow-y-auto",
+            panel ? "px-4 pb-4" : "gap-5 px-5 py-4",
+          )}
+        >
+          {children}
+        </div>
         {footer ? (
           <footer className="flex flex-col gap-2 border-t border-border px-5 py-4">{footer}</footer>
         ) : null}

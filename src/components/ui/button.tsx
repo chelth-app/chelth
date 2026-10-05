@@ -5,11 +5,16 @@ import { cn } from "@/lib/utils/cn";
 import { Spinner } from "./spinner";
 
 export const buttonVariants = {
-  primary: "bg-primary text-primary-foreground hover:bg-primary-hover",
+  primary:
+    "bg-primary text-primary-foreground hover:bg-primary-hover in-[.chelth-locked]:bg-[linear-gradient(180deg,#00666c,#004f55)] in-[.chelth-locked]:font-semibold in-[.chelth-locked]:shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_6px_14px_-4px_rgba(0,58,64,0.45)] in-[.chelth-locked]:hover:brightness-110",
   secondary: "bg-secondary text-secondary-foreground hover:bg-secondary-hover",
-  outline: "border border-input-border bg-surface text-foreground hover:bg-surface-muted",
+  outline:
+    "border border-input-border bg-surface text-foreground hover:bg-surface-muted in-[.chelth-locked]:border-[rgba(0,90,96,0.35)] in-[.chelth-locked]:font-semibold in-[.chelth-locked]:text-chelth-navy in-[.chelth-locked]:hover:border-chelth-teal-dark",
   ghost: "bg-transparent text-foreground hover:bg-surface-muted",
-  danger: "bg-danger text-danger-foreground hover:bg-danger-hover",
+  // Locked scope: the richer scoped coral is an indicator; buttons use the deeper
+  // coral so white labels stay >= 4.5:1 (#B42318: 6.5:1).
+  danger:
+    "bg-danger text-danger-foreground hover:bg-danger-hover in-[.chelth-locked]:bg-[#b42318] in-[.chelth-locked]:font-semibold in-[.chelth-locked]:hover:bg-[#9a1e14]",
 } as const;
 
 export const buttonSizes = {
