@@ -37,6 +37,34 @@ export type WorkspaceNavigationInput = {
 
 const held = (state: CapabilityState) => state !== "not_held";
 
+/**
+ * The Finance workspace (P0-E8-F2.5): four existing route families under one
+ * sidebar item, in this locked order — Rates (define pay and bill), Pricing
+ * (apply them to approved work), Payroll (worker-side output), Invoices
+ * (facility-side output). Each area is listed only when its page gate would
+ * pass (the same capability, held = granted or pending step-up).
+ */
+export const FINANCE_AREAS = [
+  { key: "rates", label: "Rates", capability: CAPABILITIES.RATES_VIEW },
+  { key: "pricing", label: "Pricing", capability: CAPABILITIES.PRICING_VIEW },
+  { key: "payroll", label: "Payroll", capability: CAPABILITIES.PAYROLL_VIEW },
+  { key: "invoices", label: "Invoices", capability: CAPABILITIES.INVOICE_VIEW },
+] as const;
+
+export type FinanceArea = (typeof FINANCE_AREAS)[number]["key"];
+
+/** The finance areas the caller may open, in the locked order (agency workspaces only). */
+export function financeAreas(
+  organisationType: OrganisationType,
+  can: (capability: CapabilityKey) => CapabilityState,
+): { key: FinanceArea; label: string }[] {
+  if (organisationType !== "agency") return [];
+  return FINANCE_AREAS.filter((area) => held(can(area.capability))).map(({ key, label }) => ({
+    key,
+    label,
+  }));
+}
+
 export function buildWorkspaceNavigation({
   organisationId,
   organisationType,
@@ -55,6 +83,10 @@ export function buildWorkspaceNavigation({
     items.filter((entry): entry is WorkspaceNavItem => entry !== false);
 
   const overview = item("Overview", "", "overview", "exact");
+  // One Finance item: it opens the first finance area the caller can open and
+  // stays current on every route of all four areas (no Finance route exists).
+  const finance = financeAreas(organisationType, can);
+  const [firstFinance] = finance;
   const settings: WorkspaceNavGroup = {
     label: "Administration",
     visibleLabel: false,
@@ -103,13 +135,15 @@ export function buildWorkspaceNavigation({
     },
     {
       label: "Finance",
-      visibleLabel: true,
-      items: compact([
-        has(CAPABILITIES.RATES_VIEW) && item("Rates", "rates", "rates"),
-        has(CAPABILITIES.PRICING_VIEW) && item("Pricing", "pricing", "pricing"),
-        has(CAPABILITIES.PAYROLL_VIEW) && item("Payroll", "payroll", "payroll"),
-        has(CAPABILITIES.INVOICE_VIEW) && item("Invoices", "invoices", "invoices"),
-      ]),
+      visibleLabel: false,
+      items: firstFinance
+        ? [
+            {
+              ...item("Finance", firstFinance.key, "payroll"),
+              activePaths: finance.map((area) => `${base}/${area.key}`),
+            },
+          ]
+        : [],
     },
     settings,
   ];

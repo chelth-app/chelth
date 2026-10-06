@@ -214,7 +214,7 @@ test.describe.serial("payroll preparation and invoice drafting", () => {
     // P0-E8-S5: P3-F workspace — summary from real counts, Payroll | Invoices mode switch.
     await expect(page.getByRole("region", { name: "Payroll summary" })).toBeVisible();
     await expect(
-      page.getByRole("navigation", { name: "Payroll and invoices" }).getByRole("link", {
+      page.getByRole("navigation", { name: "Finance", exact: true }).getByRole("link", {
         name: "Payroll",
       }),
     ).toHaveAttribute("aria-current", "page");
@@ -278,7 +278,7 @@ test.describe.serial("payroll preparation and invoice drafting", () => {
     exportId = exportRows[0]?.id ?? "";
     await expectNoA11yViolations(page);
 
-    // The batch list: status filter keeps URL state; the preview drawer is inspection only.
+    // The batch list: status filter keeps URL state; Payroll Batch Details is inspection only.
     await page.goto(`/app/organisations/${world.agencyId}/payroll?status=exported`);
     const batches = page.getByRole("region", { name: "Payroll batches table" });
     await expect(
@@ -286,9 +286,11 @@ test.describe.serial("payroll preparation and invoice drafting", () => {
         name: "Batch status",
       }),
     ).toHaveValue("exported");
-    const preview = batches.getByRole("button", { name: /^Preview PAY-/ }).first();
+    const preview = batches
+      .getByRole("button", { name: /^Payroll batch details for PAY-/ })
+      .first();
     await preview.click();
-    const drawer = page.getByRole("dialog", { name: /^PAY-\d{4}-\d{6}$/ });
+    const drawer = page.getByRole("dialog", { name: "Payroll Batch Details" });
     await expect(drawer).toBeVisible();
     await expect(drawer.getByRole("button", { name: "Close details" })).toBeFocused();
     await expect(drawer).toContainText("Exported");
@@ -453,6 +455,95 @@ test.describe.serial("payroll preparation and invoice drafting", () => {
     await expect(page.getByText("Adjustment required").first()).toBeVisible();
     await expect(page.getByText("$1,133.90").first()).toBeVisible();
     await expectNoA11yViolations(page);
+    await page.context().close();
+  });
+  test("F2 visual: Payroll on the locked finance system — KPIs, drawer, record (P0-E8-F2)", async ({
+    browser,
+  }, testInfo) => {
+    test.skip(testInfo.project.name.startsWith("mobile"), "explicit widths below");
+    const page = await signedIn(browser, finance.email);
+    const path = `/app/organisations/${world.agencyId}/payroll`;
+    for (const [width, height] of [
+      [1512, 982],
+      [1280, 900],
+      [1024, 900],
+      [768, 1024],
+      [412, 915],
+      [375, 812],
+    ] as const) {
+      await page.setViewportSize({ width, height });
+      await page.goto(path);
+      await expect(page.getByRole("heading", { level: 1, name: "Payroll" })).toBeVisible();
+      const summary = page.getByRole("region", { name: "Payroll summary" });
+      for (const label of ["Needs Attention", "Ready to Prepare", "Awaiting Approval"]) {
+        await expect(summary).toContainText(label);
+      }
+      await expect(summary.getByRole("link", { name: /Ready to Export/ })).toBeVisible();
+      // Lifecycle labels only — preparation and export, never payment.
+      const batches = page.getByRole("region", { name: "Payroll batches table" });
+      await expect(batches).toContainText("Exported");
+      await expect(batches).toContainText("Adjustment required");
+      await expect(page.getByText("Preparation and export only", { exact: true })).toBeVisible();
+      await expectNoPaymentVocabulary(page);
+      await expectNoPageOverflow(page);
+      await expectNoA11yViolations(page);
+      await qaScreenshot(page, "f2-payroll");
+
+      if (width === 1512 || width === 768) {
+        // Payroll Batch Details: native dialog, focus in, Escape returns focus to the row.
+        const trigger = batches
+          .getByRole("button", { name: /^Payroll batch details for PAY-/ })
+          .first();
+        await trigger.click();
+        const drawer = page.getByRole("dialog", { name: "Payroll Batch Details" });
+        await expect(drawer).toBeVisible();
+        await expect(drawer).toContainText("Maker-checker");
+        await expect(drawer).toContainText("Not required");
+        await expect(drawer.getByRole("tab", { name: "Workers" })).toBeVisible();
+        await expect(drawer.getByRole("button", { name: /approve|lock|export/i })).toHaveCount(0);
+        await expectNoA11yViolations(page);
+        await qaScreenshot(page, "f2-payroll-drawer");
+        await page.keyboard.press("Escape");
+        await expect(trigger).toBeFocused();
+
+        // The batch record on the canonical record arrangement; Finance › Payroll stays current.
+        await page.goto(batchPath);
+        await expect(
+          page
+            .getByRole("navigation", { name: "Finance", exact: true })
+            .getByRole("link", { name: "Payroll" }),
+        ).toHaveAttribute("aria-current", "page");
+        if (width >= 1024) {
+          await expect(
+            page
+              .getByRole("navigation", { name: "Workspace" })
+              .getByRole("link", { name: "Finance" }),
+          ).toHaveAttribute("aria-current", "page");
+        }
+        await expect(
+          page.getByRole("navigation", { name: "Payroll batch sections" }),
+        ).toBeVisible();
+        await expect(page.getByRole("region", { name: "Summary", exact: true })).toContainText(
+          "$830.88",
+        );
+        await expect(page.getByLabel("Batch lifecycle")).toContainText("Fay Finance");
+        await expectNoPaymentVocabulary(page);
+        await expectNoPageOverflow(page);
+        await expectNoA11yViolations(page);
+        await qaScreenshot(page, "f2-payroll-record");
+      }
+    }
+    // An invoice record keeps Finance › Invoices current (P0-E8-F2.5).
+    await page.setViewportSize({ width: 1512, height: 982 });
+    await page.goto(draftPath);
+    await expect(
+      page
+        .getByRole("navigation", { name: "Finance", exact: true })
+        .getByRole("link", { name: "Invoices" }),
+    ).toHaveAttribute("aria-current", "page");
+    await expect(
+      page.getByRole("navigation", { name: "Workspace" }).getByRole("link", { name: "Finance" }),
+    ).toHaveAttribute("aria-current", "page");
     await page.context().close();
   });
 });

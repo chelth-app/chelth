@@ -26,6 +26,12 @@ export type WorkspaceNavItem = {
   icon: WorkspaceNavIcon;
   /** `exact` for the Overview; `prefix` so detail pages keep their section active. */
   match: "exact" | "prefix";
+  /**
+   * Further route roots that keep this item current (prefix match), for an
+   * item that stands for several route families (Finance: rates, pricing,
+   * payroll, invoices).
+   */
+  activePaths?: readonly string[];
 };
 
 export type WorkspaceNavGroup = {
@@ -38,5 +44,8 @@ export type WorkspaceNavGroup = {
 /** True when `pathname` is the item's page or (for prefix items) one of its detail pages. */
 export function isNavItemActive(item: WorkspaceNavItem, pathname: string): boolean {
   if (pathname === item.href) return true;
-  return item.match === "prefix" && pathname.startsWith(`${item.href}/`);
+  if (item.match === "prefix" && pathname.startsWith(`${item.href}/`)) return true;
+  return (item.activePaths ?? []).some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`),
+  );
 }

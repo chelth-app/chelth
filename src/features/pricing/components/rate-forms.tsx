@@ -164,17 +164,24 @@ export function NewVersionForm({
   rateCardId,
   label,
   today,
+  stacked = false,
 }: {
   organisationId: string;
   rateCardId: string;
   label: string;
   today: string;
+  /** One column (narrow surfaces such as the Rate Details drawer). */
+  stacked?: boolean;
 }) {
   const [state, formAction] = useActionState(createVersionAction, null);
   return (
     <details className="text-sm">
       <summary className="cursor-pointer text-primary">New version for {label}</summary>
-      <form action={formAction} className="mt-3 grid gap-3 sm:grid-cols-3" noValidate>
+      <form
+        action={formAction}
+        className={stacked ? "mt-3 grid gap-3" : "mt-3 grid gap-3 sm:grid-cols-3"}
+        noValidate
+      >
         <input type="hidden" name="organisationId" value={organisationId} />
         <input type="hidden" name="rateCardId" value={rateCardId} />
         <TermsFields state={state} idPrefix={`version-${rateCardId}`} today={today} />

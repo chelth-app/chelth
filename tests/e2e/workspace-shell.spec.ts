@@ -94,12 +94,11 @@ const AGENCY_ADMIN_NAV = [
   "Workforce",
   "Facilities",
   "Compliance",
-  "Rates",
-  "Pricing",
-  "Payroll",
-  "Invoices",
+  "Finance",
   "Settings",
 ];
+
+const FINANCE_AREAS = ["Rates", "Pricing", "Payroll", "Invoices"];
 
 test.describe.serial("workspace shell", () => {
   test.setTimeout(240_000);
@@ -179,8 +178,9 @@ test.describe.serial("workspace shell", () => {
       "page",
     );
     await expect(queues.getByRole("tab")).toHaveCount(0);
+    // P0-E8-F1: the empty state sits inside the queue panel (h2), so it is an h3.
     await expect(
-      page.getByRole("heading", { level: 2, name: "Nothing has been priced yet." }),
+      page.getByRole("heading", { level: 3, name: "Nothing has been priced yet." }),
     ).toBeVisible();
     await qaScreenshot(page, "empty-state");
     await expectNoA11yViolations(page);
@@ -255,10 +255,7 @@ test.describe.serial("workspace shell", () => {
       "Overview",
       "Timesheets",
       "Facilities",
-      "Rates",
-      "Pricing",
-      "Payroll",
-      "Invoices",
+      "Finance",
       "Settings",
     ]);
     await closeWorkspaceNav(page, testInfo);
@@ -367,6 +364,81 @@ test.describe.serial("workspace shell", () => {
       }
       await expect(page.getByRole("button", { name: "Open navigation" })).toHaveCount(0);
     }
+  });
+
+  test("finance workspace: one sidebar item, capability-filtered areas, active states (P0-E8-F2.5)", async ({
+    browser,
+  }, testInfo) => {
+    const base = `/app/organisations/${world.agencyId}`;
+    const page = await signedIn(browser, finance.email);
+    for (const [index, area] of FINANCE_AREAS.entries()) {
+      await page.goto(`${base}/${area.toLowerCase()}`);
+      await expect(page.getByRole("heading", { level: 1, name: area })).toBeVisible();
+      // One shared Finance navigation, locked order; the current area is marked.
+      const financeNav = page.getByRole("navigation", { name: "Finance", exact: true });
+      expect(await navLabels(financeNav)).toEqual(FINANCE_AREAS);
+      await expect(financeNav.getByRole("link", { name: area })).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+      await expect(financeNav.locator('[aria-current="page"]')).toHaveCount(1);
+      // The sidebar has a single Finance item, current on every finance route.
+      const nav = await openWorkspaceNav(page, testInfo);
+      for (const legacy of FINANCE_AREAS) {
+        await expect(nav.getByRole("link", { name: legacy, exact: true })).toHaveCount(0);
+      }
+      await expect(nav.getByRole("link", { name: "Finance" })).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+      if (index === 0) {
+        await expect(nav.getByRole("link", { name: "Finance" })).toHaveAttribute(
+          "href",
+          `${base}/rates`,
+        );
+      }
+      if (isMobile(testInfo)) {
+        await page.keyboard.press("Escape");
+        await expect(page.getByRole("button", { name: "Open navigation" })).toBeFocused();
+      }
+      await expectNoPageOverflow(page);
+      await expectNoA11yViolations(page);
+      await screenshot(page, testInfo, `finance-${area.toLowerCase()}`);
+    }
+    // Moving between areas through the shared tabs: one Finance shell, the new area current.
+    await page.goto(`${base}/rates`);
+    const shell = page.getByRole("navigation", { name: "Finance", exact: true });
+    await shell.getByRole("link", { name: "Pricing" }).click();
+    await expect(page).toHaveURL(`${base}/pricing`);
+    await expect(page.getByRole("heading", { level: 1, name: "Pricing" })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Finance", exact: true })).toHaveCount(1);
+    await expect(shell.getByRole("link", { name: "Pricing" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await expect(shell.locator('[aria-current="page"]')).toHaveCount(1);
+    await screenshot(page, testInfo, "finance-tab-after-click");
+    // Keyboard: the focused tab shows the full focus ring (not clipped by the scroll row).
+    await shell.getByRole("link", { name: "Pricing" }).focus();
+    await page.keyboard.press("Tab");
+    await expect(shell.getByRole("link", { name: "Payroll" })).toBeFocused();
+    await screenshot(page, testInfo, "finance-tab-keyboard-focus");
+
+    // No Finance dashboard route was introduced.
+    expect((await page.goto(`${base}/finance`))?.status()).toBe(404);
+    await page.context().close();
+
+    // Partial finance access (one area but not another) is proven in the unit tests:
+    // no seeded role holds only some finance areas (operations managers hold all four views).
+
+    // No finance capability: no Finance item, and finance routes stay unreachable.
+    const scheduler = await signedIn(browser, world.scheduler.email);
+    await scheduler.goto(base);
+    const schedulerNav = await openWorkspaceNav(scheduler, testInfo);
+    expect(await navLabels(schedulerNav)).not.toContain("Finance");
+    await closeWorkspaceNav(scheduler, testInfo);
+    expect((await scheduler.goto(`${base}/rates`))?.status()).toBe(404);
+    await scheduler.context().close();
   });
 
   test("narrow viewport: the sidebar becomes an accessible overlay", async ({

@@ -381,6 +381,37 @@ test.describe.serial("financial adjustments and controls", () => {
     await checker.context().close();
   });
 
+  test("F2 visual: payroll adjustments keep their own delta treatment (P0-E8-F2)", async ({
+    browser,
+  }, testInfo) => {
+    test.skip(testInfo.project.name.startsWith("mobile"), "desktop capture");
+    const page = await signedIn(browser, fay.email);
+    await page.setViewportSize({ width: 1512, height: 982 });
+    await page.goto(`/app/organisations/${world.agencyId}/payroll#payroll-adjustments-heading`);
+    const panel = page.getByRole("region", { name: "Payroll Adjustments", exact: true });
+    await expect(panel).toContainText("Pay-side delta only");
+    await expect(panel.getByRole("region", { name: "Payroll adjustments table" })).toContainText(
+      /PAY-ADJ-\d{4}-\d{6}/,
+    );
+    await expectNoPaymentVocabulary(page);
+    await qaScreenshot(page, "f2-payroll-adjustments");
+    await page.goto(adjustmentPath);
+    await expect(page.getByText("Adjustment — not payment")).toBeVisible();
+    // Finance › Payroll stays current on an adjustment record (P0-E8-F2.5).
+    await expect(
+      page
+        .getByRole("navigation", { name: "Finance", exact: true })
+        .getByRole("link", { name: "Payroll" }),
+    ).toHaveAttribute("aria-current", "page");
+    await expect(
+      page.getByRole("navigation", { name: "Payroll adjustment sections" }),
+    ).toBeVisible();
+    await expect(page.getByLabel("Net pay change")).toContainText("+$11.32");
+    await expectNoPaymentVocabulary(page);
+    await qaScreenshot(page, "f2-payroll-adjustment-detail");
+    await page.context().close();
+  });
+
   test("Flow 6: workers, schedulers and facilities cannot reach adjustment routes", async ({
     browser,
   }) => {
