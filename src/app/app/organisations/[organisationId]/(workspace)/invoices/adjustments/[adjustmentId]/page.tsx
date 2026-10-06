@@ -123,7 +123,10 @@ export default async function InvoiceAdjustmentPage({
         </StepUpNotice>
       ) : null}
       {blocked ? (
-        <p role="alert" className="rounded-md border border-border bg-danger-soft p-3 text-sm">
+        <p
+          role="alert"
+          className="rounded-md border border-border bg-danger-soft p-3 text-sm text-danger-soft-foreground"
+        >
           The timesheet was revised again after this adjustment was prepared, so it cannot be
           approved or locked. Void it and prepare a new adjustment.
         </p>

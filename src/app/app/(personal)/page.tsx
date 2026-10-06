@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { PageHeader } from "@/components/ui/page-header";
+import { StatusChip } from "@/components/ui/status-chip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,12 +41,10 @@ export default async function AppHomePage({ searchParams }: PageProps<"/app">) {
 
   return (
     <>
-      <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold">
-          Welcome{profile.displayName ? `, ${profile.displayName}` : ""}
-        </h1>
-        <p className="text-sm text-muted-foreground">Choose an organisation to work in.</p>
-      </header>
+      <PageHeader
+        title={`Welcome${profile.displayName ? `, ${profile.displayName}` : ""}`}
+        description={<p className="text-sm">Choose an organisation to work in.</p>}
+      />
 
       {noticeText ? (
         <p
@@ -89,7 +89,7 @@ export default async function AppHomePage({ searchParams }: PageProps<"/app">) {
                           {organisation.type === "agency" ? "Agency" : "Facility"}
                         </Badge>
                         {organisation.status !== "active" ? (
-                          <Badge tone="warning">Suspended</Badge>
+                          <StatusChip tone="warning">Suspended</StatusChip>
                         ) : null}
                         {organisation.id === preferredOrganisationId ? (
                           <Badge tone="info">Last used</Badge>

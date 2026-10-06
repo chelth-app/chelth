@@ -50,8 +50,36 @@ export function DataTableRegion({ className, ...props }: DataTableRegionProps) {
   );
 }
 
-export function DataTable({ className, ...props }: TableHTMLAttributes<HTMLTableElement>) {
-  return <table className={cn("w-full text-left text-sm", className)} {...props} />;
+/**
+ * Row density. `default`: generic tables. Locked reference variants (Inter
+ * 13/19 body, 12/18 header):
+ * - `panel` (P2 Operations Overview panels): 28 px rounded, tinted header
+ *   band with no rule; 42 px rows.
+ * - `list` (P3 Shifts list): 24 px header band; 45 px rows (two-line cells).
+ */
+const DENSITY = {
+  default: "",
+  panel: cn(
+    "text-[13px] leading-[19px]",
+    "[&_th]:bg-surface-muted [&_th]:py-[5px] [&_th]:leading-[18px] [&_thead]:border-0 [&_thead]:bg-transparent",
+    "[&_th:first-child]:rounded-l-md [&_th:last-child]:rounded-r-md",
+    "[&_td]:py-[11px]",
+  ),
+  list: cn(
+    "text-[13px] leading-[19px]",
+    "[&_th]:py-[3px] [&_th]:leading-[18px]",
+    "[&_td]:h-11 [&_td]:py-[3px]",
+  ),
+} as const;
+
+export function DataTable({
+  className,
+  density = "default",
+  ...props
+}: TableHTMLAttributes<HTMLTableElement> & { density?: keyof typeof DENSITY }) {
+  return (
+    <table className={cn("w-full text-left text-sm", DENSITY[density], className)} {...props} />
+  );
 }
 
 export function DataTableHead({ className, ...props }: HTMLAttributes<HTMLTableSectionElement>) {
@@ -74,7 +102,11 @@ export function DataTableHeaderCell({
   return (
     <th
       scope="col"
-      className={cn("px-3 py-2.5 font-medium", numeric && "text-right", className)}
+      className={cn(
+        "px-3 py-2.5 font-medium in-[.chelth-locked]:font-semibold",
+        numeric && "text-right",
+        className,
+      )}
       {...props}
     />
   );

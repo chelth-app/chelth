@@ -1,6 +1,19 @@
 import type { Metadata, Route } from "next";
 import Link from "next/link";
 
+import { WorkspaceNavIcon } from "@/components/layout/workspace-nav-icon";
+import { RefChip } from "@/components/reference/locked-reference";
+import { LocationPin } from "@/components/ui/location-pin";
+import {
+  RECORD_ROW,
+  RECORD_ROW_META,
+  RECORD_ROW_TITLE,
+  RecordList,
+  RecordMeta,
+  RecordNote,
+  RecordPage,
+  RecordStatusBlock,
+} from "@/components/reference/record-page";
 import { Panel } from "@/components/ui/panel";
 import { notFound } from "next/navigation";
 
@@ -19,7 +32,7 @@ import {
   listLocations,
   listRelationships,
   listTimezones,
-  RelationshipStatusBadge,
+  RELATIONSHIP_TONE,
   setFacilityStatusAction,
   setRelationshipStatusAction,
 } from "@/features/facilities";
@@ -33,6 +46,7 @@ import { listRequirements, RequirementForm, RequirementsTable } from "@/features
 import { localCalendarDate } from "@/lib/domain/credentials";
 import { listCredentialTypes, listDisciplines, listJurisdictions } from "@/features/credentials";
 import { CAPABILITIES } from "@/lib/authz";
+import { cn } from "@/lib/utils/cn";
 import {
   FACILITY_STATUS_LABELS,
   FACILITY_STATUS_TRANSITIONS,
@@ -91,8 +105,10 @@ export default async function FacilityPage({
   const timezones = canManageFacility ? listTimezones() : [];
 
   return (
-    <>
+    // Locked inner-page system (docs/ui-reference/CHELTH-LOCKED-VISUAL-SYSTEM.md).
+    <RecordPage>
       <PageHeader
+        variant="reference"
         title={facility.name}
         back={
           <Link
@@ -103,17 +119,13 @@ export default async function FacilityPage({
           </Link>
         }
         description={
-          <p className="text-sm">
-            {[typeName, facility.locality, facility.timezone].filter(Boolean).join(" · ")}
-          </p>
+          <p>{[typeName, facility.locality, facility.timezone].filter(Boolean).join(" · ")}</p>
         }
         meta={
           <>
             <FacilityStatusBadge status={facility.status} />
             {facility.linked ? (
-              <span className="text-sm text-muted-foreground">
-                Linked to a CHELTH facility organisation
-              </span>
+              <RecordMeta>Linked to a CHELTH facility organisation</RecordMeta>
             ) : null}
           </>
         }
@@ -176,16 +188,30 @@ export default async function FacilityPage({
 
       <Panel titleId="locations-heading" title={<>Locations</>}>
         {locations.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No locations yet.</p>
+          <RecordNote>No locations yet.</RecordNote>
         ) : (
-          <ul className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface text-sm">
+          <RecordList>
             {locations.map((location) => (
-              <li key={location.id} className="flex flex-wrap justify-between gap-2 p-3">
-                <span className="font-medium">{location.name}</span>
-                <span className="text-muted-foreground">{location.timezone}</span>
+              <li key={location.id} className={RECORD_ROW}>
+                <span
+                  aria-hidden="true"
+                  className="inline-flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-[linear-gradient(145deg,#e6f9f3,#ccefe3)] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"
+                >
+                  <LocationPin className="size-[18px] text-chelth-teal-dark" />
+                </span>
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className={cn("truncate", RECORD_ROW_TITLE)}>{location.name}</span>
+                  <span className={RECORD_ROW_META}>{location.timezone}</span>
+                </span>
+                <RefChip
+                  tone={location.status === "active" ? "success" : "neutral"}
+                  className="font-semibold"
+                >
+                  {location.status === "active" ? "Active" : "Inactive"}
+                </RefChip>
               </li>
             ))}
-          </ul>
+          </RecordList>
         )}
         {canManageFacility ? (
           <CreateLocationForm
@@ -199,10 +225,10 @@ export default async function FacilityPage({
 
       {canManageGeofences && locations.length > 0 ? (
         <Panel titleId="geofence-heading" title={<>Attendance location checks</>}>
-          <p className="max-w-2xl text-sm text-muted-foreground">
+          <RecordNote>
             Optional. When enabled for a location, workers share their location once when they clock
             in or out there. Chelth never tracks workers between clock actions.
-          </p>
+          </RecordNote>
           {locations.map((location) => (
             <div key={location.id} className="flex flex-col gap-2">
               <h3 className="text-base font-semibold">{location.name}</h3>
@@ -220,9 +246,7 @@ export default async function FacilityPage({
 
       {canViewRequirements ? (
         <Panel titleId="requirements-heading" title={<>Credential requirements</>}>
-          <p className="text-sm text-muted-foreground">
-            Added to the agency baseline for work at {facility.name}.
-          </p>
+          <RecordNote>Added to the agency baseline for work at {facility.name}.</RecordNote>
           <RequirementsTable
             organisationId={organisationId}
             facilityId={facility.id}
@@ -255,14 +279,26 @@ export default async function FacilityPage({
         <Panel titleId="relationship-heading" title={<>Relationship</>}>
           {openRelationship ? (
             <div className="flex flex-col gap-3 text-sm">
-              <div className="flex flex-wrap items-center gap-2">
-                <RelationshipStatusBadge status={openRelationship.status} />
+              {/* Locked status block: the lifecycle state as the section's anchor. */}
+              <RecordStatusBlock>
+                <span
+                  aria-hidden="true"
+                  className="inline-flex size-9 items-center justify-center rounded-[10px] bg-[linear-gradient(145deg,#e6f9f3,#ccefe3)] text-chelth-teal-dark [&>svg]:size-[19px]"
+                >
+                  <WorkspaceNavIcon name="compliance" strokeWidth={2.1} />
+                </span>
+                <RefChip
+                  tone={RELATIONSHIP_TONE[openRelationship.status]}
+                  className="h-7 px-3 text-[12.5px] font-semibold"
+                >
+                  {RELATIONSHIP_STATUS_LABELS[openRelationship.status]}
+                </RefChip>
                 {openRelationship.startedAt ? (
-                  <span className="text-muted-foreground">
+                  <span className="font-medium text-slate-600">
                     since {date.format(new Date(openRelationship.startedAt))}
                   </span>
                 ) : null}
-              </div>
+              </RecordStatusBlock>
               {canManageRelationship ? (
                 <div className="flex flex-wrap gap-2">
                   {RELATIONSHIP_STATUS_TRANSITIONS[openRelationship.status].map((status) => (
@@ -288,7 +324,7 @@ export default async function FacilityPage({
             </div>
           ) : (
             <div className="flex flex-col gap-2 text-sm">
-              <p className="text-muted-foreground">No open relationship with this facility.</p>
+              <RecordNote>No open relationship with this facility.</RecordNote>
               {canManageRelationship && facility.status === "active" ? (
                 <InlineActionForm
                   action={createRelationshipAction}
@@ -336,6 +372,6 @@ export default async function FacilityPage({
           </div>
         </Panel>
       ) : null}
-    </>
+    </RecordPage>
   );
 }

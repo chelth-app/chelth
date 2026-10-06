@@ -1,0 +1,417 @@
+P0-E8-S9B — WORKFORCE FIDELITY CORRECTION
+=========================================
+
+Branch: p0-e8-visual-implementation (uncommitted)
+Status: AWAITING HUMAN VISUAL REVIEW.
+- Not committed.
+- Facilities untouched.
+- Global visual system unchanged.
+
+
+1. EXACT REFERENCES USED
+------------------------
+docs/ui-reference/p08-e8/canonical/Chelth_Workforce/
+- assets/chelth-workforce-locked.png (1536 x 1024): the render target. It
+  draws the app at 0.888 scale in a frame at (8, 8)–(1523, 1009).
+- index.html: the panel geometry (start 1178, width 358) and the hotspot
+  rectangles for cards, filters, rows (5.25% pitch), tabs, actions and
+  pagination.
+- README.md, CLAUDE-IMPLEMENTATION.md, WORKFORCE-INTERACTIONS.md,
+  LOCKED-DESIGN-SPEC.md.
+
+There is no separate drawer reference; the drawer is part of the
+Workforce PNG.
+
+
+2. GLOBAL VISUAL LOCK PRESERVED
+-------------------------------
+- No change to the sidebar, logo, wave, nav, canvas, type families,
+  title, card, icon or tile treatment, buttons, chips or table chrome
+  tokens.
+- Changes are confined to the Workforce route, its drawer component, and
+  two additive variants in the shared reference module: InitialsAvatar
+  sizes 38 and 90, used only by Workforce.
+
+
+3. HEADER
+---------
+- Unchanged from the previous pass: the locked title treatment, a
+  truthful subtitle, and "+ Add Professional" (about 191 x 47) at the top
+  right, revealing the existing invite form.
+- The overlay shows the title block and button in the reference positions.
+
+
+4. KPI CARDS
+------------
+- Same four real metrics and the same "sm" card. Needs Attention and
+  Credential Ready are now real filter shortcuts (?credentials=attention /
+  ready), matching the reference behaviour ("summary cards act as filter
+  shortcuts").
+- Active keeps ?status=active.
+- Each card shows its active state with aria-current and "Showing".
+
+
+5. FILTER BAR
+-------------
+The row is now full, with real controls only. Each is a display filter
+over the already-loaded workforce, using the same GET mechanism as the
+existing status filter. No query, RPC or backend change.
+
+- Status: icon, "All statuses", 194 px.
+- Role: "All roles", 148 px. Options are only the disciplines held in this
+  workforce (from listWorkerDisciplines).
+- Credentials: "All credential status", 226 px (with COMPLIANCE_VIEW):
+  Needs attention / Credential ready.
+- Search: a search box (up to 260 px) matching name or worker reference,
+  case-insensitive.
+- Apply filters, and Clear filters when any filter is active.
+
+Controls are 46 px tall with 9 px gaps. Filters, search and the page are
+preserved in the pagination links.
+
+Not shown, because the product has no data for them: availability and
+facility filters. Their rhythm is absorbed by the wider search control,
+not by fake dropdowns.
+
+
+6. TABLE DENSITY
+----------------
+- 47 px header band, 60 px rows (the reference pitch), body text 13.5 px
+  (previously 13), and the reference column proportions.
+- Long values truncate (facility, unit, discipline line) rather than
+  growing the row.
+- The selected row is tinted with a teal accent while its drawer is open.
+
+
+7. WORKER IDENTITY
+------------------
+- A 38 px initials avatar (Chelth has no photos), the name at 14 px / 600
+  navy, and a secondary 12 px line with the full discipline name, or
+  "Started {date}" / "Not started" when no discipline is recorded.
+- Initials-only workers no longer look empty, and the geometry follows the
+  reference identity cell.
+
+
+8. TABLE COLUMNS
+----------------
+Name | Role | Reference | Today | Current Assignment | Credentials | Next
+Shift | Status | ⋮
+
+All real; unchanged from the previous pass. Contact is not shown: Chelth
+holds no worker phone or email.
+
+
+9. DRAWER STRUCTURE (Professional Details)
+------------------------------------------
+Rebuilt to the reference's vertical structure, at reference px / 0.888:
+
+- Card: 387 px wide, 178 px from the top, 18 px radius, docked (no dim) at
+  1536 px and wider, a full-height sheet on phones. The table contracts
+  beside it and expands again on close.
+- Header: "Professional Details" and the close control.
+- Identity: a 90 px avatar; the name (Manrope 21 / 700) with a status chip
+  on the right; full discipline names; the agency name.
+- Meta rows (the reference contact slot), at a 28 px pitch: worker
+  reference, start / end dates, agency.
+- Tab bar: 42 px, four-column geometry. Real tabs only (see 11).
+- Sections, divided by hairlines: Status, Current Assignment, Upcoming
+  Shifts (n), Credentials (with "View all").
+- Action region pinned to the foot of the panel (mt-auto): a 48 px primary
+  and two 48 px half-width secondaries, matching the reference geometry.
+
+
+10. DRAWER DATA REUSE
+---------------------
+The drawer reuses data the page already loads with the worker record's
+own loaders and capability gates. No new authorisation path:
+- listWorkers;
+- listWorkerDisciplines;
+- getReadiness (COMPLIANCE_VIEW);
+- listAgencyShifts (SHIFT_VIEW) and listShiftAssignments (ASSIGNMENT_VIEW).
+
+The record's other loaders were not needed:
+- listAgencyWorkerCredentials needs CREDENTIAL_VIEW;
+- notes need WORKER_NOTES_VIEW.
+
+No backend change was required.
+
+
+11. TABS
+--------
+Real in-place ARIA tabs (tablist / tab / tabpanel, roving focus, arrow /
+Home / End keys):
+- Overview: status, current assignment, upcoming (2), credentials (4).
+- Credentials: every readiness requirement. Shown only with readiness
+  access.
+- Assignments: current and all upcoming shifts.
+
+Activity is omitted: Chelth has no activity data for workers.
+
+
+12. ASSIGNMENT SECTION
+----------------------
+- The real in-progress shift (date, local time range, facility and unit),
+  using the reference row geometry.
+- When there is none: the reference empty treatment, "— No active
+  assignment".
+
+
+13. UPCOMING SHIFTS
+-------------------
+- "Upcoming Shifts (n)" with real future assignments (two on Overview, all
+  on Assignments).
+- When there are none: the section is kept with "No upcoming shifts."
+
+
+14. CREDENTIALS
+---------------
+- Live readiness requirements: the credential type name, a status glyph,
+  "Valid to {date}" where an effective expiry exists, and a chip with
+  COMPLIANCE_REASON_LABELS (Requirement met / Expires soon / Missing / …).
+- "View all" goes to the worker record's Readiness section.
+- No fabricated credential names.
+
+
+15. DRAWER ACTIONS
+------------------
+- Primary: "Open worker record".
+- Secondaries: "Readiness" (record #readiness-heading, with readiness
+  access) and "View Credentials" (record #credentials-heading, with
+  CREDENTIAL_VIEW).
+- "Assign to Shift" is not offered: assignment starts from a shift.
+- "Message" is not offered: there is no messaging.
+- The geometry matches the reference action region.
+
+
+16. RESPONSIVE BEHAVIOUR
+------------------------
+- 1280 / 768 / 412 / 375: no page-level overflow (asserted).
+- Filters wrap and summary cards go 2-up. The table scrolls inside its
+  labelled region. The drawer is a full-height sheet on phones. The
+  existing overlay navigation is used below lg.
+
+
+17. INTENTIONAL PRODUCT / DATA DIFFERENCES
+------------------------------------------
+- No photos, phone, email, location, availability states, facility or
+  availability filters, bulk select, Message, Assign to Shift or Activity.
+  "Contact" → Reference; "Availability" → Today.
+- QA data has 8 workers (one page; the reference shows 142 rows), mostly
+  without references or upcoming shifts. Each has one requirement (BLS),
+  so drawer credential lists are short.
+- Search, notifications and the extra nav items are absent globally, as on
+  Overview.
+
+
+18. SCREENSHOT OVERLAY RESULTS (docs/reports/workforce-fidelity/correction/)
+---------------------------------------------------------------------------
+01-reference-workforce.png
+02-after-workforce.png                    the reference canvas, same scale
+                                          and origin
+03-overlay-workforce.png                  50%
+04-reference-drawer.png
+05-after-drawer.png
+06-overlay-drawer.png
+07-drawer-reference-after-overlay.png     three-up
+08-reference-vs-after.png
+09-after-drawer-closed.png
+10-after-workforce-{1280,768,412,375}.png
+
+Observed:
+- Filter-row density now matches the reference row.
+- The table header band, row pitch and identity cells align.
+- The drawer silhouette and section order match: title, identity, meta
+  rows, tabs, Status / Current Assignment / Upcoming Shifts / Credentials
+  sections, and the bottom action region.
+- Remaining gaps are data driven (see 17).
+
+
+19. TESTS
+---------
+Results:
+- format:check, lint, typecheck: pass
+- npm test: 339 passed
+- build: pass
+- check:bundle: OK (66 browser files, no secrets)
+- npx playwright test: 216 passed, 2 skipped (pre-existing), 0 failed
+
+Test change:
+- The overview-fidelity QA spec now asserts the real filters: search "ana"
+  → 1 row; credentials=attention → Fay Hughes; role=cna → 8 rows.
+
+A failure found and fixed during the stage: the new credentials control
+was labelled "Credential status", which made the existing Status-combobox
+locator ambiguous. It is now labelled "Credentials". The test was not
+changed.
+
+
+20. FILES CHANGED (this pass)
+-----------------------------
+- src/app/app/organisations/[organisationId]/(workspace)/workforce/page.tsx
+  (filters, KPI shortcuts, identity cell, density)
+- src/app/app/organisations/[organisationId]/(workspace)/workforce/_components/worker-details-panel.tsx
+  (rebuilt)
+- src/app/app/organisations/[organisationId]/(workspace)/workforce/_components/details-tabs.tsx
+  (new: ARIA tabs)
+- src/components/reference/locked-reference.tsx (avatar sizes 38 and 90)
+- tests/e2e/overview-fidelity.spec.ts (filter assertions)
+- docs/reports/workforce-fidelity/correction/*
+- this report
+
+
+21. GIT STATUS
+--------------
+ M src/app/app/organisations/[organisationId]/(workspace)/_components/agency-operations-overview.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/shifts/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/workforce/page.tsx
+ M src/app/globals.css
+ M src/components/layout/app-shell.tsx
+ M src/components/layout/mobile-workspace-nav.tsx
+ M src/components/layout/page-container.tsx
+ M src/components/layout/workspace-nav-icon.tsx
+ M src/components/layout/workspace-sidebar.tsx
+ M src/components/layout/workspace-switcher.tsx
+ M src/components/ui/data-table.tsx
+ M src/components/ui/detail-drawer.tsx
+ M src/components/ui/filter-bar.tsx
+ M src/components/ui/kpi-filter-card.tsx
+ M src/components/ui/page-header.tsx
+ M src/components/ui/panel.tsx
+ M src/features/shifts/components/badges.tsx
+ M src/features/shifts/index.ts
+ M src/lib/domain/shifts.ts
+ M tests/e2e/agency-surfaces.spec.ts
+ M tests/e2e/assignment-operations.spec.ts
+ M tests/e2e/credentials-compliance.spec.ts
+ M tests/e2e/final-sweep.spec.ts
+ M tests/e2e/identity.spec.ts
+ M tests/e2e/shifts-assignments.spec.ts
+ M tests/e2e/support.ts
+ M tests/e2e/workforce-facilities.spec.ts
+ M tests/e2e/workspace-shell.spec.ts
+ M tests/unit/lib/shift-vocabulary.test.ts
+?? docs/reports/P0-E8-S9A-locked-visual-fidelity-shell-overview-shifts.txt
+?? docs/reports/P0-E8-S9A4-overview-exact-reference-implementation.txt
+?? docs/reports/P0-E8-S9B-workforce-locked-reference-implementation.txt
+?? docs/reports/overview-fidelity/
+?? docs/reports/s9a-visual-review/
+?? docs/reports/workforce-fidelity/
+?? src/app/app/organisations/[organisationId]/(workspace)/shifts/_components/
+?? src/app/app/organisations/[organisationId]/(workspace)/workforce/_components/
+?? src/components/reference/
+?? src/components/ui/location-pin.tsx
+?? tests/e2e/overview-fidelity.spec.ts
+
+Nothing was committed, pushed or deployed.
+
+STATUS: AWAITING HUMAN VISUAL REVIEW
+
+
+==========================================================================
+PROFESSIONAL DETAILS DRAWER — VISUAL DEPTH + TYPOGRAPHY PASS
+==========================================================================
+
+Scope: the drawer only. Workforce page, table, filters, KPIs, shell and
+global tokens are unchanged.
+
+This brief replaces the interrupted "Credentials tab" pass. A one-field
+query-mapping change started for that pass was fully reverted
+(src/features/credentials/queries.ts equals HEAD).
+
+Surface (DetailDrawer width="profile" only; the Shifts panel is
+unchanged):
+- A cool-white → mint gradient surface.
+- A soft teal border, rgba(18,107,103,0.14).
+- Diffused two-layer elevation, so the card sits visibly above the
+  workspace.
+
+Title:
+- "Professional Details": Manrope 20.5 / 800, heading ink with a 0.2 px
+  stroke.
+
+Identity:
+- A 90 px initials tile with a luminous mint radial fill, 30 px / 800
+  teal-dark initials, a white ring and a soft lift. No fake photo.
+- Name: Manrope 23 / 800, ink.
+- Discipline: 15 / 500, slate.
+- Agency: 13.5, muted.
+- Status pill: 28 px, semibold, the locked semantic chip.
+
+Metadata rows:
+- Reference, dates and agency, with 2.1-stroke teal-dark icons in an
+  aligned 20 px column and 14 px slate text.
+- No phone, email or address.
+
+Tabs (real only: Overview / Credentials / Assignments; no Activity):
+- 44 px bar with 28 px spacing.
+- Active label 14.5 / 700 ink; inactive 500 slate-500 (4.76:1 contrast).
+- 3 px rounded underline the width of the label; softer teal divider.
+
+Sections:
+- Headings 16 / 800 ink; 14 px vertical rhythm; teal hairline separators;
+  no nested cards.
+- Status: a semantic dot with a soft halo; "Active" 15 / 600; "Can be
+  assigned to shifts · Ready".
+- Current Assignment and Upcoming Shifts: a 36 px mint icon tile; the date
+  14.5 / 600 ink; the time range in slate; facility and unit
+  right-aligned.
+- Empty states keep each section, with a neutral tile and a quiet note
+  ("No active assignment", "No upcoming shifts").
+- Credentials (Overview preview and the Credentials tab):
+  - a 22 px solid semantic glyph with a halo (green check / amber / coral);
+  - the title 14.5 / 600 ink, wrapping to two lines (never truncated);
+  - "Valid to {date}" or the requirement scope as the second line;
+  - a 28 px semibold Requirement-met / Expires-soon / … chip;
+  - "View all" goes to the record's #readiness-heading.
+
+Requirement states come only from the readiness engine
+(COMPLIANCE_REASON_LABELS). No client-side compliance is computed.
+
+Actions:
+- Primary "Open Worker Record": a deep-teal gradient, 48 px, 15 / 600
+  white, an icon, and inner highlight plus lift.
+- Secondaries "Readiness" and "View Credentials": white, a teal 35%
+  border, 14 / 600 ink, teal-dark icons, and hover tint.
+- Each secondary is shown only when the user can see that record section.
+
+Assign to Shift — not offered, by product constraint:
+- The only assignment action (AssignWorkerButton → assign_worker_to_shift)
+  needs a specific shift and runs from that shift's record, where
+  eligibility is evaluated for that shift.
+- There is no worker-first assignment flow to reuse safely, so "Open Worker
+  Record" stays primary.
+- Message is not offered (no messaging).
+
+QA (docs/reports/workforce-fidelity/drawer-depth/):
+01  reference drawer
+02  after drawer, Overview tab
+03  50% overlay
+04  Credentials tab: verified and current (Ana Ortiz, BLS: Requirement met,
+    valid to Nov 8, 2027)
+05  Credentials tab: expiring (Fay Hughes, BLS: Expires soon, valid to Oct
+    24, 2026). Real fixture state; nothing fabricated for screenshots.
+06  Workforce page with the drawer open
+07  reference | overview | credentials current | credentials expiring
+
+Remaining differences, all data or product: no photo, contact rows,
+availability, Activity tab, Assign to Shift or Message. QA workers have one
+requirement each, so the credential lists are short.
+
+Tests:
+- format, lint, typecheck, build and check:bundle pass
+- unit tests: 339 passed
+- Playwright: 216 passed, 2 skipped (pre-existing)
+- The QA spec now opens the Credentials tab (aria-selected) for a current
+  and an expiring worker.
+
+Files:
+- workforce/_components/worker-details-panel.tsx
+- workforce/_components/details-tabs.tsx
+- src/components/ui/detail-drawer.tsx (profile surface and title only)
+- tests/e2e/overview-fidelity.spec.ts
+- docs/reports/workforce-fidelity/drawer-depth/*
+
+Not committed.
+
+STATUS: AWAITING HUMAN VISUAL REVIEW

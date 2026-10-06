@@ -17,7 +17,8 @@ export type WorkspaceNavIcon =
   | "pricing"
   | "payroll"
   | "invoices"
-  | "requests";
+  | "requests"
+  | "settings";
 
 export type WorkspaceNavItem = {
   label: string;

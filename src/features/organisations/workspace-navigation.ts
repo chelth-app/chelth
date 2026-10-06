@@ -20,8 +20,10 @@ import type {
  * and operation is still re-authorised by the server and the database.
  *
  * Only existing routes are listed. There is deliberately no Reports,
- * Notifications, Settings, agency Credentials register or agency Staffing
- * Requests entry: those routes do not exist. Self-service worker pages
+ * Notifications, agency Credentials register or agency Staffing Requests
+ * entry: those routes do not exist. Settings (P0-E8-S9H) is listed for every
+ * workspace member: its Organization and Security sections apply to all, and
+ * each other section applies its own capability gate. Self-service worker pages
  * (My shifts, My credentials) are not part of the operational shell; they
  * stay on the personal frame and remain linked from the Overview.
  */
@@ -53,6 +55,11 @@ export function buildWorkspaceNavigation({
     items.filter((entry): entry is WorkspaceNavItem => entry !== false);
 
   const overview = item("Overview", "", "overview", "exact");
+  const settings: WorkspaceNavGroup = {
+    label: "Administration",
+    visibleLabel: false,
+    items: [item("Settings", "settings", "settings")],
+  };
 
   if (organisationType === "facility") {
     return [
@@ -67,6 +74,7 @@ export function buildWorkspaceNavigation({
             item("Timesheet sign-off", "timesheets", "timesheets"),
         ]),
       },
+      settings,
     ];
   }
 
@@ -103,6 +111,7 @@ export function buildWorkspaceNavigation({
         has(CAPABILITIES.INVOICE_VIEW) && item("Invoices", "invoices", "invoices"),
       ]),
     },
+    settings,
   ];
   return groups.filter((group) => group.items.length > 0);
 }

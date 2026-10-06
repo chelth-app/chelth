@@ -49,6 +49,8 @@ test.describe("credentials and compliance", () => {
 
     // A client facility that additionally requires orientation.
     await page.goto(`${organisationPath}/facilities`);
+    // Locked Facilities: "Add Facility" reveals the existing create form.
+    await page.getByRole("link", { name: "Add Facility" }).click();
     await page.getByLabel("Facility name").fill("Mercy Rehab");
     await page
       .getByRole("combobox", { name: "Facility type" })
@@ -69,6 +71,9 @@ test.describe("credentials and compliance", () => {
     // Invite and activate a worker.
     await page.goto(`${organisationPath}/workforce`);
     const workerEmail = uniqueEmail("e2e-cred-worker");
+    // Locked Workforce: "Add Professional" reveals the existing invite form.
+    await page.getByRole("link", { name: "Add Professional" }).click();
+    await expect(page.getByRole("heading", { name: "Invite a healthcare worker" })).toBeVisible();
     await page.getByLabel("Worker email address").fill(workerEmail);
     await page.getByRole("button", { name: "Invite worker" }).click();
     const inviteUrl = new URL(await page.getByTestId("invite-link").inputValue());

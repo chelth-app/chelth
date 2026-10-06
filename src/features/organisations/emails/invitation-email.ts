@@ -32,7 +32,7 @@ export function buildInvitationEmail(input: InvitationEmailInput): EmailMessage 
       "If you were not expecting this invitation, you can ignore this email.",
     ].join("\n"),
     html: [
-      `<h2 style="font-family:sans-serif;color:#0f766e">You're invited to CHELTH</h2>`,
+      `<h2 style="font-family:sans-serif;color:#126B67">You're invited to CHELTH</h2>`,
       `<p style="font-family:sans-serif">You have been invited to join <strong>${organisation}</strong> as <strong>${role}</strong>.</p>`,
       `<p style="font-family:sans-serif"><a href="${url}">Accept invitation</a></p>`,
       `<p style="font-family:sans-serif;color:#475569">Sign in or create an account with this email address. The invitation expires on ${escapeHtml(expires)}.</p>`,

@@ -1,0 +1,287 @@
+P0-E8-S9H1 — SETTINGS FINAL REFINEMENT
+======================================
+
+Branch: p0-e8-visual-implementation (uncommitted)
+Status: AWAITING HUMAN VISUAL APPROVAL.
+- Not committed. Rates not started.
+
+
+1. SCOPE
+--------
+Refinement only, of:
+- Settings → Credentials & Compliance;
+- Settings sub-navigation icons;
+- the account / workspace dropdown (presentation).
+
+Unchanged:
+- the sidebar, top bar, Settings shell, sub-navigation layout, title and
+  subtitle;
+- every other Settings section and every operational page.
+
+No change to:
+- auth, memberships, workspace switching or capabilities;
+- AAL2, compliance logic or credential logic;
+- routes, RLS, the database, the notification model or finance.
+
+
+2. CREDENTIALS & COMPLIANCE CHANGES
+-----------------------------------
+Card 1 — Credential Requirement Rules (kept; stronger hierarchy):
+- A shorter baseline explanation, with an "n active" chip in the header
+  (as Team & Permissions).
+- Requirement rows on the canonical record list: icon tile, requirement
+  name (15 / 600), and scope meta (discipline or "All workers",
+  jurisdiction, effective-from date, minimum validity).
+- Chips: "Must be verified" / "Verification not required" and "Warn N days
+  before expiry".
+- An "n inactive kept for history" note when there are inactive
+  requirements.
+- Management links as canonical outlined actions (44 px): "Manage baseline
+  requirements" (Compliance) and "Manage facility requirements"
+  (Facilities).
+
+Card 2 — How Readiness Is Calculated (new; informational, no controls).
+The engine's real inputs, each a record row with an icon tile:
+- agency baseline requirements (every worker or one discipline, from the
+  effective date);
+- facility-specific requirements (on the facility record, only for work
+  there);
+- worker credential evidence (submitted and shared; documents count only
+  once the security scan clears them);
+- verification status (your agency's decision where the requirement must
+  be verified);
+- expiration and effective dates (valid on the shift's local date, minimum
+  validity, warning window).
+It also shows the three real results (Ready / Action required / Not
+eligible) and the links "View Compliance" and "Manage Facility
+Requirements".
+
+Card 3 — Related Compliance Areas (new; navigation only):
+- Compliance, Facilities (facility.view) and Workforce (worker.view): an
+  icon tile, title and one-line purpose each.
+- No metrics, charts or decorative filler.
+
+Accessibility fix: the old inline text links were 21 px tall. With the
+account menu open at 768 px, axe flagged target size against the menu's
+"Sign out" row. The links are now 44 px actions, and axe is clean with the
+menu open at every width.
+
+
+3. INFORMATION USED
+-------------------
+- listRequirements (active / inactive, credential type, discipline,
+  jurisdiction, must-be-verified, minimum validity, warning window,
+  effective-from);
+- listCredentialTypes and listDisciplines (names);
+- READINESS_LABELS.
+- The readiness explanation restates existing engine behaviour,
+  corresponding to the engine reasons NOT_SUBMITTED, CREDENTIAL_NOT_SHARED,
+  DOCUMENT_NOT_CLEARED, UNVERIFIED_CREDENTIAL, EXPIRED_CREDENTIAL and
+  INSUFFICIENT_VALIDITY, and the per-shift local-date evaluation.
+- No new data or configuration.
+
+
+4. ROUTES REUSED
+----------------
+/app/organisations/[id]/compliance (and #baseline-heading), /facilities and
+/workforce. All exist, and each is shown only where the caller holds the
+capability.
+
+
+5. SETTINGS ICON NORMALIZATION
+------------------------------
+Sub-navigation icons, which read thinner and lighter than the sidebar's:
+- size: 20 → 21 px (the sidebar uses 22 px, so the subnav stays
+  subordinate);
+- stroke: 2 → 1.9 on the 24 px grid;
+- inactive colour: slate-500 → navy at 80%; active: teal-dark;
+- alignment: a fixed 22 px icon column; label gap 12 → 14 px.
+Icon meanings are unchanged.
+
+
+6. ACCOUNT DROPDOWN REFINEMENT
+------------------------------
+Behaviour, ids, labels, links, forms and order of actions are unchanged.
+"All workspaces" is shown once, in the navigation group.
+
+Surface:
+- white; 12 px radius (the card radius family);
+- a teal 14% hairline;
+- canonical drawer elevation (two-layer navy shadow);
+- 336 px wide (max: viewport − 2 rem); no translucency.
+
+Groups, separated by teal 10% hairlines:
+- A. Identity: 40 px initials avatar, name (15 / 600 ink), email
+  (12.5 slate), on a soft mint-white band.
+- B. Current workspace: an uppercase section label, then a descriptive
+  (non-interactive) tile with a teal check circle, the workspace name
+  (14 / 600) and type · role (· Suspended). It is not styled as a choice.
+- Switch workspace (when other memberships exist): rows unchanged in
+  content.
+- C. Navigation: All workspaces, Account and Security, each with a
+  teal-dark icon.
+- D. Sign out: separated and restrained (slate text that darkens on hover);
+  not red.
+
+Rows: 44 px, 8 px radius, a subtle teal-tinted hover and focus fill
+(mint-mist 70%). The global :focus-visible ring is kept. No blue
+highlight and no glow.
+
+
+7. ACCESSIBILITY
+----------------
+- Disclosure semantics are unchanged: a button with aria-expanded and
+  aria-controls; links and buttons in tab order; the "Current workspace"
+  group label; the "Switch workspace" list label.
+- Escape closes the menu and returns focus to the trigger (asserted at
+  four widths). An outside click or focus leaving the menu closes it.
+- The Settings nav keeps aria-current="page".
+- axe (wcag2a / 2aa / 22aa) is clean on Credentials & Compliance and with
+  the menu open, at 1440 / 1920 / 768 / 412.
+
+
+8. RESPONSIVE RESULTS
+---------------------
+- Credentials & Compliance at 1440 / 1920 / 768 / 412: no overflow. The
+  related-area cards use 3 / 2 / 1 columns. Requirement rows wrap their
+  chips under the name on narrow widths.
+- Account menu at 1440 / 1920 / 768 / 412: the same anchored panel the
+  shell already uses, clamped to the viewport on phones. No new mobile
+  pattern.
+
+
+9. SCREENSHOT COMPARISON (docs/reports/settings-refinement/)
+------------------------------------------------------------
+01a / 01b / 01c-*-credentials-compliance-{1440,1920,768,412}:
+  before / after / 50% overlay
+02a / 02b / 02c-*-account-menu-{1440,1920,768,412}:
+  before / after / 50% overlay
+
+Mobile (412) is included in both sets. The 768 and 412 captures cover the
+mobile Credentials & Compliance page and the mobile dropdown.
+
+Judgement:
+- Credentials & Compliance now has the visual completeness of Team &
+  Permissions from real content only.
+- The dropdown uses the drawer and card depth and the locked type weights.
+- The subnav icons match the sidebar's confidence.
+- No other Settings surface changed.
+
+
+10. TESTS
+---------
+Results:
+- format:check, lint, typecheck: pass
+- npm test: 342 passed
+- build: pass
+- check:bundle: OK (68 files)
+- npx playwright test: 232 passed, 4 skipped (3 earlier + the new
+  desktop-only capture test on the mobile project), 0 failed
+
+New, in tests/e2e/settings.spec.ts: "Credentials & Compliance and the
+account menu at four widths". It checks:
+- the rules card content;
+- axe on the page and with the menu open;
+- the current-workspace group;
+- Escape focus return.
+
+workspace-shell (switcher behaviour, Account and Security links) passes
+unchanged.
+
+
+11. FILES CHANGED (this stage)
+------------------------------
+- settings/compliance/page.tsx
+- settings/_components/settings-nav.tsx (icon treatment)
+- src/components/layout/workspace-switcher.tsx (panel presentation)
+- tests/e2e/settings.spec.ts
+- docs/reports/settings-refinement/*
+- this report
+
+
+12. GIT STATUS
+--------------
+ M docs/ui-reference/CHELTH-LOCKED-VISUAL-SYSTEM.md
+ M src/app/app/organisations/[organisationId]/(workspace)/attendance/[attendanceId]/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/attendance/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/compliance/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/facilities/[facilityId]/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/facilities/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/operations/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/payroll/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/shifts/_components/shift-details-panel.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/shifts/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/timesheets/[timesheetId]/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/timesheets/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/workforce/[workerId]/credentials/[credentialId]/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/workforce/[workerId]/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/workforce/_components/worker-details-panel.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/workforce/page.tsx
+ M src/components/layout/page-container.tsx
+ M src/components/layout/workspace-nav-icon.tsx
+ M src/components/layout/workspace-navigation-model.ts
+ M src/components/layout/workspace-switcher.tsx
+RM src/app/app/organisations/[organisationId]/(workspace)/workforce/_components/details-tabs.tsx -> src/components/reference/details-tabs.tsx
+ M src/components/reference/locked-reference.tsx
+ M src/components/ui/data-table.tsx
+ M src/components/ui/detail-drawer.tsx
+ M src/components/ui/page-header.tsx
+ M src/components/ui/panel.tsx
+ M src/components/ui/section-tabs.tsx
+ M src/features/compliance/components/readiness-panel.tsx
+ M src/features/compliance/components/requirements-table.tsx
+ M src/features/facilities/components/status-badges.tsx
+ M src/features/facilities/index.ts
+ M src/features/organisations/workspace-navigation.ts
+ M tests/e2e/agency-surfaces.spec.ts
+ M tests/e2e/assignment-operations.spec.ts
+ M tests/e2e/attendance.spec.ts
+ M tests/e2e/credentials-compliance.spec.ts
+ M tests/e2e/facility-surfaces.spec.ts
+ M tests/e2e/identity.spec.ts
+ M tests/e2e/overview-fidelity.spec.ts
+ M tests/e2e/timesheets.spec.ts
+ M tests/e2e/workforce-facilities.spec.ts
+ M tests/e2e/workspace-shell.spec.ts
+ M tests/unit/lib/workspace-navigation.test.ts
+?? docs/architecture/POST_VISUAL_PRODUCT_BACKLOG.md
+?? docs/reports/P0-E8-S9C-facilities-locked-reference-implementation.txt
+?? docs/reports/P0-E8-S9D-attendance-locked-reference-implementation.txt
+?? docs/reports/P0-E8-S9E-timesheets-locked-reference-implementation.txt
+?? docs/reports/P0-E8-S9F-compliance-credentials-locked-reference-implementation.txt
+?? docs/reports/P0-E8-S9G-notifications-locked-reference-implementation.txt
+?? docs/reports/P0-E8-S9H-settings-locked-reference-implementation.txt
+?? docs/reports/attendance-fidelity/
+?? docs/reports/compliance-fidelity/
+?? docs/reports/facilities-fidelity/
+?? docs/reports/locked-visual-system/record-alignment/
+?? docs/reports/notifications-fidelity/
+?? docs/reports/settings-fidelity/
+?? docs/reports/settings-refinement/
+?? docs/reports/timesheets-fidelity/
+?? docs/reports/typography-weight/
+?? docs/reports/workspace-width/
+?? docs/ui-reference/p08-e8/canonical/Chelth_Timesheets_LOCKED_Claude/
+?? src/app/app/organisations/[organisationId]/(workspace)/attendance/_components/
+?? src/app/app/organisations/[organisationId]/(workspace)/compliance/_components/
+?? src/app/app/organisations/[organisationId]/(workspace)/facilities/_components/
+?? src/app/app/organisations/[organisationId]/(workspace)/operations/_components/
+?? src/app/app/organisations/[organisationId]/(workspace)/settings/
+?? src/app/app/organisations/[organisationId]/(workspace)/timesheets/_components/
+?? src/components/reference/record-page.tsx
+?? tests/e2e/settings.spec.ts
+?? tests/e2e/workspace-width.spec.ts
+?? tests/unit/components/typography-weight-lock.test.ts
+
+
+13. REMAINING ISSUES
+--------------------
+- The workspace-switcher refinement applies to every workspace page (it is
+  the shell control). The behaviour is identical; only the presentation
+  changed.
+- Related Compliance Areas has no credential-register-wide route for
+  "Workforce Credentials": credential review is per worker. The Workforce
+  card describes this honestly.
+
+STATUS: AWAITING HUMAN VISUAL APPROVAL

@@ -79,15 +79,14 @@ export default async function LocationEvidencePage({
   if (can(CAPABILITIES.ATTENDANCE_LOCATION_VIEW) !== "granted") {
     return (
       <>
-        <header className="flex flex-col gap-2">
-          <Link
-            href={recordPath}
-            className="w-fit text-sm text-primary underline underline-offset-4"
-          >
-            Attendance record
-          </Link>
-          <h1 className="text-2xl font-semibold">Location evidence</h1>
-        </header>
+        <PageHeader
+          title="Location evidence"
+          back={
+            <Link href={recordPath} className="text-primary underline underline-offset-4">
+              Attendance record
+            </Link>
+          }
+        />
         <StepUpNotice returnTo={returnTo}>
           Raw location evidence requires verification with your authenticator app.
         </StepUpNotice>
@@ -190,7 +189,7 @@ export default async function LocationEvidencePage({
             {holds.map((hold) => (
               <li
                 key={hold.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface p-3"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-surface-muted p-3"
               >
                 <span className="flex flex-col gap-1">
                   <StatusChip tone={hold.releasedAt ? "neutral" : "warning"} className="w-fit">

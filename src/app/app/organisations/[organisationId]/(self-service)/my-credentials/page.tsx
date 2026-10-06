@@ -73,7 +73,7 @@ export default async function MyCredentialsPage({
             description="Add one below, upload its evidence and submit it for review."
           />
         ) : (
-          <ul className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface text-sm">
+          <ul className="flex flex-col divide-y divide-border border-y border-border text-sm">
             {credentials.map((credential) => (
               <li
                 key={credential.id}

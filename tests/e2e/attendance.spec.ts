@@ -173,13 +173,14 @@ test.describe.serial("time & attendance", () => {
     // P0-E8-S2 Details drawer: quick inspection without leaving the table.
     await expect(
       admin.getByRole("region", { name: "Attendance summary" }).getByRole("link", {
-        name: /Needs review/,
+        name: /Needs review/i,
       }),
     ).toContainText(/[1-9]/);
     const details = row.getByRole("button", { name: "Details for Leo Late" });
     await details.click();
-    const drawer = admin.getByRole("dialog", { name: "Leo Late" });
+    const drawer = admin.getByRole("dialog", { name: "Attendance Details" });
     await expect(drawer).toBeVisible();
+    await expect(drawer).toContainText("Leo Late");
     await expect(drawer.getByRole("button", { name: "Close details" })).toBeFocused();
     expect(await drawer.evaluate((node) => node.matches(":modal"))).toBe(true);
     await expect(drawer).toContainText("Late clock-in");

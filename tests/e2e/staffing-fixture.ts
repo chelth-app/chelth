@@ -440,6 +440,15 @@ export async function attachClockInEvidence(assignmentId: string): Promise<strin
   });
 }
 
+/** A fresh password-only (AAL1) API session for an existing person — no step-up. */
+export async function passwordOnlyClient(email: string): Promise<Client> {
+  const client = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+  await run(client.auth.signInWithPassword({ email, password: PASSWORD }));
+  return client;
+}
+
 /** A new member of the world's agency with one role; optionally enrolled for step-up (TOTP). */
 export async function agencyMember(
   world: StaffingWorld,

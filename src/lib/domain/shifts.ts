@@ -117,6 +117,16 @@ export const ASSIGNMENT_BLOCK_ERROR: Record<AssignmentBlockReason, ErrorCode> = 
   WORKER_SCHEDULE_CONFLICT: "WORKER_SCHEDULE_CONFLICT",
 };
 
+/**
+ * Splits a discipline display name such as "Certified Nursing Assistant (CNA)"
+ * into its name and short code, for the locked layouts that show them apart.
+ * Names without a trailing "(CODE)" are returned whole with no code.
+ */
+export function disciplineNameParts(name: string): { name: string; code: string | null } {
+  const match = /^(.*\S)\s*\(([^()]+)\)$/.exec(name);
+  return match?.[1] && match[2] ? { name: match[1], code: match[2] } : { name, code: null };
+}
+
 export type FillState = "unfilled" | "partially_filled" | "filled";
 
 export const FILL_STATE_LABELS: Record<FillState, string> = {
@@ -158,7 +168,16 @@ export function formatShiftDate({ startAt, timezone }: Pick<ShiftTimes, "startAt
 }
 
 /** e.g. "7:00 PM – 7:00 AM (+1 day) EDT". */
-export function formatShiftTimeRange({ startAt, endAt, timezone }: ShiftTimes): string {
+export function formatShiftTimeRange(times: ShiftTimes): string {
+  const { range, zone } = formatShiftTimeRangeParts(times);
+  return `${range} ${zone}`;
+}
+
+/** The time range and its timezone abbreviation, for layouts that set them apart. */
+export function formatShiftTimeRangeParts({ startAt, endAt, timezone }: ShiftTimes): {
+  range: string;
+  zone: string;
+} {
   const start = new Date(startAt);
   const end = new Date(endAt);
   const time = formatter(timezone, { hour: "numeric", minute: "2-digit" });
@@ -170,7 +189,7 @@ export function formatShiftTimeRange({ startAt, endAt, timezone }: ShiftTimes): 
   const dayDiff =
     localDayNumber(new Date(end.getTime() - 1), timezone) - localDayNumber(start, timezone);
   const suffix = dayDiff > 0 ? ` (+${dayDiff} day${dayDiff > 1 ? "s" : ""})` : "";
-  return `${time.format(start)} – ${time.format(end)}${suffix} ${zone}`;
+  return { range: `${time.format(start)} – ${time.format(end)}${suffix}`, zone };
 }
 
 /** Elapsed duration in hours (DST-aware because it uses instants). */
@@ -256,4 +275,23 @@ export const ASSIGNMENT_ISSUE_SEVERITY_LABELS: Record<AssignmentIssueSeverity, s
 /** True once the shift's start instant has passed. */
 export function hasStarted({ startAt }: Pick<ShiftTimes, "startAt">): boolean {
   return new Date(startAt).getTime() <= Date.now();
+}
+
+/** The shift starts on today's date in its own facility timezone. */
+export function startsLocalToday({
+  startAt,
+  timezone,
+}: Pick<ShiftTimes, "startAt" | "timezone">): boolean {
+  return localDate(startAt, timezone) === localDate(new Date().toISOString(), timezone);
+}
+
+/** Whole days from today (UTC) until an ISO date (YYYY-MM-DD); negative once past. */
+export function daysUntilDate(isoDate: string): number {
+  const today = Date.parse(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`);
+  return Math.round((Date.parse(`${isoDate}T00:00:00Z`) - today) / 86_400_000);
+}
+
+/** The shift starts within the next `hours` (or has already started). */
+export function startsWithin({ startAt }: Pick<ShiftTimes, "startAt">, hours: number): boolean {
+  return new Date(startAt).getTime() <= Date.now() + hours * 3_600_000;
 }

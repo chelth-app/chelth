@@ -1,0 +1,351 @@
+P0-E8-S9C — FACILITIES: LOCKED-REFERENCE IMPLEMENTATION
+=======================================================
+
+Branch: p0-e8-visual-implementation (uncommitted)
+Status: AWAITING HUMAN VISUAL REVIEW.
+- Not committed.
+- Attendance has not been started.
+- Global visual system unchanged.
+
+
+1. EXACT REFERENCES USED
+------------------------
+docs/ui-reference/p08-e8/canonical/Chelth_Facilities/
+- assets/chelth-facilities-locked.png (1536 x 1024). It uses the same frame
+  and 0.888 scale as Workforce.
+- index.html: panel start 1178, width 358, and hotspots.
+- README.md, CLAUDE-IMPLEMENTATION.md, FACILITIES-INTERACTIONS.md,
+  LOCKED-DESIGN-SPEC.md.
+
+There is no separate drawer reference; the drawer is part of the PNG.
+
+
+2. GLOBAL VISUAL LOCK REUSED
+----------------------------
+Everything comes from docs/ui-reference/CHELTH-LOCKED-VISUAL-SYSTEM.md,
+with no new values:
+- the .chelth-locked scope (palette and primitives);
+- PageHeader variant="reference";
+- RefKpiCard size "sm";
+- REF_CARD_FROSTED;
+- RefChip;
+- the canonical drawer: DetailDrawer width="profile" and the Professional
+  Details anatomy (DetailsTabs, sections, empty states, CTAs);
+- the Workforce table chrome (47 px band, hairline rows, selected-row
+  accent, docked contraction at 1536 px and wider).
+
+DetailsTabs moved from workforce/_components to
+src/components/reference/details-tabs.tsx because it is part of the
+canonical drawer. The governance file was updated. The tab component
+itself is unchanged.
+
+
+3. HEADER
+---------
+- "Facilities" with the locked title.
+- A truthful subtitle: "Manage facility relationships, staffing demand and
+  locations in one place."
+- "+ Add Facility" (47 x 158). It reveals the existing FacilityForm on the
+  same route via CSS :target, with the same server action.
+- The back link was removed, as on Workforce.
+
+
+4. SUMMARY / KPI AREA
+---------------------
+Real counts in the four reference slots. Each is a working shortcut:
+- Active Facilities: facilities with status active. Links to ?status=active.
+- Open Requests: upcoming facility-sourced shifts that are requested, or
+  open and not filled. Links to ?requests=1.
+- Shifts This Week: upcoming shifts starting within 7 days. Links to Shifts
+  from today.
+- Needs Attention: active facilities whose relationship is not active, or
+  that have no active location. Links to ?attention=1.
+
+Shift cards need SHIFT_VIEW; relationship logic needs RELATIONSHIP_VIEW.
+
+
+5. FILTERS
+----------
+Real display filters over the loaded list, as native GET (same mechanism as
+the existing status filter):
+- Status (facility status);
+- Facility type (only types present);
+- Relationship (pending / active / suspended / ended, with
+  RELATIONSHIP_VIEW);
+- Search (name or locality);
+- Apply, and Clear when any filter is active.
+
+Not offered, because no data exists: region and unit filters.
+Pagination is 10 per page and keeps every filter.
+
+
+6. FACILITIES TABLE / DIRECTORY
+-------------------------------
+A frosted card with a 47 px header band and 62 px rows. Columns:
+- Facility: tile, name, type.
+- Location: locality and location count.
+- Contact: the facility phone and email, from the record, when present.
+- Open Requests: count pill, coral when above zero.
+- Upcoming Shifts: blue count pill.
+- Roles Used: discipline codes on upcoming shifts.
+- Status: facility status, or "Needs attention".
+- Relationship: lifecycle chip.
+- ⋮: Facility Details.
+
+"Last Activity" became Relationship: there is no activity data.
+There is no checkbox column: no bulk actions exist.
+
+
+7. FACILITY IDENTITY
+--------------------
+- No facility photos: an 84 px luminous mint tile with the duotone
+  facilities icon.
+- Name, type, and locality (or timezone) with a pin.
+- No invented addresses: the address shows only from the record's address
+  fields.
+
+
+8. FACILITY DRAWER
+------------------
+The canonical drawer, unchanged, with Facilities content:
+- Title "Facility Details"; identity block; status chip.
+- Rows: Relationship (lifecycle chip), phone and email when present, and
+  "Linked to / Not linked to a CHELTH facility organisation".
+- Tabs, all real:
+  - Overview:
+    - Facility Information: type, address when present, locations, roles
+      on upcoming shifts;
+    - three stat tiles: Open Requests, Upcoming Shifts, Locations;
+    - Recent Requests (2) with "View all".
+  - Requests: facility requests.
+  - Shifts: upcoming shifts.
+  - Locations: name, timezone, active / inactive.
+  - Request and shift rows link to the shift record.
+- Actions:
+  - primary "View Shifts": Shifts filtered to this facility
+    (?facilityId=…), an existing filter;
+  - secondaries "Facility Record" and "Relationship" (record
+    #relationship-heading, with RELATIONSHIP_VIEW).
+
+Not offered:
+- "Create Request": agency-side request creation pre-scoped to a facility
+  does not exist. Requests are submitted by facility users, and agency
+  shift creation has no facility pre-selection.
+- "Message Facility": there is no messaging.
+- Activity tab: there is no activity data.
+
+
+9. FACILITY DATA MAPPING
+------------------------
+Existing loaders and gates only:
+- listFacilities and getFacility (FACILITY_VIEW; the record's own loader,
+  for phone / email / address);
+- listLocations;
+- listRelationships (RELATIONSHIP_VIEW);
+- listAgencyShifts from today (SHIFT_VIEW), grouped by facilityId.
+
+No query, RPC or authorisation change.
+
+Performance: getFacility, listLocations and listRelationships run per
+facility (the record's loaders). Batching them is a later backend item.
+
+
+10. RELATIONSHIP LIFECYCLE
+--------------------------
+pending / active / suspended / ended, through RELATIONSHIP_STATUS_LABELS
+and the existing tone map (now exported as RELATIONSHIP_TONE /
+FACILITY_TONE). No new terminology.
+
+
+11. LOCATIONS
+-------------
+- Drawer Locations tab: name, timezone, active or inactive status.
+- The table shows a location count.
+- No geofence data is shown: the record's location-check section is
+  unchanged and capability-gated.
+
+
+12. STAFFING REQUESTS
+---------------------
+Real facility-sourced upcoming shifts: date, local time, location, headcount
+and role code, with a Requested / Open / Partially filled / Filled chip. No
+fake history.
+
+
+13. FULL FACILITY DETAIL
+------------------------
+The /facilities/[facilityId] deep link is retained.
+- The page is wrapped in .chelth-locked with PageHeader variant="reference".
+- It inherits the locked canvas, panels, headings, tabs, chips, key-value
+  contrast and CTAs, as on Worker Record.
+- Structure and behaviour are unchanged.
+- Screenshot 09.
+
+
+14. RESPONSIVE BEHAVIOUR
+------------------------
+- 1280, 768, 412, 375: no page-level overflow (asserted).
+- Cards go 2-up and the filters wrap. The table scrolls in its region.
+- The drawer is a full-height sheet on phones.
+- The existing overlay navigation is used.
+
+
+15. CAPABILITY PRESERVATION
+---------------------------
+Every element is capability-gated as before:
+- Add Facility: FACILITY_MANAGE (step-up notice when required).
+- Shift cards, pills, tabs and View Shifts: SHIFT_VIEW.
+- Relationship column, filter, chip and action: RELATIONSHIP_VIEW.
+
+Facilities is an agency page; facility users never reach it (unchanged).
+
+
+16. INTENTIONAL PRODUCT / DATA DIFFERENCES
+------------------------------------------
+- Not in the product: photos, primary contact person / title, region and
+  unit filters, units / departments, preferred roles, active-worker counts
+  per facility, Last Activity / Activity, Create Request (agency side),
+  Message Facility, bulk select.
+- QA data: four facilities without phone, email or address, so Contact
+  shows "—". One facility is linked.
+- Global absences are as on Overview (no search, bell or extra nav items).
+
+
+17. SCREENSHOT OVERLAY RESULTS (docs/reports/facilities-fidelity/)
+------------------------------------------------------------------
+01-reference-facilities.png
+02-after-facilities.png               reference canvas, 0.888 scale,
+                                      origin 8,8
+03-overlay-facilities.png             50%
+04-reference-drawer.png
+05-after-drawer.png
+06-overlay-drawer.png
+07-after-drawer-requests-tab.png
+08-after-facilities-drawer-closed.png
+09-after-facility-record.png
+10-after-facilities-{1280,768,412,375}.png
+
+Observed:
+- The header, the Add Facility position, the four-card row, the filter
+  row, the table card and band and the drawer silhouette align with the
+  reference.
+- The drawer uses the canonical identity, tabs, sections, stat tiles and
+  action region.
+- The global look matches Overview and Workforce.
+- The remaining differences are data or product driven (section 16).
+
+
+18. TESTS
+---------
+Results:
+- format:check, lint, typecheck: pass
+- npm test: 339 passed
+- build: pass
+- check:bundle: OK (65 browser files, no secrets)
+- npx playwright test: 218 passed, 2 skipped (pre-existing), 0 failed
+
+Test changes (none weakened):
+- agency-surfaces: the drawer name is "Facility Details" and still contains
+  Mercy Rehab and the linked text.
+- workforce-facilities and credentials-compliance: click "Add Facility" to
+  reveal the create form.
+- overview-fidelity: a Facilities reference-canvas capture; the drawer
+  Requests tab; navigation to the Facility Record; the requests and search
+  filters; overflow at four widths.
+
+
+19. FILES CHANGED
+-----------------
+- src/app/app/organisations/[organisationId]/(workspace)/facilities/page.tsx
+  (presentation rewritten)
+- facilities/_components/facility-details-panel.tsx (new)
+- facilities/[facilityId]/page.tsx (.chelth-locked and reference header
+  only)
+- src/components/reference/details-tabs.tsx (moved from workforce; no
+  change)
+- workforce/_components/worker-details-panel.tsx (import path only)
+- src/features/facilities/components/status-badges.tsx and index.ts
+  (export the tone maps)
+- docs/ui-reference/CHELTH-LOCKED-VISUAL-SYSTEM.md (DetailsTabs path)
+- tests/e2e/agency-surfaces.spec.ts
+- tests/e2e/workforce-facilities.spec.ts
+- tests/e2e/credentials-compliance.spec.ts
+- tests/e2e/overview-fidelity.spec.ts
+- docs/reports/facilities-fidelity/*
+- this report
+
+
+20. GIT STATUS
+--------------
+ M docs/ui-reference/CHELTH-LOCKED-VISUAL-SYSTEM.md
+ M src/app/app/organisations/[organisationId]/(workspace)/facilities/[facilityId]/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/facilities/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/workforce/_components/worker-details-panel.tsx
+R  src/app/app/organisations/[organisationId]/(workspace)/workforce/_components/details-tabs.tsx -> src/components/reference/details-tabs.tsx
+ M src/features/facilities/components/status-badges.tsx
+ M src/features/facilities/index.ts
+ M tests/e2e/agency-surfaces.spec.ts
+ M tests/e2e/credentials-compliance.spec.ts
+ M tests/e2e/overview-fidelity.spec.ts
+ M tests/e2e/workforce-facilities.spec.ts
+?? docs/reports/facilities-fidelity/
+?? src/app/app/organisations/[organisationId]/(workspace)/facilities/_components/
+
+Nothing was committed, pushed or deployed.
+
+STATUS: AWAITING HUMAN VISUAL REVIEW
+
+
+==========================================================================
+FINAL FIDELITY + INNER-PAGE CONSISTENCY PASS
+==========================================================================
+
+Visual polish only. No change to global tokens, drawer geometry, page
+structure, queries, actions or capabilities.
+
+Facility Record (inside .chelth-locked):
+- Details: already inherits the locked heading (Manrope 20 / 800 ink) and
+  key-value contrast (labels slate-600 / 500, values ink / 500). Missing
+  values stay "—".
+- Locations:
+  - 56 px rows with a 36 px mint pin tile;
+  - the location name 15 / 700 ink, with the timezone below in slate;
+  - an Active / Inactive status chip (the real location status);
+  - teal hairline dividers.
+- Credential requirements: in the shared RequirementsTable, scoped to
+  .chelth-locked only, so the Compliance page is unchanged:
+  - the requirement name is 15 / 700 ink;
+  - the metadata line is slate-600 / 500;
+  - the dates are slate;
+  - teal dividers and more row spacing.
+  The intro copy is slate-600 / 500. Requirement logic is unchanged.
+- Relationship: the lifecycle state is anchored in a soft mint status
+  block, with an icon tile, a 28 px semibold RefChip (RELATIONSHIP_TONE)
+  and "since {date}" in slate / 500. Lifecycle actions are unchanged.
+
+Facility Details drawer (geometry unchanged):
+- Mini stats are now locked KPI fragments:
+  - semantic tinted gradient surfaces (coral / blue / mint) with matching
+    hairline borders, a soft shadow and an inner highlight;
+  - Manrope 24 / 800 values in the semantic accent;
+  - 12.5 / 600 slate labels.
+- Request rows wrap the date and time (no truncation) in 13.5 / 600 ink.
+- The Facility Information heading, icons, empty states and action region
+  already use the canonical drawer treatment.
+
+Screenshots (docs/reports/facilities-fidelity/final-polish/):
+01  Facilities page
+02  Facilities with the drawer open
+03  drawer: reference vs after
+04  Facility Record (desktop, stepped-up admin)
+05  Facility Record at 1280 (Details, Locations, Requirements); Facilities
+    at 1280
+
+Tests:
+- format, lint, typecheck, build and check:bundle pass
+- unit tests: 339 passed
+- Playwright: 218 passed, 2 skipped (pre-existing)
+
+Not committed.
+
+STATUS: AWAITING HUMAN VISUAL REVIEW

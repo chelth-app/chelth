@@ -92,11 +92,12 @@ test.describe.serial("facility workspace surfaces", () => {
         name: /Certified Nursing Assistant/,
       }),
     ).toHaveAttribute("href", `${base}/staffing-requests/${shiftId}`);
-    // Member administration stays (P6 card language).
-    await expect(admin.getByRole("region", { name: "Members table" })).toBeVisible();
     await expect(admin.getByRole("main")).not.toContainText(NO_LEAKS);
     await qaScreenshot(admin, "s4-facility-overview");
-    await admin.getByRole("heading", { name: "Members" }).scrollIntoViewIfNeeded();
+    // P0-E8-S9H: member administration lives in Settings → Team & Permissions.
+    await admin.goto(`${base}/settings/team`);
+    await expect(admin.getByRole("region", { name: "Members table" })).toBeVisible();
+    await expect(admin.getByRole("main")).not.toContainText(NO_LEAKS);
     await qaScreenshot(admin, "s4-facility-members");
     await expectNoA11yViolations(admin);
 
@@ -227,6 +228,7 @@ test.describe.serial("facility workspace surfaces", () => {
         "Overview",
         "Staffing requests",
         "Timesheet sign-off",
+        "Settings",
       ]);
     }
     await page.context().close();

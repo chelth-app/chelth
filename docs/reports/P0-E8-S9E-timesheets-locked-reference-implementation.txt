@@ -1,0 +1,411 @@
+P0-E8-S9E — TIMESHEETS: LOCKED-REFERENCE IMPLEMENTATION
+=======================================================
+
+Branch: p0-e8-visual-implementation (uncommitted)
+Status: AWAITING HUMAN VISUAL REVIEW.
+- Not committed.
+- Rates/Pricing and Finance not started.
+- Global visual system unchanged by this stage.
+
+
+1. EXACT REFERENCES USED
+------------------------
+The Timesheets reference was not in the repo. The approved package
+~/Downloads/Chelth_Timesheets_LOCKED_Claude.zip was extracted unchanged to:
+
+  docs/ui-reference/p08-e8/canonical/Chelth_Timesheets_LOCKED_Claude/
+
+- assets/chelth-timesheets-locked.png: 1536 x 1024, the Overview frame.
+  The drawer is docked at panel-start 1184, width 352.
+- index.html: hotspot geometry for the KPI cards, filters, rows, activity
+  and drawer actions.
+- README.md, LOCKED-DESIGN-SPEC.md, CLAUDE-IMPLEMENTATION.md,
+  TIMESHEETS-INTERACTIONS.md, TIMESHEETS-DATA-INTEGRATION.md.
+
+Product behaviour comes from docs/architecture/TIMESHEET_*.md and the
+existing features/timesheets module.
+
+
+2. GLOBAL VISUAL LOCK REUSED
+----------------------------
+Shared pieces, unchanged:
+- .chelth-locked; PageHeader variant="reference" (title 700).
+- RefKpiCard lg with KpiNote footers.
+- RefPanel (titles 600), REF_TABLE / REF_TEXT (headers 600), RefChip,
+  InitialsAvatar.
+- The canonical drawer (DetailDrawer width="profile", DetailsTabs).
+- The record primitives (RecordPage, RecordMeta, RecordNote, RecordList,
+  RECORD_ROW*), SectionTabs, Panel and KeyValueList.
+
+Copied from the approved pages (not modified):
+- The Facilities filter-row controls.
+- The Attendance row-selection and empty-state treatments.
+
+No global component, token, colour or weight changed in this stage. The
+typography-weight lock test passes.
+
+
+3. HEADER
+---------
+- "Timesheets", with the reference subtitle unchanged: "Review worked time,
+  attendance-derived hours, and timesheet approvals across your workforce."
+- Right side: period context. It reads "Week starting <date>" or
+  "All weeks", taken from the real week filter.
+- It is read-only. The reference's second period picker would only
+  duplicate the filter-row week control, so it was not added.
+- The back link was removed, as on the other locked pages.
+
+
+4. KPI AREA (region "Timesheets by status"; each card is a real status filter)
+-----------------------------------------------------------------------------
+- Pending Submission = open. Supporting "Not yet submitted". Footer: number
+  with shifts to resolve.
+- Needs Review = submitted. Supporting "Submitted for review". Footer:
+  number with shifts to resolve.
+- Approved = locked, meaning agency-approved with facility sign-off
+  complete. Footer: number awaiting facility (agency_approved).
+- Needs Correction = rejected (product label "Returned"). Footer: facility
+  discrepancies in the week.
+
+Counts are for the chosen week, from one read. The active card carries
+aria-current. There are no sparklines, and no paid or processed figures.
+
+
+5. FILTERS (form "Filter timesheets"; Facilities control geometry)
+------------------------------------------------------------------
+- Week starting (period) and Status are the existing list filters, sent to
+  list_agency_timesheets.
+- Worker, Facility and Search narrow only the week already loaded. Options
+  come from the loaded rows; no new query parameter reaches the database.
+- "Show" submits the form. "Clear filters" appears when any filter is set.
+
+
+6. TIMESHEET TABLE ("Current Timesheets"; region "Agency timesheets table")
+--------------------------------------------------------------------------
+- REF_TABLE with 42 px rows.
+- Columns:
+  - Worker: avatar, with the name linking to the record;
+  - Facility: the facilities worked that week;
+  - Week: compact range, with the full week in the title tooltip;
+  - Shifts;
+  - Worked Hours;
+  - Source: "Attendance";
+  - Status: chip plus a flags line (Revision n · n shifts to resolve ·
+    Discrepancy · Awaiting facility);
+  - ⋯ "Timesheet Details" drawer trigger.
+- The selected row gets the teal inset rule and a mint fill.
+
+
+7. LIFECYCLE STATES
+-------------------
+Product states and labels are unchanged: Open, Submitted, Returned,
+Approved, awaiting facility, Locked. Facility states: No sign-off needed,
+Awaiting sign-off, Signed off, Discrepancy raised. Chip tones mirror
+TimesheetStatusBadge / FacilityStateBadge. No state was invented.
+
+
+8. FACILITY SIGN-OFF
+--------------------
+- Agency drawer: when the timesheet is approved, a "Facility Sign-off"
+  section shows counts by entry state.
+- Agency record: a "Facility sign-off" panel shows:
+  - before approval: "starts after the agency approves this timesheet";
+  - after approval: state counts and the discrepancy list, with the
+    existing ResolveDisputeForm for approvers.
+- The facility route is unchanged (see 14).
+
+
+9. REVISIONS
+------------
+- Table flags show "Revision n".
+- The drawer shows "Revision n (current)" or "First revision".
+- Record summary: "Revision n (current). Earlier revisions are kept in the
+  history."
+- Record history: append-only note. On revised timesheets each event is
+  tagged with its revision, and earlier ones are marked "(superseded)".
+- No editing is implied anywhere; reopening stays the existing "Reopen as a
+  new revision" form.
+
+
+10. TIMESHEET DRAWER ("Timesheet Details"; canonical drawer)
+------------------------------------------------------------
+- Identity: 84 px avatar, worker, status chip, "Weekly timesheet".
+- Meta rows: facilities; week · shifts.
+- Tabs:
+  - Overview:
+    - Time Details: week, shifts, break deduction, worked hours, source
+      "Attendance (derived)", adjustments (approved corrections), approval
+      status, revision.
+    - Attendance Verification: success tile, or the shifts to resolve with
+      reasons.
+    - Facility Sign-off (when approved).
+    - Audit History: the 3 latest events, plus a "Full history" link.
+  - Shifts: each entry with clock-in/out, worked time and an attendance
+    record link.
+  - History: full timeline.
+- Actions:
+  - Primary: "Review and approve" (approvers, submitted timesheets) opens
+    the record's Approval section. Otherwise "Open timesheet record".
+  - Secondary: "View Attendance" (the attendance window for that week) and
+    "View Shift" (the exact shift when the week has one), or "View Shifts"
+    (the week in Shifts).
+- Capability-gated: attendance.view and shift.view.
+
+
+11. TIMESHEET RECORD (canonical arrangement)
+--------------------------------------------
+1. Breadcrumb "Timesheets".
+2. Header: worker, or "My timesheet".
+3. Status chip, plus RecordMeta "Approved by …".
+4. SectionTabs "Timesheet record sections":
+   - Summary · Shifts · Facility sign-off (agency) · Approval / Submission
+     · History.
+5. No step-up notice applies here.
+6. Summary: KeyValueList "Timesheet totals".
+7. Shifts: TimesheetEntriesTable, unchanged.
+8. Facility sign-off panel (agency).
+9. Approval panel (agency) or Submission panel (worker). These use the
+   existing forms and conditions, with a status note when no action
+   applies.
+10. Timesheet history: ActivityTimeline.
+
+
+12. HOURS / ENTRIES
+-------------------
+- Read-only, derived by the database.
+- Fields: date, shift, scheduled, clock-in (with the derived location
+  result), clock-out, breaks, worked, entry status, facility state.
+- No editable hours anywhere; commands still carry ids and decisions only.
+
+
+13. APPROVAL ACTIONS
+--------------------
+Unchanged:
+- ApproveTimesheetForms: approve with the expected revision; return to the
+  worker with a reason.
+- ReopenTimesheetForm.
+- "Recalculate from attendance".
+- ResolveDisputeForm.
+- SubmitTimesheetForm (worker).
+
+All appear under the same capability and status conditions as before.
+There is no approval path in the list or drawer; the drawer links to the
+record.
+
+
+14. FACILITY SAFE PROJECTION
+----------------------------
+- The facility branch (FacilityTimesheets) and the worker list are
+  untouched.
+- Still asserted by tests:
+  - the facility sees only its own entry, without money, coordinates or
+    the other facility (timesheets Flow 3);
+  - the facility timesheets page shows no $ / pay rate / bill rate /
+    margin (pricing Flow 5);
+  - the worker record shows no $ / rate (pricing Flow 6);
+  - other tenants and workers get 404 (Flow 7).
+
+
+15. RESPONSIVE BEHAVIOUR
+------------------------
+- 1280 / 768 / 412 / 375: no page overflow (asserted). Tables scroll inside
+  their regions.
+- KPIs use 2 columns below xl. The filter row wraps.
+- The drawer is a full-height sheet on phones.
+- At 1536 px and wider the drawer docks and the work area contracts
+  (asserted, with no overflow).
+
+
+16. INTENTIONAL PRODUCT / DATA DIFFERENCES
+------------------------------------------
+- Timesheets are WEEKLY per worker, with entries per shift. The reference
+  rows are per shift, so the per-row Shift Date / Check In / Check Out /
+  Break become Week / Shifts / Worked Hours. Per-shift times are in the
+  drawer's Shifts tab and on the record.
+- Source: every Chelth timesheet is derived from attendance; the
+  Manual / Adjusted sources don't exist. Approved corrections appear as
+  "Adjustments".
+- Not offered: Export (no export capability exists), worker role and photo,
+  "View All Activity" (no activity route), and in-drawer Approve / Request
+  Correction (approval stays on the record with the existing forms;
+  "Request Correction" = the existing "Return to worker").
+- Recent Timesheet Activity is built from the history of the timesheets
+  listed in the current view (the first 25), the 6 most recent events.
+- Drawer details (entries and history) are read for the first 25 listed
+  timesheets. Further rows show list facts and link to the record.
+- KPI "Approved" counts locked timesheets only; the agency-approved ones
+  waiting for facility sign-off are its footer.
+- Drawer docking: the reference canvas shows the drawer docked. The locked
+  drawer docks at 1536 px and wider, so screenshot 04 (1512) shows the
+  modal and screenshots 10/11 (1536) show the docked layout.
+- At docked 1536 width:
+  - KPI labels wrap to two lines, because the locked card type is wider
+    than the reference cards.
+  - The "awaiting facility" footer clips slightly; the copy was shortened
+    to reduce this.
+  - The filter row wraps to two lines.
+  These follow from the locked geometry, so they were not changed.
+- QA data: 2 timesheets (Tia submitted, 11 h 30 min; Cy open with a shift
+  to resolve) and 1 activity event.
+
+
+17. SCREENSHOT OVERLAY RESULTS (docs/reports/timesheets-fidelity/)
+------------------------------------------------------------------
+01  reference
+02  after (1512 x 996 at the frame origin 11,13)
+03  50% overlay
+04  after, drawer open (1512, modal)
+05  reference drawer (x 1184–1536)
+06  after drawer (docked, 1536)
+07  drawer overlay
+08  Timesheet Record
+09  1280 / 768 / 412 / 375
+10  after, docked at 1536 x 1024 (the reference arrangement)
+11  docked overlay
+
+Observed at 1536 (docked):
+- Matches the reference:
+  - sidebar, title and subtitle positions;
+  - the four KPI cards, in order and tone;
+  - the filter row order;
+  - the Current Timesheets panel, then Recent Timesheet Activity;
+  - the drawer title / identity / Time Details / Attendance Verification /
+    Audit History hierarchy.
+- Content sits about 25–40 px lower than the reference: the locked KPI
+  cards (133 px) and filters (46 px) are taller.
+
+
+18. TESTS
+---------
+Results:
+- format:check, lint, typecheck: pass
+- npm test: 341 passed
+- build: pass
+- check:bundle: OK (65 files)
+- npx playwright test: 222 passed, 2 skipped (pre-existing), 0 failed
+
+Changes:
+- timesheets.spec: new "Timesheets at the reference canvas, with Timesheet
+  Details open". It checks:
+  - KPI counts and the row;
+  - activity;
+  - drawer content, no coordinates or money;
+  - the "Review and approve" target;
+  - the docked layout at 1536;
+  - record sections;
+  - axe;
+  - overflow at four widths.
+- agency-surfaces: the KPI link "To approve" is now "Needs Review" (same
+  status=submitted URL, aria-current and Status combobox assertions).
+
+
+19. FILES CHANGED (this stage)
+------------------------------
+- src/app/app/organisations/[organisationId]/(workspace)/timesheets/page.tsx
+  (the agency branch now renders AgencyTimesheets; the worker and facility
+  branches are unchanged)
+- timesheets/_components/agency-timesheets.tsx (new)
+- timesheets/_components/timesheet-details-panel.tsx (new)
+- timesheets/_components/timesheet-tones.ts (new)
+- timesheets/_components/history-format.ts (new)
+- timesheets/[timesheetId]/page.tsx (canonical record arrangement)
+- tests/e2e/timesheets.spec.ts
+- tests/e2e/agency-surfaces.spec.ts
+- docs/ui-reference/p08-e8/canonical/Chelth_Timesheets_LOCKED_Claude/ (the
+  reference package, added unchanged)
+- docs/reports/timesheets-fidelity/*
+- this report
+
+No database, migrations, RLS, RPCs, server actions, schemas, capabilities,
+auth or tenancy changes.
+
+
+20. GIT STATUS
+--------------
+Includes earlier uncommitted stages (S9C, S9D and the typography lock):
+
+ M docs/ui-reference/CHELTH-LOCKED-VISUAL-SYSTEM.md
+ M src/app/app/organisations/[organisationId]/(workspace)/attendance/[attendanceId]/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/attendance/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/facilities/[facilityId]/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/facilities/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/shifts/_components/shift-details-panel.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/shifts/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/timesheets/[timesheetId]/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/timesheets/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/workforce/[workerId]/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/workforce/_components/worker-details-panel.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/workforce/page.tsx
+RM src/app/app/organisations/[organisationId]/(workspace)/workforce/_components/details-tabs.tsx -> src/components/reference/details-tabs.tsx
+ M src/components/reference/locked-reference.tsx
+ M src/components/ui/data-table.tsx
+ M src/components/ui/detail-drawer.tsx
+ M src/components/ui/page-header.tsx
+ M src/components/ui/panel.tsx
+ M src/components/ui/section-tabs.tsx
+ M src/features/compliance/components/readiness-panel.tsx
+ M src/features/compliance/components/requirements-table.tsx
+ M src/features/facilities/components/status-badges.tsx
+ M src/features/facilities/index.ts
+ M tests/e2e/agency-surfaces.spec.ts
+ M tests/e2e/attendance.spec.ts
+ M tests/e2e/credentials-compliance.spec.ts
+ M tests/e2e/overview-fidelity.spec.ts
+ M tests/e2e/timesheets.spec.ts
+ M tests/e2e/workforce-facilities.spec.ts
+?? docs/reports/P0-E8-S9C-facilities-locked-reference-implementation.txt
+?? docs/reports/P0-E8-S9D-attendance-locked-reference-implementation.txt
+?? docs/reports/attendance-fidelity/
+?? docs/reports/facilities-fidelity/
+?? docs/reports/locked-visual-system/record-alignment/
+?? docs/reports/timesheets-fidelity/
+?? docs/reports/typography-weight/
+?? docs/ui-reference/p08-e8/canonical/Chelth_Timesheets_LOCKED_Claude/
+?? src/app/app/organisations/[organisationId]/(workspace)/attendance/_components/
+?? src/app/app/organisations/[organisationId]/(workspace)/facilities/_components/
+?? src/app/app/organisations/[organisationId]/(workspace)/timesheets/_components/
+?? src/components/reference/record-page.tsx
+?? tests/unit/components/typography-weight-lock.test.ts
+
+STATUS: AWAITING HUMAN VISUAL REVIEW
+
+
+ADDENDUM — FINAL CANONICAL ALIGNMENT PASS
+=========================================
+Presentation only. No layout redesign and no global-system change.
+
+1. Drawer identity
+   - Worker name is the primary identity, then "Weekly timesheet" as the
+     record type, then the week as supporting metadata.
+   - The meta rows now show facilities and "n shifts · worked" (real
+     values).
+
+2. Time Details
+   - Uses KeyValueList, the canonical record-page label/value hierarchy
+     shared with Worker Record and Facility Record.
+
+3. Attendance Verification
+   - Softer surface (#F8FCFB) and a 7% teal hairline.
+   - Same green glyph and copy; title weight 500.
+
+4. Audit History
+   - Uses ActivityTimeline, the record-page timeline, with semantic dots.
+     The hand-built list was removed.
+
+5. Main table
+   - Source cell: 12 px right padding. Status cell: 16 px left padding.
+   - Chip and secondary line stack with a 4 px gap.
+   - Column structure and widths unchanged.
+
+6. Recent Timesheet Activity
+   - 42 px rows (the canonical density) with row hover.
+   - Worker identity as the main table (font-medium ink, hover teal).
+
+7. Lock
+   - CHELTH-LOCKED-VISUAL-SYSTEM.md now marks Timesheets and Timesheet
+     Details as locked canonical implementations (new section "Canonical
+     Timesheets Implementation"). It also adds Facilities and Attendance to
+     the pages table.
+
+Screenshots were refreshed in docs/reports/timesheets-fidelity/:
+02–04 and 06–11, plus the new 12-after-drawer-audit-history.png.

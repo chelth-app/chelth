@@ -34,15 +34,18 @@ export function RequirementsTable(props: RequirementsTableProps) {
   return (
     <ul
       aria-label={label}
-      className="flex flex-col divide-y divide-border rounded-lg border border-border bg-surface text-sm"
+      className="flex flex-col divide-y divide-border border-y border-border text-sm in-[.chelth-locked]:divide-[rgba(18,107,103,0.12)] in-[.chelth-locked]:border-[rgba(18,107,103,0.12)]"
     >
       {requirements.map((requirement) => (
-        <li key={requirement.id} className="flex flex-wrap items-center justify-between gap-2 p-3">
+        <li
+          key={requirement.id}
+          className="flex flex-wrap items-center justify-between gap-2 p-3 in-[.chelth-locked]:py-3.5"
+        >
           <div className="flex flex-col gap-1">
-            <span className="font-medium">
+            <span className="font-medium in-[.chelth-locked]:text-[15px] in-[.chelth-locked]:font-semibold in-[.chelth-locked]:text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)]">
               {typeNames.get(requirement.credentialTypeKey) ?? requirement.credentialTypeKey}
             </span>
-            <span className="text-muted-foreground">
+            <span className="text-muted-foreground in-[.chelth-locked]:font-medium in-[.chelth-locked]:text-slate-600">
               {requirement.disciplineKey
                 ? disciplineNames.get(requirement.disciplineKey)
                 : "All workers"}
@@ -53,7 +56,7 @@ export function RequirementsTable(props: RequirementsTableProps) {
                 : ""}
               {` · warn ${requirement.expiryWarningDays} days`}
             </span>
-            <span className="text-muted-foreground">
+            <span className="text-muted-foreground in-[.chelth-locked]:text-slate-600">
               From {formatCalendarDate(requirement.effectiveFrom)}
               {requirement.effectiveUntil
                 ? ` to ${formatCalendarDate(requirement.effectiveUntil)}`

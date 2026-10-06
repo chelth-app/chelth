@@ -1,0 +1,447 @@
+P0-E8-S8 — FINAL RESPONSIVE, ACCESSIBILITY & BRAND CONSISTENCY SWEEP
+Branch: p0-e8-visual-implementation (base 5c51daa, S7 committed)
+Date: 2026-10-02
+Status: complete, uncommitted, awaiting human review. Not merged, not deployed.
+
+======================================================================
+1. EXECUTIVE SUMMARY
+======================================================================
+This is a closure sweep across every frame: Agency, Facility, Worker, Finance,
+Auth, Personal and System states. No product features, routes, queries, RPCs,
+Server Actions or logic changed.
+
+Fixes:
+  - Brand: the off-brand teal (#0f766e) in both email templates is now
+    Deep Teal #126B67; Dialog uses the brand elevation shadow.
+  - Typography drift: four h1s moved to the display face; the /app chooser,
+    Account and evidence step-up states use PageHeader.
+  - KPI cards: 2 compact columns on phones.
+  - Box-in-box: 32 nested bordered lists and cards inside Panels were
+    flattened.
+  - Remaining status Badges: converted to StatusChip.
+  - Finance notices: given their matching soft-foreground colour.
+  - Fill chips: no longer wrap in narrow columns.
+
+A new sweep spec checks 34 representative routes at 375 / 412 / 768 / 1024 /
+1280 px: no page-level overflow at any width, axe clean at 375 and 1280.
+
+Final validation is all green; see §20.
+
+There are no blocking visual defects. The branch is ready for human review
+(§23).
+
+======================================================================
+2. WIDTHS TESTED
+======================================================================
+375, 412, 768, 1024 and 1280 px.
+
+Automated in tests/e2e/final-sweep.spec.ts. It runs on both Playwright
+projects (desktop Chrome and Pixel 7), so each route is resized through all
+five widths twice.
+
+Earlier stage specs add 412 px (mobile project) and 1280 px coverage for
+every flow, plus 375 / 768 / 1280 for the worker frame (S6) and all five
+widths for auth (S7).
+
+======================================================================
+3. BRAND QA
+======================================================================
+Scan results:
+  - Raw hex in page or component code: none. The only hex values in TS/TSX
+    are the brand theme-color meta and HTML email templates.
+  - Email templates: #0f766e (Tailwind teal-700, off-brand) → #126B67
+    Deep Teal in src/lib/notifications/templates.ts and
+    src/features/organisations/emails/invitation-email.ts. Presentation
+    only; white on #126B67 is 6.32:1.
+  - Stray blue / indigo / violet utilities: none.
+  - Glass, glow and backdrop-blur: none.
+  - Off-system shadows: Dialog `shadow-lg` → `shadow-elevated` (brand
+    token).
+  - Gradients: one, the S1-approved token-derived sidebar tint (Teal
+    Dark → Teal Dark + Navy, documented in DESIGN_SYSTEM.md). No other
+    gradients.
+  - Logo: only BrandLogo with canonical public/brand/chelth files
+    (primary on auth / home / canvas, reverse in the sidebar, mark in
+    headers). No redrawn or text logos. The email banner is the existing
+    email asset (unchanged).
+  - Typography drift fixed (display face, Navy):
+      - home h1;
+      - design-system h1;
+      - /app chooser (PageHeader);
+      - evidence step-up h1 (PageHeader).
+    Every product h1 now uses the Manrope display treatment; UI and body
+    use Inter.
+  - Status tones are brand-derived (S2). The remaining status Badges
+    ("Suspended", "Verified with authenticator", "Password only") are now
+    StatusChips. Badge is used only for metadata (type, role, currency,
+    source, classification, disclaimers, "Last used").
+  - Primary is brand teal everywhere, including finance. There is no blue
+    primary (F3).
+
+======================================================================
+4. AGENCY REVIEW
+======================================================================
+Overview, Shifts (+ record), Workforce, Worker record, Facilities (+ record),
+Attendance, Timesheets, Compliance, Operations:
+  - responsive at all five widths;
+  - axe clean;
+  - nested lists flattened (Overview relationships / shared readiness /
+    invitations; worker credentials / sharing / notes; facility locations;
+    operations attention cards; shift detail cards; attendance correction
+    and exception items; attendance record exceptions);
+  - 2-column KPI cards on phones.
+
+======================================================================
+5. FACILITY REVIEW
+======================================================================
+Overview, Staffing requests, Request detail, Sign-off:
+  - the same shell and patterns as Agency;
+  - no agency-only artefacts;
+  - capability differences unchanged (S4 role tests still pass);
+  - Request detail "Who is coming" is a table;
+  - the relationships list is flattened;
+  - the fill chip no longer wraps;
+  - responsive and axe clean at all widths.
+
+======================================================================
+6. WORKER REVIEW
+======================================================================
+Home, My shifts, Timesheets, Credentials at all five widths:
+  - centred column;
+  - no sidebar;
+  - the bottom nav never covers the last control (new E2E check at 375 ×
+    700);
+  - safe-area padding in the nav and More sheet;
+  - geofence panel, break and correction controls reachable (S6 flows);
+  - the credentials list is flattened inside its Panel;
+  - the readiness block is tinted rather than boxed.
+
+======================================================================
+7. FINANCE REVIEW
+======================================================================
+Rates, Pricing, Payroll, Invoices (lists) at all five widths; detail and
+adjustment pages via the S5 flows (412 / 1280):
+  - teal primary;
+  - no payment vocabulary (S5 guard still passes);
+  - signed amounts keep sign plus word;
+  - long disclaimers ("Draft invoice — internal, not sent", "Adjustment —
+    not payment") wrap with no overflow;
+  - export actions visible;
+  - the maker/checker explanation sits in Next step (S5);
+  - notices now use their matching soft-foreground text colour;
+  - no pay on invoice surfaces (S5 assertions).
+
+======================================================================
+8. AUTH/SYSTEM REVIEW
+======================================================================
+Sign in, sign up, forgot, reset, invite, auth error and not-found at all five
+widths:
+  - cards centred (max-w-md);
+  - logo 48 px on every width;
+  - mint band 18 rem (balanced above the card);
+  - footer links 44 px;
+  - no overflow;
+  - axe clean.
+
+Personal chooser, Account, Security, MFA verify: PageHeader / P6 cards.
+
+System states use one SystemState language inside the owning frame (S7).
+
+======================================================================
+9. KPI MOBILE REFINEMENT
+======================================================================
+KpiFilterGroup: `grid-cols-2` from the smallest width, 4 columns from xl. On
+phones the card hides its decorative icon tile, uses p-3 and a 22 px value
+(26 px from sm), with `min-w-0` and `break-words`.
+
+At 375 px, labels such as "Assignments needing attention" wrap to two lines
+without collision. Values and "Showing" stay readable.
+
+Kept at one column elsewhere: nothing; all KPI groups hold short real counts
+and labels. Three-card groups show 2 + 1 on phones.
+
+======================================================================
+10. NESTED BORDER CLEANUP
+======================================================================
+Inside Panels only:
+  - 11 divided lists: box → top and bottom rules (`border-y`, dividers
+    kept);
+  - 21 bordered item cards → tinted `bg-surface-muted` items (grouping
+    kept, border removed).
+
+Top-level page cards (shadow-card) were explicitly restored and keep their
+card style. Tables keep their DataTableRegion card (the standard table
+treatment).
+
+Affected:
+  - Overview, attendance (list / record / evidence);
+  - timesheet disputes;
+  - worker record, credential review;
+  - operations, shift record, facility record;
+  - my-credentials (list / detail);
+  - RequirementsTable, ReadinessPanel.
+
+======================================================================
+11. METADATA/CHIP WRAPPING
+======================================================================
+Long labels wrap inside their flex-wrap header meta:
+  - "Draft invoice — internal, not sent";
+  - "Draft invoice adjustment — internal, not sent";
+  - "Adjustment — not payment";
+  - "Preparation and export only";
+  - the maker/checker notice;
+  - readiness and relationship labels.
+Nothing is abbreviated, and there is no overflow at 375 px (sweep).
+
+Fill chips ("Unfilled · 0 of 2", always short) are now no-wrap, so they no
+longer split inside narrow table columns.
+
+======================================================================
+12. TABLE CONSISTENCY
+======================================================================
+Every scrolling table is in DataTableRegion: the unit structural guard still
+passes, and every table uses DataTable primitives (header band, density,
+hover). Status cells use StatusChip. No page-level overflow at any width.
+Page-specific cells and actions are preserved.
+
+======================================================================
+13. DRAWER/SHEET CONSISTENCY
+======================================================================
+DetailDrawer usages:
+  - Attendance, Shifts, Workforce, Facilities;
+  - Staffing requests, facility sign-off;
+  - payroll / invoice previews;
+  - worker Shift details.
+
+All share:
+  - width md (28 rem) on desktop, a full-height sheet on phones;
+  - header (title, description, 44 px Close);
+  - one scrolling body (no double scroll);
+  - footer action stack.
+
+The worker More sheet is a bottom-docked modal with safe-area padding. All
+are modal (locked), with Escape and focus return verified in the S3–S6 specs.
+
+======================================================================
+14. ACCESSIBILITY
+======================================================================
+axe (wcag2a / wcag2aa / wcag22aa) is clean on all 34 sweep routes at 375 and
+1280 px. That is on top of every stage spec's axe checkpoints (desktop and
+412), drawers, sheets and the menu open.
+
+Sweep assertions: exactly one h1 per route.
+
+Audited, with no regressions:
+  - landmarks (named navs: Workspace, Worker, Account, sections);
+  - aria-current;
+  - 44 px targets (home CTAs fixed to 44 px);
+  - labelled filters and forms;
+  - text alternatives;
+  - focus traps in dialogs;
+  - contrast (brand-derived tones verified in S2; email teal 6.32:1).
+
+No axe rule was disabled.
+
+======================================================================
+15. OVERFLOW AUDIT
+======================================================================
+document.documentElement.scrollWidth <= clientWidth holds:
+  - at 375 / 412 / 768 / 1024 / 1280 on 34 routes (sweep);
+  - at every axe checkpoint across the suite.
+No `overflow-x: hidden` was added to body or html; tables scroll inside their
+regions by design.
+
+======================================================================
+16. DEAD VISUAL CODE REMOVED
+======================================================================
+Audit findings:
+  - Local TABLE_REGION / TH class constants: none remain (removed in
+    S2 / S5).
+  - Unused UI components: none. SidebarNavItem and WorkspaceHeader are
+    used within their own modules.
+  - Status-styled Badges: converted (§3). Badge tones stay for the
+    design-system reference and metadata.
+  - Old page-header patterns: the last four ad-hoc h1 headers were
+    replaced (§3).
+  - PersonalFrame, OrganisationSections (worker home) and ErrorState
+    (inline auth states) are still used. They are not dead and were kept.
+
+Nothing was removed that carries behaviour.
+
+======================================================================
+17. SCREENSHOT QA
+======================================================================
+The final set is in the session scratchpad (QA_SCREENSHOTS_DIR, not
+committed): 34 routes × 5 widths (s8-*), plus the stage sets S3–S7 (412 /
+1280).
+
+  Family    Routes
+  --------  ---------------------------------------------------------------
+  Agency    overview, shifts, shift record, workforce, worker record,
+            facilities, facility record, attendance, timesheets, compliance,
+            operations
+  Facility  overview, requests, request detail, sign-off
+  Finance   rates, pricing, payroll, invoices (lists); invoice draft and
+            adjustments from S5 (s5-*)
+  Worker    home, my shifts, timesheets, credentials; shift detail,
+            clock-in flow, More from S6 (s6-*)
+  Auth      sign in, sign up, forgot, reset, invite, auth error, MFA verify,
+            not found
+
+375 and 768 stress captures exist for every route.
+
+Visual audit per family:
+
+  AGENCY (P1 / P2 / P3 / P4)
+    MATCHES: dark-teal sidebar with reverse logo; page title and copy;
+      KPI row; filter bar; table card; chips; drawer; record header plus
+      section list and cards.
+    INTENTIONAL DIFFERENCES: no search, bell, Reports or Settings (F6,
+      F10); modal drawer; no avatars, checkboxes or kebabs; no charts or
+      deltas.
+    REMAINING DEFECTS: none blocking. Three-card KPI rows leave one empty
+      slot at xl (cosmetic).
+    BLOCKING: no.
+
+  FACILITY (P2 / P3 / P4)
+    MATCHES: same shell; requests list and drawer per reference anatomy;
+      KPI cards.
+    INTENTIONAL DIFFERENCES: no Find Workers, Contact or Edit; no worker
+      names or attendance on the Overview (audited reads).
+    REMAINING DEFECTS: none.
+    BLOCKING: no.
+
+  FINANCE (P3-F / P4)
+    MATCHES: mode switch, KPI row, labelled filters, ledger tables,
+      preview drawer, history timeline, teal primary.
+    INTENTIONAL DIFFERENCES: no payment states, date-range picker or
+      deltas.
+    REMAINING DEFECTS: none blocking. The invite / adjustment lineage lists
+      use list markup rather than KeyValueList (cosmetic).
+    BLOCKING: no.
+
+  WORKER (P7)
+    MATCHES: compact header, My shifts tabs and cards, location panel,
+      success panel, bottom nav, timesheet handoff framing.
+    INTENTIONAL DIFFERENCES: no bell, photos or map; shift detail is a
+      drawer; clock-out uses the neutral outline style.
+    REMAINING DEFECTS: none.
+    BLOCKING: no.
+
+  AUTH / SYSTEM (P9)
+    MATCHES: centred card on the brand canvas, primary logo, teal
+      primary, 44 px controls, states inside the owning frame.
+    INTENTIONAL DIFFERENCES: flat mint band (no approved wave asset); no
+      show-password; no access-denied page (privacy 404).
+    REMAINING DEFECTS: none.
+    BLOCKING: no.
+
+======================================================================
+18. REMAINING VISUAL DIFFERENCES
+======================================================================
+All intentional and documented in the stage reports:
+  - no fake features (search, bell, Reports, Settings, messaging,
+    payments, charts, deltas, availability);
+  - modal drawers;
+  - no wave artwork;
+  - no shift calendar view;
+  - no sticky worker action bar;
+  - no loading skeletons (to avoid Suspense or status changes).
+
+Cosmetic, non-blocking:
+  - three-card KPI rows leave an empty xl slot;
+  - some lineage lists use list markup.
+
+======================================================================
+19. BLOCKING FINDINGS
+======================================================================
+None.
+
+======================================================================
+20. TESTS
+======================================================================
+New: tests/e2e/final-sweep.spec.ts (4 tests × desktop + mobile = 8):
+  - agency and finance (15 routes);
+  - facility (4 routes);
+  - worker (4 routes, plus the bottom-nav-never-covers-content check);
+  - auth and personal (11 routes).
+Each route is checked at five widths for overflow and screenshots, with axe at
+375 and 1280 and exactly one h1.
+
+Validation:
+
+  Command               Result
+  --------------------  --------------------------------------------------
+  npm run format:check  pass
+  npm run lint          pass (0 warnings)
+  npm run typecheck     pass
+  npm test              28 files, 334 tests passed
+  npm run build         pass
+  npm run check:bundle  OK (64 browser files, no secrets)
+  npx playwright test   212 passed, 2 skipped (the existing desktop-only
+                        keyboard tests in foundation.spec), 0 failed
+
+The sweep spec alone passed 8/8 on its first run.
+
+No database tests were run, because no backend code changed.
+
+======================================================================
+21. FILES CHANGED
+======================================================================
+Brand and primitives:
+  src/lib/notifications/templates.ts  (email teal)
+  src/features/organisations/emails/invitation-email.ts  (email teal)
+  src/components/ui/dialog.tsx  (shadow-elevated)
+  src/components/ui/kpi-filter-card.tsx  (2-column phones)
+  src/features/shifts/components/badges.tsx  (fill chip no-wrap)
+  src/features/compliance/components/requirements-table.tsx,
+      readiness-panel.tsx  (flattened)
+
+Pages:
+  src/app/page.tsx  (display h1, 44 px CTAs)
+  src/app/(internal)/design-system/page.tsx  (display h1)
+  src/app/app/(personal)/page.tsx  (PageHeader, StatusChip)
+  src/app/app/(personal)/security/page.tsx  (StatusChips)
+  workspace pages: (workspace)/page.tsx, attendance/*, timesheets/*,
+      workforce/[workerId]/*, operations, shifts/[shiftId],
+      facilities/[facilityId], invoices/*, payroll/*
+      (flattened lists / items, notice colours, evidence PageHeader)
+  (self-service)/my-credentials/*  (flattened)
+
+Docs:
+  docs/architecture/DESIGN_SYSTEM.md  (KPI phone layout)
+  docs/reports/P0-E8-S8-final-responsive-accessibility-brand-sweep.txt
+
+Tests:
+  tests/e2e/final-sweep.spec.ts
+
+======================================================================
+22. GIT STATUS
+======================================================================
+Branch p0-e8-visual-implementation. HEAD 5c51daa ("feat: implement Chelth
+auth and system states", S7). All S8 changes are uncommitted (§21); nothing
+is staged or committed. Nothing was merged or deployed. No secrets were found.
+
+======================================================================
+23. MERGE / PRODUCTION RECOMMENDATION
+======================================================================
+READY FOR HUMAN REVIEW AND MERGE, subject to the usual gates:
+  1. Human visual review of the S8 screenshot set (scratchpad, or
+     regenerate with QA_SCREENSHOTS_DIR=… npx playwright test).
+  2. Commit S8 on p0-e8-visual-implementation, open the PR to main and let
+     CI run the full quality / e2e / database jobs.
+  3. Merge after approval. Production deployment remains a separate,
+     explicit human decision.
+
+Rationale:
+  - all frames are responsive at the target widths;
+  - no page overflow;
+  - axe clean;
+  - brand drift removed;
+  - no fake features;
+  - no backend, auth, financial, attendance or credential behaviour
+    changed across S1–S8;
+  - the full E2E suite and all static gates are green;
+  - no blocking visual defects.
+
+Not merged and not deployed automatically.

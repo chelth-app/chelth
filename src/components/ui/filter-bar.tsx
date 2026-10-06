@@ -19,6 +19,12 @@ type FilterBarProps = Omit<FormHTMLAttributes<HTMLFormElement>, "children"> & {
   resetLabel?: string;
   /** Page actions shown at the end of the bar (e.g. Export). */
   actions?: ReactNode;
+  /**
+   * `card` (default): labelled fields in a bordered container. `inline`: the
+   * locked P3 Shifts filter row — one tight row of compact controls (labels
+   * visually hidden but still programmatic), no container, actions at the end.
+   */
+  variant?: "card" | "inline";
 };
 
 /**
@@ -37,10 +43,37 @@ export function FilterBar({
   resetHref,
   resetLabel = "Clear filters",
   actions,
+  variant = "card",
   className,
   method = "get",
   ...props
 }: FilterBarProps) {
+  if (variant === "inline") {
+    return (
+      <form
+        aria-label={label}
+        method={method}
+        className={cn("flex flex-wrap items-center gap-2.5", className)}
+        {...props}
+      >
+        {children}
+        <Button type="submit" variant="outline" size="sm" className="min-h-11 sm:min-h-9">
+          {submitLabel}
+        </Button>
+        {resetHref ? (
+          <Link
+            href={resetHref}
+            className="inline-flex min-h-11 items-center px-1 text-[13px] font-medium text-primary underline underline-offset-4 sm:min-h-9"
+          >
+            {resetLabel}
+          </Link>
+        ) : null}
+        {actions ? (
+          <div className="flex flex-wrap items-center gap-2 sm:ml-auto">{actions}</div>
+        ) : null}
+      </form>
+    );
+  }
   return (
     <form
       aria-label={label}
@@ -67,6 +100,59 @@ export function FilterBar({
       </div>
       {actions ? <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div> : null}
     </form>
+  );
+}
+
+/** Classes for a compact inline filter control (36 px desktop, 44 px touch, 16 px text on phones). */
+export const inlineFilterControl =
+  "h-11 w-auto min-w-36 rounded-md border border-input-border bg-surface px-3 text-base text-foreground sm:h-9 sm:text-[13px]";
+
+/** Inline-variant select: label visually hidden, value text visible (e.g. "All facilities"). */
+export function InlineFilterSelect({
+  label,
+  id,
+  children,
+  className,
+  ...props
+}: SelectProps & { label: string; id: string }) {
+  return (
+    <span className="flex flex-col">
+      <Label htmlFor={id} className="sr-only">
+        {label}
+      </Label>
+      <select id={id} className={cn(inlineFilterControl, "pr-8", className)} {...props}>
+        {children}
+      </select>
+    </span>
+  );
+}
+
+/** Inline-variant date: a short visible prefix ("From") inside the control. */
+export function InlineFilterDate({
+  label,
+  id,
+  name,
+  defaultValue,
+}: {
+  label: string;
+  id: string;
+  name: string;
+  defaultValue?: string;
+}) {
+  return (
+    <label
+      htmlFor={id}
+      className="flex h-11 items-center gap-2 rounded-md border border-input-border bg-surface pl-3 text-[13px] text-muted-foreground focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring sm:h-9"
+    >
+      {label}
+      <input
+        id={id}
+        name={name}
+        type="date"
+        defaultValue={defaultValue}
+        className="h-full rounded-r-md bg-transparent pr-2 text-base text-foreground outline-none sm:text-[13px]"
+      />
+    </label>
   );
 }
 

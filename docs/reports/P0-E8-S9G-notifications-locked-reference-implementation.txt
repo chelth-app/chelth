@@ -1,0 +1,522 @@
+P0-E8-S9G — NOTIFICATIONS: LOCKED-REFERENCE IMPLEMENTATION — STOPPED (GAP REPORT)
+=================================================================================
+
+Branch: p0-e8-visual-implementation (uncommitted)
+Status: OPTION C APPROVED AND IMPLEMENTED (see the decision record at the
+end). The Notifications route is deferred. Awaiting human visual review.
+Not committed.
+
+The brief's rule (§21): "If the existing application does not have a
+suitable notification read model, STOP and report the gap rather than
+inventing one." It doesn't, so this report replaces the implementation.
+
+
+1. EXACT REFERENCE FILES USED
+-----------------------------
+docs/ui-reference/p08-e8/canonical/Chelth_Notifications/
+- index.html:
+  - frame 1536 x 1024; drawer panel-start 1178, width 358;
+  - hotspots for 4 KPI cards (Needs Attention / Unread / Today / This
+    Week), 6 filters, 5 tabs (All Activity / Needs Attention / Unread /
+    Today / Archived), "Mark all as read", 10 rows, and the drawer actions
+    Request Updated Document / View Professional / View Credential.
+- The PNG is embedded in index.html as base64. It was extracted unchanged
+  to docs/reports/notifications-fidelity/01-reference-notifications.png.
+- README.md, LOCKED-DESIGN-SPEC.md, CLAUDE-IMPLEMENTATION.md,
+  NOTIFICATIONS-INTERACTIONS.md, NOTIFICATIONS-DATA-RULES.md.
+- DERIVATION-MAP.md:
+  - §F6: the Notifications centre is a new feature, and nav items need
+    real routes.
+  - §F10: no in-app inbox; no bell or unread indicator until one exists.
+  - It maps the reference's list-and-drawer model onto the existing
+    Operations attention queue.
+
+What the reference requires of the data: per-user read / unread state,
+archived state, "mark all as read", per-event timestamps, related-record
+links, facility and professional context, and an action-required /
+resolved state kept separate from read state.
+
+
+2. EXISTING NOTIFICATION / ATTENTION DATA SOURCES FOUND
+-------------------------------------------------------
+a) internal.notification_outbox
+   (supabase/migrations/20260930120200_shift_assignments.sql and
+   20260930130200_notification_delivery.sql)
+   - What it is: the transactional EMAIL delivery queue. One row is one
+     event for one recipient profile.
+   - Columns: event, organisation, recipient profile, audience
+     organisation, subject_type / subject_id, small detail jsonb.
+   - Delivery fields: state (pending / processing / retry / sent / failed),
+     attempts, claim lease, provider message id, last_error_code,
+     deliver_until.
+   - Event vocabulary: 23 events in src/lib/notifications/vocabulary.ts
+     (mirrored from the database enum). The events enqueued by current
+     migrations are:
+     - assignment: worker_assigned, assignment_cancelled,
+       assignment_declined, assignment_non_compliant;
+     - shifts and requests: shift_offered, shift_cancelled,
+       facility_request_submitted, facility_request_opened;
+     - attendance: attendance_clock_in_blocked, attendance_clock_in_late,
+       attendance_missed_clock_in, attendance_missed_clock_out,
+       attendance_correction_requested, attendance_time_adjusted;
+     - timesheets: timesheet_submitted, timesheet_rejected,
+       timesheet_disputed, timesheet_facility_signoff_required;
+     - pricing: pricing_blocked_missing_rate.
+   - Why it is not usable:
+     - it is in the internal schema, with RLS on and no grants to
+       authenticated users; only the dispatcher role may claim or complete
+       rows;
+     - there is no read, unread, archived, acknowledged or resolved state;
+     - display data is resolved only at claim time for email;
+     - rows can be failed or expired (delivery mechanics, which §16 says
+       must not be shown).
+b) public.list_notification_deliveries(p_organisation_id, …)
+   - An assignment.view delivery-health report for the WHOLE agency: every
+     recipient's deliveries, with state, attempts and last_error_code.
+   - Already shown as "Notifications not delivered" on Operations.
+   - Not a per-user inbox, and it exposes exactly the delivery internals
+     §16 forbids.
+c) public.audit_events
+   - The append-only audit log (action codes and identifiers only). It is
+     not designed or permitted as user-facing notification content, and has
+     no read state.
+d) Authoritative attention read models: real, current, permission-gated,
+   but not notifications.
+   - Operations:
+     - assignments needing attention (listAssignmentReadiness);
+     - upcoming work under inactive relationships;
+     - undelivered notifications.
+   - Attendance: open exceptions, pending correction requests.
+   - Timesheets: submitted / returned / disputed / awaiting facility, with
+     history events and timestamps.
+   - Compliance: readiness-engine results (expiring, missing, awaiting
+     verification). These are states, not events, with no event timestamp.
+   - Staffing requests and shifts: facility-requested shifts.
+
+Conclusion: Chelth has no notification read model. There is no
+user-scoped, readable list of events with read or archive state.
+
+
+3. ROUTE IMPLEMENTED
+--------------------
+None. No /notifications route exists or was created.
+
+
+4. GLOBAL VISUAL LOCK REUSED
+----------------------------
+Not applicable; nothing was built. Nothing was changed.
+
+
+5. HEADER
+---------
+Not built.
+
+
+6. CATEGORIES / FILTERS
+-----------------------
+Not built.
+- "Unread" and "Archived" (KPIs and tabs) and "Mark all as read" would
+  need state that does not exist.
+- "Today" and "This Week" counts of events would need an event read model.
+
+
+7. NOTIFICATION ITEM STRUCTURE
+------------------------------
+Not built. The reference's item anatomy is recorded in section 1 for a
+future implementation: semantic icon tile, title plus explanation, related
+entity with an avatar or facility thumbnail, relative time, a status chip,
+and ⋮.
+
+
+8. READ/UNREAD SUPPORT OR LIMITATION
+------------------------------------
+Not supported by the data model. No read, unread, archive or acknowledge
+state exists. None was invented (§10).
+
+
+9. DEEP LINKS
+-------------
+Not built. The destination routes already exist:
+- shifts/[shiftId]; attendance/[attendanceId];
+- workforce/[workerId]/credentials/[credentialId];
+- timesheets/[timesheetId];
+- facilities/[facilityId]; staffing-requests/[shiftId] (facility side).
+
+
+10. DRAWER / DETAIL BEHAVIOR
+----------------------------
+Not built.
+
+
+11. SIDEBAR INTEGRATION
+-----------------------
+Unchanged. There is no Notifications nav item and no badge, because there
+is no real route and no backed count (§14, DERIVATION-MAP §F6).
+
+
+12. BELL DECISION
+-----------------
+Absent, unchanged. There is no route, no backed unread state and no real
+interaction (§15, §F10).
+
+
+13. EMPTY STATE
+---------------
+Not built. An empty state on a page with no data source would imply
+"nothing to see" when the feature does not exist.
+
+
+14. PRIVACY / CAPABILITY SAFETY
+-------------------------------
+No change. Nothing new reads the outbox, deliveries or audit events. No
+RLS, grant, schema or capability change.
+
+
+15. RESPONSIVE BEHAVIOUR
+------------------------
+Not applicable.
+
+
+16. ACCESSIBILITY
+-----------------
+Not applicable.
+
+
+17. INTENTIONAL PRODUCT DIFFERENCES
+-----------------------------------
+The whole reference surface is deferred pending a product decision (see
+22).
+
+
+18. SCREENSHOT OVERLAY RESULTS
+------------------------------
+Only the reference was captured:
+docs/reports/notifications-fidelity/01-reference-notifications.png
+There is no AFTER, because nothing was implemented.
+
+
+19. TESTS
+---------
+No code changed in this stage, so no test was run or changed. The last
+full run (S9F final polish) remains current: format, lint, typecheck,
+341 unit tests, build, check:bundle, Playwright 224 passed / 2 skipped.
+
+
+20. FILES CHANGED (this stage)
+------------------------------
+- docs/reports/notifications-fidelity/01-reference-notifications.png
+  (extracted reference)
+- this report
+
+
+21. GIT STATUS
+--------------
+ M docs/ui-reference/CHELTH-LOCKED-VISUAL-SYSTEM.md
+ M src/app/app/organisations/[organisationId]/(workspace)/attendance/[attendanceId]/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/attendance/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/compliance/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/facilities/[facilityId]/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/facilities/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/shifts/_components/shift-details-panel.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/shifts/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/timesheets/[timesheetId]/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/timesheets/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/workforce/[workerId]/credentials/[credentialId]/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/workforce/[workerId]/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/workforce/_components/worker-details-panel.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/workforce/page.tsx
+RM src/app/app/organisations/[organisationId]/(workspace)/workforce/_components/details-tabs.tsx -> src/components/reference/details-tabs.tsx
+ M src/components/reference/locked-reference.tsx
+ M src/components/ui/data-table.tsx
+ M src/components/ui/detail-drawer.tsx
+ M src/components/ui/page-header.tsx
+ M src/components/ui/panel.tsx
+ M src/components/ui/section-tabs.tsx
+ M src/features/compliance/components/readiness-panel.tsx
+ M src/features/compliance/components/requirements-table.tsx
+ M src/features/facilities/components/status-badges.tsx
+ M src/features/facilities/index.ts
+ M tests/e2e/agency-surfaces.spec.ts
+ M tests/e2e/attendance.spec.ts
+ M tests/e2e/credentials-compliance.spec.ts
+ M tests/e2e/overview-fidelity.spec.ts
+ M tests/e2e/timesheets.spec.ts
+ M tests/e2e/workforce-facilities.spec.ts
+?? docs/reports/P0-E8-S9C-facilities-locked-reference-implementation.txt
+?? docs/reports/P0-E8-S9D-attendance-locked-reference-implementation.txt
+?? docs/reports/P0-E8-S9E-timesheets-locked-reference-implementation.txt
+?? docs/reports/P0-E8-S9F-compliance-credentials-locked-reference-implementation.txt
+?? docs/reports/attendance-fidelity/
+?? docs/reports/compliance-fidelity/
+?? docs/reports/facilities-fidelity/
+?? docs/reports/locked-visual-system/record-alignment/
+?? docs/reports/notifications-fidelity/
+?? docs/reports/timesheets-fidelity/
+?? docs/reports/typography-weight/
+?? docs/ui-reference/p08-e8/canonical/Chelth_Timesheets_LOCKED_Claude/
+?? src/app/app/organisations/[organisationId]/(workspace)/attendance/_components/
+?? src/app/app/organisations/[organisationId]/(workspace)/compliance/_components/
+?? src/app/app/organisations/[organisationId]/(workspace)/facilities/_components/
+?? src/app/app/organisations/[organisationId]/(workspace)/timesheets/_components/
+?? src/components/reference/record-page.tsx
+?? tests/unit/components/typography-weight-lock.test.ts
+
+
+22. REMAINING FUNCTIONAL GAPS / OPTIONS FOR DECISION
+----------------------------------------------------
+To build the Notifications reference truthfully, the product needs one of
+these.
+
+A. In-app notification read model (the full reference)
+   - Requires a migration and an explicit feature approval. It is outside
+     this presentation-only stage.
+   - A per-recipient, RLS-scoped table, or a read-only RPC over the outbox
+     rows where recipient_profile_id = auth.uid(). It would expose event,
+     subject and created_at, and display data resolved under the caller's
+     own permissions, never delivery fields.
+   - It also needs read_at / archived_at columns and "mark read" /
+     "archive" RPCs.
+   - Resolution state stays in the source domain (attendance, credentials,
+     timesheets), as the reference's data rules require.
+
+B. Attention Centre over existing read models (no migration)
+   - A new /notifications route that only aggregates the authoritative
+     attention sources in 2d, each through its own loader and capability
+     gate, and deep-links to the source record.
+   - Honest limits:
+     - no Unread / Archived / Mark-all-read;
+     - "Today" / "This Week" only where the source has a real event time
+       (timesheet history, exceptions, corrections);
+     - credential items are states, not events.
+   - DERIVATION-MAP §F6 still requires approval of a new route.
+
+C. Restyle Operations as the attention centre
+   - Apply the locked Notifications list-and-drawer treatment to the
+     existing /operations page, as DERIVATION-MAP already maps it.
+   - Keep the route and nav item ("Operations"); no Notifications nav item
+     or bell.
+   - No new route and no new data.
+
+Recommendation: C now, because it is purely presentation over real data
+and already sanctioned by the derivation map. A later, as a planned feature
+with its own migration and security tests. B only if a new aggregate route
+is approved before A exists.
+
+
+=============================================================================
+DECISION RECORD — OPTION C APPROVED
+=============================================================================
+
+Decision:
+- Option C is approved.
+- The Notifications route is deferred. There is no /notifications route,
+  no sidebar item, no badge, no top-bar bell, no unread or archived state,
+  no mark-all-read and no synthetic notification records.
+- Operations remains the current operational attention centre.
+- Full in-app Notifications is a later, controlled product feature,
+  recorded in docs/architecture/POST_VISUAL_PRODUCT_BACKLOG.md
+  ("IN-APP NOTIFICATIONS"), with its minimum required architecture.
+
+Product distinction:
+- Operations: real-time operational attention and exception handling.
+- Future Notifications: recipient-scoped in-app notification history and
+  personal attention state.
+
+What was implemented (presentation only)
+-----------------------------------------
+Route: /app/organisations/[organisationId]/operations (existing). The data,
+loaders, capability gates and copy meaning are unchanged:
+- listAssignmentIssues: assignment.view and compliance.view;
+- listRelationshipAffectedShifts: shift.view;
+- listDeliveryProblems: the existing delivery-problems view, assignment.view;
+- explainBlockReasons;
+- the agency-only 404 is kept.
+
+Locked global system reused:
+- .chelth-locked; PageHeader variant="reference"; RefKpiCard sm; RefPanel;
+  RefChip; InitialsAvatar; SectionTabs (anchors with real counts).
+- The canonical drawer (DetailDrawer width="profile") with the locked
+  drawer anatomy (KeyValueList facts, soft sections, primary CTA).
+- The canonical "⋮" row action and the locked empty-state treatment.
+
+Notifications visual language applied:
+- KPI cards (anchors to sections; no new data):
+  - Needs Attention (issues, n urgent);
+  - Inactive Relationships (affected upcoming shifts);
+  - Emails Not Delivered (n failed).
+  The previous "Notifications not delivered" panel is unchanged in content.
+- Attention lists use the reference's row hierarchy: semantic icon tile,
+  title + explanation, related context (avatar and name, or facility),
+  time, status chip and row action. A header band (Item / Related to /
+  Time / Status) is shown on desktop (visual only; aria-hidden).
+- Semantic tones:
+  - urgent issue or failed delivery: red;
+  - needs-attention issue, suspended or ended relationship, retrying
+    delivery: amber;
+  - "Emails Not Delivered" KPI tile: blue (informational diagnostic).
+- Timestamps come only from real fields:
+  - issue openedAt and lastEvaluatedAt, shown relative ("2 hours ago")
+    with the absolute value in <time dateTime> and a tooltip;
+  - delivery createdAt;
+  - the shift date for affected work.
+- Deep links go to existing routes only: shifts/[shiftId] (issue title,
+  drawer CTA, affected shift, delivery).
+- Attention Details drawer (assignment issues only):
+  - the issue type and severity, opened time, plain explanation, worker
+    identity and assignment status;
+  - Assignment Information (facility, shift, assignment, opened, last
+    checked);
+  - "Why It Needs Attention" (explainBlockReasons);
+  - primary action "View Shift".
+  It does not duplicate the shift record and does not dismiss anything.
+- Empty states:
+  - "Nothing needs attention right now.";
+  - "No affected upcoming work.";
+  - "All notifications delivered.".
+- Not added: read, unread, archived, acknowledge or dismiss controls,
+  filters without data, a bell, a badge, or a Notifications nav item.
+- Delivery rows show only the existing diagnostic fields: event label,
+  state, attempts, friendly error label, next attempt and recipient name.
+  This is no more than before, and there are no provider ids, leases or
+  raw codes.
+
+Responsive and accessibility:
+- The list layout is semantic (ul / li) and the drawer is labelled
+  "Attention Details".
+- Status is given in text as well as colour.
+- axe is clean, and there is no overflow at 1280 / 768 / 412 / 375 or with
+  the drawer docked at 1536 (asserted).
+
+Tests:
+- assignment-operations Flow 4 now also checks:
+  - the locked header and the sections nav;
+  - the drawer content and the View Shift link;
+  - axe;
+  - the docked layout;
+  - overflow at four widths.
+- It captures opqa-operations*. The existing list-name assertions
+  ("Assignments needing attention", "Affected upcoming shifts") are
+  unchanged and pass.
+
+Screenshots (docs/reports/notifications-fidelity/):
+01  reference
+02  Operations at 1512
+03  50% overlay with the Notifications reference (a structural reference
+    only; Operations is not the Notifications page)
+04  Attention Details drawer at 1512
+05  docked at 1536
+06  375
+07  412
+
+Files changed (this decision):
+- operations/page.tsx
+- operations/_components/attention-row.tsx (new)
+- operations/_components/attention-details-panel.tsx (new)
+- tests/e2e/assignment-operations.spec.ts
+- docs/architecture/POST_VISUAL_PRODUCT_BACKLOG.md (new)
+- docs/ui-reference/CHELTH-LOCKED-VISUAL-SYSTEM.md (pages table)
+- this report
+
+No database, migration, RLS, outbox, capability or auth change.
+
+STATUS: OPTION C IMPLEMENTED — AWAITING HUMAN VISUAL REVIEW
+
+
+
+ADDENDUM — FLUID WORKSPACE WIDTH (user direction during this stage)
+===================================================================
+- The sidebar stays fixed at 214 px.
+- The main workspace already took the remaining width (calc(100vw - 214px),
+  grid 214px minmax(0,1fr)).
+- Page content stays fluid, with small gutters: 30 / 19 px beside the
+  sidebar; 16 / 24 px below lg.
+- Changed: the PageContainer "wide" cap moves from 1536 px
+  (max-w-screen-2xl) to 1920 px. Content stays fluid up to a 2134 px
+  window and caps only on very large displays.
+- No page had its own narrow max-width. The remaining max-w values are
+  search-field widths.
+- Below a content width of 1536 px (windows up to about 1750 px) nothing
+  changes visually, so the earlier locked fidelity captures stand.
+- Documented in CHELTH-LOCKED-VISUAL-SYSTEM.md, section A ("Workspace
+  width").
+- Verified: assignment-operations checks there is no overflow at 2560 x
+  1440 (screenshot 08-after-operations-2560-fluid.png). The full suite
+  passes:
+  - format, lint, typecheck: pass;
+  - npm test: 341 passed;
+  - build: pass;
+  - check:bundle: OK (66 files);
+  - npx playwright test: 224 passed, 2 skipped (pre-existing), 0 failed.
+- Files: src/components/layout/page-container.tsx,
+  docs/ui-reference/CHELTH-LOCKED-VISUAL-SYSTEM.md,
+  tests/e2e/assignment-operations.spec.ts.
+
+
+ADDENDUM 2 — ACTUAL DESKTOP WIDTH CONSTRAINT (root cause and fix)
+=================================================================
+The first width correction (cap raised from 1536 to 1920 px) did not
+solve the problem. It still centred a capped container.
+
+Root cause
+----------
+Traced in the rendered DOM: walking up from the Workforce "Workers table"
+region and measuring each ancestor's computed width, max-width, margins
+and padding at 1440 / 1920 / 2560.
+
+Exactly ONE element constrained the width, in every operational route:
+
+  <div class="mx-auto w-full px-4 sm:px-6 max-w-[1920px]
+       lg:pr-[19px] lg:pl-[30px] flex flex-col gap-5">
+  = PageContainer size="wide" (src/components/layout/page-container.tsx),
+    rendered by AppShell for every workspace page.
+
+Its max-width (1536 px originally, then 1920 px) together with mx-auto
+capped the content and centred it.
+- Measured at 2560 with the 1920 cap: 213 px margin on each side.
+- With the original 1536 cap, every window wider than about 1750 CSS px
+  showed a growing empty field. That includes a 1920 / 2560 screen at
+  browser zoom below 100%.
+
+No other ancestor constrains width. All have max-width: none and 0
+margins:
+- AppShell grid (214px minmax(0,1fr)), the column div, <main>;
+- the page wrapper (.chelth-locked), the content wrapper, the section;
+- the panel card, DataTableRegion.
+No route layout and no Tailwind `container` is involved. The other max-w
+values in workspace pages are search-field widths only.
+
+Fix
+---
+- PageContainer "wide" is now `w-full px-4 sm:px-6 lg:pl-[30px]
+  lg:pr-[19px]`: 100% of the workspace, no max-width, no auto margins.
+- The "default" mode (personal and public pages) keeps its centred
+  max-w-6xl.
+- Because every workspace route (Overview, Operations, Shifts, Attendance,
+  Timesheets, Workforce, Facilities, Compliance, Rates, Pricing, Payroll,
+  Invoices) renders inside AppShell, the single fix applies to all of
+  them.
+- No component styling, font, card size, scale or padding changed.
+- Record and detail pages keep their reading measures (text-level
+  max-w-2xl / 68ch). Their panels now also span the workspace on very
+  wide screens, since they share the shell.
+
+Measured after the fix (Workers table, right edge = viewport − 19 px):
+  1440 → x 245–1420
+  1920 → x 245–1900
+  2560 → x 245–2540
+  3440 → x 245–3420
+
+Evidence (docs/reports/workspace-width/):
+- before-workforce-1440 / 1920 / 2560.png
+- after-workforce-1440 / 1920 / 2560 / 3440.png
+- before-attendance-1920.png, after-attendance-1920.png
+- compare-workforce-2560-before-after.png (stacked, labelled)
+
+Note: the "before" captures were taken on the 1920-cap build, so 1440 and
+1920 already looked full there. The visible failure was at 2560+ (and
+was larger still under the original 1536 cap).
+
+Regression test: tests/e2e/workspace-width.spec.ts asserts the table's
+left and right edges at 1440 / 1920 / 2560 / 3440 with no page overflow,
+and the Attendance KPI row's right edge at 1920.
+

@@ -113,7 +113,6 @@ function navFor(
 const FORBIDDEN_LABELS = [
   "Reports",
   "Notifications",
-  "Settings",
   "Credentials",
   "Search",
   "My shifts",
@@ -135,6 +134,7 @@ describe("buildWorkspaceNavigation", () => {
       "Pricing",
       "Payroll",
       "Invoices",
+      "Settings",
     ]);
   });
 
@@ -147,6 +147,7 @@ describe("buildWorkspaceNavigation", () => {
       "Timesheets",
       "Workforce",
       "Facilities",
+      "Settings",
     ]);
   });
 
@@ -159,6 +160,7 @@ describe("buildWorkspaceNavigation", () => {
       "Pricing",
       "Payroll",
       "Invoices",
+      "Settings",
     ]);
   });
 
@@ -167,6 +169,7 @@ describe("buildWorkspaceNavigation", () => {
       "Overview",
       "Staffing requests",
       "Timesheet sign-off",
+      "Settings",
     ]);
   });
 
@@ -174,6 +177,7 @@ describe("buildWorkspaceNavigation", () => {
     expect(navFor("facility.scheduler", "facility").labels).toEqual([
       "Overview",
       "Staffing requests",
+      "Settings",
     ]);
   });
 
@@ -182,12 +186,13 @@ describe("buildWorkspaceNavigation", () => {
       "Overview",
       "Staffing requests",
       "Timesheet sign-off",
+      "Settings",
     ]);
   });
 
   it("never lists agency routes in a facility workspace, even with every capability", () => {
     const { labels } = navFor("agency.admin", "facility");
-    expect(labels).toEqual(["Overview", "Staffing requests", "Timesheet sign-off"]);
+    expect(labels).toEqual(["Overview", "Staffing requests", "Timesheet sign-off", "Settings"]);
   });
 
   it("lists capabilities pending MFA step-up (the page renders a step-up notice)", () => {
@@ -206,8 +211,8 @@ describe("buildWorkspaceNavigation", () => {
         can: (capability) => capabilityState(grants, capability),
         hasWorkerRecord,
       }).flatMap((group) => group.items.map((item) => item.label));
-    expect(build(false)).toEqual(["Overview", "Workforce"]);
-    expect(build(true)).toEqual(["Overview", "Timesheets", "Workforce"]);
+    expect(build(false)).toEqual(["Overview", "Workforce", "Settings"]);
+    expect(build(true)).toEqual(["Overview", "Timesheets", "Workforce", "Settings"]);
   });
 
   it.each(Object.keys(ROLE_GRANTS))("lists no invented or self-service route for %s", (role) => {
@@ -216,13 +221,29 @@ describe("buildWorkspaceNavigation", () => {
     for (const label of FORBIDDEN_LABELS) expect(labels).not.toContain(label);
     for (const { href } of items) {
       expect(href.startsWith(`/app/organisations/${ORG}`)).toBe(true);
-      expect(href).not.toMatch(/reports|notifications|settings|my-shifts|my-credentials/);
+      expect(href).not.toMatch(/reports|notifications|my-shifts|my-credentials/);
+    }
+  });
+
+  it("lists the real Settings route last for every workspace role (P0-E8-S9H)", () => {
+    for (const role of Object.keys(ROLE_GRANTS)) {
+      const type: OrganisationType = role.startsWith("facility.") ? "facility" : "agency";
+      const { items } = navFor(role, type);
+      expect(items.at(-1)).toMatchObject({
+        label: "Settings",
+        href: `/app/organisations/${ORG}/settings`,
+        icon: "settings",
+      });
     }
   });
 
   it("drops empty groups and labels visible group headings", () => {
     const { groups } = navFor("agency.scheduler", "agency");
-    expect(groups.map((group) => group.label)).toEqual(["Operations", "People and compliance"]);
+    expect(groups.map((group) => group.label)).toEqual([
+      "Operations",
+      "People and compliance",
+      "Administration",
+    ]);
     expect(groups.every((group) => group.items.length > 0)).toBe(true);
   });
 });

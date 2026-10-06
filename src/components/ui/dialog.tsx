@@ -48,7 +48,7 @@ export function Dialog({
       aria-describedby={description ? descriptionId : undefined}
       onClose={() => onOpenChange(false)}
       className={cn(
-        "m-auto w-[calc(100%-2rem)] max-w-lg rounded-lg border border-border bg-surface p-0 text-foreground shadow-lg",
+        "m-auto w-[calc(100%-2rem)] max-w-lg rounded-lg border border-border bg-surface p-0 text-foreground shadow-elevated",
         "backdrop:bg-foreground/40",
         className,
       )}

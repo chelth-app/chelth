@@ -1,0 +1,420 @@
+P0-E8-S9H — SETTINGS: LOCKED-REFERENCE IMPLEMENTATION
+=====================================================
+
+Branch: p0-e8-visual-implementation (uncommitted)
+Status: AWAITING HUMAN VISUAL REVIEW.
+- Not committed.
+- Rates/Pricing not started. In-app Notifications not built.
+- No database, migration, RLS, capability, auth or AAL2 change.
+
+
+1. EXACT REFERENCE FILES USED
+-----------------------------
+docs/ui-reference/p08-e8/canonical/Chelth_Settings/
+- assets/chelth-settings-locked.png: 1536 x 1024. This is the Organization
+  section and the visual source of truth.
+- index.html: the sub-navigation hotspots for 10 sections and the
+  per-section overlay styles (card, two-column grid, toggle row,
+  save/cancel).
+- README.md, LOCKED-DESIGN-SPEC.md, CLAUDE-IMPLEMENTATION.md,
+  SETTINGS-INTERACTIONS.md, SETTINGS-SECTIONS.md, SETTINGS-DATA-RULES.md.
+- The current Chelth implementation is the functional truth: each
+  section's data and actions come from existing loaders, forms and server
+  actions.
+
+
+2. SETTINGS ROUTE STRUCTURE
+---------------------------
+New route (approved): /app/organisations/[organisationId]/settings
+
+settings/layout.tsx renders the page header and the secondary section nav.
+Section pages:
+
+  settings/              Organization            (all workspace members)
+  settings/team          Team & Permissions      membership.view | membership.invite | role.assign
+  settings/attendance    Attendance & Geofencing agency + attendance.manage_settings
+  settings/payroll       Timesheets & Payroll    agency + (attendance.manage_settings
+                                                 | payroll.approve + invoice.approve)
+  settings/rates         Rates & Billing         agency + rates.view
+  settings/compliance    Credentials & Compliance agency + credential.requirements.view
+  settings/security      Security                (all workspace members)
+
+- "Held" means granted or pending step-up, the same predicate as every page
+  gate.
+- A section that is not held is absent from the nav, and its URL returns
+  404.
+- Section switching is a URL change inside the same layout. The shell and
+  header persist.
+
+
+3. GLOBAL VISUAL LOCK REUSED
+----------------------------
+Unchanged:
+- shell, sidebar, logo, top bar and canvas;
+- PageHeader variant="reference" (title 700);
+- .chelth-locked; Panel (title 20 / 600 with a description); KeyValueList;
+- canonical inputs, selects and buttons through the existing feature
+  forms;
+- StatusChip / RefChip; DataTable (locked variants); ActivityTimeline;
+- StepUpNotice;
+- the typography weight lock (test passes).
+
+New pieces, all using the locked language:
+- SettingsNav: icon + label rows; the current item has a mint fill and a
+  3 px teal left rule (the reference's active treatment).
+- A "settings" gear glyph added to WorkspaceNavIcon (same 24 px stroke
+  family) for the sidebar item.
+
+
+4. ORGANISATION SETTINGS
+------------------------
+Workspace Details (read-only):
+- name, workspace type, status, workspace ID, your roles;
+- the note: "The workspace name and type are set when the workspace is
+  created and cannot be changed here".
+- Chelth has no organisation rename, timezone, currency, contact or logo
+  mutation, so there is no form and no Save/Cancel.
+
+Operational Preferences (read-only summary, shown only for values the
+caller can read):
+- timesheet week start, payroll period, second approver, late clock-in
+  threshold, raw location evidence retention, active baseline
+  requirements;
+- each has a "Change" link to the section that edits it, where the caller
+  can.
+Brand / Identity is not shown: no workspace logo feature exists.
+
+
+5. MEMBERS & ROLES (Team & Permissions)
+---------------------------------------
+Moved from the Overview, with the same forms and gates:
+- Members table: status chip, roles, Remove role, Assign role (role.assign;
+  roles within the caller's ceiling), Suspend / Reinstate / Remove from
+  organisation (membership.manage).
+- Invitations: Create invitation, Resend, Revoke (membership.invite).
+- Role Permissions: read-only list of the organisation type's roles and
+  their permission counts. Roles are defined by Chelth and are not
+  editable here.
+The database still enforces the role ceiling, the last-admin rule and
+step-up.
+
+
+6. SECURITY
+-----------
+Your Account Security (an account setting, not organisation-wide):
+- whether an authenticator app is set up (listMfaFactors);
+- this session's assurance ("Verified with authenticator" / "Password
+  only");
+- links to the existing personal Security page (/app/security, returning
+  here) and to Account.
+- The fixed rule is stated: administration and privileged actions require
+  authenticator verification.
+
+Audit Log (audit.view): the organisation's append-only audit events (moved
+from the Overview's "Recent activity").
+
+Not shown, because they don't exist: MFA-policy, session-timeout and
+session-revocation settings.
+
+
+7. ATTENDANCE & LOCATION
+------------------------
+- Check-In Rules: the existing AttendanceSettingsForm (7 thresholds) with
+  the same server validation. Saving was verified in E2E ("Attendance rules
+  saved.").
+- Location Evidence Retention: the existing RetentionForm (bounded
+  7–365 days).
+- Geofence Defaults: Chelth has no workspace-wide geofence default.
+  Geofences (position, radius, accuracy, outside-area policy) are set per
+  facility location, so this card links to Facilities.
+- The moved panel is replaced on the Attendance page by a link to
+  Settings.
+
+
+8. COMPLIANCE SETTINGS
+----------------------
+Credentials & Compliance follows "settings configure, compliance
+monitors":
+- a read-only summary of the active baseline requirements (verification,
+  minimum validity, warning window), from listRequirements;
+- links to manage the baseline on Compliance and facility requirements on
+  Facilities.
+The requirement forms are not duplicated in Settings.
+
+
+9. NOTIFICATION PREFERENCE DECISION
+-----------------------------------
+Omitted. Chelth has no notification preference model: every current
+outbox event is a required operational email (NOTIFICATION_CATEGORY), and
+there is no in-app inbox. No unread, badge, archive or delivery
+preferences are exposed. In-app Notifications stays in
+docs/architecture/POST_VISUAL_PRODUCT_BACKLOG.md. No sidebar Notifications
+item and no bell.
+
+
+10. FINANCE CONTROLS
+--------------------
+Timesheets & Payroll covers:
+- Timesheet Week: the existing WeekStartForm (attendance.manage_settings).
+- Pay Period and References: the existing FinancialSettingsForm (period
+  type, anchor date, payroll / invoice prefixes).
+- Finance Controls: the existing MakerCheckerForm (second approver, the
+  financial_maker_checker setting).
+- The financial forms need payroll.approve + invoice.approve, as on the
+  Payroll page; the RPCs enforce the same.
+- Copy: "Chelth prepares and exports financial documents; it never
+  executes payments."
+- No payment, tax, bank or payout settings.
+
+Rates & Billing:
+- Rate Integrity Rules: rate cards and rounding/overtime policies are
+  versioned; this card links to Rates.
+- Invoice Numbering: the current prefixes, read-only, with a link to edit
+  them where allowed.
+- No currency, invoice terms or billing contact settings exist.
+
+The moved Payroll-page panel is replaced by a link to Settings.
+
+
+11. ACCOUNT VS ORGANISATION SEPARATION
+--------------------------------------
+- Organisation settings: tenant administration (team, policies, controls,
+  audit).
+- Account: the personal /app/account and /app/security routes
+  (authenticator enrolment and verification), linked from Settings →
+  Security and from the workspace switcher. They are not merged.
+
+
+12. AAL2
+--------
+Unchanged:
+- Privileged capabilities pending step-up keep sections listed but show
+  the canonical StepUpNotice ("Verify now"), returning to the same section.
+- Mutating forms render only when the capability is granted.
+- Verified in E2E:
+  - Team shows Members but no Create invitation before step-up;
+  - after TOTP verification it returns to settings/team with Create
+    invitation.
+
+
+13. CAPABILITY FILTERING
+------------------------
+- Sections are capability-driven (section 2), never role-name-driven.
+- E2E: agency admin sees 7 sections. The scheduler sees Organization,
+  Security and the sections their capabilities allow; payroll and rates
+  return 404.
+- A facility admin sees no agency-only sections and gets 404 on the
+  agency's Settings.
+
+
+14. WORKSPACE SCOPING
+---------------------
+- Every read and action is scoped to the route's organisation id through
+  loadOrganisationPage and RLS.
+- The workspace switcher behaviour is unchanged. Settings never mixes
+  memberships; the "Your roles" value is from the caller's membership in
+  this organisation only.
+
+
+15. RESPONSIVE BEHAVIOUR
+------------------------
+- 1280 / 1440 / 1920 / 768 / 412 / 375: no page overflow (asserted).
+- Desktop: the section nav is beside a left-aligned work area capped at
+  1180 px.
+- Below lg: the section nav becomes a horizontally scrolling strip above
+  the cards; forms stack.
+- The agency/facility mobile overlay navigation is reused.
+
+
+16. UNSUPPORTED / DEFERRED SETTINGS
+-----------------------------------
+Reference sections and controls not built (no backend):
+- Notifications (preferences, digest, quiet hours);
+- Shifts & Scheduling (confirmation window, default calendar view,
+  self-scheduling, assignment safeguards as settings);
+- Integrations (none implemented);
+- Workspace lifecycle (archive / deactivate);
+- organisation profile edits (name, support email, phone, timezone,
+  currency, logo);
+- workspace-wide geofence defaults;
+- MFA policy, session timeout, active sessions;
+- billing terms / currency / contact.
+
+Reference behaviours not applicable:
+- the single Save/Cancel with dirty tracking and an unsaved-change guard.
+  Each existing form saves its own card through its existing action, with
+  its own success / error alert.
+
+
+17. SCREENSHOT OVERLAY RESULTS (docs/reports/settings-fidelity/)
+----------------------------------------------------------------
+01  reference (Organization)
+02  after, Organization (1512 at frame 11,13)
+03  50% overlay
+04  Team & Permissions (after step-up)
+05  Attendance & Geofencing (after a real save)
+06  Timesheets & Payroll
+07  Security
+08  1280 / 1440 / 1920 / 768 / 412 / 375
+
+Observed:
+- The header, the left section nav (position, row pitch, active
+  treatment) and the right-hand card stack match the reference
+  composition.
+- The content differs by design: read-only Workspace Details instead of
+  the reference's editable fields, and no toggles or Brand card.
+
+
+18. TESTS
+---------
+Results:
+- format:check, lint, typecheck: pass
+- npm test: 342 passed (navigation unit tests updated; one test added for
+  the Settings route)
+- build: pass
+- check:bundle: OK (68 files)
+- npx playwright test: 231 passed, 3 skipped (2 pre-existing + 1
+  desktop-only width test on mobile), 0 failed
+
+New: tests/e2e/settings.spec.ts. It checks:
+- the sidebar entry is real;
+- exact sections for the admin; no Notifications, Integrations, Scheduling
+  or Workspace;
+- read-only identity with no Save button;
+- the step-up flow;
+- a real attendance-rules save;
+- the payroll and finance forms;
+- security state and the audit log;
+- the moved panels are gone from Attendance;
+- axe and overflow at six widths;
+- scheduler capability filtering (404s);
+- tenant isolation and facility-only sections.
+
+Updated:
+- workspace-shell: "Settings" appended to the expected nav for each role;
+  the Settings link is no longer forbidden; Members is asserted in
+  Settings → Team.
+- facility-surfaces: the facility nav includes Settings; the members table
+  is in Settings → Team.
+- identity: the invite step goes to Settings → Team.
+- agency-surfaces: the Overview no longer shows Members.
+- tests/unit/lib/workspace-navigation.test.ts: expected lists include
+  Settings; a new Settings-route assertion.
+
+
+19. FILES CHANGED (this stage)
+------------------------------
+New:
+- settings/layout.tsx and page.tsx
+- settings/team, attendance, payroll, rates, compliance, security
+  (page.tsx each)
+- settings/_components/settings-nav.tsx and settings-sections.ts
+- tests/e2e/settings.spec.ts
+- docs/reports/settings-fidelity/*
+- this report
+
+Modified:
+- (workspace)/page.tsx: administration panels removed; the header's own
+  roles come from the caller's membership.
+- attendance/page.tsx: rules panel replaced by a Settings link.
+- payroll/page.tsx: settings panel replaced by a Settings link.
+- src/features/organisations/workspace-navigation.ts: Settings item.
+- src/components/layout/workspace-navigation-model.ts and
+  workspace-nav-icon.tsx: settings glyph.
+- docs/ui-reference/CHELTH-LOCKED-VISUAL-SYSTEM.md: pages table and the
+  "Canonical Settings Implementation" section.
+- tests: workspace-shell, facility-surfaces, identity, agency-surfaces,
+  unit navigation.
+
+
+20. GIT STATUS
+--------------
+ M docs/ui-reference/CHELTH-LOCKED-VISUAL-SYSTEM.md
+ M src/app/app/organisations/[organisationId]/(workspace)/attendance/[attendanceId]/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/attendance/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/compliance/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/facilities/[facilityId]/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/facilities/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/operations/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/payroll/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/shifts/_components/shift-details-panel.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/shifts/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/timesheets/[timesheetId]/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/timesheets/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/workforce/[workerId]/credentials/[credentialId]/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/workforce/[workerId]/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/workforce/_components/worker-details-panel.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/workforce/page.tsx
+ M src/components/layout/page-container.tsx
+ M src/components/layout/workspace-nav-icon.tsx
+ M src/components/layout/workspace-navigation-model.ts
+RM src/app/app/organisations/[organisationId]/(workspace)/workforce/_components/details-tabs.tsx -> src/components/reference/details-tabs.tsx
+ M src/components/reference/locked-reference.tsx
+ M src/components/ui/data-table.tsx
+ M src/components/ui/detail-drawer.tsx
+ M src/components/ui/page-header.tsx
+ M src/components/ui/panel.tsx
+ M src/components/ui/section-tabs.tsx
+ M src/features/compliance/components/readiness-panel.tsx
+ M src/features/compliance/components/requirements-table.tsx
+ M src/features/facilities/components/status-badges.tsx
+ M src/features/facilities/index.ts
+ M src/features/organisations/workspace-navigation.ts
+ M tests/e2e/agency-surfaces.spec.ts
+ M tests/e2e/assignment-operations.spec.ts
+ M tests/e2e/attendance.spec.ts
+ M tests/e2e/credentials-compliance.spec.ts
+ M tests/e2e/facility-surfaces.spec.ts
+ M tests/e2e/identity.spec.ts
+ M tests/e2e/overview-fidelity.spec.ts
+ M tests/e2e/timesheets.spec.ts
+ M tests/e2e/workforce-facilities.spec.ts
+ M tests/e2e/workspace-shell.spec.ts
+ M tests/unit/lib/workspace-navigation.test.ts
+?? docs/architecture/POST_VISUAL_PRODUCT_BACKLOG.md
+?? docs/reports/P0-E8-S9C-facilities-locked-reference-implementation.txt
+?? docs/reports/P0-E8-S9D-attendance-locked-reference-implementation.txt
+?? docs/reports/P0-E8-S9E-timesheets-locked-reference-implementation.txt
+?? docs/reports/P0-E8-S9F-compliance-credentials-locked-reference-implementation.txt
+?? docs/reports/P0-E8-S9G-notifications-locked-reference-implementation.txt
+?? docs/reports/attendance-fidelity/
+?? docs/reports/compliance-fidelity/
+?? docs/reports/facilities-fidelity/
+?? docs/reports/locked-visual-system/record-alignment/
+?? docs/reports/notifications-fidelity/
+?? docs/reports/settings-fidelity/
+?? docs/reports/timesheets-fidelity/
+?? docs/reports/typography-weight/
+?? docs/reports/workspace-width/
+?? docs/ui-reference/p08-e8/canonical/Chelth_Timesheets_LOCKED_Claude/
+?? src/app/app/organisations/[organisationId]/(workspace)/attendance/_components/
+?? src/app/app/organisations/[organisationId]/(workspace)/compliance/_components/
+?? src/app/app/organisations/[organisationId]/(workspace)/facilities/_components/
+?? src/app/app/organisations/[organisationId]/(workspace)/operations/_components/
+?? src/app/app/organisations/[organisationId]/(workspace)/settings/
+?? src/app/app/organisations/[organisationId]/(workspace)/timesheets/_components/
+?? src/components/reference/record-page.tsx
+?? tests/e2e/settings.spec.ts
+?? tests/e2e/workspace-width.spec.ts
+?? tests/unit/components/typography-weight-lock.test.ts
+
+
+21. REMAINING GAPS
+------------------
+These need product features or migrations, so they are out of scope here:
+- organisation profile editing (name, contact, timezone, currency, logo);
+- workspace-wide attendance/geofence defaults (today: per-location
+  geofence, agency-level thresholds);
+- scheduling settings (confirmation window, self-scheduling policy);
+- notification preferences and in-app Notifications (backlog);
+- integrations;
+- workspace archive / deactivate workflow;
+- org-level MFA policy, session timeout and active-session management;
+- billing terms, currency and billing contact;
+- a single page-level Save/Cancel with an unsaved-change guard across
+  cards. Today each card saves itself.
+- DERIVATION-MAP §F6 still lists Settings as a missing route. That is
+  historical; the route now exists.
+
+STATUS: AWAITING HUMAN VISUAL REVIEW

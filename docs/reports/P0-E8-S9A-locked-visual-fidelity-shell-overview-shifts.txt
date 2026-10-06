@@ -1,0 +1,2187 @@
+P0-E8-S9A — LOCKED VISUAL FIDELITY: APP SHELL, OPERATIONS OVERVIEW, SHIFTS
+==========================================================================
+
+Branch: p0-e8-visual-implementation (uncommitted; awaiting human visual review)
+Date: 2026-10-03
+
+
+1. EXECUTIVE SUMMARY
+--------------------
+Scope: the app shell (sidebar, top bar, page container), the agency Operations
+Overview, and the Shifts list. These three surfaces were brought to the locked
+references through variants of the existing primitives. No second component
+system was introduced.
+
+- No database, migration, RLS, capability, query, RPC, Server Action, auth,
+  attendance, financial, credential, workflow-state or tenancy code changed.
+- No data source changed. Every number shown is computed from data the page
+  already loaded.
+- Workforce, Facilities, Attendance, Timesheets, the Facility frame, Finance,
+  Worker Mobile and Auth were not touched. They inherit only the shared shell
+  (sidebar, top bar, gutters), which is in scope.
+
+Where the reference shows something the product does not have (search,
+notifications, reports, charts, avatars, list/calendar toggle, bulk select),
+it was not faked. Each case is listed as an INTENTIONAL DIFFERENCE and
+justified by a product rule.
+
+Checklist result: every item is MATCH or INTENTIONAL DIFFERENCE. There are no
+unresolved STILL OFF items.
+
+Validation is all green:
+- format:check, lint, typecheck: pass
+- npm test: 334 passed
+- build: pass
+- check:bundle: OK
+- Playwright: 212 passed, 2 skipped (pre-existing skips)
+
+
+2. EXACT REFERENCES USED
+------------------------
+Operations Overview, and the shell source (P1 sidebar and top bar):
+  docs/ui-reference/p08-e8/canonical/Chelth_Operations_Overview/assets/chelth-operations-overview-locked.png
+  (1536 x 1024; the companion HTML hotspot percentages were used for geometry)
+
+Shifts list:
+  docs/ui-reference/p08-e8/canonical/Chelth Shifts Interactive/assets/chelth-shifts-list-locked.png
+  (1448 x 1086)
+
+Not used: chelth-shifts-calendar-locked.png. The calendar view is not part of
+the product (see section 5).
+
+Rules applied alongside the references:
+- docs/brand/CLAUDE-CHELTH-BRAND-RULES.md
+- docs/brand/CHELTH-BRAND-GUIDELINES.md
+- docs/brand/CHELTH-DESIGN-TOKENS.md
+- CHELTH-PRODUCT-TYPOGRAPHY.md
+- src/styles/brand.css
+
+BEFORE screenshots (S8 state, captured before any S9A edit), in the session
+scratchpad s9a-before/:
+- 1280px-s8-agency-overview.png
+- 1280px-s8-agency-shifts.png
+- (plus 375 / 412 / 768 / 1024 variants)
+
+AFTER screenshots (final run), in the session scratchpad s9a-after/:
+- 1280px-s8-agency-overview.png
+- 1280px-s8-agency-shifts.png
+- 412px-s8-agency-overview.png
+- 412px-s8-agency-shifts.png
+- (plus 375 / 768 / 1024 variants)
+
+Scratchpad path:
+  /private/tmp/claude-501/-Users-datamatics-Chelth/4f2fd64b-7ff9-4ca4-84da-7d00f9b8f2fb/scratchpad/
+
+To regenerate either set:
+  QA_SCREENSHOTS_DIR=<dir> npx playwright test final-sweep
+
+Status values used below:
+  MATCH         = matches the locked reference.
+  INTENTIONAL   = INTENTIONAL DIFFERENCE, justified by a product, brand or
+                  accessibility rule.
+  STILL OFF     = still differs from the reference without justification
+                  (none remain).
+
+
+3. APP SHELL — BEFORE vs REFERENCE vs AFTER
+-------------------------------------------
+Sidebar width
+  Before:    240 px
+  Reference: ~213 px at 1536
+  After:     216 px
+  Status:    MATCH
+
+Logo
+  Before:    reverse lockup, small
+  Reference: reverse lockup, ~45 px tall glyph block
+  After:     canonical BrandLogo reverse, height 56 (lockup incl. tagline)
+  Status:    MATCH (canonical asset, unaltered)
+
+Navigation structure
+  Before:    grouped, with group headings and dividers
+  Reference: one flat list
+  After:     flat visual list. Groups are kept as separate labelled <ul>
+             elements for screen readers.
+  Status:    MATCH
+
+Nav item
+  Before:    ~40 px, small icon, left indicator bar
+  Reference: 44 px pill, ~22 px icon, 15 px label
+  After:     min-h-11 (44 px), 22 px icon, 14 px gap, 15 px medium
+  Status:    MATCH
+
+Active state
+  Before:    indicator bar plus semibold
+  Reference: lighter-teal pill with a fine border
+  After:     bg-shell-sidebar-active, a 1 px border and shadow-sm, plus
+             aria-current="page"
+  Status:    MATCH
+
+Nav entries
+  Reference: includes Reports, Notifications and Settings
+  After:     only the capability-gated destinations that exist
+  Status:    INTENTIONAL (no fake routes)
+
+Wave artwork at the sidebar foot
+  Reference: decorative wave
+  After:     none
+  Status:    INTENTIONAL (not an approved brand asset)
+
+Top bar
+  Before:    bordered bar, ~60 px
+  Reference: borderless, ~66-70 px
+  After:     borderless, sticky, min-h 68 px, bg-background
+  Status:    MATCH
+
+Top bar, left side
+  Reference: search field
+  After:     workspace name (17 px) and type
+  Status:    INTENTIONAL (no search product; keeps tenancy context visible)
+
+Top bar, right side
+  Reference: notification bell, avatar, name, role
+  After:     avatar (44 px), name (15 px semibold navy), role (14 px), and a
+             chevron menu
+  Status:    MATCH for the user block. The missing bell is INTENTIONAL (no
+             notifications product).
+
+Content gutter
+  Before:    32 px
+  Reference: ~22-29 px
+  After:     24 px (wide pages)
+  Status:    MATCH
+
+Canvas colour
+  Reference: faint mint tint
+  After:     brand off-white token
+  Status:    INTENTIONAL (brand rule: off-white application canvas)
+
+
+4. OPERATIONS OVERVIEW — BEFORE vs REFERENCE vs AFTER
+-----------------------------------------------------
+Page title
+  Before:    organisation name, back link, badges
+  Reference: "Operations Overview" plus a one-line description
+  After:     h1 "Operations Overview", with the description "Here's what's
+             happening across your facilities today." (agency staff only)
+  Status:    MATCH
+
+Organisation identity
+  Before:    shown in the h1
+  After:     moved to the top bar (banner landmark)
+  Status:    MATCH. A suspended organisation still shows its badge in the
+             page meta.
+
+KPI row
+  Before:    compact filter cards
+  Reference: 4 cards, ~307 x 129, 56-62 px tinted icon tile, label, large
+             value, supporting line, action link
+  After:     KpiFilterCard variant="reference": 56 px tile, 15 px semibold
+             label, 28/32 bold value, 14 px supporting line, "View ... →"
+             action line
+  Status:    MATCH
+
+KPI tones
+  Reference: teal, red, blue, teal
+  After:     Open shifts: teal
+             Assignments needing attention: danger when urgent, otherwise
+               attention
+             Attendance to review: info
+             Timesheets to approve: teal
+  Status:    MATCH (semantic tones reflect actual status)
+
+Panel grid
+  Reference: two columns, ~1.78 : 1
+  After:     xl:grid-cols-[1.78fr_1fr], 16 px gap
+  Status:    MATCH
+
+Today's schedule
+  Reference: Time | Facility | Worker | Status table
+  After:     the same columns, 13 px rows, middle-aligned
+  Status:    MATCH
+
+Upcoming open shifts
+  Reference: Date | Facility | Role | Time | Staffing
+  After:     the same columns. The facility name does not wrap.
+  Status:    MATCH
+
+Right column
+  Reference: workforce donut chart and a credential-expiry list
+  After:     Workforce legend rows (dot, label, right-aligned count) and
+             "Needs attention"
+  Status:    INTENTIONAL. These use real loaded data; no chart library and
+             no invented credential feed.
+
+Row avatars
+  Reference: worker avatars in table rows
+  After:     none
+  Status:    INTENTIONAL (no worker photo data)
+
+Panel header link
+  Reference: small outlined "View all" link
+  After:     PanelLink size="sm", 36 px on desktop and 44 px on phones
+  Status:    MATCH
+
+Empty tables
+  Before:    a separate EmptyState card replaced the table
+  Reference: table chrome stays visible
+  After:     the header row stays, with a muted one-line message in the body
+  Status:    MATCH
+
+MFA verification notice
+  Reference: not shown
+  After:     kept when required
+  Status:    INTENTIONAL (security rule)
+
+
+5. SHIFTS — BEFORE vs REFERENCE vs AFTER
+----------------------------------------
+Page order
+  Before:    header → create form → filter card → table
+  Reference: header → filters → KPI row → table
+  After:     header → inline filters → KPI row → table card → pagination →
+             create card
+  Status:    MATCH
+
+Filters
+  Before:    bordered filter card with stacked labels
+  Reference: one inline row of From / To dates, facility select, status
+             select, and a primary "+ Create shift" on the right
+  After:     FilterBar variant="inline": the same order, 36 px controls on
+             desktop, prefixed "From" / "To" date fields, an Apply button,
+             and "+ Create shift" with sm:ml-auto
+  Status:    MATCH
+
+Apply button
+  Reference: none (filters apply live)
+  After:     an explicit Apply button
+  Status:    INTENTIONAL (filters are server-rendered GET forms; no client
+             auto-submit was added)
+
+Create shift
+  Reference: the button opens a creation flow
+  After:     the button jumps to the existing create form (#create-shift-heading)
+  Status:    INTENTIONAL (the form is unchanged; no new modal flow)
+
+List / Calendar toggle and Sort by
+  Reference: present
+  After:     absent
+  Status:    INTENTIONAL (no calendar view and no sort options in the product)
+
+KPI row
+  Reference: Open, Facility requests, Fully staffed, Not fully staffed;
+             each with an icon tile and action line
+  After:     the same four cards. The Open card toggles the quick filter and
+             shows an active state.
+  Status:    MATCH
+
+Table card
+  Reference: white card with a "Shifts (n)" title
+  After:     white card, 10 px radius, h2 "Shift list"
+  Status:    MATCH for the card. The missing count is INTENTIONAL (cursor
+             pagination has no total).
+
+Columns
+  Reference: checkbox | Date & time | Role | Facility | Staffing | Status |
+             Needs attention | kebab
+  After:     Date & time (two lines) | Role | Facility (+ location) |
+             Staffing | Status | Needs attention | Details
+  Status:    MATCH for the data columns. Missing checkbox and kebab are
+             INTENTIONAL (no bulk actions, no row menu).
+
+Row detail
+  Reference: docked side panel
+  After:     the existing Details drawer (modal)
+  Status:    INTENTIONAL (unchanged behaviour)
+
+Table type
+  Reference: 13 px body, 12 px header, tinted header band, middle-aligned rows
+  After:     the same
+  Status:    MATCH
+
+Empty table
+  After:     "No shifts match." plus a hint, inside the table
+  Status:    MATCH
+
+Create form
+  Before:    unboxed form at the top
+  After:     a card below the list (10 px radius, shadow-card)
+  Status:    MATCH (the reference places creation outside the list)
+
+
+6. LAYOUT MEASUREMENTS (1280 px viewport; reference values scaled from 1536)
+---------------------------------------------------------------------------
+Element                    Reference           Implemented
+Sidebar width              ~213                216
+Logo lockup                ~165 x 45           height 56 (canonical)
+Nav item height            44                  44
+Nav item pitch             ~50                 ~50 (44 + 6 gap)
+Nav icon                   ~22                 22
+Nav icon-to-label gap      ~14                 14
+Nav label                  15 px               15 px medium
+Header height              ~66-70              68
+Content gutter             ~22-29              24
+Vertical gap between rows  ~20                 20
+KPI card height            129                 ~120-130 (content-driven)
+KPI icon tile              ~56-62              56
+KPI gap                    12                  12-16
+Panel grid ratio           1.78 : 1            1.78 : 1 (xl)
+Card / panel radius        ~10                 10
+Table text                 13 px               13 px
+Filter control height      ~36                 36 (sm+); 44 on phones
+
+
+7. TYPOGRAPHY RECONCILIATION
+----------------------------
+Spec source: CHELTH-PRODUCT-TYPOGRAPHY.md. Manrope is used for display and
+headings, Inter for UI and body. Spec values are font-size/line-height in px.
+
+Page title
+  Spec: 32/40, weight 600
+  Applied: unchanged PageHeader
+  Status: MATCH. The PNG renders slightly bolder; the locked spec wins.
+
+Description
+  Spec: 16/24
+  Status: MATCH
+
+Section / panel heading
+  Spec: 18/26
+  Status: MATCH
+
+KPI label
+  Applied: 15 px semibold
+  Status: MATCH to the reference
+
+KPI value
+  Spec: 26/30
+  Applied: 26/30 on phones, 28/32 at sm+ (bold navy)
+  Status: MATCH. The reference renders at ~28; within the spec's display
+  range.
+
+Table body / header
+  Spec: 13/19 and 12/18
+  Status: MATCH
+
+Navigation
+  Applied: 15 px Inter medium
+  Status: MATCH
+
+Top-bar workspace name / user name
+  Applied: 17 px and 15 px semibold
+  Status: MATCH
+
+
+8. SPACING RECONCILIATION
+-------------------------
+- Page container (wide): px-4 on phones, px-6 at sm and above. The lg
+  padding was removed for wide pages, giving a 24 px gutter beside the
+  sidebar.
+- Page column gap: gap-5 (20 px). main top padding is 12 px under the 68 px
+  bar.
+- Panels: p-4 at sm and above. Panel-internal tables have no inner card
+  border.
+- KPI card padding: 16 px at sm and above, 12 px on phones. Icon-to-text gap
+  is 16 px.
+- Shifts filter row: 10 px gaps. Wraps naturally on narrow viewports.
+
+
+9. CARD / PANEL RECONCILIATION
+------------------------------
+- KPI cards, panels, the Shifts table card and the create card all use a
+  10 px radius, a 1 px border token and shadow-card.
+- No gradients, glow or glass effects were added.
+- Teal appears only on primary actions, action links, the active nav pill
+  and teal-toned KPI tiles. It is not used as decoration.
+- Tile tints use the existing status-soft and mint-mist tokens, with no new
+  colours. The reference's blue was mapped to the info token; teal stays
+  primary.
+
+
+10. FILTER RECONCILIATION
+-------------------------
+Shifts uses the new FilterBar variant="inline".
+
+- InlineFilterSelect: native select with an sr-only label, so the visible
+  placeholder option "All facilities" / "All statuses" matches the
+  reference.
+- InlineFilterDate: a visible "From" / "To" prefix inside the field, wired
+  through <label htmlFor>.
+
+Unchanged:
+- field names and ids (filter-status, filter-facility, filter-from,
+  filter-to)
+- query parameters
+- server-side validation
+- reset link
+
+Other surfaces still use the default "card" variant and were not changed.
+
+
+11. EMPTY-STATE RECONCILIATION
+------------------------------
+- Overview panels and the Shifts table keep their table header and render a
+  muted in-table message. Before, a separate EmptyState card replaced them.
+  This matches the reference, where table chrome is always present.
+- Phones: the empty-row message is pinned to the visible left edge of the
+  horizontally scrolling table and wraps. At 412 px, a centred message had
+  clipped ("No one is scheduled tc"); this was found in AFTER review and
+  fixed. From sm up the message is centred.
+
+
+12. NAVIGATION RECONCILIATION
+-----------------------------
+- The flat sidebar list matches P1. Group semantics are kept as separate
+  <ul aria-label> lists.
+- The active page is shown by shape, fill and border, not colour alone, and
+  carries aria-current="page".
+- With the "All organisations" back link removed from the agency Overview
+  header, an "All workspaces" link (to /app) was added to the account menu
+  when the user has no other workspaces to switch to. When other workspaces
+  exist, the switcher already provides the way back.
+- The narrow viewport keeps the existing accessible overlay sidebar (menu
+  button, focus handling) with the same item styling.
+
+
+13. RESPONSIVE ADAPTATION (AFTER verified at 412 px; sweep at 375 / 768 / 1024)
+-------------------------------------------------------------------------------
+- Shell:
+  - below lg, the sidebar becomes an overlay;
+  - the top bar shows the menu button, the canonical glyph, the workspace
+    name and type, and the avatar.
+- KPI cards:
+  - 2-up on phones and 4-up at lg and above;
+  - the icon tile is hidden below sm to preserve width.
+- Overview panels stack in one column below xl.
+- Shifts:
+  - filters wrap;
+  - controls are 44 px tall with 16 px text on phones (iOS zoom guard);
+  - "+ Create shift" wraps onto its own line.
+- Tables scroll inside their labelled region (min-w 960 for Shifts).
+- No page-level horizontal overflow at any of the five widths
+  (expectNoPageOverflow in final-sweep).
+
+
+14. ACCESSIBILITY PRESERVATION
+------------------------------
+Structure and landmarks:
+- exactly one h1 per page;
+- the banner landmark carries the organisation name;
+- named navigation, table regions and filter forms ("Filter shifts", sr-only
+  h2);
+- the Shifts table card is a section labelled by its h2.
+
+Controls:
+- every filter control has a programmatic label;
+- each date field's visible prefix is its label;
+- facility links carry a full aria-label (facility · discipline · date).
+
+Interaction:
+- KPI cards are each a single link. The active quick filter shows
+  aria-current="true" and a visible "Showing" line.
+- Touch targets are at least 44 px on phones; desktop dense controls are
+  36 px (sm+).
+- Focus outlines are unchanged; date fields use focus-within.
+
+Testing:
+- axe (wcag2a, wcag2aa, wcag22aa) is clean at 375 and 1280 for both pages,
+  and across the other swept routes, in final-sweep.spec.
+
+
+15. FUNCTIONAL PRESERVATION
+---------------------------
+Unchanged:
+- data loaders, capability gates, RPCs, Server Actions;
+- filter semantics, pagination cursors;
+- the create-shift form and its validation;
+- the details drawer.
+
+Overview KPI and panel values come from the same loaded data.
+
+Shifts KPI counts are derived from the already-loaded upcoming open shifts:
+- Open
+- Facility requests
+- Fully staffed
+- Not fully staffed
+
+No extra query was added.
+
+The facility hub and worker home headers are unchanged. The agency-staff
+title change is the only branch.
+
+
+16. SCREENSHOT MATRIX
+---------------------
+Surface      Width   BEFORE (s9a-before)            AFTER (s9a-after)
+Overview     1280    1280px-s8-agency-overview.png   1280px-s8-agency-overview.png
+Overview      412    412px-s8-agency-overview.png    412px-s8-agency-overview.png
+Shifts       1280    1280px-s8-agency-shifts.png     1280px-s8-agency-shifts.png
+Shifts        412    412px-s8-agency-shifts.png      412px-s8-agency-shifts.png
+Both     375 / 768 / 1024  captured                  captured
+
+The app shell is visible in every capture above.
+
+References: the two locked PNGs listed in section 2.
+
+
+17. REMAINING VISUAL DIFFERENCES
+--------------------------------
+All remaining differences are INTENTIONAL (sections 3-5):
+- no search, notification bell, Reports, Notifications or Settings;
+- no wave artwork;
+- off-white canvas;
+- no List/Calendar toggle or Sort by;
+- explicit Apply filters button;
+- no avatars, checkboxes or kebab menus;
+- real-data Workforce and Needs attention panels instead of charts;
+- no total count in the table title;
+- modal details drawer;
+- MFA notice retained;
+- 44 px / 16 px phone controls;
+- title weight follows the typography spec.
+
+STILL OFF: none.
+
+
+18. BLOCKING FINDINGS
+---------------------
+None.
+
+No item required product or backend changes to reach fidelity. Each
+reference element that would have needed such a change is recorded above as
+INTENTIONAL rather than implemented.
+
+No secrets were found. check:bundle reports that no server secrets are in
+the browser bundles.
+
+
+19. TESTS
+---------
+Results:
+- npm run format:check: pass
+- npm run lint: pass (0 warnings)
+- npm run typecheck: pass
+- npm test: 28 files, 334 tests passed
+- npm run build: pass
+- npm run check:bundle: OK (64 browser files scanned, no secrets found)
+- npx playwright test: 212 passed, 2 skipped (pre-existing), 0 failed
+
+Test changes. These are assertion updates for the new header; no assertion
+was weakened.
+- tests/e2e/support.ts createAgency: expects h1 "Operations Overview" plus
+  the agency name inside the banner.
+- tests/e2e/identity.spec.ts:
+  - the role is asserted inside the banner, with exact text matching;
+  - after invite acceptance, it expects h1 "Operations Overview" plus the
+    banner contains the agency name.
+- tests/e2e/workspace-shell.spec.ts (agency admin): h1 "Operations Overview"
+  plus the banner contains the agency name.
+
+
+20. FILES CHANGED
+-----------------
+src/components/ui/kpi-filter-card.tsx
+  reference variant, tone, actionLabel
+
+src/components/ui/filter-bar.tsx
+  inline variant, InlineFilterSelect, InlineFilterDate
+
+src/components/ui/panel.tsx
+  PanelLink size="sm"
+
+src/components/layout/workspace-sidebar.tsx
+  flat P1 list, item metrics, active pill
+
+src/components/layout/app-shell.tsx
+  216 px column, borderless 68 px sticky bar, spacing
+
+src/components/layout/page-container.tsx
+  wide-page gutter
+
+src/components/layout/workspace-switcher.tsx
+  user block metrics, "All workspaces" link
+
+src/app/app/organisations/[organisationId]/(workspace)/page.tsx
+  agency-staff "Operations Overview" header
+
+src/app/app/organisations/[organisationId]/(workspace)/_components/agency-operations-overview.tsx
+  reference KPI row, grid, panel tables, in-table empty rows
+
+src/app/app/organisations/[organisationId]/(workspace)/shifts/page.tsx
+  order, inline filters, KPI row, table card, create card
+
+tests/e2e/support.ts, tests/e2e/identity.spec.ts, tests/e2e/workspace-shell.spec.ts
+  header assertions
+
+Total: 13 files, +656 / -390. No migrations, no SQL, no server or action
+files.
+
+
+21. GIT STATUS
+--------------
+Branch p0-e8-visual-implementation. All 13 files above are modified and
+uncommitted, and this report is untracked. Nothing was committed, pushed,
+merged or deployed.
+
+
+22. RECOMMENDATION FOR S9B
+--------------------------
+1. Run the human visual review of the 1280 and 412 AFTER captures against
+   the two locked PNGs. Note that the shared shell changes now appear on
+   every workspace page.
+2. After approval, apply the same primitives to the next locked families.
+   They need only variant adoption, no new components:
+   - KpiFilterCard variant="reference"
+   - FilterBar variant="inline"
+   - panel tables with in-table empty rows
+   Candidate pages: Workforce, Facilities, Attendance, Timesheets.
+3. Decide whether the facility hub should also adopt a fixed "Overview"
+   title with the organisation shown in the banner (deferred here because it
+   was out of scope).
+4. Decide whether a calendar view (chelth-shifts-calendar-locked.png) is a
+   product requirement. It would be new product scope, not visual work.
+
+
+==========================================================================
+S9A.1 HUMAN VISUAL REVIEW CORRECTIONS
+==========================================================================
+
+Status: S9A was not approved. This section records the corrections that came
+out of the human comparison of the AFTER screenshots against the locked PNGs.
+Where it conflicts with sections 1-22 above, this section takes precedence.
+
+Scope held:
+- No change to the database, migrations, RLS, capabilities, query or RPC
+  code, Server Actions, validation, auth, workflow states or tenancy.
+- No other page family was touched.
+- One existing list query is now called with different arguments (see A).
+- The shared DetailDrawer gained a width option and a keyboard-scrollable
+  body (see C).
+
+Judging rule (prompt item 9): MATCH is claimed only where composition,
+proportion, spacing, density, hierarchy, element scale and alignment agree
+with the PNG, not merely because a matching component exists.
+
+
+A. OVERVIEW RIGHT-RAIL CORRECTION
+---------------------------------
+Before: a plain "Workforce" legend panel and a sparse "Needs attention" card.
+
+Workforce panel, now using the locked donut-plus-legend composition:
+- An SVG status ring (128 px) on the left with one arc per worker status.
+  Arc lengths come from the real counts already loaded (listWorkers).
+- The legend sits to the right: dot, status label, right-aligned count. It
+  is still the list "Workers by status".
+- The centre shows the share of workers whose status is Active, labelled
+  "active", with an sr-only "(n of N workers)". This is a direct ratio of
+  the counts beside it. It is NOT labelled "Workforce Ready" because the
+  product has no agency-wide readiness aggregate here, and there is no
+  availability metric.
+- The ring and bars use SVG presentation attributes only. Production CSP
+  blocks inline style attributes.
+- The panel title stays "Workforce". "Workforce Readiness" would imply a
+  credential readiness measure the page does not compute.
+
+New panel "Open shift coverage" ("From today"):
+- The locked "Credential Expirations" anatomy: label, horizontal bar, count.
+- Rows are Unfilled, Partially filled and Filled, counted from the upcoming
+  open shifts already loaded. Bar tones match FillBadge.
+- A footnote reads "N places still to fill across M open shifts", the sum of
+  (requested − active) over the same rows.
+- Why not credential expirations: no existing agency-level expiry query
+  exists. Deriving it would need a per-worker readiness fan-out or a new
+  query (backend change, out of scope).
+
+"Needs attention" is unchanged and stays third in the rail.
+
+"Coverage Activity" (14-day chart):
+- Not reproduced. There is no historical series in the product, so drawing
+  one would invent data. INTENTIONAL DIFFERENCE.
+
+Result: the right rail now has three panels, a visual weight comparable to
+the reference's three-panel rail.
+
+
+B. STAFFING-REQUEST COMPOSITION (lower content)
+-----------------------------------------------
+Finding: YES. Facility-request-sourced shifts can truthfully support the
+reference's "Recent Staffing Requests" panel. Every shift row carries
+`source` ("facility" for a facility staffing request) and `status`.
+
+Implementation:
+- New left-column panel "Staffing requests", placed directly under Today's
+  schedule as in the PNG.
+- Columns: Facility (link) | Unit (location) | Role | Need date | Status.
+  Status is the real shift status badge, e.g. "Requested", "Open".
+- "View requests →" links to the existing submitted filter.
+- Data: the Overview now calls the existing listAgencyShifts(org,
+  { from: today }) once, instead of with { status: "open" }. Open shifts are
+  derived from it in memory, so the KPI and the "Upcoming open shifts"
+  values are unchanged. No query code changed and the round trip count is
+  the same.
+
+Not reproducible:
+- The reference's "Requested" timestamp column. The request submission time
+  is not in the list projection. INTENTIONAL DIFFERENCE.
+- "Recent" ordering. Rows are in need-date order, so the title says
+  "Staffing requests", not "Recent". INTENTIONAL DIFFERENCE.
+
+"Upcoming open shifts" is retained as a third left panel:
+- It is an existing capability-gated signal asserted by E2E.
+- It was also corrected: at 1280 it had clipped its Staffing column. It now
+  uses the reference's two-line Date & time cell and Facility + Unit cell,
+  with four columns, and no longer clips.
+- It makes the left column one panel longer than the PNG. INTENTIONAL, so
+  that no real signal is removed. The reviewer may drop it.
+
+Administration content (Members, Invitations, Recent activity):
+- Applies to agency workspace staff only; the facility hub is untouched.
+- Placed under a quiet "ADMINISTRATION" divider (12 px uppercase muted label
+  plus a hairline rule).
+- Rendered without card elevation (shadow-none).
+- Fully functional, and the "Members" heading is still asserted.
+
+QA data:
+- The S8 sweep fixture (tests/e2e/final-sweep.spec.ts) now arranges
+  realistic upcoming work through the public API: two more agency shifts
+  (one assigned and filled, one larger and unfilled) and two facility
+  staffing requests.
+- This shows the populated composition instead of empty panels.
+- No product code depends on it.
+
+
+C. DRAWER RECONCILIATION (Shifts → Details, modal kept)
+-------------------------------------------------------
+Behaviour is unchanged: modal <dialog>, focus trap, Escape, focus returns
+to the trigger, phone full-height sheet. New body component:
+src/app/app/organisations/[organisationId]/(workspace)/shifts/_components/shift-details-panel.tsx
+
+Width / proportion
+  Reference: ~323 px of a 1448 canvas (~355 px at our scale)
+  After:     22.5rem (360 px), the new `panel` width option on DetailDrawer
+  Status:    MATCH
+
+Header anatomy
+  Reference: "Shift Details" title and an X button
+  After:     "Shift details" (sentence case) and an X. The dialog's
+             accessible name is now "Shift details".
+  Status:    MATCH
+
+Close button
+  Reference: X, ~24 px
+  After:     X in a 44 px target. The header keeps the primitive's hairline
+             divider.
+  Status:    INTENTIONAL (touch target; shared primitive header)
+
+Date / time summary
+  Reference: icon, date (muted), bold time range, "8 hours" chip
+  After:     the same. Duration is derived from start and end.
+  Status:    MATCH
+
+Facility / location row
+  Reference: icon, facility (bold), unit (muted), chevron
+  After:     icon, facility, unit. No chevron (no in-drawer navigation
+             exists).
+  Status:    MATCH, except the chevron (INTENTIONAL)
+
+Role / discipline row
+  Reference: icon, role, short code
+  After:     icon, discipline name (which already includes the code), "Role"
+  Status:    MATCH
+
+Assigned worker block
+  Reference: avatar, name, phone
+  After:     replaced by a Staffing row: fill badge plus "x of y assigned ·
+             z accepted"
+  Status:    INTENTIONAL. Assignee names and phone numbers are not in the
+             list data; they are on the shift record.
+
+Status treatment
+  Reference: "Status" with a badge and supporting line
+  After:     "Status" with the real shift-status badge and a truthful line
+             ("2 places still to fill." / "Every place is filled.")
+  Status:    MATCH
+
+Credential readiness row
+  Reference: shield, label, chip, chevron
+  After:     the same anatomy as "Needs attention" with a chip ("Nothing
+             open" / "n open")
+  Status:    INTENTIONAL. Readiness per shift is not in the list data; open
+             issues are.
+
+Tabs
+  Reference: Details | Notes | Activity
+  After:     a single "Details" tab-styled heading with a teal underline on a
+             hairline
+  Status:    INTENTIONAL. Notes and activity are not loaded in the list.
+
+Key-value spacing
+  Reference: 13 px, ~100 px label column, ~20 px pitch
+  After:     13/19 text, 6.5rem label column, 8 px row gap
+  Status:    MATCH
+
+Detail rows
+  After:     Facility, Unit, Role, Timezone, Source, Relationship,
+             Reference (when set)
+  Status:    MATCH (real fields only)
+
+Footer primary
+  Reference: full-width "Assign Worker"
+  After:     full-width primary "Open shift" (44 px)
+  Status:    MATCH for the anatomy. The label is INTENTIONAL: assignment
+             happens on the record.
+
+Secondary buttons
+  Reference: Send Reminder, Replace Worker
+  After:     none
+  Status:    INTENTIONAL (no such product actions)
+
+Recent activity
+  Reference: timeline
+  After:     omitted
+  Status:    INTENTIONAL (activity is not supported in the list data)
+
+Accessibility:
+- Content is now taller, so the drawer body can scroll. The DetailDrawer
+  body is now a named region (aria-labelledby = the drawer title,
+  tabIndex 0), the same pattern as DataTableRegion, so keyboard users can
+  scroll it. axe "scrollable-region-focusable" flagged this; it now passes.
+- This is invisible unless keyboard-focused. All other drawers were
+  re-tested in the full suite.
+
+Captured open at 1280 and 412 (final-sweep); axe is clean with the drawer
+open.
+
+
+D. SHIFTS HEADING
+-----------------
+"Shift list" → "Shifts". No total count: cursor pagination has no total and
+none is invented. The heading still labels the table card section.
+Status: MATCH, except the count (INTENTIONAL).
+
+
+E. CREATE SHIFT DECISION
+------------------------
+Implemented as a presentation-only disclosure. Nothing about creation
+changed.
+
+How it works:
+- The existing create-a-shift section (same CreateShiftForm, Server Action,
+  validation, fields and route) is hidden by default when the user can
+  schedule (at least one location).
+- It is revealed by the "+ Create shift" link (href="#create-shift") through
+  the CSS :target selector. No script, no new workflow and no modal.
+- Because the hash persists, a validation error after submit still shows
+  the form. A "Close" link (to #shift-list-heading) hides it again.
+- When no schedulable location exists, the existing guidance message is
+  still shown, unhidden, so the capability gap stays explained.
+
+Why this is not a material behaviour change:
+- The creation flow is identical once revealed.
+- The two E2E flows that create shifts through the UI
+  (shifts-assignments, assignment-operations) now click "+ Create shift"
+  first. They assert the form is hidden before and visible after, then run
+  the unchanged creation assertions.
+- No assertion was weakened.
+
+Result: the list composition now matches the PNG. The primary "+ Create
+shift" sits at the end of the filter row, and no form sits under the table.
+Status: MATCH.
+
+
+F. OTHER CORRECTIONS FOUND IN DIRECT COMPARISON
+-----------------------------------------------
+- Shifts table: the facility link and the "Facility request" chip no longer
+  wrap mid-name. Cell padding is py-2 for the reference row density.
+- Shifts KPI: the Facility requests supporting copy "Waiting to be opened"
+  wrapped at 1280 and made the KPI row taller than the PNG. It is now "Not
+  yet opened" (same meaning), and all four cards are the same height.
+- Overview "Upcoming open shifts": the clipped Staffing column is fixed
+  (see B).
+- Shell: re-measured against the PNG (216 px sidebar, 44 px items, 68 px
+  bar, 24 px gutter). No numerical mismatch was found, so it is unchanged.
+- Mobile: no redesign. 375 and 412 have no page overflow (final-sweep
+  asserts all five widths). The ring and legend stay side by side at 412.
+  The drawer is a full-height sheet on phones.
+
+
+G. FINAL SCREENSHOTS (docs/reports/s9a-visual-review/s9a1/)
+-----------------------------------------------------------
+A  A-reference-operations-overview.png      locked PNG
+B  B-after-operations-overview-1280.png     AFTER, 1280
+C  C-reference-shifts.png                   locked PNG
+D  D-after-shifts-1280-list.png             AFTER, 1280, list view
+E  E-after-shifts-1280-drawer-open.png      AFTER, 1280, DETAIL DRAWER OPEN
+F  F-after-operations-overview-412.png      AFTER, 412
+G  G-after-shifts-412.png                   AFTER, 412
+
+Supplementary:
+- supplementary-shifts-412-drawer-open.png
+- supplementary-operations-overview-1280-full-page.png
+  This shows the lower content and the Administration divider. In a
+  full-page capture the sticky sidebar ends at the viewport height; that is
+  a capture artefact, not page layout.
+
+The earlier S9A captures (01-06) are kept in the parent folder for
+before/after comparison. Captures come from the final-sweep run against a
+production build (QA_SCREENSHOTS_DIR).
+
+
+H. REMAINING INTENTIONAL DIFFERENCES
+------------------------------------
+Shell and controls (carried from S9A):
+- no search or notification bell;
+- no Reports, Notifications or Settings;
+- no wave artwork;
+- off-white canvas;
+- 44 px / 16 px phone controls.
+
+Overview:
+- ring centre reads "% active", not "Workforce Ready";
+- no Coverage Activity chart and no Credential Expirations (replaced by
+  Open shift coverage);
+- no "Requested" timestamp column;
+- a third left panel (Upcoming open shifts);
+- no row avatars or kebabs;
+- Administration section below the overview (subordinated);
+- MFA verification notice when required.
+
+Shifts:
+- no List/Calendar toggle, Sort by, search box or Roles filter;
+- explicit Apply filters;
+- no count in the "Shifts" heading;
+- no checkbox, avatar or kebab columns;
+- no Credential / Confirmation / Coverage columns (not in list data).
+
+Drawer:
+- no assigned-worker card, Notes/Activity tabs, secondary actions or
+  activity timeline;
+- footer reads "Open shift";
+- 44 px close target and header divider.
+
+Data-driven proportion differences:
+- Row heights are ~60 px at 1280 against ~48 px in the PNG, because real
+  discipline names ("Certified Nursing Assistant (CNA)") wrap where the PNG
+  uses short role names.
+- At 1280 the four Overview KPI cards are ~245 px wide against ~307 px in
+  the 1536 px reference canvas, so longer labels such as "Timesheets to
+  approve" wrap and the cards are taller than the PNG.
+- At a 1536 viewport they match.
+- Both are content and viewport consequences, not styling. Truncating real
+  labels or names was rejected for readability.
+
+
+I. STILL OFF
+------------
+None identified. Every remaining difference above is justified by a
+product, data, security or accessibility reason.
+
+Awaiting the next human screenshot review.
+
+
+J. S9A.1 VALIDATION
+-------------------
+Results:
+- npm run format:check: pass
+- npm run lint: pass (0 warnings)
+- npm run typecheck: pass
+- npm test: 28 files, 334 tests passed
+- npm run build: pass
+- npm run check:bundle: OK (64 browser files scanned, no secrets found)
+- npx playwright test: 212 passed, 2 skipped (pre-existing), 0 failed
+
+The full suite was run after the drawer change. final-sweep and
+agency-surfaces were re-run (20/20) after the last copy change.
+
+Test changes:
+- agency-surfaces: the drawer is named "Shift details". The test also
+  asserts that the drawer contains Mercy Rehab, the discipline and "0 of 2".
+- shifts-assignments, assignment-operations: reveal the create form via
+  "+ Create shift", asserting it is hidden before and visible after.
+- final-sweep: richer QA data, plus a drawer-open capture and axe check at
+  1280 and 412.
+
+
+K. S9A.1 FILES CHANGED (in addition to the S9A list in section 20)
+------------------------------------------------------------------
+src/app/app/organisations/[organisationId]/(workspace)/_components/agency-operations-overview.tsx
+  status ring, coverage bars, Staffing requests, open-shifts table fix
+
+src/app/app/organisations/[organisationId]/(workspace)/page.tsx
+  Administration divider; admin panels without elevation (agency staff
+  only)
+
+src/app/app/organisations/[organisationId]/(workspace)/shifts/page.tsx
+  "Shifts" heading, drawer wiring, create disclosure, nowrap, density, copy
+
+src/app/app/organisations/[organisationId]/(workspace)/shifts/_components/shift-details-panel.tsx (new)
+  drawer body
+
+src/components/ui/detail-drawer.tsx
+  `panel` width option; keyboard-scrollable named body region
+
+tests/e2e/agency-surfaces.spec.ts, tests/e2e/shifts-assignments.spec.ts,
+tests/e2e/assignment-operations.spec.ts, tests/e2e/final-sweep.spec.ts
+
+docs/reports/s9a-visual-review/s9a1/ (screenshots)
+
+Git: uncommitted on p0-e8-visual-implementation. Nothing was committed,
+pushed, merged or deployed. S9B has not been started.
+
+
+==========================================================================
+S9A.2 PIXEL-FIDELITY IMPLEMENTATION
+==========================================================================
+
+Status: AWAITING HUMAN VISUAL APPROVAL. This section supersedes the visual
+claims in sections 3-13 and S9A.1 for the shell, Overview, Shifts and the
+Shift Details drawer.
+
+Nothing was committed and S9B has not been started.
+
+
+1. REFERENCE FILES USED
+-----------------------
+Operations Overview (also the App Shell source):
+  docs/ui-reference/p08-e8/canonical/Chelth_Operations_Overview/
+    assets/chelth-operations-overview-locked.png         1536 x 1024
+    index.html                                            hotspot geometry
+    README.md
+    CLAUDE-IMPLEMENTATION.md
+    OPERATIONS-OVERVIEW-INTERACTIONS.md
+    CHELTH-PRODUCT-TYPOGRAPHY.md
+
+Shifts and the Shift Details drawer:
+  docs/ui-reference/p08-e8/canonical/Chelth Shifts Interactive/
+    assets/chelth-shifts-list-locked.png                  1448 x 1086
+    index.html                                            hotspot geometry
+                                                          and panel geometry
+    README.md
+    LOCKED-DESIGN-SPEC.md
+    CLAUDE-IMPLEMENTATION.md
+
+Important finding about the HTML: both index.html files render the locked
+PNG with object-fit:fill and overlay transparent hotspot buttons. They
+contain NO component CSS: no padding, typography, radius or grid rules.
+
+The HTML-derived values are therefore limited to:
+- the canvas sizes;
+- the hotspot rectangles (cards, rows, actions);
+- the Shifts panel geometry: panel-start 1081, panel-width 367.
+
+All other values were measured from the PNG pixels with scripted scanlines
+and 10 px grid overlays (scratchpad s9a2/grid.py, s9a2/scan.py), not by eye.
+Typography comes from CHELTH-PRODUCT-TYPOGRAPHY.md.
+
+
+2. HTML-DERIVED MEASUREMENTS
+----------------------------
+Operations Overview (canvas 1536 x 1024; % taken from index.html)
+
+  KPI card:
+    top 17.45% = 178.7 px, height 12.6% = 129 px
+  KPI x / width:
+    16.55% / 20.0%
+    37.35% / 19.25%
+    57.45% / 19.35%
+    78.25% / 19.35%
+    In pixels: 254 / 574 / 882 / 1202, ~297-307 wide.
+  Schedule rows:
+    top 38.55%, pitch 4.1-4.15% = 42-42.5 px, height 4.1% = 42 px
+  Staffing-request rows:
+    top 72.9%, pitch 4.2% = 43 px, height 4.15% = 42.5 px
+  Credential rows:
+    pitch 3.05% = 31 px, height 3.55% = 36 px
+  Panel header buttons:
+    height 3.1-3.2% = 32-33 px
+    "View All Shifts" 135 px wide; "View Details" 124 px
+
+Shifts (canvas 1448 x 1086)
+
+  Detail panel:
+    starts at 1081 px, width 367 px (the reserved column, including its gap)
+  List rows:
+    top 44.6%, pitch 4.2% = 45.6 px, height 4.1% = 44.5 px
+  List / Calendar tabs:
+    top 35.2%, height 3.65% = 39.6 px (the hit area)
+  Close button:
+    right 1.25%, top 11.35%, ~45 x 43 px hit area
+
+PNG-measured, Overview. The app frame is at x 11..1523, y 13..1009
+(1512 x 996), so all values below are frame-relative:
+  Sidebar:            0..214
+  Logo:               x 22, y 21; 162 x 46 lockup
+  Active pill:        x 10..201, y 94..139 (45 tall); left inset 10, right
+                      inset 13
+  Nav pitch:          ~52 px; icon 22 px at pill + 14; label at pill + 53
+  Top bar:            ~76 px; avatar 46 px centred at y 38
+  Content:            x 244..1493 (gutters 30 / 19)
+  Title:              cap top 95, baseline 121; description baseline 147
+                      (0 gap)
+  KPI tile:           62 x 60 at card + (12, 11), radius ~10; text column
+                      at card + 99
+  KPI text baselines: 35 / 63 / 86 / 111 (label / value / supporting /
+                      action)
+  Panels:
+    left 244..1034 (790), right 1050..1492 (442), gap 16 -> ratio 1.787
+    Today's Schedule 312..652 (340)
+    Requests         667..955 (288)
+    Readiness        312..510 (198)
+    Credentials      524..677 (153)
+    Coverage         687..955 (268)
+  Panel insets:       title at +15; header row 33; 9 px to the table band
+  Table band:         inset 10, 28 tall, radius 6
+  Ring:               146 px, stroke 17, 25 px in from the panel edge
+  Legend:             dots 13, rows 33, 31 px gap to the ring
+  Bar list:           label 127, track 232 x 14 r4, count column 45,
+                      rows 29
+
+PNG-measured, Shifts (canvas):
+  Filter row:         y 172..208 (36); controls separated by 10 px;
+                      Create 124 x 36
+  KPI cards:          y 228..350 (122); tile 50 at +12; text column at +86
+  View-toggle row:    35 tall; 60 px from the KPI bottom to the table card
+  Table card:         top 410; title row 45; header band 24; rows 44.5
+  Drawer card:        x 1113..1438 (325), top 109 (frame + 96), right 10,
+                      radius ~16
+  Drawer header:      56 px tall, no rule; title at +17; close glyph centred
+                      25 px from the right
+  Summary card:       inset 14, radius 10
+                      date row 62: 32 px icon circle at +8, text column
+                      at +51
+                      facility / role rows ~52
+  Tabs:               33 tall, three equal columns, 2 px teal underline
+  Key-value list:     label column 90, row pitch 20
+  Primary action:     291 x 38, radius 6, in the flow (not a pinned footer)
+
+Scale note: the two PNGs are not drawn at the same scale. The Shifts shell
+measures 0.88-0.93 of the Overview shell (sidebar 188 vs 214, pill 42 vs 45,
+pitch 48 vs 52). One product shell cannot match both. The Overview (P1
+shell source) geometry was implemented; Shifts content uses its own canvas
+at 1:1, as its HTML renders it.
+
+
+3. SHELL MAPPING (reference -> implemented)
+-------------------------------------------
+Each entry gives reference / implemented, then the status.
+
+Sidebar width
+  214 / 214 (lg:grid-cols-[214px_...])
+  MATCH
+
+Logo inset
+  22, 21 / px-[22px] pt-[21px]
+  MATCH
+
+Logo lockup
+  162 x 46 / 161 x 54 (canonical asset at height 56)
+  INTENTIONAL: the canonical asset's own aspect; it may not be altered.
+  Width matches.
+
+Nav start (pill top)
+  94 / 94 (21 + 56 + pb-[17px])
+  MATCH
+
+Pill
+  x 10..201, 45 tall / pl-2.5, pr-[13px], min-h-[45px]
+  MATCH
+
+Nav pitch
+  ~52 / 52 (45 + gap-[7px])
+  MATCH (overlay within 3 px through all rows)
+
+Icon / label
+  22 at +14, label at +53 / size-[22px], px-3.5, gap-[17px]
+  MATCH
+
+Label
+  15 px medium / 15 px medium (Inter)
+  MATCH
+
+Active state
+  lighter pill with a fine border / bg-shell-sidebar-active, border, shadow
+  MATCH
+
+Sidebar foot (divider, Notifications, Settings)
+  present / absent
+  INTENTIONAL: no such product destinations
+
+Wave artwork
+  present / absent
+  INTENTIONAL: not an approved brand asset
+
+Top bar height
+  ~76 / lg:min-h-[76px]
+  MATCH
+
+Search field, bell, date selector
+  present / absent
+  INTENTIONAL: no search, notifications or date-scope product. The
+  workspace name and type occupy the left slot.
+
+User block
+  avatar 46, name ~16 semibold, role ~15; chevron 34 px from the right /
+  size-[46px], 16/22 semibold, 15/22, pr-[19px]
+  MATCH
+
+Content start
+  x 244, title box top 86 / pl-[30px] after 214; header 76 + pt-2.5
+  MATCH (overlay: title and description coincide)
+
+Gutters
+  30 / 19 / lg:pl-[30px] lg:pr-[19px]
+  MATCH
+
+Canvas
+  faint mint / brand off-white token
+  INTENTIONAL: brand rule
+
+
+4. OVERVIEW MAPPING
+-------------------
+Each entry gives reference / implemented, then the status.
+
+Title / description
+  0 gap; baselines 121 / 147 / PageHeader variant="reference" (gap-0)
+  Position MATCH. Scale and weight follow the MD; see section 8.
+
+Header to KPI
+  12 px / gap-5 with xl:-mb-2
+  MATCH
+
+KPI row
+  4 x ~303, gap ~13, height 129 / xl 4 columns, gap-3 (12), xl:min-h-[129px]
+  MATCH at the reference canvas
+
+KPI tile
+  62 x 60, r10 at (12, 11) / size-[62px] rounded-[10px], pt-[11px] px-3
+  MATCH
+
+KPI text
+  column at +99; baselines 35 / 63 / 86 / 111 /
+  gap-[25px]; mt-2.5 column; 20 / 30 / 20 + mt-[5px] 20 lines
+  MATCH (overlay coincides)
+
+KPI typography
+  label ~15 medium, value ~28 bold /
+  label 14/20 500 and value Manrope 26/30 600 (MD)
+  See section 8.
+
+KPI content
+  Open Shifts, Pending Confirmations, Credential Issues, Facility Requests /
+  Open shifts, Assignment issues, Attendance to review, Timesheets to approve
+  INTENTIONAL: real, capability-gated counts. The label "Assignment issues"
+  was shortened so it fits on one line in the measured slot.
+
+KPI chips
+  "Needs coverage" chips plus the link / link only
+  INTENTIONAL: no such derived chip data
+
+Grid
+  790 : 442, gap 16; panel gaps 15 / 14 /
+  xl:grid-cols-[1.787fr_1fr], gap-[15px]
+  MATCH
+
+Panel chrome
+  r10, title at +15, header 33, band inset 10 /
+  Panel variant="reference": rounded-[10px], px-2.5, pt-2, pb-2.5, pl-[5px],
+  min-h-[33px], gap-[9px]
+  MATCH
+
+Panel heights
+  340 / 288 / 198 / 153 / 268 /
+  xl:min-h 340 / 288 / 198 / 153 / 262 (with 15 px gaps; columns 643 = 643)
+  MATCH (overlay coincides)
+
+Header buttons
+  ~128 x 31-33, r6 / PanelLink size="sm": 33 px on desktop, 44 px on touch
+  MATCH
+
+Table band / rows
+  28 band r6; rows 42-43 /
+  DataTable density="panel": th py-[5px] 18 lh, rounded ends; td py-[11px]
+  MATCH (43 px with a chip)
+
+Facility cells
+  pin + name / LocationPin + name
+  MATCH
+
+Today's schedule columns
+  Time | Role | Facility | Staff | Status | ••• /
+  Time | Facility | Worker | Status
+  INTENTIONAL: the attendance rows carry no discipline; no avatar data; no
+  row menu exists
+
+Recent Staffing Requests
+  Requested | Facility | Unit | Role | Need Date | Status /
+  Facility | Unit | Role (code) | Need date | Status
+  INTENTIONAL: no request timestamp in the list data. Role shows the
+  discipline code, as the reference does.
+
+Upcoming open shifts panel (S9A.1 extra)
+  - / removed
+  The locked left column has exactly two panels. Open shifts remain on the
+  KPI card, the coverage panel and the Shifts page.
+
+Workforce Readiness
+  donut 146 / 17 at +25; legend 33 px rows /
+  StatusRing 146 px, r 64.5, stroke 17, pl-[15px]; legend gap-[31px],
+  h-[33px] rows, 13 px dots
+  MATCH (overlay: the ring coincides)
+  The centre reads "% active" (a truthful ratio, not "Workforce Ready").
+  The title is "Workforce".
+
+Credential Expirations slot
+  bar list / "Open shift coverage": 127 | track | 45 grid, 14 px bars r4,
+  29 px rows
+  INTENTIONAL (data): there is no agency-level expiry aggregate. Real fill
+  counts are shown in the same visual slot.
+
+Coverage Activity slot
+  14-day chart / "Needs attention" in the same 262 px slot
+  INTENTIONAL (data): no historical series exists
+
+Administration (Members, Invitations, Activity)
+  - / below an "ADMINISTRATION" divider, no elevation
+  INTENTIONAL: required functionality; subordinate placement
+
+
+5. SHIFTS MAPPING
+-----------------
+Each entry gives reference / implemented, then the status.
+
+Header
+  title, description with 0 gap; filter row 20 px below /
+  PageHeader variant="reference"
+  MATCH (y within 2 px)
+
+Filter row
+  36 px controls, 10 px gaps /
+  h-9 controls, gap-2.5, "+ Create shift" h-9 on the right
+  MATCH
+
+Filter set
+  Date range | Facilities | Roles | Statuses | Search | Create /
+  From | To | Facility | Status | Apply | Create
+  INTENTIONAL: the real filter set. There is no role filter or search
+  product, and the filters are server-rendered forms (hence Apply).
+
+KPI cards
+  122 tall, 50 px tile at +12, text at +86 /
+  KpiFilterCard size="md": size-[50px], gap-6, p-3 pb-[15px],
+  xl:min-h-[122px]
+  MATCH (y 226..349 against 228..350)
+
+KPI widths
+  216 (drawer docked) / wider (no reserved column)
+  INTENTIONAL: the locked behaviour says the main area expands when no
+  panel is shown, and our drawer is a modal
+
+List / Calendar row
+  35 tall, 60 px of rhythm / no control; xl:mt-10 keeps the 60 px
+  INTENTIONAL: no calendar view; spacing preserved
+
+Table card
+  top 410, title row 45, r10 / min-h-[45px] px-[13px], rounded-[10px]
+  MATCH (y 410)
+
+Title
+  "Shifts (71)" / "Shifts"
+  INTENTIONAL: no total from cursor pagination
+
+Header band / rows
+  24 / 44.5 (HTML pitch 45.6) /
+  DataTable density="list": th py-[3px]; td h-11 py-[3px] -> 45
+  MATCH (the desktop Details trigger was reduced to 36 px so it no longer
+  sets the row height)
+
+Columns
+  Date & Time | Role | Facility (+unit) | Assigned Staff | Credential |
+  Confirmation | Coverage | Actions /
+  Date & time | Role | Facility (+unit) | Staffing | Status |
+  Needs attention | Actions
+  INTENTIONAL: the list carries no assignee, credential or confirmation
+  data
+
+Role / facility cells
+  full role name; pin + facility, unit beneath / name without the code;
+  LocationPin grid
+  MATCH
+
+Actions
+  ••• / "Details" (opens the drawer)
+  INTENTIONAL: a kebab implies a menu that does not exist. The visible
+  label stays.
+
+Create form
+  not in the list composition / hidden until "+ Create shift" (:target)
+  MATCH (S9A.1)
+
+
+6. DRAWER MAPPING
+-----------------
+Each entry gives reference / implemented, then the status.
+
+Behaviour
+  docked, collapsible / modal dialog (locked)
+  INTENTIONAL: modal behaviour is locked. The page behind is dimmed.
+
+Card geometry
+  325 wide, top +96, right 10, r16 / DetailDrawer width="panel":
+  max-w-[335px] with mr-2.5, mt-24, rounded-2xl, bottom 16
+  MATCH
+
+Header
+  56, no rule, title at +17, close centred 25 from the right /
+  min-h-14, pl-[17px], pr-[3px], 44 px close
+  MATCH
+
+Title
+  ~18 bold / Manrope 18/24 600 (MD drawer title)
+  See section 8.
+
+Summary card
+  inset 14, r10, date row 62 with a 32 px circle at +8, text at +51 /
+  px-[14px]; rounded-[10px]; min-h-[62px] px-2 gap-[11px] size-8 circle
+  MATCH
+
+Date row
+  date muted, time bold, "8 hours" pill /
+  the same; the pill shares the date line
+  MATCH. The pill sits on the date line so the time, which keeps its
+  timezone, does not wrap.
+
+Facility / role rows
+  ~52, icon, name, sub-line, chevron /
+  min-h-[52px], icon, name, unit / code
+  MATCH, except the chevron (no in-drawer navigation)
+
+Assigned Worker
+  avatar, name, role, phone, ••• /
+  "Assigned workers": fill chip and "x of y assigned · z accepted"
+  INTENTIONAL (data): no assignee data in the list. The slot is preserved.
+
+Status row
+  icon | Status | chip, supporting line under the chip /
+  grid 19 | 65 | 1fr, note in column 3
+  MATCH
+
+Credential Readiness row
+  shield, title and sub-line, chip, chevron / "Needs attention": shield,
+  title and sub-line, chip
+  INTENTIONAL (data): per-shift readiness is not loaded. Open issues fill
+  the same slot.
+
+Tabs
+  33 tall, three columns, 2 px underline / h-[33px] grid-cols-3; only
+  "Details"
+  MATCH for the geometry. Notes and Activity are INTENTIONAL (not loaded).
+
+Key-value list
+  label column 90, pitch 20, 13 px / grid-cols-[90px_1fr] leading-5,
+  13 px
+  MATCH
+
+Primary action
+  291 x 38 r6, in the flow / mx-[5px] sm:min-h-[38px] rounded-md;
+  "Open shift"
+  MATCH for the geometry. The label is INTENTIONAL (assignment happens on
+  the record).
+
+Secondary buttons, Recent Activity
+  present / absent
+  INTENTIONAL (no such actions or data). This leaves blank space below the
+  action.
+
+
+7. NEW OR CHANGED VARIANTS (no second component system)
+-------------------------------------------------------
+- DataTable `density`: "panel" | "list".
+- PageHeader `variant`: "reference".
+- Panel `variant`: "reference".
+- PanelLink sm is now 33 px on desktop.
+- KpiFilterCard `size`: "lg" | "md".
+- DetailDrawer width "panel" is now the measured floating card. It also
+  sets text-left on the dialog, so content no longer inherits a table
+  cell's alignment.
+- New LocationPin glyph.
+- New disciplineNameParts() helper, with unit tests.
+
+
+8. EVERY INTENTIONAL DEVIATION, AND ONE OPEN DECISION
+-----------------------------------------------------
+OPEN DECISION (needs your call): typography scale and weight.
+
+- The PNG renders headings larger and heavier than the locked typography
+  spec in the same package (CHELTH-PRODUCT-TYPOGRAPHY.md):
+  - page title: about 36 px, extra-bold;
+  - panel titles: about 20 px, bold;
+  - KPI values: about 28 px, bold;
+  - drawer title: bold.
+- The spec says: title Manrope 600 32/40 −0.03em; section 600 18/26; KPI
+  value 600 26/30; drawer title 600 18/24. It also says "Do not choose new
+  typography values independently".
+- The implementation follows the MD, because the reference package names
+  it the typography source of truth.
+- This is the largest remaining visual difference: positions coincide but
+  strokes are lighter.
+- If you want the PNG rendering instead, it is a token-level change
+  (weight 700-800 and the sizes above), not a layout change.
+
+Product, data, brand and security constraints (already detailed in
+sections 3-6):
+- No search, bell, date selector, Reports, Notifications or Settings.
+- No wave art; off-white canvas; teal (not blue) links and accents.
+- Canonical logo aspect.
+- No avatars, kebabs, chips derived from data that is not loaded, or
+  "Requested" timestamp.
+- No donut readiness score ("% active" instead).
+- No credential expirations; no coverage chart.
+- No List / Calendar control (spacing kept).
+- No total count.
+- Modal drawer; drawer slots without data.
+- The authenticator-verification notice appears for admins whose session
+  is not yet stepped up. Captures use the scheduler so the layout can be
+  compared; the admin QA captures show the notice above the KPI row.
+- One shell for both pages, at the Overview geometry.
+- At 1280 the KPI cards are narrower than the 1512 px reference canvas, so
+  labels such as "Attendance to review" wrap. At the reference canvas they
+  are single-line.
+
+
+9. STILL OFF (checked against the PNGs; not corrected in this pass)
+-------------------------------------------------------------------
+a) Status pills.
+   - Reference: pills carry glyphs (✓ check, clock, ✕), and the
+     semantically red "Open" pill is red.
+   - Ours: StatusChip uses a dot, and shift "Open" is neutral and "Requested"
+     is neutral.
+   - Changing StatusChip affects every page family, which is out of scope.
+     A glyph variant for these pages would be the S9A.3 fix if wanted.
+
+b) Selected-row state.
+   - Reference: the row whose details are open is tinted with a left accent.
+   - Ours: no row state while the drawer is open. The drawer trigger is
+     client-side inside a server-rendered table, so this needs a small
+     client wrapper.
+
+c) Bold weight of headings. This is the open decision in section 8. It is
+   listed here as well, so that "STILL OFF: none" is not claimed.
+
+
+10. SCREENSHOTS (docs/reports/s9a-visual-review/s9a2/)
+------------------------------------------------------
+Reference canvases are 1536 x 1024 (the Overview frame is 1512 x 996 at
+11, 13) and 1448 x 1086 (Shifts). The AFTER pages were captured at those
+viewports for 1:1 comparison and at 1280 x 900.
+
+01  reference: Operations Overview
+02  AFTER: Operations Overview, 1280
+03  AFTER: Operations Overview, 1512 x 996 (reference canvas)
+04  side by side: reference | AFTER
+05  50% overlay: AFTER placed at the reference frame origin
+06  reference: Shifts
+07  AFTER: Shifts, 1280
+08  AFTER: Shifts, 1448 x 1086 (reference canvas)
+09  reference: Shift Details drawer (crop)
+10  AFTER: Shifts with the drawer open, 1280
+11  AFTER: Shifts with the drawer open, 1448 x 1086
+12  side by side: Shifts with the drawer (reference | AFTER)
+13  stacked: Shifts reference over AFTER, 1448
+14  zoomed drawer: reference | AFTER (aligned to the card top)
+15  AFTER: Overview, 412
+16  AFTER: Shifts, 412
+17  AFTER: drawer, 412
+
+AFTER captures use the QA world's scheduler (no step-up notice). The 412
+captures come from final-sweep (admin), so they show the notice.
+
+
+11. TESTS
+---------
+Results:
+- npm run format:check: pass
+- npm run lint: pass (0 warnings)
+- npm run typecheck: pass
+- npm test: 335 passed (+1: disciplineNameParts)
+- npm run build: pass
+- npm run check:bundle: OK (64 browser files scanned, no secrets found)
+- npx playwright test: 212 passed, 2 skipped (pre-existing), 0 failed
+
+Test change, agency-surfaces "Operations Overview":
+- The "Upcoming open shifts" link assertion (panel removed) is replaced by
+  the Open shifts KPI href (status=open&from=<date>), the "Staffing
+  requests" panel and the "Open shifts by staffing" list.
+- Finance must see neither "Staffing requests" nor "Open shift coverage".
+
+
+12. GIT STATUS
+--------------
+Branch p0-e8-visual-implementation, uncommitted.
+
+Modified:
+  src/app/app/organisations/[organisationId]/(workspace)/
+    _components/agency-operations-overview.tsx
+    page.tsx
+    shifts/page.tsx
+  src/components/layout/
+    app-shell.tsx
+    page-container.tsx
+    workspace-sidebar.tsx
+    workspace-switcher.tsx
+  src/components/ui/
+    data-table.tsx
+    detail-drawer.tsx
+    filter-bar.tsx
+    kpi-filter-card.tsx
+    page-header.tsx
+    panel.tsx
+  src/lib/domain/shifts.ts
+  tests/e2e/
+    agency-surfaces.spec.ts
+    assignment-operations.spec.ts
+    final-sweep.spec.ts
+    identity.spec.ts
+    shifts-assignments.spec.ts
+    support.ts
+    workspace-shell.spec.ts
+  tests/unit/lib/shift-vocabulary.test.ts
+
+Untracked:
+  src/app/app/organisations/[organisationId]/(workspace)/shifts/_components/
+  src/components/ui/location-pin.tsx
+  docs/reports/P0-E8-S9A-locked-visual-fidelity-shell-overview-shifts.txt
+  docs/reports/s9a-visual-review/
+
+No database, migration, RLS, RPC, query, Server Action, auth, workflow or
+tenancy file changed.
+
+STOP: not committed; S9B not started; awaiting human visual approval.
+
+
+==========================================================================
+S9A.3 STRICT VISUAL REPRODUCTION
+==========================================================================
+
+Status: AWAITING HUMAN VISUAL APPROVAL. Not committed. S9B not started.
+
+This section supersedes the S9A.2 visual claims. S9A.2 kept the existing
+Chelth presentation and moved dimensions around it. S9A.3 rebuilds the
+presentation layer of the four screens from the locked PNGs. The existing
+code supplies only data, permissions, routes, actions and behaviour.
+
+
+1. WHAT EXISTING PRESENTATION CODE WAS REPLACED
+-----------------------------------------------
+New: src/components/reference/locked-reference.tsx
+
+This is the locked-reference presentation for the shell, Overview, Shifts
+and drawer only. It is not a second design system: it holds no data or
+behaviour and reuses brand tokens. It provides:
+- REF_TEXT: calibrated text styles.
+- REF_CARD: card surface.
+- RefPanel and RefPanelAction.
+- REF_TABLE: tinted band with hairline rows.
+- RefChip: a pill with a filled glyph (check, clock, ×, triangle, dot).
+- InitialsAvatar: initials from real names only, never photos.
+- KpiGlyph: solid tile icons (people, calendar, alert shield, building,
+  clock, document).
+- RefKpiCard: lg = Overview, md = Shifts.
+- KpiAction and KpiNote.
+
+Operations Overview
+(_components/agency-operations-overview.tsx, presentation rewritten):
+- Replaced: KpiFilterCard, Panel, PanelLink, DataTable* and StatusChip
+  usage, the "Workforce" legend panel, the "Open shift coverage" panel, the
+  "Needs attention" panel and generic chips.
+- Now:
+  - the reference KPI row;
+  - Today's Schedule (Time | Role | Facility | Staff Member | Status, with
+    initials avatars and glyph chips);
+  - Staffing Requests (Need Date | Facility | Unit | Role | Time | Status);
+  - Workforce Status (146 px ring with a four-row legend);
+  - Shift Coverage (four-row bar list);
+  - Coverage Outlook (bar and line chart in the reference chart slot).
+- Queries are unchanged; one existing list call returns every derived count.
+
+Shifts (shifts/page.tsx, presentation rewritten):
+- Replaced: PageHeader, FilterBar and InlineFilter*, KpiFilterCard and
+  KpiFilterGroup, DataTable*, Badge and StatusChip, FillBadge and
+  ShiftStatusBadge in the list.
+- Now:
+  - the reference header;
+  - the six-slot toolbar;
+  - the md KPI row;
+  - the reference table card: Date & Time | Role | Facility | Assigned Staff
+    | Credential Status | Confirmation | Coverage Status | Actions (•••);
+  - a selected-row highlight while the drawer is open.
+- Same form names, ids, GET submit, quick-filter link and active state,
+  pagination and create disclosure.
+
+Shift Details drawer (shifts/_components/shift-details-panel.tsx, rewritten):
+- The reference panel at CSS scale: summary card, Assigned Worker block,
+  Status row, Credential Readiness row, three-column tab bar, Details grid,
+  action region and Recent Activity timeline.
+
+Shell:
+- Sidebar and canvas colours (tokens mixed from brand colours).
+- Calibrated nav and top-bar typography; a subtle workspace identity.
+- The approved sidebar wave, drawn as an SVG from brand tokens behind the
+  navigation.
+- Stacking: the sidebar is isolated and the mobile overlay's close button is
+  raised.
+
+Primitives (variants only, no change to defaults):
+- DetailDrawer width="panel": the measured card geometry, title type, no dim
+  when docked at 1536 px and above.
+- PageHeader variant="reference": calibrated type.
+
+Domain helpers (unit-tested):
+- disciplineNameParts
+- formatShiftTimeRangeParts
+- startsWithin
+
+Shared:
+- SHIFT_TONE and FILL_TONE are exported from the shifts badges, so chips
+  keep exactly the same semantics.
+
+
+2. REFERENCE-CANVAS MEASUREMENT METHOD
+--------------------------------------
+- Both index.html files only stretch the PNG under transparent hotspots.
+  They give the canvases (1536x1024, 1448x1086), the hotspot rectangles and
+  the Shifts panel geometry (start 1081, width 367). Everything else was
+  measured from PNG pixels.
+- Overview: the app frame sits at (11, 13), 1512 x 996, drawn 1:1 in CSS px.
+- Shifts: the same design drawn at 0.87. Every string the two PNGs share
+  measures 0.86-0.88 of its Overview size (logo, nav labels, user name,
+  search text, KPI label, value and supporting copy). The Shifts sidebar,
+  188 px, is 214 x 0.87. Shifts CSS geometry = (reference px - frame offset
+  (10, 13)) / 0.87.
+- Overlay method: AFTER captured at 1512 x 996 (Overview), and at
+  1653 x 1169 with deviceScaleFactor 0.87 (Shifts, giving a 1438 x 1017
+  image). Each is pasted at the reference frame origin on the original
+  canvas (1536 x 1024, 1448 x 1086) and 50% blended.
+- Typography: every important text style was calibrated by rendering the
+  reference strings in the self-hosted Inter and Manrope variable fonts at
+  every size (0.25 px steps), weight (400-800) and tracking. The candidate
+  whose rendered ink width, cap height and stroke thickness best matched
+  the reference ink was chosen.
+
+
+3. TYPOGRAPHY MAPPING (calibrated; size / weight / tracking)
+------------------------------------------------------------
+Each entry gives the reference ink, then what was implemented.
+
+Overview (1:1)
+
+page title
+  ink: 324 w, stroke 7.0
+  implemented: Manrope 31.5 / 800 / 0 (was 32 / 600)
+page subtitle
+  ink: 434 w
+  implemented: Inter 18 / 400 (was 16)
+nav label
+  ink: "Shifts" 37 w, h 12
+  implemented: Inter 14.75 / 400 / -0.01em (was 15 / 500)
+top-bar name
+  ink: 103 w, stroke 2.9
+  implemented: Inter 15.25 / 500
+top-bar role
+  ink: 135 w
+  implemented: Inter 14 / 400
+KPI label
+  ink: 78 w
+  implemented: Inter 14.75 / 400 / -0.01em (was 14 / 500)
+KPI value
+  ink: 29 w, h 23, stroke 6.4
+  implemented: Manrope 30.5 / 700 / -0.01em (was 26 / 600)
+KPI supporting
+  ink: 107 w
+  implemented: Inter 12.75 / 400
+panel title
+  ink: 165 w / 192 w
+  implemented: Manrope 20 / 700 / -0.02em (was 18 / 600)
+table header
+  ink: 24 w, h 10
+  implemented: Inter 11.5 / 400 (was 12 / 500)
+table body
+  ink: 101 w, h 10
+  implemented: Inter 11.5 / 400 (was 13)
+chip
+  ink: 54 w
+  implemented: Inter 11.5 / 500, 26 px pill, radius 8, glyph
+panel button
+  ink: 84 w
+  implemented: Inter 13 / 400
+ring value
+  ink: 52 w, h 19
+  implemented: Manrope 25 / 700
+legend
+  ink: 91 w / 22 w
+  implemented: Inter 14 / 400; counts 600
+
+Shifts (reference px / 0.87)
+
+title
+  ink: 98 w CSS
+  implemented: Manrope 35 / 800 / -0.02em
+subtitle
+  ink: 448 w CSS
+  implemented: Inter 17.25 / 400
+toolbar text
+  implemented: Inter 12 / 500
+Create Shift
+  implemented: Inter 13.5 / 500 on Teal Dark
+KPI label
+  implemented: Inter 13.5 / 600 / -0.01em
+KPI value
+  implemented: Manrope 31 / 800
+KPI supporting
+  implemented: 12.75 / 400
+KPI action
+  implemented: 12.25-12.75 / 400
+table title
+  implemented: Manrope 18 / 800 / -0.02em
+table header
+  implemented: Inter 11.25 / 500
+row date
+  implemented: Inter 11.25 / 600 navy; time 11.25 / 400 muted
+role
+  implemented: Inter 10.5 / 500
+facility
+  implemented: Inter 11.25 / 500, unit muted
+
+Drawer (reference px / 0.87)
+
+title
+  implemented: Manrope 20 / 800 / -0.02em
+date
+  implemented: Inter 14.25 / 400 muted
+time
+  implemented: Inter 16.5 / 700
+facility / role
+  implemented: Inter 13 / 600; sub-lines 12 / 400
+section labels
+  implemented: Inter 13 / 700
+status / readiness labels
+  implemented: Inter 12 / 600
+details grid
+  implemented: Inter 11.75 / 500, 23 px pitch
+buttons
+  implemented: Inter 13 / 600 (primary), 12.5 / 500 (secondary)
+Recent Activity
+  implemented: Inter 14.75 / 800
+
+Colour:
+- Sidebar: reference #002E38-#01303B; implemented as Teal Dark+Navy, shaded
+  (about #0D2F35).
+- Canvas: reference #F5FBFC; implemented as Mint Mist 40% + white (#F6FAF9).
+- Active pill: Teal Dark.
+- Titles: Navy at weight 800.
+
+
+4. CARD / PANEL MAPPING (Overview; frame-relative CSS px)
+---------------------------------------------------------
+Each entry gives reference, then implemented, then the overlay result.
+
+KPI cards
+  4 x ~303 x 129, gap 13 / xl:h-[129px], gap 13
+  aligns
+KPI tile
+  62 x 60 at (12, 11), radius 10, solid glyph / 62 px, radius 10, solid
+  34 px glyph
+  aligns
+KPI text column
+  +99; label / value / supporting / footer / gap 24, mt 7
+  aligns
+Panels
+  left 790 x 340 / 288; right 442 x 198 / 153 / 262; gaps 15 /
+  the same heights and grid 1.787 : 1
+  edges align
+Panel chrome
+  title +15, header 33, buttons 128 x 33 / RefPanel, RefPanelAction
+  aligns
+Ring
+  146 px, stroke 17, +25 / identical
+  coincides
+Legend rows
+  33 px, dot 13 / identical
+  rows align
+Bar list
+  127 | track | 45, 14 px bars r4, 29 px rows / identical
+  aligns
+Chart
+  zero line y 900, top tick 778, labels 918, legend 953 / identical
+  coincides
+
+
+5. TABLE MAPPING
+----------------
+Overview tables (1:1):
+- tinted band 28 px, radius 6, inset 10;
+- rows 40 px with hairline dividers;
+- 32 px avatar, then the name 12 px after it;
+- 26 px glyph chips.
+Overlay: rows align (40/43 px).
+
+Shifts table (reference / 0.87, CSS px):
+- card top 456, title row 52, header band 27, rows 52 (the HTML pitch
+  45.6 / 0.87);
+- columns 14 / 12.4 / 16.9 / 14.9 / 11.8 / 10.7 / 12.2 / 7.1 % of the
+  reference content width (reference 131 / 135 / 170 / 150 / 119 / 108 /
+  123 / 54 px). Date & Time took one point from Role, so the full time fits
+  at the table's 960 px phone minimum.
+Overlay: column starts and row bands align.
+
+Long names:
+- the role shows the discipline name without its code, clamped to 2 lines;
+- the facility and unit truncate (full text in the record's accessible
+  name);
+- the time shows without its zone. The page subtitle states the timezone
+  rule; the zone stays screen-reader text and appears in the drawer.
+
+Real data in the reference columns (no new query, no new authorisation):
+- Assigned Staff: the first active assignee (initials and code, "+n"), or
+  Unassigned. Source: listShiftAssignments, the shift record's loader, under
+  ASSIGNMENT_VIEW, called only for rows with assignments.
+- Credential Status: the assignees' live readiness (Ready / Action
+  required / Not eligible), or "Not started". Source:
+  listAssignmentReadiness, the shift record's loader, under ASSIGNMENT_VIEW
+  and COMPLIANCE_VIEW, for those rows only.
+- Confirmation: Confirmed / Pending from the assignment status, or the
+  shift's open-issue count.
+- Coverage Status: Open / Partially filled / Filled while open, otherwise
+  the shift status. "Relationship not active" when relevant.
+
+Selected row:
+- Tinted, with a 3 px teal inset accent, while its drawer is open (CSS
+  :has).
+
+
+6. DRAWER MAPPING (reference px / 0.87, CSS px)
+-----------------------------------------------
+Each entry gives reference, then implemented, then the overlay result.
+
+Card
+  1268..1641, top 110, radius 18 / max-w 385 with mr 11, mt 110, radius 18
+  bounds align
+Header
+  64; title at +20; close centred 29 from the right / min-h 64, pl 20, pr 7
+  aligns
+Summary card
+  inset 16, radius 12; date row 71 (37 px circle at +9, text at +59);
+  facility / role rows 60 / identical
+  rows align
+Assigned Worker
+  123 px; 52 px avatar; name, code, phone /
+  123 px; initials avatar; name, code, assignment status
+  aligns
+Status row
+  55 px; label +37, chip +113, note under the chip / identical
+  aligns
+Credential Readiness
+  57 px; shield, title, sub-line, chip / identical (live readiness)
+  aligns
+Tab bar
+  38 px, three columns, 2 px underline / identical; only "Details" is
+  populated
+  aligns
+Details grid
+  label column 103, 23 px pitch / identical
+  rows coincide
+Actions
+  334 x 44 primary; 2 x 163 x 44 secondaries / identical
+  coincide
+Recent Activity
+  heading, "View All", timeline / identical
+  heading coincides
+
+Primary action:
+- "Assign Worker" goes to the shift record's existing Assign section
+  (#assign-heading). It is shown only when the record would allow staffing:
+  ASSIGNMENT_MANAGE + COMPLIANCE_VIEW, the shift open and not ended, the
+  relationship active, and the shift not filled.
+- Otherwise the primary is "Open shift".
+
+Secondary actions:
+- "Offer shift" (record #offer-heading; same rule as the record, not yet
+  started).
+- "Open shift".
+
+Timeline:
+- Real assignment events: "<worker> assigned" and "<worker> accepted", with
+  timestamps from shift_assignments. "View All" goes to the record's
+  Assigned workers.
+- Without events: "No assignment activity yet."
+
+
+7. REFERENCE / AFTER / OVERLAY SCREENSHOTS
+------------------------------------------
+docs/reports/s9a-visual-review/s9a3/:
+
+Overview (1536 x 1024 reference canvas)
+  01-reference-overview.png
+  02-after-overview.png
+  03-overlay-overview.png
+  04-side-by-side-overview.png
+
+Shifts with the drawer open (1448 x 1086 reference canvas)
+  05-reference-shifts.png
+  06-after-shifts.png
+  07-overlay-shifts.png
+  08-side-by-side-shifts.png
+
+Drawer crop (reference 1100..1448 x 95..1060)
+  09-reference-drawer.png
+  10-after-drawer.png
+  11-overlay-drawer.png
+
+Shifts with the drawer closed (main area expanded)
+  12-after-shifts-drawer-closed.png
+
+Responsive QA (not the approval canvas)
+  13-after-overview-1280.png
+  14-after-shifts-1280.png
+  15-after-shifts-drawer-1280.png
+  16-after-overview-375.png / 16-after-overview-412.png
+  17-after-shifts-375.png / 17-after-shifts-412.png
+  18-after-shifts-drawer-412.png
+  (from the final-sweep run, admin; the step-up notice is visible)
+
+Captures use the QA world's scheduler, so there is no step-up banner.
+
+
+8. ACTUAL UNAVOIDABLE DIFFERENCES (feature / data / security / a11y / logo)
+---------------------------------------------------------------------------
+Unavailable product feature
+- Top bar: search field, notification bell and date selector are omitted;
+  the remaining geometry is unchanged.
+- Sidebar: Staffing Requests, Credentials, Reports, Notifications and
+  Settings have no route. The routes that exist keep the reference row
+  geometry.
+- Shifts: Role filter and search slots. The Role slot holds "Clear filters"
+  when filters are active; the search slot holds the server-rendered
+  "Apply filters".
+- Shifts: no List / Calendar toggle; its 69 px rhythm is kept.
+- Shifts: the "Sort by" control is replaced by the static "Sorted by start
+  time" (the list is always start-time ordered).
+- Overview: no date-range dropdown on the chart. The static "Next 14 days"
+  label occupies its slot.
+- Drawer: no "Send Reminder" or "Replace Worker"; the real "Offer shift"
+  and "Open shift" fill the two slots. No Notes or Activity tab content.
+- Row "•••": opens Shift Details (named "Details for …"). There is no
+  separate row menu.
+
+Unavailable data
+- Worker photos and phone numbers: initials avatars and the real assignment
+  status instead.
+- Overview: "Workforce Readiness" (no readiness aggregate) becomes
+  "Workforce Status", with real status counts and "% active".
+- Overview: "Credential Expirations" (no expiry aggregate) becomes "Shift
+  Coverage", with real counts in the same block.
+- Overview: "Coverage Activity" (no history) becomes "Coverage Outlook", the
+  real next 14 days. No series is fabricated.
+- Overview: Today's Schedule has no row menu.
+- Overview: Staffing Requests has no "Requested" timestamp column (not
+  projected); a Time column fills the six-column slot.
+- Overview KPIs: the reference's "Credential Issues" becomes "Assignment
+  Issues", the real queue in the same slot.
+- Values, row counts and empty states are this QA world's real data. The
+  reference shows 12 rows of sample data.
+
+Security
+- Admins whose session is not stepped up see the verification notice,
+  which pushes the content down. Captures are taken as the scheduler.
+
+Accessibility
+- Touch targets stay 44 px on phones; desktop sizes follow the reference.
+- Every table scroll container is a named, focusable DataTableRegion.
+- Chips keep their text, with decorative glyphs; the chart has a text
+  summary.
+
+Canonical logo asset
+- The logo has the same width as the reference lockup; its box is the
+  asset's own aspect.
+
+Scale and window framing (not a style choice)
+- The two locked PNGs draw the one shell at different zooms (Shifts =
+  0.87). Comparisons honour each canvas.
+- The Shifts PNG frames a 1368 px app window with the drawer partly outside
+  it. In a single viewport the drawer docks inside, so the top-bar user
+  block sits at the viewport's right edge, not under the drawer.
+- Behind the modal drawer at 1280 (narrower than the docked layout's
+  1536 px threshold), the page is dimmed and does not contract.
+
+
+9. TESTS
+--------
+Clean full run (all S9A.3 code except the final column-width tweak):
+- npm run format:check: pass
+- npm run lint: pass (0 warnings)
+- npm run typecheck: pass
+- npm test: 337 passed. New unit tests: disciplineNameParts,
+  formatShiftTimeRangeParts, startsWithin.
+- npm run build: pass
+- npm run check:bundle: OK (64 browser files scanned, no secrets found)
+- npx playwright test: 212 passed, 2 skipped (pre-existing), 0 failed
+
+After the Date & Time column tweak (14 / 12.4 %):
+- format (file), lint, typecheck, build and check:bundle pass.
+- agency-surfaces, final-sweep, shifts-assignments and
+  assignment-operations: 40 / 40 passed on desktop and mobile.
+
+Fixed during the stage:
+- 18 px phone overflow from native date inputs. On phones the date range
+  now takes the full row, and its inputs shrink from zero width.
+- Mobile navigation close button hidden behind the isolated sidebar. It is
+  now raised with z-10.
+- The structural guard requiring DataTableRegion for every scrolling table.
+  The reference tables now use it.
+- React purity lint on Date.now during render. Moved into startsWithin().
+
+Test changes (none weakened):
+- agency-surfaces:
+  - KPI assertions follow the reference slots and title case (Open Shifts,
+    Pending Confirmations, Facility Requests).
+  - "Upcoming shifts by staffing" list, "Staffing Requests" panel.
+  - Finance must see neither "Shift Coverage" nor "Coverage Outlook".
+  - Drawer is named "Shift Details" and still contains Mercy Rehab, the
+    discipline and "0 of 2".
+- final-sweep: the drawer dialog name is "Shift Details" (case only).
+
+
+10. GIT STATUS
+--------------
+Branch p0-e8-visual-implementation, uncommitted.
+
+S9A.3 additions to the earlier file list:
+- Modified:
+    src/app/globals.css (shell tokens)
+    src/components/layout/mobile-workspace-nav.tsx
+    src/components/ui/page-header.tsx
+    src/features/shifts/components/badges.tsx
+    src/features/shifts/index.ts
+    src/lib/domain/shifts.ts
+    tests/unit/lib/shift-vocabulary.test.ts
+- Untracked:
+    src/components/reference/locked-reference.tsx
+    docs/reports/s9a-visual-review/s9a3/
+- Rewritten:
+    agency-operations-overview.tsx
+    shifts/page.tsx
+    shifts/_components/shift-details-panel.tsx
+
+No database, migration, RLS, RPC, query, Server Action, auth, attendance,
+finance, credential-rule, workflow or tenancy code changed. The drawer and
+table reuse the shift record's existing loaders under the record's
+capability gates; no new query or authorisation path was added.
+
+Performance note: the Shifts list now calls listShiftAssignments (and, with
+compliance view, listAssignmentReadiness) once per row that has
+assignments. That is at most 25 rows per page, in parallel. A batched
+"assignments for these shifts" query would remove the per-row calls, but it
+is a new query and was not added in a visual stage. Recommended for a
+backend stage.
+
+STOP: not committed; S9B not started; awaiting human visual approval.

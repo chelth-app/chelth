@@ -15,6 +15,8 @@ type PageHeaderProps = {
   /** Secondary actions, only when genuinely needed. */
   secondaryActions?: ReactNode;
   titleId?: string;
+  /** `reference`: locked P2/P3 header — description sits directly under the title. */
+  variant?: "default" | "reference";
   className?: string;
 };
 
@@ -31,6 +33,7 @@ export function PageHeader({
   primaryAction,
   secondaryActions,
   titleId,
+  variant = "default",
   className,
 }: PageHeaderProps) {
   const hasActions = Boolean(primaryAction || secondaryActions);
@@ -38,15 +41,27 @@ export function PageHeader({
     <header className={cn("flex flex-col gap-3", className)}>
       {back ? <div className="text-sm">{back}</div> : null}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
-        <div className="flex min-w-0 flex-col gap-1.5">
+        <div className={cn("flex min-w-0 flex-col", variant === "reference" ? "gap-0" : "gap-1.5")}>
           <h1
             id={titleId}
-            className="font-display text-[1.75rem] leading-9 font-semibold tracking-[-0.03em] text-chelth-navy sm:text-[2rem] sm:leading-10"
+            className={cn(
+              "font-display text-[1.75rem] leading-9 font-semibold tracking-[-0.03em] text-chelth-navy sm:text-[2rem] sm:leading-10",
+              // Locked P2/P3 rendering, calibrated against the approved PNG ink.
+              variant === "reference" &&
+                "font-bold tracking-normal text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)] sm:text-[31.5px] sm:leading-[38px]",
+            )}
           >
             {title}
           </h1>
           {description ? (
-            <div className="max-w-3xl text-base text-muted-foreground">{description}</div>
+            <div
+              className={cn(
+                "text-base text-muted-foreground",
+                variant === "reference" ? "sm:text-[17.5px] sm:leading-[26px]" : "max-w-3xl",
+              )}
+            >
+              {description}
+            </div>
           ) : null}
           {meta ? <div className="flex flex-wrap items-center gap-2 pt-1">{meta}</div> : null}
         </div>

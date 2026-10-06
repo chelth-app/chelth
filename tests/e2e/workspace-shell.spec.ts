@@ -69,12 +69,12 @@ async function navLabels(nav: Locator): Promise<string[]> {
 
 async function expectNoInventedChrome(page: Page) {
   // Decision F10: no fake search, no fake notification bell; F6: no invented routes.
+  // (Settings is a real route since P0-E8-S9H and is asserted through the navigation.)
   await expect(page.getByRole("searchbox")).toHaveCount(0);
   await expect(page.getByPlaceholder(/search/i)).toHaveCount(0);
   await expect(page.getByRole("button", { name: /notification/i })).toHaveCount(0);
   await expect(page.getByRole("link", { name: /notification/i })).toHaveCount(0);
   await expect(page.getByRole("link", { name: /^reports?$/i })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: /^settings$/i })).toHaveCount(0);
 }
 
 async function screenshot(page: Page, testInfo: TestInfo, name: string) {
@@ -98,6 +98,7 @@ const AGENCY_ADMIN_NAV = [
   "Pricing",
   "Payroll",
   "Invoices",
+  "Settings",
 ];
 
 test.describe.serial("workspace shell", () => {
@@ -126,7 +127,10 @@ test.describe.serial("workspace shell", () => {
   }, testInfo) => {
     const page = await signedIn(browser, world.admin.email);
     await page.goto(`/app/organisations/${world.agencyId}`);
-    await expect(page.getByRole("heading", { level: 1, name: world.agencyName })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Operations Overview" }),
+    ).toBeVisible();
+    await expect(page.getByRole("banner")).toContainText(world.agencyName);
 
     const nav = await openWorkspaceNav(page, testInfo);
     expect(await navLabels(nav)).toEqual(AGENCY_ADMIN_NAV);
@@ -155,12 +159,16 @@ test.describe.serial("workspace shell", () => {
         page.getByRole("main").getByRole("link", { name: label, exact: true }),
       ).toHaveCount(0);
     }
-    // Administration that the sidebar does not carry stays on the Overview
+    await qaScreenshot(page, "overview-after-cleanup");
+    // P0-E8-S9H: administration moved to Settings → Team & Permissions
     // (privileged sections such as Invitations wait for MFA step-up, as before).
+    await expect(page.getByRole("region", { name: "Members table" })).toHaveCount(0);
+    await page.goto(`/app/organisations/${world.agencyId}/settings/team`);
+    await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Members" })).toBeVisible();
     await expect(page.getByRole("region", { name: "Members table" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Verify now" })).toBeVisible();
-    await qaScreenshot(page, "overview-after-cleanup");
+    await expectNoA11yViolations(page);
 
     // Representative finance page on the shared primitives: route tabs + empty state.
     await page.goto(`/app/organisations/${world.agencyId}/pricing?state=priced`);
@@ -201,6 +209,7 @@ test.describe.serial("workspace shell", () => {
       "Timesheets",
       "Workforce",
       "Facilities",
+      "Settings",
     ]);
     const hrefs = await nav
       .getByRole("link")
@@ -250,6 +259,7 @@ test.describe.serial("workspace shell", () => {
       "Pricing",
       "Payroll",
       "Invoices",
+      "Settings",
     ]);
     await closeWorkspaceNav(page, testInfo);
 
@@ -286,7 +296,7 @@ test.describe.serial("workspace shell", () => {
       page.getByRole("heading", { level: 1, name: world.facilityOrgName }),
     ).toBeVisible();
     const facilityNav = await openWorkspaceNav(page, testInfo);
-    expect(await navLabels(facilityNav)).toEqual(["Overview", "Staffing requests"]);
+    expect(await navLabels(facilityNav)).toEqual(["Overview", "Staffing requests", "Settings"]);
     await closeWorkspaceNav(page, testInfo);
   });
 
@@ -295,7 +305,12 @@ test.describe.serial("workspace shell", () => {
     await page.goto(`/app/organisations/${world.facilityOrgId}`);
 
     const nav = await openWorkspaceNav(page, testInfo);
-    expect(await navLabels(nav)).toEqual(["Overview", "Staffing requests", "Timesheet sign-off"]);
+    expect(await navLabels(nav)).toEqual([
+      "Overview",
+      "Staffing requests",
+      "Timesheet sign-off",
+      "Settings",
+    ]);
     await screenshot(page, testInfo, "facility-admin-overview");
     await closeWorkspaceNav(page, testInfo);
     // Single-workspace user: no switcher choices.
@@ -314,7 +329,12 @@ test.describe.serial("workspace shell", () => {
     await page.goto(`/app/organisations/${world.facilityOrgId}`);
 
     const nav = await openWorkspaceNav(page, testInfo);
-    expect(await navLabels(nav)).toEqual(["Overview", "Staffing requests", "Timesheet sign-off"]);
+    expect(await navLabels(nav)).toEqual([
+      "Overview",
+      "Staffing requests",
+      "Timesheet sign-off",
+      "Settings",
+    ]);
     await closeWorkspaceNav(page, testInfo);
     await expect(page.getByRole("button", { name: "Create invitation" })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Invitations" })).toHaveCount(0);

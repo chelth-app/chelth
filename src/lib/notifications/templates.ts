@@ -362,14 +362,14 @@ export function renderNotification(
     `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden">`,
     `<tr><td><img src="${escapeHtml(`${baseUrl}/email/chelth-email-banner.png`)}" width="600" alt="CHELTH" style="display:block;width:100%;height:auto;border:0"></td></tr>`,
     `<tr><td style="padding:24px">`,
-    `<h1 style="${FONT};font-size:20px;line-height:28px;color:#0f766e;margin:0 0 16px">${escapeHtml(c.heading)}</h1>`,
+    `<h1 style="${FONT};font-size:20px;line-height:28px;color:#126B67;margin:0 0 16px">${escapeHtml(c.heading)}</h1>`,
     `<p style="${FONT};font-size:15px;line-height:22px;color:#0f172a;margin:0 0 12px">${escapeHtml(greeting)}</p>`,
     ...c.paragraphs.map(
       (paragraph) =>
         `<p style="${FONT};font-size:15px;line-height:22px;color:#0f172a;margin:0 0 12px">${escapeHtml(paragraph)}</p>`,
     ),
     detailsHtml,
-    `<p style="margin:20px 0"><a href="${escapeHtml(url)}" style="${FONT};display:inline-block;background:#0f766e;color:#ffffff;text-decoration:none;font-size:15px;font-weight:bold;padding:12px 20px;border-radius:6px">${escapeHtml(c.cta)}</a></p>`,
+    `<p style="margin:20px 0"><a href="${escapeHtml(url)}" style="${FONT};display:inline-block;background:#126B67;color:#ffffff;text-decoration:none;font-size:15px;font-weight:bold;padding:12px 20px;border-radius:6px">${escapeHtml(c.cta)}</a></p>`,
     `<p style="${FONT};font-size:13px;line-height:20px;color:#475569;margin:16px 0 0">This is a required operational notification from CHELTH. Sign in to CHELTH to see full details and respond.</p>`,
     `</td></tr></table></td></tr></table></body></html>`,
   ].join("");

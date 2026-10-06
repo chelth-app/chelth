@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { type Browser, expect, type Page, test } from "@playwright/test";
 
 import { createStaffingWorld, isoDay, type StaffingWorld } from "./staffing-fixture";
-import { expectNoPageOverflow, signIn } from "./support";
+import { expectNoPageOverflow, qaScreenshot, signIn } from "./support";
 
 const A11Y_TAGS = ["wcag2a", "wcag2aa", "wcag22aa"];
 const AFTER_ACTION = { timeout: 20_000 };
@@ -59,6 +59,10 @@ test.describe.serial("assignment operations: offers, readiness, suspension", () 
     browser,
   }) => {
     await scheduler.goto(`/app/organisations/${world.agencyId}/shifts`);
+    // Locked P3: the existing form is revealed by "+ Create shift" (same route, same action).
+    await expect(scheduler.getByRole("heading", { name: "Create a shift" })).toBeHidden();
+    await scheduler.getByRole("link", { name: "Create shift" }).click();
+    await expect(scheduler.getByRole("heading", { name: "Create a shift" })).toBeVisible();
     await scheduler
       .getByRole("combobox", { name: "Facility and location" })
       .selectOption({ label: "Mercy Rehab — Mercy Main (America/New_York)" });
@@ -262,5 +266,46 @@ test.describe.serial("assignment operations: offers, readiness, suspension", () 
     await expect(
       scheduler.getByRole("list", { name: "Assignments needing attention" }),
     ).toContainText("Facility relationship not active");
+
+    // P0-E8-S9G (option C): Operations in the locked Notifications list language.
+    await scheduler.setViewportSize({ width: 1512, height: 996 });
+    await expect(scheduler.getByRole("heading", { level: 1, name: "Operations" })).toBeVisible();
+    await expect(scheduler.getByRole("navigation", { name: "Operations sections" })).toBeVisible();
+    await qaScreenshot(scheduler, "opqa-operations");
+    const attention = scheduler.getByRole("list", { name: "Assignments needing attention" });
+    await attention
+      .getByRole("button", { name: /^Details for / })
+      .first()
+      .click();
+    const drawer = scheduler.getByRole("dialog", { name: "Attention Details" });
+    await expect(drawer).toContainText("Assignment Information");
+    await expect(drawer.getByRole("link", { name: "View Shift" })).toHaveAttribute(
+      "href",
+      /\/shifts\//,
+    );
+    await expectNoA11yViolations(scheduler);
+    await qaScreenshot(scheduler, "opqa-operations-drawer");
+    await scheduler.keyboard.press("Escape");
+    await scheduler.setViewportSize({ width: 1536, height: 1024 });
+    await attention
+      .getByRole("button", { name: /^Details for / })
+      .first()
+      .click();
+    await expect(drawer).toBeVisible();
+    await expectNoPageOverflow(scheduler);
+    await qaScreenshot(scheduler, "opqa-operations-docked");
+    await scheduler.keyboard.press("Escape");
+    for (const [width, height] of [
+      // Fluid workspace: content keeps growing to the 1920 px cap.
+      [2560, 1440],
+      [1280, 900],
+      [768, 1024],
+      [412, 915],
+      [375, 812],
+    ] as const) {
+      await scheduler.setViewportSize({ width, height });
+      await expectNoPageOverflow(scheduler);
+      await qaScreenshot(scheduler, "opqa-operations");
+    }
   });
 });

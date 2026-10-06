@@ -56,7 +56,9 @@ export default function DesignSystemPage() {
       <PageContainer className="flex flex-col gap-10">
         <header className="flex flex-col gap-2">
           <BrandLogo />
-          <h1 className="text-2xl font-semibold">Design system foundation</h1>
+          <h1 className="font-display text-2xl font-semibold text-chelth-navy">
+            Design system foundation
+          </h1>
           <p className="text-sm text-muted-foreground">
             Internal reference. Not available in production.
           </p>

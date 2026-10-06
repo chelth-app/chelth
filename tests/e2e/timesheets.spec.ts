@@ -217,6 +217,72 @@ test.describe.serial("timesheets & attendance review", () => {
     await tia.context().close();
   });
 
+  test("Timesheets at the reference canvas, with Timesheet Details open (P0-E8-S9E)", async ({
+    browser,
+  }) => {
+    const admin = await signedIn(browser, world.admin.email);
+    await admin.setViewportSize({ width: 1512, height: 996 });
+    await admin.goto(`/app/organisations/${world.agencyId}/timesheets`);
+    await expect(admin.getByRole("heading", { level: 1, name: "Timesheets" })).toBeVisible();
+    const kpis = admin.getByRole("region", { name: "Timesheets by status" });
+    await expect(kpis.getByRole("link", { name: /Needs Review/ })).toContainText("1");
+    const table = admin.getByRole("region", { name: "Agency timesheets table" });
+    const row = table.getByRole("row", { name: /Tia Timesheet/ });
+    await expect(row).toContainText("Submitted");
+    await expect(row).toContainText("11 h 30 min");
+    await expect(admin.getByRole("region", { name: "Timesheet activity table" })).toContainText(
+      "Submitted",
+    );
+    await qaScreenshot(admin, "tsqa-timesheets");
+
+    await row.getByRole("button", { name: /^Details for Tia Timesheet/ }).click();
+    const drawer = admin.getByRole("dialog", { name: "Timesheet Details" });
+    await expect(drawer).toContainText("Time Details");
+    await expect(drawer).toContainText("Attendance (derived)");
+    await expect(drawer).toContainText("Audit History");
+    await expect(drawer.getByRole("link", { name: "Review and approve" })).toHaveAttribute(
+      "href",
+      `/app/organisations/${world.agencyId}/timesheets/${tiaSheet}#review-heading`,
+    );
+    await expect(drawer).not.toContainText(/\$|latitude|longitude/i);
+    await expectNoA11yViolations(admin);
+    await qaScreenshot(admin, "tsqa-timesheets-drawer");
+    const audit = drawer.getByRole("list", { name: "Tia Timesheet timesheet history" }).first();
+    await expect(audit).toContainText("Submitted");
+    await audit.scrollIntoViewIfNeeded();
+    await qaScreenshot(admin, "tsqa-timesheets-drawer-history");
+    await admin.keyboard.press("Escape");
+    // At 1536 px the locked drawer docks beside the work area, as in the reference.
+    await admin.setViewportSize({ width: 1536, height: 1024 });
+    await row.getByRole("button", { name: /^Details for Tia Timesheet/ }).click();
+    await expect(drawer).toBeVisible();
+    await expectNoPageOverflow(admin);
+    await qaScreenshot(admin, "tsqa-timesheets-docked");
+    await admin.keyboard.press("Escape");
+    await admin.setViewportSize({ width: 1512, height: 996 });
+
+    await row.getByRole("link", { name: "Tia Timesheet" }).click();
+    await expect(
+      admin.getByRole("navigation", { name: "Timesheet record sections" }),
+    ).toBeVisible();
+    await expect(admin.getByRole("heading", { name: "Facility sign-off" })).toBeVisible();
+    await expectNoA11yViolations(admin);
+    await qaScreenshot(admin, "tsqa-timesheet-record");
+
+    await admin.goto(`/app/organisations/${world.agencyId}/timesheets`);
+    for (const [width, height] of [
+      [1280, 900],
+      [768, 1024],
+      [412, 915],
+      [375, 812],
+    ] as const) {
+      await admin.setViewportSize({ width, height });
+      await expectNoPageOverflow(admin);
+      await qaScreenshot(admin, "tsqa-timesheets");
+    }
+    await admin.context().close();
+  });
+
   test("Flow 2: the agency reviewer sees the attendance history and approves", async ({
     browser,
   }) => {

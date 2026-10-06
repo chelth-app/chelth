@@ -46,7 +46,10 @@ export async function signIn(page: Page, email: string, password = PASSWORD): Pr
 export async function createAgency(page: Page, name: string): Promise<void> {
   await page.getByLabel("Agency name").fill(name);
   await page.getByRole("button", { name: "Create agency" }).click();
-  await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
+  // P0-E8-S9A: the agency Overview title is the locked "Operations Overview";
+  // the organisation is named in the workspace top bar.
+  await expect(page.getByRole("heading", { level: 1, name: "Operations Overview" })).toBeVisible();
+  await expect(page.getByRole("banner")).toContainText(name);
 }
 
 /** Enrols TOTP through the Security page UI; returns the secret. */

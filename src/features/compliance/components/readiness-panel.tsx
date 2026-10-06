@@ -16,10 +16,13 @@ export function ReadinessPanel({ title, readiness, headingId }: ReadinessPanelPr
   return (
     <section
       aria-labelledby={headingId}
-      className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4"
+      className="flex flex-col gap-3 rounded-md bg-surface-muted p-4 in-[.chelth-locked]:rounded-[10px] in-[.chelth-locked]:border in-[.chelth-locked]:border-[rgba(18,107,103,0.10)] in-[.chelth-locked]:bg-[linear-gradient(180deg,#f6fbfa,#eef7f4)]"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 id={headingId} className="font-semibold">
+        <h3
+          id={headingId}
+          className="font-semibold in-[.chelth-locked]:text-[16px] in-[.chelth-locked]:font-semibold in-[.chelth-locked]:text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)]"
+        >
           {title}
         </h3>
         <ReadinessBadge status={readiness.status} />
@@ -37,9 +40,13 @@ export function ReadinessPanel({ title, readiness, headingId }: ReadinessPanelPr
               <StatusChip tone={item.severity === "blocking" ? "danger" : "warning"}>
                 {COMPLIANCE_REASON_LABELS[item.reason]}
               </StatusChip>
-              <span>{item.credentialTypeName ?? "Worker"}</span>
+              <span className="in-[.chelth-locked]:font-semibold in-[.chelth-locked]:text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)]">
+                {item.credentialTypeName ?? "Worker"}
+              </span>
               {item.effectiveExpiryDate ? (
-                <span className="text-muted-foreground">expires {item.effectiveExpiryDate}</span>
+                <span className="text-muted-foreground in-[.chelth-locked]:text-slate-600">
+                  expires {item.effectiveExpiryDate}
+                </span>
               ) : null}
               {item.scope === "facility" ? (
                 <span className="text-muted-foreground">(facility requirement)</span>
@@ -50,13 +57,41 @@ export function ReadinessPanel({ title, readiness, headingId }: ReadinessPanelPr
       ) : null}
       {met.length > 0 ? (
         <ul
-          className="flex flex-col gap-1 text-sm text-muted-foreground"
+          className="flex flex-col gap-1 text-sm text-muted-foreground in-[.chelth-locked]:gap-2"
           aria-label={`${title} requirements met`}
         >
           {met.map((item, index) => (
-            <li key={`${item.requirementId}-${index}`}>
-              ✓ {item.credentialTypeName}
-              {item.effectiveExpiryDate ? ` — valid to ${item.effectiveExpiryDate}` : ""}
+            <li
+              key={`${item.requirementId}-${index}`}
+              className="in-[.chelth-locked]:flex in-[.chelth-locked]:items-center in-[.chelth-locked]:gap-3"
+            >
+              {/* Locked credential glyph (C): solid green check with a soft halo. */}
+              <span
+                aria-hidden="true"
+                className="hidden size-[22px] shrink-0 items-center justify-center rounded-full bg-success-indicator text-white ring-4 ring-success-soft in-[.chelth-locked]:inline-flex"
+              >
+                <svg
+                  viewBox="0 0 16 16"
+                  className="size-[13px]"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2.4}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M3.8 8.4 6.7 11.2 12.2 5.2" />
+                </svg>
+              </span>
+              <span className="in-[.chelth-locked]:hidden">✓ </span>
+              <span className="in-[.chelth-locked]:font-semibold in-[.chelth-locked]:text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)]">
+                {item.credentialTypeName}
+              </span>
+              {item.effectiveExpiryDate ? (
+                <span className="in-[.chelth-locked]:text-slate-600">
+                  {" "}
+                  — valid to {item.effectiveExpiryDate}
+                </span>
+              ) : null}
             </li>
           ))}
         </ul>

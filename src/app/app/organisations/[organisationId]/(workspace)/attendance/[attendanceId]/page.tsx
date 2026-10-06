@@ -1,7 +1,11 @@
-import type { Metadata } from "next";
+import type { Metadata, Route } from "next";
 import Link from "next/link";
 
+import { RefChip } from "@/components/reference/locked-reference";
+import { RecordList, RecordNote, RecordPage } from "@/components/reference/record-page";
+import { KeyValueList } from "@/components/ui/key-value-list";
 import { Panel } from "@/components/ui/panel";
+import { SectionTabs } from "@/components/ui/section-tabs";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 
@@ -43,6 +47,7 @@ import {
   CORRECTION_STATUS_LABELS,
   describeCorrectionTarget,
   EXCEPTION_RESOLUTION_LABELS,
+  formatLocalClockTime,
   GEOFENCE_RESULT_LABELS,
 } from "@/lib/domain/attendance";
 import { formatShiftDate, formatShiftTimeRange, localDate } from "@/lib/domain/shifts";
@@ -166,9 +171,33 @@ export default async function AttendanceRecordPage({
     (exception) => exception.status === "open" || exception.status === "under_review",
   );
 
+  const sections = [
+    { label: "Summary", href: "#summary-heading" as Route, current: false },
+    { label: "History", href: "#history-heading" as Route, current: false },
+    ...(open.length > 0
+      ? [{ label: "Exceptions", href: "#record-exceptions-heading" as Route, current: false }]
+      : []),
+    ...(canReview ? [{ label: "Adjust", href: "#adjust-heading" as Route, current: false }] : []),
+    ...(evidenceAccess !== "not_held"
+      ? [{ label: "Evidence", href: "#evidence-heading" as Route, current: false }]
+      : []),
+  ];
+  const locationResult = (result: typeof row.clockInLocation) =>
+    result && result !== "not_required" ? (
+      <RefChip
+        tone={result === "inside" ? "success" : result === "outside" ? "danger" : "warning"}
+        className="font-semibold"
+      >
+        {GEOFENCE_RESULT_LABELS[result]}
+      </RefChip>
+    ) : (
+      "Not required"
+    );
+
   return (
-    <>
+    <RecordPage>
       <PageHeader
+        variant="reference"
         title={worker}
         back={
           <Link
@@ -179,7 +208,7 @@ export default async function AttendanceRecordPage({
           </Link>
         }
         description={
-          <p className="text-sm">
+          <p>
             {row.facilityName} · {row.locationName} · {formatShiftDate(row)} ·{" "}
             {formatShiftTimeRange(row)} ({row.timezone})
           </p>
@@ -196,11 +225,34 @@ export default async function AttendanceRecordPage({
         }
       />
 
+      <SectionTabs label="Attendance record sections" tabs={sections} />
+
+      <Panel titleId="summary-heading" title={<>Summary</>}>
+        <KeyValueList
+          className="max-w-2xl"
+          items={[
+            {
+              label: "Status",
+              value: (
+                <AttendanceStateBadge clockState={row.clockState} needsReview={row.needsReview} />
+              ),
+            },
+            { label: "Clock-in", value: formatLocalClockTime(row.clockInAt, row.timezone) },
+            { label: "Location at clock-in", value: locationResult(row.clockInLocation) },
+            { label: "Clock-out", value: formatLocalClockTime(row.clockOutAt, row.timezone) },
+            { label: "Location at clock-out", value: locationResult(row.clockOutLocation) },
+            { label: "Shift", value: `${formatShiftDate(row)} · ${formatShiftTimeRange(row)}` },
+            { label: "Site", value: `${row.facilityName} · ${row.locationName}` },
+            { label: "Pending corrections", value: row.pendingCorrections },
+          ]}
+        />
+      </Panel>
+
       <Panel titleId="history-heading" title={<>History</>}>
-        <p className="max-w-2xl text-sm text-muted-foreground">
+        <RecordNote className="max-w-2xl">
           Every recorded event, request and decision, oldest first. Nothing is ever edited or
           removed; corrections are added as new entries.
-        </p>
+        </RecordNote>
         <DataTableRegion aria-label="Attendance history">
           <DataTable className="min-w-[720px]">
             <DataTableHead>
@@ -238,11 +290,11 @@ export default async function AttendanceRecordPage({
 
       {open.length > 0 ? (
         <Panel titleId="record-exceptions-heading" title={<>Open exceptions</>}>
-          <ul aria-label="Open exceptions for this record" className="flex flex-col gap-2">
+          <RecordList label="Open exceptions for this record">
             {open.map((exception) => (
               <li
                 key={exception.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface p-3 text-sm"
+                className="flex min-h-14 flex-wrap items-center justify-between gap-3 px-1 py-2.5"
               >
                 <StatusChip tone={exception.severity === "urgent" ? "danger" : "attention"}>
                   {ATTENDANCE_EXCEPTION_LABELS[exception.type]}
@@ -289,16 +341,16 @@ export default async function AttendanceRecordPage({
                 ) : null}
               </li>
             ))}
-          </ul>
+          </RecordList>
         </Panel>
       ) : null}
 
       {canReview ? (
         <Panel titleId="adjust-heading" title={<>Record an adjusted time</>}>
-          <p className="max-w-2xl text-sm text-muted-foreground">
+          <RecordNote className="max-w-2xl">
             For example after a facility discrepancy. A reason is required, the original event stays
             in the history and {worker} is told about the change.
-          </p>
+          </RecordNote>
           <AdjustAttendanceForm
             organisationId={organisationId}
             attendanceId={record.attendanceId}
@@ -324,6 +376,6 @@ export default async function AttendanceRecordPage({
           )}
         </Panel>
       ) : null}
-    </>
+    </RecordPage>
   );
 }

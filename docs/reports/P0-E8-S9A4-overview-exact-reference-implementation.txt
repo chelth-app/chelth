@@ -1,0 +1,915 @@
+P0-E8-S9A4 — OPERATIONS OVERVIEW: EXACT REFERENCE IMPLEMENTATION
+=================================================================
+
+Branch: p0-e8-visual-implementation (uncommitted)
+Status: AWAITING HUMAN VISUAL REVIEW.
+- Not committed.
+- Shifts presentation untouched in this pass (only the shared shell type
+  noted in section 3 applies there).
+- S9B not started.
+
+
+1. REFERENCE FILES USED
+-----------------------
+docs/ui-reference/p08-e8/canonical/Chelth_Operations_Overview/
+
+assets/chelth-operations-overview-locked.png
+  The render target (1536 x 1024).
+
+index.html
+  The PNG under transparent hotspots. It gives the canvas and these hotspot
+  rectangles: KPI cards 17.45% / 12.6%; schedule rows 38.55% + n x 4.1%;
+  request rows 72.9% + n x 4.2%; credential rows 3.05% pitch; header
+  actions 32.4% / 3.2%. It has no component CSS, so all other geometry is
+  measured from the PNG.
+
+README.md, CLAUDE-IMPLEMENTATION.md, OPERATIONS-OVERVIEW-INTERACTIONS.md
+  Behaviour: KPI cards route; rows open records; "View …" actions; no KPI
+  sparklines; no brand drift.
+
+CHELTH-PRODUCT-TYPOGRAPHY.md
+  Font families (Manrope display / Inter UI). Sizes and weights follow the
+  PNG's rendered ink where the two disagree (brief, item 11).
+
+Also read:
+- src/styles/brand.css
+- docs/brand/CHELTH-BRAND-GUIDELINES.md
+- docs/brand/CHELTH-DESIGN-TOKENS.md
+
+All colours used are brand tokens or color-mix shades of them.
+
+
+2. REFERENCE CANVAS
+-------------------
+- Canvas: 1536 x 1024.
+- The reference draws the app inside a presentation frame: a rounded window
+  at x 11..1523, y 13..1009 (1512 x 996) on a mint backdrop.
+- The live app has no frame, so the approval comparison renders the app at
+  1512 x 996 and places it at the frame origin (11, 13) on the 1536 x 1024
+  canvas. That is the same canvas, at 1:1 with no scaling, overlaid at 50%.
+- For completeness, the raw 1536 x 1024 viewport captures are included
+  (02b, 04b). The page is then 24 px wider than the framed window, so those
+  are not used for the overlay.
+
+Measurement tools (scratchpad, not shipped):
+- scanline edge detection for card and panel bounds;
+- ink metrics (top, height, width, stroke) for text;
+- a font calibrator that renders the reference strings in the app's own
+  Inter / Manrope variable fonts across sizes, weights and tracking, and
+  picks the best ink match.
+
+
+3. SHELL REPRODUCTION (canvas px; frame-relative = canvas − 11 / 13)
+--------------------------------------------------------------------
+Each entry gives reference, then after.
+
+Sidebar
+  11..225 (214) / 214 (lg:grid-cols-[214px_…])
+Sidebar colour
+  #002E38-#01303B / Teal Dark+Navy mix, shaded (≈ #0D2F35)
+Logo
+  x 33, y 34; 162 wide / x 33, y 34; 161 wide (canonical asset; its own
+  aspect gives a taller box)
+Active pill
+  21..212 x 107..152 (45) / identical (pl 10, pr 13, min-h 45)
+Nav pitch
+  ~52 / 52 (45 + 7)
+Icons
+  22 px at pill + 14 / identical
+Labels
+  x 74; "Overview" 62 w, h 12 / Inter 15 / 450 / −0.01em: 65 w, h 11,
+  stroke 2.41 vs 2.47
+Active fill
+  #005358-#025D61 / Teal Dark (#0D514F) with a white/22 border
+Foot
+  mint wave / an SVG wave from Teal / Mint tokens, behind the nav
+  (decorative)
+Top bar
+  ~76 / 76
+User block
+  avatar 46, name cap 33, role cap 56, chevron x ~1485 /
+  avatar 46, name cap ~31, role cap ~53, chevron x ~1487 (±3 px)
+Workspace identity
+  (search field slot) / 14 px medium name + 12 px type, quiet, at the
+  content origin
+
+Absent routes (Staffing Requests, Credentials, Reports, Notifications,
+Settings) are omitted. The routes that exist keep the reference row
+geometry.
+
+
+4. HEADER REPRODUCTION
+----------------------
+Each entry gives reference, then after.
+
+Title
+  ink top 108, left 255, w 324, stroke 7.0 /
+  top 107, left 256, w 323, stroke 6.5. Manrope 31.5 / 800, heading navy.
+Subtitle
+  baseline row 140..159, w 434 / 143..159, w 434. Inter 17.5 / 400.
+Title to subtitle
+  0 gap / PageHeader variant="reference" (gap-0)
+Header to KPI row
+  KPI top 177 / 177 (xl:-mb-1.5 against the 20 px page gap)
+
+
+5. KPI REPRODUCTION
+-------------------
+Each entry gives reference, then after.
+
+Row
+  4 cards, right edges 559 / 868 / 1184 / 1502 /
+  556 / 871 / 1187 / 1502 (equal columns, 13 px gap)
+Card bounds
+  177..310 (133) / 177..309 (xl:min-h-[133px])
+Radius, border, shadow
+  ~12, hairline, soft / rounded-xl, chelth-border/55, 0 2px 10px
+  rgba(21,45,49,.05)
+Icon tile
+  62 x 60 at (12, 11), radius 10, tinted / 62 px, radius 10, tinted with
+  brand / semantic soft tokens
+Icon
+  reference solid glyph ~34 px / existing line icon set (workforce, shifts,
+  compliance, facilities), 34 px, stroke 2.3
+Text column
+  x 354 / 355
+Label
+  ink top 199, w 78, stroke 2.79 / 201, 79, 2.78. Inter 14.75 / 500.
+Value
+  ink top 223, h 23, stroke 6.44 / 224, h 23. Manrope 30.5 / 800.
+Supporting
+  ink top 255 / 254. Inter 12.75 / 400.
+Footer
+  chip + "View shifts →" at y ~286 / the same line ("Needs coverage" chip +
+  action; notes with a glyph on cards 2-4)
+
+Slots, with real counts:
+- Open Shifts: open upcoming shifts. "Across N facilities". "Needs coverage"
+  when any are not fully staffed.
+- Pending Confirmations: assigned minus accepted on upcoming open shifts.
+  "N on shifts within 24 hours".
+- Assignment Issues (the reference "Credential Issues" slot): the existing
+  assignment issue queue. "N urgent".
+- Facility Requests: facility-sourced upcoming shifts. "N awaiting opening".
+- Users without shift / issue grants (for example Finance) see Attendance
+  to Review / Timesheets to Approve in the same slots.
+
+
+6. MAIN GRID REPRODUCTION
+-------------------------
+Each entry gives reference, then after.
+
+Columns
+  left 255..1044 (790), right 1061..1502 (442), gap 16 /
+  xl:grid-cols-[1.787fr_1fr], gap-4. Edges 256..1044 and 1062..1502.
+Left panels
+  323..665 (342), 12, 677..967 (290) /
+  323..664, 677..966 (min-h 342 / 290, gap 12)
+Right panels
+  323..525 (202), 10, 535..696 (161), 13, 709..969 (260) /
+  323..525, 536..696, 710..970
+KPI to panels
+  13 / 13
+
+Every major bound agrees within 1 px (see section 16).
+
+
+7. SCHEDULE PANEL (Today's Schedule)
+------------------------------------
+Each entry gives reference, then after.
+
+Panel
+  342 px, title at +15 / RefPanel: px 10, pt 8, title row 33, title −3 px
+  as in the reference
+Title ink
+  top 338, w 165, stroke 4.72 / top 338, w 164, stroke 4.65. Manrope 20 /
+  800, heading navy.
+Action
+  "View All Shifts" outlined, 33 tall / "View attendance" outlined,
+  33 px (44 px touch)
+Header band
+  inset 10, 28 tall, radius 6, tint / identical (REF_TABLE)
+Header text
+  ink top 381 / 384 (≈ +3). Inter 11.5 / 400.
+Rows
+  40-42 px, hairline dividers, 32 px avatar, glyph chips /
+  h-10 rows, hairlines, initials avatar, RefChip (26 px)
+Columns
+  Time | Role | Facility | Staff Member | Status | ••• /
+  Time | Role | Facility | Staff Member | Status
+
+Role is the real discipline, joined by shift id from the loaded upcoming
+shifts. No row menu exists.
+
+Empty state: the full panel height, header band and an in-table message
+are kept. It does not collapse.
+
+
+8. STAFFING REQUESTS PANEL
+--------------------------
+- Panel 290 px, the same chrome, header and action ("View requests").
+- Columns: Need Date | Facility (pin + link to the shift) | Unit | Role
+  (code, as in the reference) | Time | Status chip.
+- The reference's "Requested" timestamp is not in the list projection. A
+  real Time column keeps the six-column structure.
+- Rows: facility-sourced upcoming shifts (real), at most 5.
+
+
+9. RIGHT RAIL
+-------------
+Workforce Readiness slot
+- "Workforce Status", 202 px.
+- Ring: 146 px with a 17 px stroke, 25 px from the panel edge. Identical
+  position; the overlay coincides.
+- Centre: "% / Workforce / active". This is a truthful share of current
+  workers whose status is Active; Chelth has no readiness aggregate.
+- Legend: 4 rows (Active / Onboarding / Inactive / Suspended), 33 px pitch,
+  13 px dots, counts right-aligned. First row ink top 384 = reference 384.
+
+Credential Expirations slot
+- "Shift Coverage", 161 px, with the same structure: title at +15, right
+  meta "From today", 127 px label column, 14 px bar track with a 4 px
+  radius, 45 px count column, 29 px rows.
+- First row ink top 583 = reference 583.
+- Data: upcoming shifts that are Requested / Unfilled / Partially filled /
+  Filled (real).
+
+Coverage Activity slot
+- "Coverage Outlook", 260 px.
+- The same chart composition: y ticks, stacked bars, a line with markers,
+  x labels and legend; static "Next 14 days" in the range-control slot.
+- Data: the real next 14 days (filled and open places per day, facility
+  requests per day). No historical series is fabricated.
+- Axis label ink 913-918 against 918; legend 945 against 948 (±3-5 px).
+
+
+10. TYPOGRAPHY
+--------------
+Calibrated against the PNG ink (size / weight / tracking / colour):
+- Title: Manrope 31.5 / 800, heading navy.
+- Subtitle: Inter 17.5 / 400, muted.
+- Nav: Inter 15 / 450 / −0.01em.
+- Top bar: name 15.25 / 500, role 14 / 400.
+- KPI label: 14.75 / 500. KPI value: Manrope 30.5 / 800. KPI supporting:
+  12.75 / 400.
+- Panel titles: Manrope 20 / 800 / −0.02em.
+- Tables: 11.5 / 400.
+- Chips: 11.5 / 500.
+- Panel actions: 13 / 400.
+- Legend / bar rows: 14 / 400.
+- Chart axes: 11 / 400. Chart legend: 14 / 400.
+
+Heading navy = color-mix(Navy 72%, black). The reference headings render
+near-black navy (#070739); this is the brand Navy shaded.
+
+
+11. DENSITY
+-----------
+- Panel heights, row heights and gaps follow the reference exactly at the
+  approval canvas (min-heights, so narrower widths can grow without
+  clipping).
+- The right rail fills all three slots; there are no sparse cards.
+- Empty data keeps the full reference chrome.
+
+
+12. ICON TREATMENT
+------------------
+- KPI tiles use the existing line icon set (WorkspaceNavIcon) at 34 px with
+  a 2.3 stroke, on tinted tiles (mint / info / danger soft).
+- WorkspaceNavIcon gained an optional strokeWidth; this is not a new icon
+  family.
+- The S9A.3 solid glyphs are no longer used on the Overview. Shifts still
+  uses them and was deliberately not touched in this pass.
+- The facility pin (LocationPin) and the chip marks are drawn in the same
+  line style.
+
+
+13. PANEL CHROME
+----------------
+- RefPanel / REF_CARD:
+  - white surface, 12 px radius, hairline border (chelth-border/55), soft
+    shadow;
+  - insets 10 px; title row 33 px with the title at +15;
+  - 9 px to the table band;
+  - tinted rounded header band; hairline row dividers.
+
+
+14. FUNCTIONAL PRESERVATION
+---------------------------
+Unchanged:
+- data loaders and capability gates;
+- links: KPI filters, record links, "View …" actions;
+- tenancy, RLS and auth;
+- the MFA verification notice;
+- Members / Invitations / Recent activity (below the dashboard, under the
+  quiet "Administration" divider).
+
+No server action, query, RPC or migration changed. The Overview's derived
+counts come from the existing list queries.
+
+
+15. UNSUPPORTED REFERENCE FEATURES (slot kept, truthful content)
+----------------------------------------------------------------
+- Global search, notification bell, date selector: omitted. The top-bar
+  geometry is kept.
+- Reports, Notifications, Settings, Staffing Requests and Credentials
+  routes: not in the product.
+- Worker photos: initials avatars.
+- Row "•••" menus: none.
+- Request "Requested" timestamp: not available.
+- "Workforce Ready" score: replaced by "% active".
+- Credential expiration aggregate: replaced by Shift Coverage.
+- Historical coverage series: replaced by the forward 14-day outlook.
+- Chart range dropdown: static label.
+
+
+16. SCREENSHOT OVERLAY RESULTS
+------------------------------
+docs/reports/overview-fidelity/
+
+01-reference.png                           locked PNG
+02-before-1536x1024.png                    BEFORE (S9A.3 state), framed
+02b-before-raw-viewport-1536x1024.png      raw viewport
+03-before-overlay.png                      50% reference / before
+04-after-1536x1024.png                     AFTER, framed
+04b-after-raw-viewport-1536x1024.png       raw viewport
+05-after-overlay.png                       50% reference / after
+06-after-1280.png                          responsive check
+07-after-412.png                           responsive check
+
+Bounds from the overlay (canvas px, reference → after):
+- KPI top / bottom: 177 / 310 → 177 / 309.
+- KPI right edges: 559 / 868 / 1184 / 1502 → 556 / 871 / 1187 / 1502.
+- Panel tops: 323 → 323.
+- Schedule bottom: 665 → 664.
+- Requests: 677..967 → 677..966.
+- Workforce: 323..525 → 323..525.
+- Coverage bars: 535..696 → 536..696.
+- Chart: 709..969 → 710..970.
+- Left / right columns: 255..1044 / 1061..1502 → 256..1044 / 1062..1502.
+
+Text placements (ink top, reference → after):
+- title 108 → 107
+- KPI label 199 → 201
+- KPI value 223 → 224
+- panel titles 338 → 338
+- legend 384 → 384
+- bar rows 583 → 584
+- chart title 727 → 725
+
+The ring position and size coincide.
+
+Completion gate:
+- Sidebar, top bar, title block, all four KPI bounds, grid bounds, panel
+  bounds, ring, bar-panel structure, table bands and row density align.
+- Typography matches the PNG ink within the deltas listed above.
+
+
+17. REMAINING VISUAL DIFFERENCES
+--------------------------------
+Data or feature driven (allowed):
+- Every item in section 15.
+- Real values, row counts and empty states: this QA world has no attendance
+  today and 2 facility requests.
+- The legend has 1 non-zero status, so the ring is a single arc.
+
+Measured residuals (not data driven):
+- Title stroke 6.5 against 7.0. Manrope 800 is the heaviest weight the
+  approved font provides; the reference renders slightly heavier.
+- Table header band text sits about 3 px lower.
+- Top-bar name and role sit about 2-3 px higher.
+- Chart axis and legend text are within about 5 px.
+- The logo box is taller than the reference lockup because of the canonical
+  asset's own aspect (the width matches).
+
+At 1280 and 412 the layout reflows: KPI cards grow and wrap, and tables
+scroll inside their regions. The approval canvas is 1536 x 1024.
+
+
+18. TESTS
+---------
+Full suite on the final code:
+- npm run format:check: pass
+- npm run lint: pass (0 warnings)
+- npm run typecheck: pass
+- npm test: 337 passed
+- npm run build: pass
+- npm run check:bundle: OK (64 browser files scanned, no secrets found)
+- npx playwright test: 212 passed, 2 skipped (pre-existing), 0 failed
+
+No test changes were needed in this pass.
+
+
+19. FILES CHANGED (this pass)
+-----------------------------
+- src/app/app/organisations/[organisationId]/(workspace)/_components/agency-operations-overview.tsx
+  Exact slot heights and gaps; existing line icons; chart and legend
+  offsets; min-heights.
+- src/app/app/organisations/[organisationId]/(workspace)/page.tsx
+  Header spacing into the KPI row.
+- src/components/reference/locked-reference.tsx
+  Panel title 800 + heading navy + −3 px; KPI label 500, value 800; icon
+  override; KPI 133 px minimum; footer spacing.
+- src/components/ui/page-header.tsx
+  Reference variant: heading navy, subtitle 17.5 px.
+- src/components/layout/workspace-nav-icon.tsx
+  Optional strokeWidth.
+- src/components/layout/workspace-sidebar.tsx
+  Nav label 15 / 450 (shared shell).
+- src/components/layout/workspace-switcher.tsx
+  Role line spacing (shared shell).
+- docs/reports/overview-fidelity/* (screenshots)
+- docs/reports/P0-E8-S9A4-overview-exact-reference-implementation.txt
+
+The shared shell change (nav label weight, role spacing) also shows on the
+Shifts page shell. That was required for the Overview shell to match. The
+Shifts page presentation itself was not changed.
+
+
+20. GIT STATUS
+--------------
+Branch p0-e8-visual-implementation. Uncommitted: earlier S9A stages plus
+this pass.
+
+ M src/app/app/organisations/[organisationId]/(workspace)/_components/agency-operations-overview.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/shifts/page.tsx
+ M src/app/globals.css
+ M src/components/layout/app-shell.tsx
+ M src/components/layout/mobile-workspace-nav.tsx
+ M src/components/layout/page-container.tsx
+ M src/components/layout/workspace-nav-icon.tsx
+ M src/components/layout/workspace-sidebar.tsx
+ M src/components/layout/workspace-switcher.tsx
+ M src/components/ui/data-table.tsx
+ M src/components/ui/detail-drawer.tsx
+ M src/components/ui/filter-bar.tsx
+ M src/components/ui/kpi-filter-card.tsx
+ M src/components/ui/page-header.tsx
+ M src/components/ui/panel.tsx
+ M src/features/shifts/components/badges.tsx
+ M src/features/shifts/index.ts
+ M src/lib/domain/shifts.ts
+ M tests/e2e/agency-surfaces.spec.ts
+ M tests/e2e/assignment-operations.spec.ts
+ M tests/e2e/final-sweep.spec.ts
+ M tests/e2e/identity.spec.ts
+ M tests/e2e/shifts-assignments.spec.ts
+ M tests/e2e/support.ts
+ M tests/e2e/workspace-shell.spec.ts
+ M tests/unit/lib/shift-vocabulary.test.ts
+?? docs/reports/P0-E8-S9A-locked-visual-fidelity-shell-overview-shifts.txt
+?? docs/reports/P0-E8-S9A4-overview-exact-reference-implementation.txt
+?? docs/reports/overview-fidelity/
+?? docs/reports/s9a-visual-review/
+?? src/app/app/organisations/[organisationId]/(workspace)/shifts/_components/
+?? src/components/reference/
+?? src/components/ui/location-pin.tsx
+
+Nothing was committed, pushed, merged or deployed. Shifts presentation was
+not touched. S9B has not been started.
+
+STOP: awaiting human visual review.
+
+
+
+==========================================================================
+FINAL RENDER-FIDELITY CORRECTION (follow-up pass)
+==========================================================================
+
+Scope:
+- The Overview's rendered differences only, plus the shell elements it
+  shows.
+- Page architecture and macro geometry are unchanged.
+- Shifts was not touched.
+
+A. QA DATA AT REFERENCE DENSITY (fixture only)
+----------------------------------------------
+New spec: tests/e2e/overview-fidelity.spec.ts.
+
+It builds its own world through the existing public RPCs only:
+- create_agency_facility, create_facility_location,
+  create_facility_relationship and set_facility_relationship_status;
+- create_shift, assign_worker_to_shift, accept_shift_assignment,
+  clock_in_assignment;
+- submit_facility_shift_request and open_shift.
+
+There is no seed, migration or product change.
+
+What it creates:
+- Today's Schedule: 5 accepted day-shift assignments across 3 client
+  facilities, with 2 workers clocked in.
+- Staffing Requests: 5 facility requests over the coming days, 2 of them
+  opened by the agency.
+
+Day shifts in every run: the 3 facilities are created in whichever real
+IANA timezone currently has local midday, so the schedule shows ordinary
+day shifts (7:00 AM – 3:00 PM …) whenever the suite runs. In the US evening
+the New York fixture facility would otherwise show overnight shifts.
+
+The spec asserts 5 schedule rows, 5 request rows and populated workforce
+counts. It captures 1512 x 996 (the reference frame), 1536 x 1024, 1280 and
+412 from the production build (next start).
+
+B. CORRECTIONS
+--------------
+Today's Schedule role column (bug)
+- Before: the role lookup only covered shifts from the UTC "today", so in
+  the US evening today's facility-local shifts showed "—".
+- Now: the lookup uses the existing list query over yesterday to tomorrow
+  (an extra call of the same query, used only for the role map).
+
+Table columns
+- Both tables now use the reference's fixed column starts:
+  - Schedule: 17 / 21.6 / 22.6 / 20.3 / 18.5 %.
+  - Requests: 13.6 / 21.8 / 14.2 / 13.8 / 16.4 / 20.2 %.
+  The overlay shows the header labels and cells on the reference columns.
+- Cell padding is 12 px left and 4 px right.
+- Header text is regular weight (browsers render th bold by default).
+- Time cells show the facility-local range as the reference does. The zone
+  is kept for screen readers and on hover, and the cells wrap rather than
+  truncate.
+
+Weights tuned down where the ink was heavier than the PNG
+- KPI value: Manrope 800 → 700 (stroke 7.7 → about 6.4, reference 6.4).
+- Overview chips: 500 → 400 (stroke 2.0 → 1.7).
+- Legend counts: 600 → 500.
+- Bar counts: muted.
+
+KPI icons
+- The existing line icon set, with the stroke raised to 2.5 to approach the
+  reference glyph weight.
+
+Shift Coverage
+- Bars now use the reference's gradient treatment, Teal → Teal/Mint, with
+  the 14 px track and 4 px radius.
+
+Coverage Outlook
+- Left and bottom axis rules added.
+- Points are 3.2 px with a 2 px stroke.
+- The legend markers include the line-with-dot marker.
+- Legend spacing fits one line.
+
+Top bar
+- The workspace identity is now a single quiet line (13 px, muted, name
+  500) on the reference search-field line.
+- The lg+ bar keeps the reference's open space.
+- Below lg the existing header is unchanged.
+
+The black "N" circle in earlier captures is the Next.js development
+indicator, shown only by `next dev`. All gate screenshots in this pass come
+from the production build, where it does not exist. No product code was
+needed.
+
+C. SCREENSHOT GATE (docs/reports/overview-fidelity/)
+----------------------------------------------------
+01-reference.png                              locked PNG 1536 x 1024
+02-after-populated-1536x1024.png              app 1512 x 996 at the reference
+                                              frame origin on the 1536 x 1024
+                                              canvas
+03-overlay-populated-50pct.png                50% / 50%, same canvas, no
+                                              scaling
+04-kpi-reference-vs-after.png
+05-schedule-reference-vs-after.png
+06-right-rail-reference-vs-after.png
+07-requests-reference-vs-after.png
+08-after-populated-raw-viewport-1536x1024.png
+09-after-populated-1280.png
+10-after-populated-412.png
+previous-pass-unpopulated/                    the earlier, unpopulated
+                                              captures
+
+D. REMAINING VISUAL DIFFERENCES OBSERVED IN THE IMAGES
+------------------------------------------------------
+Brand colour
+- The reference uses saturated red / blue / orange for KPI notes, chips,
+  icons and the chart line. The implementation uses the brand semantic
+  tokens (critical, info, warning), which are muted.
+- KPI tile tints follow the brand soft tokens.
+- The PNG's colour is not adopted where it conflicts with brand compliance.
+
+Icons
+- The reference KPI icons are solid glyphs. The implementation uses the
+  existing line icon set at a heavier stroke. Introducing a new icon family
+  is not allowed.
+
+Data
+- Real QA values: one discipline (CNA) for all workers; requests all from
+  the one linked facility (Mercy Rehab).
+- A 100% active workforce, so the ring has a single arc.
+- Sparse chart values.
+- Initials instead of photos; no row menus; "Need Date" in place of the
+  reference "Requested" timestamp.
+
+Type
+- The page title renders slightly lighter than the PNG; 800 is the heaviest
+  Manrope weight.
+- Table text matches the reference's width but has a smaller cap height.
+  The reference renders a narrower face at a larger size.
+
+Logo
+- The canonical asset's own aspect makes its box taller (the width
+  matches).
+
+E. TESTS (final code)
+---------------------
+Results:
+- npm run format:check: pass
+- npm run lint: pass (0 warnings)
+- npm run typecheck: pass
+- npm test: 337 passed
+- npm run build: pass
+- npm run check:bundle: OK (64 browser files scanned, no secrets found)
+- npx playwright test: 214 passed (including the new overview-fidelity spec
+  on desktop and mobile), 2 skipped (pre-existing), 0 failed
+
+F. FILES (this pass)
+--------------------
+- src/app/app/organisations/[organisationId]/(workspace)/_components/agency-operations-overview.tsx
+- src/components/reference/locked-reference.tsx (Overview-only classes:
+  REF_TABLE, KPI value weight)
+- src/components/layout/app-shell.tsx (quiet workspace identity, lg+)
+- tests/e2e/overview-fidelity.spec.ts (new; QA fixture and captures)
+- docs/reports/overview-fidelity/*
+
+G. GIT STATUS
+-------------
+Branch p0-e8-visual-implementation, uncommitted.
+
+ M src/app/app/organisations/[organisationId]/(workspace)/_components/agency-operations-overview.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/shifts/page.tsx
+ M src/app/globals.css
+ M src/components/layout/app-shell.tsx
+ M src/components/layout/mobile-workspace-nav.tsx
+ M src/components/layout/page-container.tsx
+ M src/components/layout/workspace-nav-icon.tsx
+ M src/components/layout/workspace-sidebar.tsx
+ M src/components/layout/workspace-switcher.tsx
+ M src/components/ui/data-table.tsx
+ M src/components/ui/detail-drawer.tsx
+ M src/components/ui/filter-bar.tsx
+ M src/components/ui/kpi-filter-card.tsx
+ M src/components/ui/page-header.tsx
+ M src/components/ui/panel.tsx
+ M src/features/shifts/components/badges.tsx
+ M src/features/shifts/index.ts
+ M src/lib/domain/shifts.ts
+ M tests/e2e/agency-surfaces.spec.ts
+ M tests/e2e/assignment-operations.spec.ts
+ M tests/e2e/final-sweep.spec.ts
+ M tests/e2e/identity.spec.ts
+ M tests/e2e/shifts-assignments.spec.ts
+ M tests/e2e/support.ts
+ M tests/e2e/workspace-shell.spec.ts
+ M tests/unit/lib/shift-vocabulary.test.ts
+?? docs/reports/P0-E8-S9A-locked-visual-fidelity-shell-overview-shifts.txt
+?? docs/reports/P0-E8-S9A4-overview-exact-reference-implementation.txt
+?? docs/reports/overview-fidelity/
+?? docs/reports/s9a-visual-review/
+?? src/app/app/organisations/[organisationId]/(workspace)/shifts/_components/
+?? src/components/reference/
+?? src/components/ui/location-pin.tsx
+?? tests/e2e/overview-fidelity.spec.ts
+
+Nothing was committed, pushed, merged or deployed. Shifts was not touched.
+S9B has not been started.
+
+STATUS: AWAITING HUMAN VISUAL APPROVAL
+
+
+==========================================================================
+LOCKED SIDEBAR + FROSTED SURFACE CORRECTION
+==========================================================================
+
+Scope: visual CSS and markup only, for the shell and the Operations
+Overview. No product logic, query, route or capability changed. Shifts was
+not touched (it shares only the shell).
+
+1. SIDEBAR (src/components/layout/workspace-sidebar.tsx, globals.css)
+---------------------------------------------------------------------
+Colours, sampled from the approved PNG (which is the approval):
+- Sidebar: #002D37 at the top, deepening to #00363F, then the lower
+  treatment.
+- Active pill: #00565B with a white/25 hairline, a faint inner highlight
+  and a 1 px drop shadow, as in the reference.
+- Contrast: white text 14.7:1 on the sidebar, 8.5:1 on the pill.
+
+Lower ambient treatment, an inline decorative SVG (aria-hidden,
+pointer-events none, behind the nav, clipped by the sidebar, no layout
+effect):
+- Bottom 420 px: the deep tone ramps through teal (#186A6E, #4EA29E) to
+  mint (#BFE9DF).
+- A horizontal light layer, masked to the lower part, makes the right side
+  brighter, as in the reference.
+- A saturated teal band rises from the left.
+- Two fine white wave lines follow the reference curves (they enter on the
+  left at about 211 / 314 px from the top of the treatment).
+
+No bitmap, animation, glow or blur.
+
+Geometry is unchanged from the previous pass (it already aligned): width,
+logo, nav start, pitch, icon size and pill.
+
+2. CANVAS AND TOP BAR (src/components/layout/app-shell.tsx, lg+)
+----------------------------------------------------------------
+- Canvas: an off-white vertical wash (#FAFCFE → #F6FAFC → #F1F9FA, the
+  sampled reference values) plus a very faint mint radial in the lower
+  right. There are no visible bands.
+- Top bar: frosted (rgba(240,247,253,0.78) with a 10 px backdrop blur),
+  the same 76 px height and user-block position. Search and bell remain
+  absent.
+- Below lg the existing phone header is unchanged.
+
+3. FROSTED OPERATIONAL SURFACES (src/components/reference/locked-reference.tsx)
+------------------------------------------------------------------------------
+REF_CARD_FROSTED is applied only to the Overview KPI cards and Overview
+panels:
+- background white/90 with a 10 px backdrop blur;
+- a 1 px rgba(18,107,103,0.09) teal hairline;
+- a soft navy ambient shadow.
+
+Table rows, chips, fields and nav rows are not translucent. The Shifts
+cards keep their previous surface.
+
+4. SCREENSHOT GATE (docs/reports/overview-fidelity/sidebar-frost/)
+------------------------------------------------------------------
+01-reference-sidebar-crop.png
+02-after-sidebar-crop.png
+03-sidebar-overlay.png
+04-reference-overview.png
+05-after-overview.png            (app 1512 x 996 at the reference frame
+                                  origin on the 1536 x 1024 canvas;
+                                  populated QA data; production build)
+06-overview-overlay.png          (50%, same canvas, no scaling)
+07-sidebar-reference-after-overlay.png  (three-up)
+
+Observed in the images:
+- The sidebar tone, pill, lower ramp, teal band and both wave lines
+  coincide with the reference in the overlay.
+- Differences: the reference has extra items (Staffing Requests,
+  Credentials, Reports, Notifications with a badge, Settings, and a
+  divider) that do not exist in the product. The reference KPI icons in the
+  nav are solid glyphs; ours are the existing line icons.
+- The canonical logo box is taller than the reference lockup (the width
+  matches).
+
+5. TESTS
+--------
+Results:
+- format:check, lint, typecheck: pass
+- npm test: 337 passed
+- build: pass
+- check:bundle: OK
+- npx playwright test: 214 passed, 2 skipped (pre-existing), 0 failed
+
+Nothing was committed. Shifts was not touched. S9B has not been started.
+
+STATUS: AWAITING HUMAN VISUAL APPROVAL
+
+
+==========================================================================
+COLOR + ICON REFINEMENT PASS (layout unchanged)
+==========================================================================
+
+Colour
+- Overview-only palette scope (.ref-overview in globals.css), sampled from
+  the reference: teal #00756C / mint #8EE4CF / tile #E1F6F0, blue #2F74F0,
+  coral #E5484D, amber #E08A0A, green #12A383; ink headings #0C1E46; slate
+  secondary text #56647F. The theme is `@theme inline`, so the scope
+  redefines the --chelth-* brand variables; the soft tints and chip text
+  follow. Chip text contrast stays at or above 4.5:1. Other pages keep the
+  standard palette.
+- Ring: #009C84 active and #2ACCA8 onboarding. Coverage bars: a #009C84 →
+  #2ACCA8 gradient. Chart: #00635F filled bars, #8EE4CF open bars, a 2.5 px
+  blue line with white-filled points, softer gridlines and axes.
+
+Iconography
+- KPI icons: the same line-icon family in duotone (a 22% tinted fill,
+  2.25 stroke), in deliberate semantic colours (teal, blue, coral, teal).
+- KPI tiles: soft luminous gradients per colour family, with a white inner
+  highlight.
+
+Surfaces
+- Overview cards and panels: a near-white-to-cool-mint gradient at 90-95%
+  with a 10 px backdrop blur, a teal 10% hairline and a softer, deeper
+  ambient shadow.
+- Sidebar (shared shell): an ocean base #012B37 → #003A45, an active pill
+  gradient #00666C → #00575D with a white/30 edge and a lift shadow, wave
+  lines at 2 px and 90-95% opacity, and a soft mint ambient light in the
+  lower right.
+
+Deliberate deviation: the KPI footer notes and the "Needs coverage" chip
+use the darker chip-text shade. The reference's bright amber and red text
+falls below 4.5:1.
+
+Screenshots: docs/reports/overview-fidelity/color-icon/
+- 01: the 1536 x 1024 canvas
+- 01b: the raw viewport
+- 03: reference vs after
+- 04: sidebar crops (reference, after, overlay)
+- 05-07: KPI, right-rail and table crops
+
+Tests:
+- format, lint, typecheck, build and check:bundle pass
+- unit tests: 337 passed
+- Playwright: 214 passed, 2 skipped (pre-existing)
+
+Nothing was committed. Other pages were not touched beyond the shared
+sidebar.
+
+STATUS: AWAITING HUMAN VISUAL APPROVAL
+
+
+==========================================================================
+SIDEBAR + TYPOGRAPHY + SATURATION CORRECTION (layout unchanged)
+==========================================================================
+
+Saturation
+- Sidebar lower ramp is more saturated and luminous: #0F6F72 → #2AA39A →
+  #7FD4C6 → #B4ECDF. The rising teal band is now #0AA596 at 95%, and the
+  mint ambient light is stronger (95%).
+- The body tone already matched the reference (saturation 0.98-1.00 at
+  value 0.22) and is unchanged.
+- Overview accents: teal #007A70 and mint #86E6CF. KPI tile gradients are
+  richer (teal #E6F9F3→#CCEFE3 with a #00666A icon, blue #EAF3FE→#D3E5FC,
+  coral #FDEEED→#F8D8D5).
+- Duotone icon fill 28% with a 2.4 stroke.
+
+Logo visibility
+- The canonical asset is unchanged (no redraw, recolour or resize).
+- The sidebar wrapper adds brightness 1.12 and a soft aqua halo
+  (drop-shadow 0 0 10px rgba(42,204,168,0.30)) on the logo image, so the
+  symbol reads more luminous. The white wordmark stays crisp; its measured
+  stroke is 7.24 → 7.51, against 7.56 in the reference.
+- The descriptor line is drawn thin in the canonical asset itself. The
+  reference renders it heavier, which cannot be matched without editing
+  the asset.
+
+Typography weight
+- Page title: Manrope 800 (the heaviest the font provides) plus a 0.4 px
+  text stroke. Ink stroke 6.56 → 7.34 (reference 7.02).
+- Panel titles: plus a 0.2 px stroke. 4.72 → 5.20.
+- Sidebar labels: 450 → 500.
+- Body and supporting copy are unchanged.
+
+Active nav
+- Gradient #007079 → #005C63 (from flat #005E64).
+- White/35 edge, a 16% inner top highlight, a faint mint ring
+  (rgba(42,204,168,0.12)) and a lift shadow (0 4px 14px rgba(0,0,0,0.32)).
+- White text and icon contrast: 6.0:1 or better.
+
+Screenshots: docs/reports/overview-fidelity/saturation-type/
+- 01: the 1536 x 1024 canvas
+- 01b: the raw viewport
+- 02: reference vs after
+- 03: sidebar (reference, before, after)
+- 04: logo (reference, before, after)
+- 05: title (reference, before, after)
+
+Tests:
+- format, lint, typecheck, build and check:bundle pass
+- unit tests: 337 passed
+- Playwright: 214 passed, 2 skipped (pre-existing)
+
+Not committed. Other pages untouched beyond the shared sidebar.
+
+STATUS: AWAITING HUMAN VISUAL APPROVAL
+
+
+==========================================================================
+LOGO FIDELITY — DESCRIPTOR LEGIBILITY FINDING
+==========================================================================
+
+The sidebar uses the canonical vector asset /public/brand/chelth/logo-reverse.svg
+directly. It is unmodified, with a 56 px height, the canonical aspect, and a soft
+aqua halo on the mark.
+
+Finding
+- In the canonical SVG, the descriptor "HEALTHCARE WORKFORCE OPERATIONS"
+  is white outlined glyphs about 13 units tall in a 264-unit lockup. At
+  56 px that is about a 2.8 px cap height. It is already pure white, so no
+  contrast headroom remains.
+- On retina displays (2x) the unmodified asset renders crisp and legible.
+- On standard-density displays (1x) it is legible but faint.
+- The locked PNG's logo artwork sets the descriptor larger and heavier
+  relative to the wordmark (about 110 px wide against about 95 px in the
+  canonical file). The reference artwork and the production asset differ in
+  this detail.
+
+Tried and rejected
+- A second copy of the canonical asset, clipped to the descriptor band,
+  with hairline faux-bold (zero-blur white shadows). At both 1x and 2x it
+  double-struck and clotted the letterforms ("OPERATIIONS"). That is worse
+  than the original and effectively alters the mark, so it was reverted.
+
+Evidence: docs/reports/overview-fidelity/logo/01-logo-reference-1x-2x-comparison.png
+
+Decision needed (brand owner)
+- Matching the reference descriptor at 1x needs a brand-approved asset
+  change: a reverse lockup with the descriptor set larger or heavier (a
+  small-size / UI variant).
+- Once approved and placed in /public/brand/chelth/, it is a one-line swap
+  in BrandLogo. No asset was edited in this pass.
+
+STATUS: AWAITING HUMAN VISUAL APPROVAL

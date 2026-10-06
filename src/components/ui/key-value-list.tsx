@@ -25,8 +25,12 @@ export function KeyValueList({
     >
       {items.map((item) => (
         <div key={item.label} className="contents">
-          <dt className="pt-1.5 text-muted-foreground sm:pt-0">{item.label}</dt>
-          <dd className="min-w-0 break-words text-foreground">{item.value}</dd>
+          <dt className="pt-1.5 text-muted-foreground in-[.chelth-locked]:font-medium in-[.chelth-locked]:text-slate-600 sm:pt-0">
+            {item.label}
+          </dt>
+          <dd className="min-w-0 break-words text-foreground in-[.chelth-locked]:font-medium in-[.chelth-locked]:text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)]">
+            {item.value}
+          </dd>
         </div>
       ))}
     </dl>
