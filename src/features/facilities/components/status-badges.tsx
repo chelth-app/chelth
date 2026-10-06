@@ -6,13 +6,14 @@ import {
   type RelationshipStatus,
 } from "@/lib/domain/vocabulary";
 
-const FACILITY_TONE: Record<FacilityStatus, StatusTone> = {
+/** Shared with the locked Facilities presentation (same semantics everywhere). */
+export const FACILITY_TONE: Record<FacilityStatus, StatusTone> = {
   active: "success",
   inactive: "neutral",
   archived: "warning",
 };
 
-const RELATIONSHIP_TONE: Record<RelationshipStatus, StatusTone> = {
+export const RELATIONSHIP_TONE: Record<RelationshipStatus, StatusTone> = {
   pending: "info",
   active: "success",
   suspended: "warning",

@@ -1,0 +1,331 @@
+P0-E8 — SHIFTS CANONICAL LOCK
+=============================
+
+Branch: p0-e8-visual-implementation (uncommitted)
+Status: AWAITING HUMAN VISUAL APPROVAL.
+- Not committed.
+- No other page started.
+- Sidebar untouched.
+
+
+1. SCOPE
+--------
+Shifts main page, List view, Calendar view, Shift Details drawer, shift
+record page, and mobile Shifts.
+
+Presentation only. No change to schema, migrations, RLS, auth,
+capabilities, the shift state machine, or assignment, eligibility, offer,
+notification, attendance, finance or credential logic.
+
+
+2. REFERENCE FILES USED
+-----------------------
+docs/ui-reference/p08-e8/canonical/Chelth Shifts Interactive/
+- assets/chelth-shifts-list-locked.png (1448 x 1086)
+- assets/chelth-shifts-calendar-locked.png (1448 x 1086)
+- index.html: panel-start 1081, width 367; List / Calendar hotspots; row
+  and calendar-block hotspots; close / reopen behaviour.
+- README.md, LOCKED-DESIGN-SPEC.md, CLAUDE-IMPLEMENTATION.md.
+
+
+3. MAIN SHIFTS CHANGES
+----------------------
+- The page joins the locked system (.chelth-locked) with PageHeader
+  variant="reference": "Shifts" and the subtitle "Plan, assign, and track
+  shift coverage across facilities." The existing timezone rule is kept in
+  the subtitle.
+- Toolbar (form "Filter shifts") in the Facilities control geometry:
+  - date range (List view only; the Calendar uses week navigation);
+  - facility, status, Apply filters, Clear filters;
+  - "+ Create shift" in the canonical primary CTA, revealing the existing
+    create form at #create-shift.
+  - There is no role filter or search: neither is supported by the list
+    query.
+- KPIs (region "Upcoming shifts"): Open Shifts, Pending, Confirmed and Not
+  Fully Staffed. These are the existing real counts. They are now in the
+  locked md tile with duotone icons. Open Shifts stays the status quick
+  filter.
+- List / Calendar segmented control (nav "Shift views"): two links,
+  aria-current="page" on the active one.
+  - Active: deep-teal gradient with a white icon and label.
+  - Inactive: white, with navy text and a teal icon.
+  - State is in the URL: ?view=calendar&week=YYYY-MM-DD; List is the
+    default.
+- Docked drawer: at 1536 px and wider the work area contracts
+  (pr-[407px]) beside the canonical drawer.
+
+
+4. LIST VIEW
+------------
+- The existing table (region "Shifts table") is on the locked table system
+  (REF_TEXT.tableHead 600 on the tinted band).
+- Columns are unchanged: Date & Time, Role, Facility (pin, unit, facility
+  request and reference), Assigned Staff (initials avatar, +n), Credential
+  Status, Confirmation (or Needs attention n), Coverage Status (or
+  Relationship not active), Actions.
+- Row action: the canonical "⋮".
+- Selected-row treatment: teal inset rule and mint fill.
+- Pagination (cursor) is unchanged. No photos.
+
+
+5. CALENDAR VIEW
+----------------
+- Week grid (region "Weekly shift calendar"):
+  - real shifts for Mon–Sun of the chosen week, using the same paginated
+    query with a week window (page size 200) and the facility and status
+    filters;
+  - rows: assigned staff (from the real assignments, with that week's
+    hours) plus "Open places" for shifts still needing staff (open with
+    unfilled places, or draft / requested). Without assignment.view, a
+    single "All shifts" row;
+  - each shift sits on its facility-local date (localDate(startAt,
+    timezone));
+  - "today" is highlighted.
+- Blocks:
+  - compact, rounded and status-led: confirmed (green), pending (amber),
+    open (red), requested (blue), completed / cancelled (neutral);
+  - they show the time range and a short facility name, with a text legend
+    so status is not shown by colour alone;
+  - each block is a DetailDrawerTrigger that opens the canonical Shift
+    Details drawer, with an accessible label naming the facility, role,
+    date, worker and status.
+- Toolbar: previous / Today / next week links, the week range title, and
+  "Week view" as plain text. Only a week view exists, so there is no fake
+  Week selector.
+- Empty week: deliberate empty state.
+- Below lg: the same data as a day-by-day agenda (list "Weekly shift
+  agenda"). The desktop grid is not forced onto narrow screens.
+
+
+6. SHIFT DRAWER
+---------------
+Canonical drawer (DetailDrawer width="profile"; docked at 1536 px and
+wider, modal below; full-height sheet on phones):
+- Summary card (reference): date, time and zone with a duration chip;
+  facility and unit; role and code. Icon tiles throughout.
+- Assigned Worker(s): 52 px initials avatar, name (+n), role · assignment
+  status, and "n of m assigned · n accepted". If nobody is assigned: "No
+  worker assigned" with the same counts.
+- Status (chip and note) and Credential readiness (chip and note) rows.
+- DetailsTabs:
+  - Details (KeyValueList: facility, unit, role, workers needed, timezone,
+    source, relationship, reference);
+  - Notes (real internal notes from listShiftNotes, agency only);
+  - Activity (real assignment events, ActivityTimeline).
+- Actions (real only): "Assign Worker" (primary when staffable),
+  "Offer shift" (when offerable), "Open shift".
+- Not shown, because they don't exist: Send Reminder, Replace Worker, pay
+  rate, phone numbers, photos.
+
+
+7. SHIFT RECORD PAGE
+--------------------
+Canonical record arrangement:
+- RecordPage; PageHeader variant="reference" (facility · discipline);
+  breadcrumb; date · unit;
+- status chips (ShiftStatusBadge, FillBadge "Partially filled · n of m",
+  Relationship not active) with RecordMeta (source · classification);
+- SectionTabs "Shift sections" (Details, Assigned workers, Assign,
+  Attendance, Offers, Decisions, Notes; real anchors only);
+- canonical panels.
+
+Restyled panels:
+- Assigned workers: RecordList rows with an avatar, assignment status,
+  readiness and issue chips, block reasons and the cancel form.
+  "Re-check readiness" sizes to its content.
+- Assign a worker: eligibility explanation; "Eligible workers" RecordList
+  (avatar, readiness, Assign); "Unavailable workers" disclosure (avatar,
+  Unavailable chip, the reasons, "Try to assign").
+- Offer shift and Offers: RecordList rows with an avatar, offer status,
+  close reason and expiry, and Withdraw.
+- Internal notes: a RecordList of notes plus the existing note form.
+- Attendance, Assignment decisions, Manage shift and Classification: the
+  existing content on locked panels and tables.
+
+All forms, actions, ids and capability gates are unchanged.
+
+
+8. MOBILE
+---------
+- 412 / 375:
+  - compact reference header;
+  - filters stacked (date range on List);
+  - Create shift reachable;
+  - KPI 2 x 2;
+  - List / Calendar toggle;
+  - the table scrolls inside its region;
+  - the Calendar is a day agenda;
+  - Shift Details is the canonical full-height sheet.
+- 768 / 1024: tablet layout; the Calendar is the agenda below lg (1024).
+- No page overflow at 1440 / 1280 / 1024 / 768 / 412 / 375 for List and
+  Calendar (asserted).
+
+
+9. ACCESSIBILITY
+----------------
+- Toggle: labelled nav with aria-current.
+- Calendar: a table with a caption, row headers (staff) and column headers
+  (day, aria-current="date" for today); keyboard-focusable blocks with
+  descriptive labels; a text legend.
+- Drawer: focus trap, Escape and focus return (existing DetailDrawer).
+- axe is clean on List, the List drawer, Calendar and the shift record.
+
+
+10. TESTS
+---------
+Results:
+- format:check, lint, typecheck: pass
+- npm test: 342 passed
+- build: pass
+- check:bundle: OK (70 files)
+- npx playwright test: 234 passed, 4 skipped (pre-existing), 0 failed
+
+New, in overview-fidelity: "Shifts List and Calendar at the reference
+canvas, with Shift Details open". It checks:
+- List default and aria-current;
+- the drawer content, with no invented actions or pay;
+- the Calendar URL state, the grid with "Open places", and a block opening
+  the drawer;
+- the docked 1536 layout;
+- the record sections;
+- overflow at six widths;
+- the phone agenda and the drawer sheet;
+- axe.
+
+Existing Shifts flows pass unchanged: shifts-assignments,
+assignment-operations and the agency-surfaces quick filters / drawer /
+record test.
+
+Shared change: DetailDrawerTrigger's triggerLabel accepts a ReactNode
+(backward compatible), for calendar blocks.
+
+
+11. SCREENSHOT COMPARISON (docs/reports/shifts-fidelity/)
+---------------------------------------------------------
+01  reference List
+02  reference Calendar
+03  after List (1448)
+04  List 50% overlay
+05  after Calendar (1448)
+06  Calendar 50% overlay
+07  after List with drawer (1448, modal)
+08  Calendar with drawer
+09  docked 1536
+10  reference drawer
+11  after drawer
+12  drawer 50% overlay
+13  shift record
+14  List at 1440 / 1280 / 1024 / 768 / 412 / 375
+15  Calendar at the same widths (agenda below 1024)
+16  mobile drawer sheet (412)
+
+
+12. FILES CHANGED (this stage)
+------------------------------
+- shifts/page.tsx (header, toolbar, KPIs, toggle, list, calendar wiring)
+- shifts/_components/shift-calendar.tsx (new)
+- shifts/_components/shift-details-panel.tsx (canonical drawer)
+- shifts/[shiftId]/page.tsx (canonical record arrangement)
+- src/components/ui/detail-drawer.tsx (trigger label type)
+- tests/e2e/overview-fidelity.spec.ts (Shifts QA and an axe helper)
+- docs/ui-reference/CHELTH-LOCKED-VISUAL-SYSTEM.md (pages table)
+- docs/reports/shifts-fidelity/*
+- this report
+
+
+13. REMAINING DIFFERENCES
+-------------------------
+- Docking: the references show the drawer docked. The locked drawer docks
+  at 1536 px and wider, so at the 1448 reference canvas it opens as a
+  modal; the docked state is shown at 1536.
+- The reference "All Roles" filter and shift search are not offered: the
+  list query does not support them.
+- The calendar Week/Day selector is not offered: only a week view exists.
+- "Shifts (71)" total count: the list is cursor-paginated, so the title
+  shows "Shifts" without a total.
+- Drawer: no Send Reminder, Replace Worker, pay rate, phone or photo (not
+  in the product).
+- The KPI "At Risk" slot is Chelth's real "Not Fully Staffed" count.
+- Docked at 1536: KPI labels wrap (locked tile geometry).
+
+
+14. GIT STATUS
+--------------
+ M docs/ui-reference/CHELTH-LOCKED-VISUAL-SYSTEM.md
+ M src/app/app/organisations/[organisationId]/(workspace)/attendance/[attendanceId]/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/attendance/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/compliance/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/facilities/[facilityId]/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/facilities/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/operations/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/payroll/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/shifts/[shiftId]/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/shifts/_components/shift-details-panel.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/shifts/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/timesheets/[timesheetId]/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/timesheets/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/workforce/[workerId]/credentials/[credentialId]/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/workforce/[workerId]/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/workforce/_components/worker-details-panel.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/workforce/page.tsx
+ M src/components/layout/page-container.tsx
+ M src/components/layout/workspace-nav-icon.tsx
+ M src/components/layout/workspace-navigation-model.ts
+ M src/components/layout/workspace-switcher.tsx
+RM src/app/app/organisations/[organisationId]/(workspace)/workforce/_components/details-tabs.tsx -> src/components/reference/details-tabs.tsx
+ M src/components/reference/locked-reference.tsx
+ M src/components/ui/data-table.tsx
+ M src/components/ui/detail-drawer.tsx
+ M src/components/ui/page-header.tsx
+ M src/components/ui/panel.tsx
+ M src/components/ui/section-tabs.tsx
+ M src/features/compliance/components/readiness-panel.tsx
+ M src/features/compliance/components/requirements-table.tsx
+ M src/features/facilities/components/status-badges.tsx
+ M src/features/facilities/index.ts
+ M src/features/organisations/workspace-navigation.ts
+ M tests/e2e/agency-surfaces.spec.ts
+ M tests/e2e/assignment-operations.spec.ts
+ M tests/e2e/attendance.spec.ts
+ M tests/e2e/credentials-compliance.spec.ts
+ M tests/e2e/facility-surfaces.spec.ts
+ M tests/e2e/identity.spec.ts
+ M tests/e2e/overview-fidelity.spec.ts
+ M tests/e2e/timesheets.spec.ts
+ M tests/e2e/workforce-facilities.spec.ts
+ M tests/e2e/workspace-shell.spec.ts
+ M tests/unit/lib/workspace-navigation.test.ts
+?? docs/architecture/POST_VISUAL_PRODUCT_BACKLOG.md
+?? docs/reports/P0-E8-S9C-facilities-locked-reference-implementation.txt
+?? docs/reports/P0-E8-S9D-attendance-locked-reference-implementation.txt
+?? docs/reports/P0-E8-S9E-timesheets-locked-reference-implementation.txt
+?? docs/reports/P0-E8-S9F-compliance-credentials-locked-reference-implementation.txt
+?? docs/reports/P0-E8-S9G-notifications-locked-reference-implementation.txt
+?? docs/reports/P0-E8-S9H-settings-locked-reference-implementation.txt
+?? docs/reports/P0-E8-S9H1-settings-final-refinement.txt
+?? docs/reports/attendance-fidelity/
+?? docs/reports/compliance-fidelity/
+?? docs/reports/facilities-fidelity/
+?? docs/reports/locked-visual-system/record-alignment/
+?? docs/reports/notifications-fidelity/
+?? docs/reports/settings-fidelity/
+?? docs/reports/settings-refinement/
+?? docs/reports/shifts-fidelity/
+?? docs/reports/timesheets-fidelity/
+?? docs/reports/typography-weight/
+?? docs/reports/workspace-width/
+?? docs/ui-reference/p08-e8/canonical/Chelth_Timesheets_LOCKED_Claude/
+?? src/app/app/organisations/[organisationId]/(workspace)/attendance/_components/
+?? src/app/app/organisations/[organisationId]/(workspace)/compliance/_components/
+?? src/app/app/organisations/[organisationId]/(workspace)/facilities/_components/
+?? src/app/app/organisations/[organisationId]/(workspace)/operations/_components/
+?? src/app/app/organisations/[organisationId]/(workspace)/settings/
+?? src/app/app/organisations/[organisationId]/(workspace)/shifts/_components/shift-calendar.tsx
+?? src/app/app/organisations/[organisationId]/(workspace)/timesheets/_components/
+?? src/components/reference/record-page.tsx
+?? tests/e2e/settings.spec.ts
+?? tests/e2e/workspace-width.spec.ts
+?? tests/unit/components/typography-weight-lock.test.ts
+
+STATUS: AWAITING HUMAN VISUAL APPROVAL

@@ -14,8 +14,7 @@ import { WorkspaceNavIcon } from "@/components/layout/workspace-nav-icon";
 import { DetailDrawerTrigger } from "@/components/ui/detail-drawer";
 import { EmptyState } from "@/components/ui/empty-state";
 import { KeyValueList } from "@/components/ui/key-value-list";
-import { FilterBar, FilterField, FilterSelect } from "@/components/ui/filter-bar";
-import { Input } from "@/components/ui/input";
+import { FilterBar, FilterSelect } from "@/components/ui/filter-bar";
 import { KpiFilterCard, KpiFilterGroup } from "@/components/ui/kpi-filter-card";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusChip } from "@/components/ui/status-chip";
@@ -27,10 +26,8 @@ import {
 import {
   FacilityDecisionForms,
   FacilityStateBadge,
-  listAgencyTimesheets,
   listFacilityTimesheetEntries,
   listMyTimesheets,
-  timesheetFilterSchema,
   TimesheetStatusBadge,
 } from "@/features/timesheets";
 import { getMyWorkerRecord } from "@/features/workforce";
@@ -43,11 +40,10 @@ import {
   formatPeriod,
   FACILITY_STATE_LABELS,
   formatWorkedMinutes,
-  TIMESHEET_STATUS_LABELS,
-  TIMESHEET_STATUSES,
   type TimesheetFacilityState,
-  type TimesheetStatus,
 } from "@/lib/domain/timesheets";
+
+import { AgencyTimesheets } from "./_components/agency-timesheets";
 
 export const metadata: Metadata = { title: "Timesheets" };
 
@@ -91,164 +87,7 @@ export default async function TimesheetsPage({
   }
 
   if (can(CAPABILITIES.TIMESHEET_VIEW) !== "not_held") {
-    const raw = await searchParams;
-    const filter = timesheetFilterSchema.parse({
-      period: first(raw.period),
-      status: first(raw.status),
-    });
-    const [rows, inPeriod] = await Promise.all([
-      listAgencyTimesheets(organisationId, filter),
-      // Quick-filter counts: the same query for the chosen week, any status.
-      listAgencyTimesheets(organisationId, { period: filter.period }),
-    ]);
-    const base = `/app/organisations/${organisationId}/timesheets` as const;
-    const quick = (status: TimesheetStatus) => {
-      const query = new URLSearchParams({
-        ...(filter.period ? { period: filter.period } : {}),
-        status,
-      });
-      return {
-        count: inPeriod.filter((row) => row.status === status).length,
-        href: `${base}?${query.toString()}` as Route,
-        active: filter.status === status,
-      };
-    };
-    const toApprove = quick("submitted");
-    const open = quick("open");
-    const returned = quick("rejected");
-    const awaitingFacility = quick("agency_approved");
-    return (
-      <>
-        <Header
-          context={context}
-          intro="Weekly timesheets derived from attendance. Worked time comes only from clock events and approved corrections; it cannot be typed in. Submitted timesheets and discrepancies are listed first."
-        />
-        <KpiFilterGroup label="Timesheets by status">
-          <KpiFilterCard
-            label="To approve"
-            value={toApprove.count}
-            supporting="Submitted by workers"
-            icon={<WorkspaceNavIcon name="timesheets" />}
-            href={toApprove.href}
-            active={toApprove.active}
-          />
-          <KpiFilterCard
-            label="Open"
-            value={open.count}
-            supporting="Week in progress or not submitted"
-            icon={<WorkspaceNavIcon name="shifts" />}
-            href={open.href}
-            active={open.active}
-          />
-          <KpiFilterCard
-            label="Returned"
-            value={returned.count}
-            supporting="Sent back to the worker"
-            icon={<WorkspaceNavIcon name="compliance" />}
-            href={returned.href}
-            active={returned.active}
-          />
-          <KpiFilterCard
-            label="Awaiting facility"
-            value={awaitingFacility.count}
-            supporting="Approved, facility sign-off pending"
-            icon={<WorkspaceNavIcon name="facilities" />}
-            href={awaitingFacility.href}
-            active={awaitingFacility.active}
-          />
-        </KpiFilterGroup>
-        <FilterBar
-          key={JSON.stringify(filter)}
-          label="Filter timesheets"
-          submitLabel="Show"
-          resetHref={filter.period || filter.status ? (base as Route) : undefined}
-        >
-          <FilterField label="Week starting" htmlFor="timesheet-period">
-            <Input id="timesheet-period" name="period" type="date" defaultValue={filter.period} />
-          </FilterField>
-          <FilterSelect
-            label="Status"
-            id="timesheet-status"
-            name="status"
-            defaultValue={filter.status ?? ""}
-          >
-            <option value="">Any status</option>
-            {TIMESHEET_STATUSES.map((status) => (
-              <option key={status} value={status}>
-                {TIMESHEET_STATUS_LABELS[status]}
-              </option>
-            ))}
-          </FilterSelect>
-        </FilterBar>
-        {rows.length === 0 ? (
-          <EmptyState
-            title="No timesheets match."
-            description="Timesheets are created from attendance; change the week or status to see others."
-          />
-        ) : (
-          <DataTableRegion aria-label="Agency timesheets table">
-            <DataTable className="min-w-[840px]">
-              <DataTableHead>
-                <tr>
-                  <DataTableHeaderCell>Worker</DataTableHeaderCell>
-                  <DataTableHeaderCell>Week</DataTableHeaderCell>
-                  <DataTableHeaderCell>Status</DataTableHeaderCell>
-                  <DataTableHeaderCell numeric>Worked</DataTableHeaderCell>
-                  <DataTableHeaderCell numeric>Shifts</DataTableHeaderCell>
-                  <DataTableHeaderCell>Needs attention</DataTableHeaderCell>
-                  <DataTableHeaderCell>Facilities</DataTableHeaderCell>
-                </tr>
-              </DataTableHead>
-              <tbody>
-                {rows.map((row) => (
-                  <DataTableRow key={row.id}>
-                    <DataTableCell className="font-medium">
-                      <Link
-                        href={`/app/organisations/${organisationId}/timesheets/${row.id}`}
-                        className="text-primary underline underline-offset-4"
-                      >
-                        {row.workerName ?? "Worker"}
-                      </Link>
-                    </DataTableCell>
-                    <DataTableCell>{formatPeriod(row.periodStart, row.periodEnd)}</DataTableCell>
-                    <DataTableCell>
-                      <TimesheetStatusBadge status={row.status} />
-                      {row.revision > 1 ? (
-                        <div className="text-xs text-muted-foreground">Revision {row.revision}</div>
-                      ) : null}
-                    </DataTableCell>
-                    <DataTableCell numeric>
-                      {formatWorkedMinutes(row.totalWorkedMinutes)}
-                    </DataTableCell>
-                    <DataTableCell numeric>{row.entryCount}</DataTableCell>
-                    <DataTableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {row.issueCount > 0 ? (
-                          <StatusChip tone="attention">
-                            {row.issueCount === 1
-                              ? "1 shift to resolve"
-                              : `${row.issueCount} shifts to resolve`}
-                          </StatusChip>
-                        ) : null}
-                        {row.disputedCount > 0 ? (
-                          <StatusChip tone="danger">Discrepancy</StatusChip>
-                        ) : null}
-                        {row.pendingFacilityCount > 0 ? (
-                          <StatusChip tone="info">Awaiting facility</StatusChip>
-                        ) : null}
-                      </div>
-                    </DataTableCell>
-                    <DataTableCell className="text-muted-foreground">
-                      {row.facilities.join(", ")}
-                    </DataTableCell>
-                  </DataTableRow>
-                ))}
-              </tbody>
-            </DataTable>
-          </DataTableRegion>
-        )}
-      </>
-    );
+    return <AgencyTimesheets context={context} raw={await searchParams} />;
   }
 
   const worker = await getMyWorkerRecord(organisationId);

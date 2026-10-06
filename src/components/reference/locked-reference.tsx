@@ -18,25 +18,25 @@ import { cn } from "@/lib/utils/cn";
 
 /** Calibrated text styles (reference rendered ink → font size / weight / tracking). */
 export const REF_TEXT = {
-  /** "Operations Overview": 324 px wide, stroke 7 → Manrope 31.5 / 800. */
-  pageTitle: "font-display text-[31.5px] leading-[38px] font-extrabold text-chelth-navy",
+  /** Page title: Manrope 31.5 / 700 (canonical typography scale). */
+  pageTitle: "font-display text-[31.5px] leading-[38px] font-bold text-chelth-navy",
   /** Subtitle: 434 px wide line → Inter 18 / 400. */
   pageSubtitle: "text-[18px] leading-[26px] text-muted-foreground",
-  /** Panel titles: Manrope 20 / 800, −0.02em, heading navy (reference stroke 4.7). */
+  /** Panel titles: Manrope 20 / 600, −0.02em, heading navy. */
   panelTitle:
-    "font-display text-[20px] leading-[26px] font-extrabold tracking-[-0.02em] [-webkit-text-stroke:0.2px_currentColor] text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)]",
-  /** KPI label: Inter 14.75 / 500, −0.01em (reference stroke 2.8). */
-  kpiLabel: "text-[14.75px] leading-5 font-medium tracking-[-0.01em] text-chelth-navy",
+    "font-display text-[20px] leading-[26px] font-semibold tracking-[-0.02em] text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)]",
+  /** KPI label: Inter 14.75 / 600, −0.01em. */
+  kpiLabel: "text-[14.75px] leading-5 font-semibold tracking-[-0.01em] text-chelth-navy",
   /** KPI value: Manrope 30.5 / 700, −0.01em, heading navy (reference stroke 6.4). */
   kpiValue:
     "font-display text-[30.5px] leading-[34px] font-bold tracking-[-0.01em] text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)]",
-  /** Shifts KPI (P3, 1/0.87 of its canvas): label Inter 13.5 / 600, value Manrope 31 / 800. */
+  /** Shifts KPI (P3, 1/0.87 of its canvas): label Inter 13.5 / 600, value Manrope 31 / 700. */
   kpiLabelMd: "text-[13.5px] leading-[18px] font-semibold tracking-[-0.01em] text-chelth-navy",
-  kpiValueMd: "font-display text-[31px] leading-[34px] font-extrabold text-chelth-navy",
+  kpiValueMd: "font-display text-[31px] leading-[34px] font-bold text-chelth-navy",
   /** KPI supporting copy: Inter 12.75 / 400. */
   kpiSupporting: "text-[12.75px] leading-[18px] text-muted-foreground",
-  /** Table header: Inter 11.5 / 400 on the tinted band. */
-  tableHead: "text-[11.5px] leading-4 font-normal text-muted-foreground",
+  /** Table header: Inter 11.5 / 600 on the tinted band. */
+  tableHead: "text-[11.5px] leading-4 font-semibold text-muted-foreground",
   /** Table body: Inter 11.5 / 400. */
   tableBody: "text-[11.5px] leading-4 text-slate-600",
   /** Small outlined panel action: Inter 13 / 400. */
@@ -107,7 +107,7 @@ export function RefPanelAction({ href, children }: { href: Route; children: Reac
 /** Tinted header band + hairline rows (reference panel tables). */
 export const REF_TABLE = cn(
   "w-full border-separate border-spacing-0 text-left",
-  "[&_th]:bg-[color-mix(in_srgb,var(--chelth-mint-mist)_45%,#eef4f8)] [&_th]:px-3 [&_th]:py-[7px] [&_th]:font-normal",
+  "[&_th]:bg-[color-mix(in_srgb,var(--chelth-mint-mist)_45%,#eef4f8)] [&_th]:px-3 [&_th]:py-[7px] [&_th]:font-semibold",
   "[&_th:first-child]:rounded-l-md [&_th:last-child]:rounded-r-md",
   "[&_td]:border-b [&_td]:border-chelth-border/45 [&_td]:pr-1 [&_td]:pl-3",
   "[&_tr:last-child_td]:border-b-0",

@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chelth Timesheets — Locked Interactive Reference</title>
+<style>
+:root{
+  --canvas-w:1536;
+  --canvas-h:1024;
+  --panel-start:1184;
+  --panel-width:352;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:#eef8f5}
+body{display:grid;place-items:start center}
+.prototype{
+  position:relative;
+  width:min(100vw,1536px);
+  aspect-ratio:1536/1024;
+  overflow:hidden;
+  background:#f8fbfa;
+}
+.main-view{
+  position:absolute;
+  inset:0 auto 0 0;
+  width:calc(var(--panel-start)/var(--canvas-w)*100%);
+  overflow:hidden;
+  transition:width .26s ease;
+}
+.prototype.panel-closed .main-view{width:100%}
+.main-view img{
+  position:absolute;
+  inset:0 auto 0 0;
+  width:calc(100%*var(--canvas-w)/var(--panel-start));
+  height:100%;
+  object-fit:fill;
+  object-position:left top;
+  max-width:none;
+  user-select:none;
+  pointer-events:none;
+  transition:width .26s ease;
+}
+.prototype.panel-closed .main-view img{width:100%;object-fit:fill}
+
+.detail-panel{
+  position:absolute;
+  top:0;right:0;
+  width:calc(var(--panel-width)/var(--canvas-w)*100%);
+  height:100%;
+  overflow:hidden;
+  z-index:20;
+  transform:translateX(0);
+  opacity:1;
+  transition:transform .26s ease,opacity .18s ease;
+  background:#f8fbfa;
+}
+.prototype.panel-closed .detail-panel{
+  transform:translateX(100%);
+  opacity:0;
+  pointer-events:none;
+}
+.detail-panel img{
+  position:absolute;
+  top:0;
+  left:calc(-1*var(--panel-start)/var(--panel-width)*100%);
+  width:calc(var(--canvas-w)/var(--panel-width)*100%);
+  height:100%;
+  object-fit:fill;
+  max-width:none;
+  user-select:none;
+  pointer-events:none;
+}
+
+.hotspot{
+  position:absolute;
+  z-index:40;
+  border:0;
+  margin:0;
+  padding:0;
+  background:transparent;
+  cursor:pointer;
+}
+.hotspot:focus-visible{
+  outline:3px solid rgba(18,107,103,.5);
+  outline-offset:1px;
+  border-radius:6px;
+}
+
+/* Drawer */
+#closePanel{right:1.3%;top:11.4%;width:3%;height:4.2%}
+#reopenPanel{right:0;top:9%;width:2.2%;height:82%;display:none}
+.prototype.panel-closed #reopenPanel{display:block}
+
+/* Top period selector */
+#topPeriod{left:58.2%;top:9.9%;width:17.4%;height:4.3%}
+
+/* KPI cards */
+.kpi{top:17.25%;height:11.5%}
+#pendingSubmission{left:16.5%;width:15.0%}
+#needsReview{left:31.8%;width:15.0%}
+#approved{left:47.1%;width:15.0%}
+#needsCorrection{left:62.4%;width:13.7%}
+
+/* Filters */
+.filter{top:30.2%;height:4.3%}
+#periodFilter{left:16.5%;width:14.8%}
+#workerFilter{left:31.6%;width:9.0%}
+#facilityFilter{left:40.9%;width:10.7%}
+#statusFilter{left:52.0%;width:8.7%}
+#searchTimesheets{left:61.1%;width:14.6%}
+
+/* Export */
+#exportBtn{left:69.5%;top:35.25%;width:6.0%;height:3.3%}
+
+/* Current Timesheet rows */
+.row-hit{left:16.55%;width:59.2%;height:4.15%}
+.row-hit.r1{top:42.5%}.row-hit.r2{top:46.7%}.row-hit.r3{top:50.9%}.row-hit.r4{top:55.1%}
+.row-hit.r5{top:59.3%}.row-hit.r6{top:63.5%}.row-hit.r7{top:67.7%}.row-hit.r8{top:71.9%}
+
+/* Activity */
+#viewAllActivity{left:68.1%;top:75.0%;width:7.5%;height:3.2%}
+.activity{left:16.6%;width:59.0%;height:4.1%}
+.activity.a1{top:81.4%}.activity.a2{top:85.5%}.activity.a3{top:89.6%}.activity.a4{top:93.7%}
+
+/* Drawer actions */
+#approveTimesheet{left:78.2%;top:84.5%;width:10.0%;height:4.6%}
+#requestCorrection{left:88.5%;top:84.5%;width:9.6%;height:4.6%}
+#viewAttendance{left:78.2%;top:90.0%;width:10.0%;height:4.5%}
+#viewShift{left:88.5%;top:90.0%;width:9.6%;height:4.5%}
+
+/* Drawer evidence areas */
+#attendanceVerification{left:78.2%;top:52.1%;width:19.8%;height:11.2%}
+#auditHistory{left:78.2%;top:64.0%;width:19.8%;height:17.5%}
+
+.toast{
+  position:absolute;
+  left:50%;
+  bottom:1.8%;
+  transform:translateX(-50%) translateY(14px);
+  z-index:60;
+  padding:10px 14px;
+  border-radius:8px;
+  background:rgba(23,39,45,.94);
+  color:#fff;
+  font:600 12px/1.3 Inter,Arial,sans-serif;
+  opacity:0;
+  pointer-events:none;
+  transition:.18s ease;
+  box-shadow:0 8px 20px rgba(0,0,0,.14);
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media(prefers-reduced-motion:reduce){
+  .main-view,.main-view img,.detail-panel,.toast{transition:none}
+}
+</style>
+</head>
+<body>
+<main class="prototype" id="prototype" aria-label="Chelth Timesheets locked interaction reference">
+  <div class="main-view"><img src="assets/chelth-timesheets-locked.png" alt="Chelth Timesheets dashboard"></div>
+  <aside class="detail-panel" id="detailPanel" aria-label="Timesheet Details panel"><img src="assets/chelth-timesheets-locked.png" alt=""></aside>
+
+  <button id="closePanel" class="hotspot" type="button" aria-label="Close timesheet details"></button>
+  <button id="reopenPanel" class="hotspot" type="button" aria-label="Reopen timesheet details"></button>
+
+  <button id="topPeriod" class="hotspot" data-action="Change top pay period"></button>
+
+  <button id="pendingSubmission" class="hotspot kpi" data-action="Filter: Pending Submission"></button>
+  <button id="needsReview" class="hotspot kpi" data-action="Filter: Needs Review"></button>
+  <button id="approved" class="hotspot kpi" data-action="Filter: Approved"></button>
+  <button id="needsCorrection" class="hotspot kpi" data-action="Filter: Needs Correction"></button>
+
+  <button id="periodFilter" class="hotspot filter" data-action="Change timesheet period"></button>
+  <button id="workerFilter" class="hotspot filter" data-action="Filter by worker"></button>
+  <button id="facilityFilter" class="hotspot filter" data-action="Filter by facility"></button>
+  <button id="statusFilter" class="hotspot filter" data-action="Filter by status"></button>
+  <button id="searchTimesheets" class="hotspot filter" data-action="Search timesheets"></button>
+
+  <button id="exportBtn" class="hotspot" data-action="Export current timesheet view"></button>
+
+  <button class="hotspot row-hit r1" data-action="Open timesheet details"></button>
+  <button class="hotspot row-hit r2" data-action="Open timesheet details"></button>
+  <button class="hotspot row-hit r3" data-action="Open timesheet details"></button>
+  <button class="hotspot row-hit r4" data-action="Open timesheet details"></button>
+  <button class="hotspot row-hit r5" data-action="Open timesheet details"></button>
+  <button class="hotspot row-hit r6" data-action="Open timesheet details"></button>
+  <button class="hotspot row-hit r7" data-action="Open timesheet details"></button>
+  <button class="hotspot row-hit r8" data-action="Open timesheet details"></button>
+
+  <button id="viewAllActivity" class="hotspot" data-action="View all timesheet activity"></button>
+  <button class="hotspot activity a1" data-action="Open timesheet activity"></button>
+  <button class="hotspot activity a2" data-action="Open timesheet activity"></button>
+  <button class="hotspot activity a3" data-action="Open timesheet activity"></button>
+  <button class="hotspot activity a4" data-action="Open timesheet activity"></button>
+
+  <button id="attendanceVerification" class="hotspot" data-action="Review attendance verification source"></button>
+  <button id="auditHistory" class="hotspot" data-action="Review timesheet audit history"></button>
+
+  <button id="approveTimesheet" class="hotspot" data-action="Approve timesheet"></button>
+  <button id="requestCorrection" class="hotspot" data-action="Request timesheet correction"></button>
+  <button id="viewAttendance" class="hotspot" data-action="Open linked attendance record"></button>
+  <button id="viewShift" class="hotspot" data-action="Open linked shift"></button>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</main>
+
+<script>
+(() => {
+  const root = document.getElementById('prototype');
+  const panel = document.getElementById('detailPanel');
+  const toast = document.getElementById('toast');
+  let timer;
+
+  function openPanel(){
+    root.classList.remove('panel-closed');
+    panel.setAttribute('aria-hidden','false');
+  }
+
+  function closePanel(){
+    root.classList.add('panel-closed');
+    panel.setAttribute('aria-hidden','true');
+  }
+
+  function feedback(message){
+    clearTimeout(timer);
+    toast.textContent = message;
+    toast.classList.add('show');
+    timer = setTimeout(()=>toast.classList.remove('show'),1400);
+  }
+
+  document.getElementById('closePanel').addEventListener('click',closePanel);
+  document.getElementById('reopenPanel').addEventListener('click',openPanel);
+
+  document.querySelectorAll('.row-hit,.activity').forEach(el=>{
+    el.addEventListener('click',()=>{openPanel();feedback(el.dataset.action);});
+  });
+
+  document.querySelectorAll('[data-action]').forEach(el=>{
+    if(el.classList.contains('row-hit') || el.classList.contains('activity')) return;
+    el.addEventListener('click',()=>feedback(el.dataset.action));
+  });
+
+  root.addEventListener('keydown',e=>{if(e.key==='Escape')closePanel()});
+})();
+</script>
+</body>
+</html>

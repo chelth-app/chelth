@@ -45,7 +45,7 @@ export function SectionTabs({
                 // Locked tab treatment (C/D): 14.5 px, ink active label, 3 px underline.
                 "in-[.chelth-locked]:border-b-[3px] in-[.chelth-locked]:text-[14.5px]",
                 tab.current
-                  ? "border-primary font-semibold text-chelth-navy in-[.chelth-locked]:font-bold"
+                  ? "border-primary font-semibold text-chelth-navy"
                   : "border-transparent text-muted-foreground hover:border-chelth-border-strong hover:text-foreground in-[.chelth-locked]:text-slate-500 in-[.chelth-locked]:hover:text-chelth-navy",
               )}
             >

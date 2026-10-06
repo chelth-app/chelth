@@ -5,7 +5,7 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils/cn";
 
-import { ShellGlyph } from "./workspace-nav-icon";
+import { ShellGlyph, WorkspaceNavIcon } from "./workspace-nav-icon";
 
 export type ShellWorkspace = {
   id: string;
@@ -39,8 +39,22 @@ function initialsOf(user: ShellUser): string {
   return letters.toUpperCase() || "?";
 }
 
+/** Locked menu row: 44 px, teal-tinted hover/focus fill (the global focus ring stays). */
 const menuRow =
-  "flex min-h-11 w-full items-center gap-3 rounded-md px-3 text-left text-sm text-foreground hover:bg-surface-muted";
+  "flex min-h-11 w-full items-center gap-3 rounded-[8px] px-3 text-left text-[14px] font-medium text-chelth-navy transition-colors hover:bg-chelth-mint-mist/70 focus-visible:bg-chelth-mint-mist/70";
+const sectionLabel =
+  "px-3 pt-1 pb-1.5 text-[11.5px] font-semibold tracking-[0.06em] text-slate-500 uppercase";
+const divider = "border-t border-[rgba(18,107,103,0.10)]";
+
+function RowIcon({ name }: { name: "operations" | "workforce" | "compliance" }) {
+  return (
+    <WorkspaceNavIcon
+      name={name}
+      strokeWidth={1.9}
+      className="size-[18px] shrink-0 text-chelth-teal-dark"
+    />
+  );
+}
 
 /**
  * User and workspace control (decision G2): identity, role, the current
@@ -126,27 +140,47 @@ export function WorkspaceSwitcher({
       <div
         id={panelId}
         hidden={!open}
-        className="absolute top-full right-0 z-40 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-surface text-foreground shadow-elevated"
+        className="absolute top-full right-0 z-40 mt-2 w-[336px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-[rgba(18,107,103,0.14)] bg-white text-chelth-navy shadow-[0_24px_60px_-12px_rgba(9,40,52,0.22),0_8px_20px_rgba(9,40,52,0.08)]"
       >
-        <div className="border-b border-border px-4 py-3">
-          <p className="truncate text-sm font-semibold">{name}</p>
-          {user.displayName && user.email ? (
-            <p className="truncate text-xs text-muted-foreground">{user.email}</p>
-          ) : null}
+        {/* A. Identity */}
+        <div className="flex items-center gap-3 bg-[linear-gradient(180deg,#f8fcfb,#f1f8f6)] px-4 py-3.5">
+          <span
+            aria-hidden="true"
+            className="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-chelth-mint-mist text-[14px] font-semibold text-chelth-teal-dark ring-2 ring-white"
+          >
+            {initialsOf(user)}
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-[15px] leading-5 font-semibold text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)]">
+              {name}
+            </p>
+            {user.displayName && user.email ? (
+              <p className="truncate text-[12.5px] leading-[18px] text-slate-600">{user.email}</p>
+            ) : null}
+          </div>
         </div>
 
-        <div className="border-b border-border p-2">
-          <p
-            id={currentLabelId}
-            className="px-3 pt-1 pb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase"
-          >
+        {/* B. Current workspace (descriptive, not a choice) */}
+        <div className={cn(divider, "px-2 pt-2.5 pb-2.5")}>
+          <p id={currentLabelId} className={sectionLabel}>
             Current workspace
           </p>
-          <div aria-labelledby={currentLabelId} role="group" className="flex gap-3 px-3 pb-2">
-            <ShellGlyph name="check" className="mt-0.5 size-4 text-primary" />
+          <div
+            aria-labelledby={currentLabelId}
+            role="group"
+            className="mx-1 flex items-start gap-3 rounded-[10px] border border-[rgba(18,107,103,0.12)] bg-chelth-mint-mist/45 px-3 py-2.5"
+          >
+            <span
+              aria-hidden="true"
+              className="mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-chelth-teal text-white"
+            >
+              <ShellGlyph name="check" className="size-3.5" />
+            </span>
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{workspace.name}</p>
-              <p className="text-xs text-muted-foreground">
+              <p className="truncate text-[14px] leading-5 font-semibold text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)]">
+                {workspace.name}
+              </p>
+              <p className="text-[12.5px] leading-[18px] text-slate-600">
                 {[
                   workspace.typeLabel,
                   workspace.roleLabel,
@@ -160,11 +194,8 @@ export function WorkspaceSwitcher({
         </div>
 
         {otherWorkspaces.length > 0 ? (
-          <div className="border-b border-border p-2">
-            <p
-              id={switchLabelId}
-              className="px-3 pt-1 pb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase"
-            >
+          <div className={cn(divider, "p-2")}>
+            <p id={switchLabelId} className={sectionLabel}>
               Switch workspace
             </p>
             <ul aria-labelledby={switchLabelId} className="flex flex-col">
@@ -174,39 +205,45 @@ export function WorkspaceSwitcher({
                     <input type="hidden" name="organisationId" value={target.id} />
                     <button type="submit" className={menuRow}>
                       <span className="min-w-0 flex-1 truncate">{target.name}</span>
-                      <span className="text-xs text-muted-foreground">{target.typeLabel}</span>
+                      <span className="text-[12.5px] font-normal text-slate-500">
+                        {target.typeLabel}
+                      </span>
                     </button>
                   </form>
                 </li>
               ))}
             </ul>
-            <Link href="/app" className={cn(menuRow, "text-primary underline-offset-4")}>
-              All workspaces
-            </Link>
           </div>
         ) : null}
 
-        <ul className="flex flex-col border-b border-border p-2">
-          {otherWorkspaces.length === 0 ? (
-            <li>
-              <Link href="/app" className={menuRow}>
-                All workspaces
-              </Link>
-            </li>
-          ) : null}
+        {/* C. Navigation */}
+        <ul className={cn(divider, "flex flex-col p-2")}>
+          <li>
+            <Link href="/app" className={menuRow}>
+              <RowIcon name="operations" />
+              All workspaces
+            </Link>
+          </li>
           <li>
             <Link href="/app/account" className={menuRow}>
+              <RowIcon name="workforce" />
               Account
             </Link>
           </li>
           <li>
             <Link href="/app/security" className={menuRow}>
+              <RowIcon name="compliance" />
               Security
             </Link>
           </li>
         </ul>
-        <form action={signOutAction} className="p-2">
-          <button type="submit" className={menuRow}>
+
+        {/* D. Sign out (separated, restrained) */}
+        <form action={signOutAction} className={cn(divider, "p-2")}>
+          <button
+            type="submit"
+            className={cn(menuRow, "font-medium text-slate-600 hover:text-chelth-navy")}
+          >
             Sign out
           </button>
         </form>

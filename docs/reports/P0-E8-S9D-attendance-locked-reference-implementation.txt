@@ -1,0 +1,281 @@
+P0-E8-S9D — ATTENDANCE: LOCKED-REFERENCE IMPLEMENTATION
+=======================================================
+
+Branch: p0-e8-visual-implementation (uncommitted)
+Status: AWAITING HUMAN VISUAL REVIEW.
+- Not committed.
+- Timesheets has not been started.
+- Global visual system unchanged.
+
+
+1. EXACT REFERENCES USED
+------------------------
+docs/ui-reference/p08-e8/canonical/Chelth_Attendance/
+- assets/chelth-attendance-locked.png (1536 x 1024). It uses the Overview
+  frame (11, 13), 1512 x 996, at 1:1.
+- index.html: panel start 1222, width 314.
+- README.md, CLAUDE-IMPLEMENTATION.md, ATTENDANCE-INTERACTIONS.md,
+  ATTENDANCE-GEOFENCE-INTEGRATION.md, LOCKED-DESIGN-SPEC.md.
+
+
+2. GLOBAL VISUAL LOCK REUSED
+----------------------------
+- .chelth-locked; PageHeader variant="reference".
+- RefKpiCard lg (Overview KPI) with KpiNote footers.
+- RefPanel, REF_TABLE, REF_TEXT and RefChip.
+- InitialsAvatar.
+- The Overview grid (1.787 : 1, 16 px).
+- The Overview ring pattern for the verification panel.
+- The canonical drawer (DetailDrawer width="profile", DetailsTabs,
+  sections, Facts grid, CTAs).
+- The canonical record primitives (RecordPage, RecordNote, RecordList,
+  SectionTabs, Panel, KeyValueList).
+
+No new tokens or colours. Tone maps mirror AttendanceStateBadge, and the
+geofence tones use the existing semantics.
+
+
+3. HEADER
+---------
+- "Attendance", with the reference subtitle wording adapted to the product
+  ("clock-ins").
+- The right side holds the real attendance-window control (form "Attendance
+  window": from / to dates, Show, Today). It replaces the reference
+  date-picker slot and uses the existing range parameters.
+- There is no status dropdown: no status filter exists in the product.
+- The back link was removed, as on the other locked pages.
+
+
+4. ATTENDANCE KPIs (real counts, reference slots; each links to its section)
+---------------------------------------------------------------------------
+- Clocked In Now: clocked in or on break. "Across N facilities". Footer:
+  the window.
+- Needs Review: records with open exceptions. Footer: "N late · N missed",
+  from the open exceptions in the window.
+- Location Issues: outside-site-area / imprecise / unavailable exceptions in
+  the window. Footer: "N outside · N imprecise or unavailable".
+- Completed: clocked out. Footer: the number of pending correction requests.
+
+The group is still named "Attendance summary".
+
+
+5. FILTERS
+----------
+The real filter is the attendance window (from / to, up to 7 days; empty
+means today at each facility).
+
+The reference "All Statuses" filter is not offered: the product has no
+status filter. No fake dropdown.
+
+
+6. MONITORING TABLE (Scheduled Workers, in the Today's Attendance slot)
+-----------------------------------------------------------------------
+- REF_TABLE in a RefPanel with 42 px rows.
+- Columns:
+  - Clock-in: local time with zone;
+  - Worker: initials avatar and a link to the record;
+  - Facility: links to the shift;
+  - Shift: local range;
+  - Status: chip, plus an exception / correction line;
+  - Location: derived clock-in result;
+  - ⋯: Attendance Details.
+- The selected row gets the teal accent when the drawer is open.
+- The region is still named "Scheduled workers table".
+
+
+7. ATTENDANCE STATES
+--------------------
+Product vocabulary only (ATTENDANCE_STATE_LABELS): Not started, Clocked in,
+On break, Completed, Needs review.
+
+Exceptions use ATTENDANCE_EXCEPTION_LABELS.
+
+No reference-only states: Late, Missing, Verified and Geofence Review are
+expressed through the real exception labels.
+
+
+8. GEOFENCE / LOCATION SAFE PRESENTATION
+----------------------------------------
+Only derived results (GEOFENCE_RESULT_LABELS) appear anywhere on the list,
+the drawer or the record summary: Inside site area / Outside site area /
+Location too imprecise / Location unavailable / Not required.
+
+- No coordinates, distance, device or map: these are not in the safe
+  projection.
+- Raw evidence stays on the existing AAL2-protected evidence route,
+  reached from the record.
+- The QA spec asserts that the drawer contains no latitude or longitude.
+
+"Location Verification" panel (the Check-In Verification slot):
+- a ring of the real clock-in location results in the window, with the
+  centre showing the share of checked clock-ins inside the site area;
+- legend counts beside it;
+- a deliberate empty state when no location checks apply.
+
+
+9. ATTENDANCE DRAWER (canonical; title "Attendance Details")
+------------------------------------------------------------
+- Identity: initials avatar, worker, state chip, shift date.
+- Meta rows: facility · location; local range and zone.
+- Tabs:
+  - Overview: Check-In Information (clock-in / out, time on shift, status,
+    location at clock-in / out) and Needs Attention (exceptions with
+    open / under-review state, pending corrections, or a quiet "Nothing
+    open").
+  - Location: derived results and the evidence note.
+- Actions: primary "Open attendance record"; secondary "View Shift".
+
+Not offered:
+- Approve Override and Mark Resolved: the real review actions (Acknowledge
+  / Dismiss / Mark not worked) stay on the exceptions panel and the record,
+  under ATTENDANCE_REVIEW.
+- Message Worker: there is no messaging.
+
+
+10. ATTENDANCE RECORD PAGE
+--------------------------
+Canonical record arrangement:
+- breadcrumb;
+- reference header (worker, facility · location · date · range, state
+  chip and open-exception chip);
+- SectionTabs (Summary, History, Exceptions, Adjust, Evidence; real sections
+  only, capability-gated);
+- a new Summary panel from loaded data;
+- History (append-only table, unchanged);
+- Open exceptions (RecordList);
+- Adjust;
+- Evidence (AAL2 step-up unchanged).
+
+
+11. EVIDENCE
+------------
+- The evidence route, its capability (ATTENDANCE_LOCATION_VIEW) and the
+  step-up are unchanged.
+- Summary, drawer and list show derived results only.
+
+
+12. CORRECTIONS / EXCEPTIONS
+----------------------------
+- Correction Requests panel (the Recent Attendance Activity slot): the same
+  CorrectionReviewForms, with an append-only note in the empty state.
+- Attendance Exceptions panel: worker, site, exception chip, and the same
+  Acknowledge / Dismiss / Mark not worked actions.
+- The record History is unchanged and remains the append-only timeline.
+- No destructive editing is implied.
+
+
+13. FACILITY SAFE PROJECTION
+----------------------------
+Facility-facing attendance (staffing-request detail) was not touched. The
+existing test still asserts it shows no coordinates. The agency attendance
+route still returns 404 for facility users and workers.
+
+
+14. RESPONSIVE BEHAVIOUR
+------------------------
+- 1280 / 768 / 412 / 375: no page-level overflow (asserted).
+- Fixed: a 5 px overflow from the native date inputs. On phones the header
+  control takes the full width and its inputs shrink.
+- Tables scroll in their regions; panels stack below xl; the drawer is a
+  full-height sheet on phones.
+
+
+15. INTENTIONAL PRODUCT / DATA DIFFERENCES
+------------------------------------------
+- Not in the product: status filter, worker roles in rows, photos, a
+  distance / device / map evidence summary in the list or drawer, Approve
+  Override, Message Worker, Mark Resolved (as named), an attendance activity
+  feed and a historical verification range.
+- Drawer docking: the locked drawer docks without dimming at 1536 px and
+  wider (a global lock). The 1512 px reference canvas therefore shows the
+  modal with a dimmed page (screenshot 04). The drawer is narrower in the
+  reference (314 px) than the canonical 387 px, which was kept.
+- QA data: five day shifts, two clocked in after the start (real late
+  clock-ins), no location checks configured (so the verification panel
+  shows its empty state) and no corrections.
+
+
+16. SCREENSHOT OVERLAY RESULTS (docs/reports/attendance-fidelity/)
+------------------------------------------------------------------
+01  reference
+02  after (app 1512 x 996 at the frame origin)
+03  50% overlay
+04  after, drawer open
+05  reference drawer
+06  after drawer
+07  drawer overlay
+08  Attendance Record
+09  1280 / 768 / 412 / 375
+
+Observed:
+- The header, KPI row bounds, two-column grid, left table panel, right
+  exceptions panel and verification slot sit in the reference positions.
+- The global look matches Overview.
+- The differences are listed in section 15.
+
+
+17. TESTS
+---------
+Results:
+- format:check, lint, typecheck: pass
+- npm test: 339 passed
+- build: pass
+- check:bundle: OK
+- npx playwright test: 216 passed and 2 skipped (pre-existing) in the full
+  run. agency-surfaces was re-run after its region-name update: 12 / 12.
+
+Test changes (assertions kept):
+- attendance.spec: the drawer is named "Attendance Details" and contains
+  Leo Late. The KPI link name match is case-insensitive (the label is now
+  "Needs Review").
+- agency-surfaces: the region name "Attendance Exceptions" (the panel was
+  renamed to the reference title).
+- overview-fidelity: an Attendance capture at the reference canvas; the
+  drawer has no coordinates; navigation to the record; overflow at four
+  widths.
+
+
+18. FILES CHANGED
+-----------------
+- src/app/app/organisations/[organisationId]/(workspace)/attendance/page.tsx
+  (presentation rewritten)
+- attendance/_components/attendance-details-panel.tsx (new)
+- attendance/_components/attendance-tones.ts (new)
+- attendance/[attendanceId]/page.tsx (canonical record arrangement and
+  Summary panel)
+- tests/e2e/attendance.spec.ts
+- tests/e2e/agency-surfaces.spec.ts
+- tests/e2e/overview-fidelity.spec.ts
+- docs/reports/attendance-fidelity/*
+- this report
+
+
+19. GIT STATUS
+--------------
+ M docs/ui-reference/CHELTH-LOCKED-VISUAL-SYSTEM.md
+ M src/app/app/organisations/[organisationId]/(workspace)/attendance/[attendanceId]/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/attendance/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/facilities/[facilityId]/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/facilities/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/workforce/[workerId]/page.tsx
+ M src/app/app/organisations/[organisationId]/(workspace)/workforce/_components/worker-details-panel.tsx
+R  src/app/app/organisations/[organisationId]/(workspace)/workforce/_components/details-tabs.tsx -> src/components/reference/details-tabs.tsx
+ M src/features/compliance/components/requirements-table.tsx
+ M src/features/facilities/components/status-badges.tsx
+ M src/features/facilities/index.ts
+ M tests/e2e/agency-surfaces.spec.ts
+ M tests/e2e/attendance.spec.ts
+ M tests/e2e/credentials-compliance.spec.ts
+ M tests/e2e/overview-fidelity.spec.ts
+ M tests/e2e/workforce-facilities.spec.ts
+?? docs/reports/P0-E8-S9C-facilities-locked-reference-implementation.txt
+?? docs/reports/attendance-fidelity/
+?? docs/reports/facilities-fidelity/
+?? docs/reports/locked-visual-system/record-alignment/
+?? src/app/app/organisations/[organisationId]/(workspace)/attendance/_components/
+?? src/app/app/organisations/[organisationId]/(workspace)/facilities/_components/
+?? src/components/reference/record-page.tsx
+
+Nothing was committed, pushed or deployed.
+
+STATUS: AWAITING HUMAN VISUAL REVIEW

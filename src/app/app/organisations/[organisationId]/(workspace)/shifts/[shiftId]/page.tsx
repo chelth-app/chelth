@@ -18,7 +18,16 @@ import { PageHeader } from "@/components/ui/page-header";
 import { SectionTabs } from "@/components/ui/section-tabs";
 import { StatusChip } from "@/components/ui/status-chip";
 import { InlineActionForm } from "@/components/forms/inline-action-form";
-import { Badge } from "@/components/ui/badge";
+import { InitialsAvatar, RefChip } from "@/components/reference/locked-reference";
+import {
+  RECORD_ROW,
+  RECORD_ROW_META,
+  RECORD_ROW_TITLE,
+  RecordList,
+  RecordMeta,
+  RecordNote,
+  RecordPage,
+} from "@/components/reference/record-page";
 import {
   AttendanceStateBadge,
   CorrectionReviewForms,
@@ -163,8 +172,10 @@ export default async function ShiftPage({
     workerName.set(candidate.workerId, candidate.displayName ?? "Worker");
 
   return (
-    <>
+    // Locked inner-page system (docs/ui-reference/CHELTH-LOCKED-VISUAL-SYSTEM.md).
+    <RecordPage>
       <PageHeader
+        variant="reference"
         title={`${shift.facilityName} · ${shift.disciplineName}`}
         back={
           <Link
@@ -189,8 +200,10 @@ export default async function ShiftPage({
                 requestedHeadcount={shift.requestedHeadcount}
               />
             ) : null}
-            <Badge tone="neutral">{SHIFT_SOURCE_LABELS[shift.source]}</Badge>
-            <Badge tone="neutral">{SHIFT_CLASSIFICATION_LABELS[shift.classification]} shift</Badge>
+            <RecordMeta>
+              {SHIFT_SOURCE_LABELS[shift.source]} ·{" "}
+              {SHIFT_CLASSIFICATION_LABELS[shift.classification]} shift
+            </RecordMeta>
             {!relationshipActive ? (
               <StatusChip tone="warning">Relationship not active</StatusChip>
             ) : null}
@@ -289,7 +302,7 @@ export default async function ShiftPage({
       {canViewAssignments ? (
         <Panel titleId="assignments-heading" title={<>Assigned workers</>}>
           {canAssign && active.length > 0 ? (
-            <div>
+            <div className="w-fit">
               <InlineActionForm
                 action={recheckReadinessAction}
                 fields={{ organisationId, shiftId: shift.id }}
@@ -298,18 +311,16 @@ export default async function ShiftPage({
             </div>
           ) : null}
           {active.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No one is assigned yet.</p>
+            <RecordNote>No one is assigned yet.</RecordNote>
           ) : (
-            <ul className="flex flex-col gap-3">
+            <RecordList label="Assigned workers list">
               {active.map((assignment) => {
                 const live = readinessById.get(assignment.id);
                 return (
-                  <li
-                    key={assignment.id}
-                    className="flex flex-col gap-2 rounded-md bg-surface-muted p-4"
-                  >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium">{assignment.workerName}</span>
+                  <li key={assignment.id} className={`${RECORD_ROW} flex-col items-stretch`}>
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <InitialsAvatar name={assignment.workerName} size={36} />
+                      <span className={RECORD_ROW_TITLE}>{assignment.workerName}</span>
                       <AssignmentStatusBadge status={assignment.status} />
                       {live ? (
                         live.eligible ? (
@@ -329,7 +340,7 @@ export default async function ShiftPage({
                       ))}
                     </div>
                     {live && !live.eligible ? (
-                      <ul className="list-disc pl-5 text-sm text-danger">
+                      <ul className="list-disc pl-[58px] text-sm text-danger">
                         {!live.relationshipActive ? (
                           <li>The facility relationship is not active</li>
                         ) : null}
@@ -351,11 +362,13 @@ export default async function ShiftPage({
                   </li>
                 );
               })}
-            </ul>
+            </RecordList>
           )}
           {history.length > 0 ? (
             <details className="text-sm">
-              <summary className="cursor-pointer">Earlier assignments ({history.length})</summary>
+              <summary className="cursor-pointer font-medium text-chelth-navy">
+                Earlier assignments ({history.length})
+              </summary>
               <ul className="mt-2 flex flex-col gap-1">
                 {history.map((assignment) => (
                   <li key={assignment.id} className="flex flex-wrap items-center gap-2">
@@ -373,21 +386,19 @@ export default async function ShiftPage({
 
       {canStaff ? (
         <Panel titleId="assign-heading" title={<>Assign a worker</>}>
-          <p className="max-w-2xl text-sm text-muted-foreground">
+          <RecordNote className="max-w-[68ch]">
             Workers who hold this discipline, are compliant for {shift.facilityName} on the shift
             date and have no scheduling conflict. Chelth re-checks every assignment when you submit.
-          </p>
+          </RecordNote>
           {eligible.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No eligible workers right now.</p>
+            <RecordNote>No eligible workers right now.</RecordNote>
           ) : (
-            <ul aria-label="Eligible workers" className="flex flex-col gap-2">
+            <RecordList label="Eligible workers">
               {eligible.map((candidate) => (
-                <li
-                  key={candidate.workerId}
-                  className="flex flex-wrap items-start justify-between gap-2 rounded-md bg-surface-muted p-3"
-                >
-                  <span className="flex items-center gap-2 font-medium">
-                    {candidate.displayName ?? "Worker"}{" "}
+                <li key={candidate.workerId} className={`${RECORD_ROW} justify-between`}>
+                  <span className="flex items-center gap-2.5">
+                    <InitialsAvatar name={candidate.displayName} size={36} />
+                    <span className={RECORD_ROW_TITLE}>{candidate.displayName ?? "Worker"}</span>
                     <ReadinessBadge status={candidate.readiness} />
                   </span>
                   <AssignWorkerButton
@@ -399,21 +410,29 @@ export default async function ShiftPage({
                   />
                 </li>
               ))}
-            </ul>
+            </RecordList>
           )}
           {unavailable.length > 0 ? (
             <details className="flex flex-col gap-2">
-              <summary className="cursor-pointer text-sm">
+              <summary className="cursor-pointer text-sm font-medium text-chelth-navy">
                 Unavailable workers ({unavailable.length})
               </summary>
-              <ul aria-label="Unavailable workers" className="mt-2 flex flex-col gap-2">
+              <ul
+                aria-label="Unavailable workers"
+                className="mt-2 flex flex-col divide-y divide-[rgba(18,107,103,0.12)] border-y border-[rgba(18,107,103,0.12)] text-sm"
+              >
                 {unavailable.map((candidate) => (
-                  <li
-                    key={candidate.workerId}
-                    className="flex flex-col gap-2 rounded-md bg-surface-muted p-3"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <span className="font-medium">{candidate.displayName ?? "Worker"}</span>
+                  <li key={candidate.workerId} className={`${RECORD_ROW} flex-col items-stretch`}>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="flex items-center gap-2.5">
+                        <InitialsAvatar name={candidate.displayName} size={36} muted />
+                        <span className={RECORD_ROW_TITLE}>
+                          {candidate.displayName ?? "Worker"}
+                        </span>
+                        <RefChip tone="neutral" className="font-normal">
+                          Unavailable
+                        </RefChip>
+                      </span>
                       <AssignWorkerButton
                         organisationId={organisationId}
                         shiftId={shift.id}
@@ -423,7 +442,7 @@ export default async function ShiftPage({
                         variant="outline"
                       />
                     </div>
-                    <ul className="list-disc pl-5 text-sm text-muted-foreground">
+                    <ul className="list-disc pl-[58px] text-sm text-slate-600">
                       {explainBlockReasons(
                         candidate.blockReasons,
                         candidate.findings,
@@ -503,7 +522,7 @@ export default async function ShiftPage({
                 return (
                   <li
                     key={correction.id}
-                    className="flex flex-col gap-2 rounded-md bg-surface-muted p-3 text-sm"
+                    className="flex flex-col gap-2 rounded-[10px] border border-[rgba(18,107,103,0.10)] bg-[#f8fcfb] p-3 text-sm"
                   >
                     <p>
                       <span className="font-medium">{worker}</span> asks to set the{" "}
@@ -530,15 +549,13 @@ export default async function ShiftPage({
 
       {canOffer ? (
         <Panel titleId="offer-heading" title={<>Offer shift</>}>
-          <p className="max-w-2xl text-sm text-muted-foreground">
+          <p className="max-w-[68ch] text-[14px] leading-5 font-medium text-slate-600">
             Ask eligible workers to take this shift. Offers do not hold a place: the first workers
             to accept (and still pass every check) are assigned, and the remaining offers close when
             the shift is full.
           </p>
           {offerable.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No eligible workers without an open offer.
-            </p>
+            <RecordNote>No eligible workers without an open offer.</RecordNote>
           ) : (
             <OfferShiftForm
               organisationId={organisationId}
@@ -554,22 +571,20 @@ export default async function ShiftPage({
 
       {canViewAssignments && offers.length > 0 ? (
         <Panel titleId="offers-heading" title={<>Offers</>}>
-          <ul aria-label="Offers" className="flex flex-col gap-2">
+          <RecordList label="Offers">
             {offers.map((offer) => (
-              <li
-                key={offer.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-surface-muted p-3 text-sm"
-              >
-                <span className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium">{offer.workerName}</span>
+              <li key={offer.id} className={`${RECORD_ROW} justify-between`}>
+                <span className="flex flex-wrap items-center gap-2.5">
+                  <InitialsAvatar name={offer.workerName} size={36} />
+                  <span className={RECORD_ROW_TITLE}>{offer.workerName}</span>
                   <OfferStatusBadge status={offer.status} />
                   {offer.closeReason ? (
-                    <span className="text-muted-foreground">
+                    <span className={RECORD_ROW_META}>
                       {SHIFT_OFFER_CLOSE_REASON_LABELS[offer.closeReason]}
                     </span>
                   ) : null}
                   {offer.status === "offered" ? (
-                    <span className="text-muted-foreground">
+                    <span className={RECORD_ROW_META}>
                       until {dateTime.format(new Date(offer.expiresAt))}
                     </span>
                   ) : null}
@@ -584,7 +599,7 @@ export default async function ShiftPage({
                 ) : null}
               </li>
             ))}
-          </ul>
+          </RecordList>
         </Panel>
       ) : null}
 
@@ -620,27 +635,27 @@ export default async function ShiftPage({
       ) : null}
 
       <Panel titleId="notes-heading" title={<>Internal notes</>}>
-        <p className="text-sm text-muted-foreground">
-          Visible to your agency only — never to the facility or workers.
-        </p>
+        <RecordNote>Visible to your agency only — never to the facility or workers.</RecordNote>
         {notes.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No notes.</p>
+          <RecordNote>No notes.</RecordNote>
         ) : (
-          <ul className="flex flex-col gap-2 text-sm">
+          <RecordList label="Internal notes">
             {notes.map((note) => (
-              <li key={note.id} className="rounded-md border border-border bg-surface p-3">
-                <p className="whitespace-pre-line">{note.body}</p>
-                <p className="text-xs text-muted-foreground">
-                  {dateTime.format(new Date(note.createdAt))}
+              <li key={note.id} className={`${RECORD_ROW} flex-col items-start gap-1`}>
+                <p className="text-[14px] leading-5 whitespace-pre-line text-chelth-navy">
+                  {note.body}
                 </p>
+                <time dateTime={note.createdAt} className={RECORD_ROW_META}>
+                  {dateTime.format(new Date(note.createdAt))}
+                </time>
               </li>
             ))}
-          </ul>
+          </RecordList>
         )}
         {canManageShift ? (
           <ShiftNoteForm organisationId={organisationId} shiftId={shift.id} />
         ) : null}
       </Panel>
-    </>
+    </RecordPage>
   );
 }

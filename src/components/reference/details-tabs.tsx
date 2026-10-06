@@ -63,7 +63,7 @@ export function DetailsTabs({ tabs, label }: { tabs: readonly DetailsTab[]; labe
               "relative -mb-px px-0.5 text-[14.5px] whitespace-nowrap transition-colors",
               "after:absolute after:inset-x-0 after:bottom-0 after:h-[3px] after:rounded-full after:content-['']",
               selected === index
-                ? "font-bold text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)] after:bg-primary"
+                ? "font-semibold text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)] after:bg-primary"
                 : "font-medium text-slate-500 after:bg-transparent hover:text-chelth-navy",
             )}
           >

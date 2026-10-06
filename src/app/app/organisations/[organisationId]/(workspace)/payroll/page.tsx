@@ -24,7 +24,6 @@ import { PageHeader } from "@/components/ui/page-header";
 import {
   AttentionBadge,
   createPayrollBatchAction,
-  FinancialSettingsForm,
   getFinancialSettings,
   getReconciliation,
   IssuesTable,
@@ -33,7 +32,6 @@ import {
   listPayrollAdjustmentCandidates,
   listPayrollAdjustments,
   listPayrollWork,
-  MakerCheckerForm,
   PayrollAdjustmentCandidates,
   PayrollAdjustmentsTable,
   PayrollStatusBadge,
@@ -429,23 +427,16 @@ export default async function PayrollPage({
       </Panel>
 
       {settingsEditable ? (
-        <Panel titleId="payroll-settings-heading" title={<>Payroll settings</>}>
-          <p className="max-w-2xl text-sm text-muted-foreground">
-            Payroll periods are calendar dates. Changing them applies to periods not yet used; a new
-            period may not overlap one that already has a batch.
-          </p>
-          <FinancialSettingsForm
-            organisationId={organisationId}
-            periodType={settings.payrollPeriodType}
-            anchorDate={settings.payrollAnchorDate}
-            payrollPrefix={settings.payrollReferencePrefix}
-            invoicePrefix={settings.invoiceReferencePrefix}
-          />
-          <MakerCheckerForm
-            organisationId={organisationId}
-            required={settings.makerCheckerRequired}
-          />
-        </Panel>
+        <p className="text-sm text-muted-foreground">
+          Payroll period, reference prefixes and the second-approver control are in{" "}
+          <Link
+            href={`/app/organisations/${organisationId}/settings/payroll` as Route}
+            className="font-medium text-primary underline underline-offset-4"
+          >
+            Settings
+          </Link>
+          .
+        </p>
       ) : null}
     </>
   );

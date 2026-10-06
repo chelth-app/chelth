@@ -1,6 +1,14 @@
 import type { Metadata, Route } from "next";
 import Link from "next/link";
 
+import {
+  RECORD_ROW,
+  RECORD_ROW_META,
+  RECORD_ROW_TITLE,
+  RecordList,
+  RecordNote,
+  RecordPage,
+} from "@/components/reference/record-page";
 import { Panel } from "@/components/ui/panel";
 import { notFound } from "next/navigation";
 
@@ -42,6 +50,7 @@ import {
 } from "@/features/credentials";
 import { listActiveRelationships, listFacilities } from "@/features/facilities";
 import { CAPABILITIES } from "@/lib/authz";
+import { cn } from "@/lib/utils/cn";
 import { WORKER_STATUS_LABELS, WORKER_STATUS_TRANSITIONS } from "@/lib/domain/vocabulary";
 
 export const metadata: Metadata = { title: "Worker" };
@@ -108,7 +117,7 @@ export default async function WorkerPage({
   return (
     // Locked Chelth visual system (docs/ui-reference/CHELTH-LOCKED-VISUAL-SYSTEM.md):
     // palette, panel surface, chips, tabs and CTAs are inherited through the scope.
-    <div className="chelth-locked flex flex-col gap-5">
+    <RecordPage>
       <PageHeader
         variant="reference"
         title={worker.displayName ?? "Unnamed worker"}
@@ -288,26 +297,21 @@ export default async function WorkerPage({
           title={<>Credentials shared with {organisation.name}</>}
         >
           {credentials.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              The worker has not shared any credentials with this agency.
-            </p>
+            <RecordNote>The worker has not shared any credentials with this agency.</RecordNote>
           ) : (
-            <ul className="flex flex-col divide-y divide-border border-y border-border text-sm">
+            <RecordList>
               {credentials.map((credential) => (
-                <li
-                  key={credential.credentialId}
-                  className="flex flex-wrap items-center justify-between gap-2 p-3"
-                >
+                <li key={credential.credentialId} className={cn(RECORD_ROW, "justify-between")}>
                   <Link
                     href={`/app/organisations/${organisationId}/workforce/${worker.id}/credentials/${credential.credentialId}`}
-                    className="font-medium text-primary underline underline-offset-4"
+                    className="text-[15px] leading-5 font-semibold text-primary underline underline-offset-4"
                   >
                     {credential.typeName}
                     {credential.jurisdictionCode ? ` (${credential.jurisdictionCode})` : ""}
                   </Link>
                   <span className="flex flex-wrap items-center gap-2">
                     {credential.effectiveExpiryDate ? (
-                      <span className="text-muted-foreground">
+                      <span className={RECORD_ROW_META}>
                         expires {credential.effectiveExpiryDate}
                       </span>
                     ) : null}
@@ -321,28 +325,25 @@ export default async function WorkerPage({
                   </span>
                 </li>
               ))}
-            </ul>
+            </RecordList>
           )}
         </Panel>
       ) : null}
 
       {relationships.length > 0 ? (
         <Panel titleId="compliance-sharing-heading" title={<>Share readiness with a facility</>}>
-          <p className="text-sm text-muted-foreground">
+          <RecordNote>
             A linked facility sees only readiness and reasons for workers you share with it — never
             documents, numbers or notes.
-          </p>
-          <ul className="flex flex-col divide-y divide-border border-y border-border text-sm">
+          </RecordNote>
+          <RecordList>
             {relationships.map((relationship) => {
               const share = complianceShares.find(
                 (item) => item.relationshipId === relationship.relationshipId,
               );
               return (
-                <li
-                  key={relationship.relationshipId}
-                  className="flex flex-wrap items-center justify-between gap-2 p-3"
-                >
-                  <span>{relationship.facilityName}</span>
+                <li key={relationship.relationshipId} className={cn(RECORD_ROW, "justify-between")}>
+                  <span className={RECORD_ROW_TITLE}>{relationship.facilityName}</span>
                   {share ? (
                     <InlineActionForm
                       action={revokeComplianceShareAction}
@@ -366,7 +367,7 @@ export default async function WorkerPage({
                 </li>
               );
             })}
-          </ul>
+          </RecordList>
         </Panel>
       ) : null}
 
@@ -376,24 +377,24 @@ export default async function WorkerPage({
             <AddWorkerNoteForm organisationId={organisationId} workerId={worker.id} />
           ) : null}
           {notes.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No notes.</p>
+            <RecordNote>No notes.</RecordNote>
           ) : (
-            <ul className="flex flex-col divide-y divide-border border-y border-border text-sm">
+            <RecordList>
               {notes.map((note) => (
-                <li key={note.id} className="flex flex-col gap-1 p-3">
-                  <p className="whitespace-pre-wrap text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)]">
+                <li key={note.id} className={cn(RECORD_ROW, "flex-col items-start gap-1")}>
+                  <p className="text-[14px] leading-5 font-medium whitespace-pre-wrap text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)]">
                     {note.body}
                   </p>
-                  <p className="text-xs text-slate-600">
+                  <p className={RECORD_ROW_META}>
                     {note.authorName ?? "A former colleague"} ·{" "}
                     {dateTime.format(new Date(note.createdAt))}
                   </p>
                 </li>
               ))}
-            </ul>
+            </RecordList>
           )}
         </Panel>
       ) : null}
-    </div>
+    </RecordPage>
   );
 }

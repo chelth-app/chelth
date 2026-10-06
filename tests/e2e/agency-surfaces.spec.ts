@@ -118,8 +118,8 @@ test.describe.serial("agency operational surfaces", () => {
       "Unfilled",
     );
     await expect(admin.getByRole("list", { name: "Workers by status" })).toContainText("Active");
-    // Administration stays on the Overview.
-    await expect(admin.getByRole("heading", { name: "Members" })).toBeVisible();
+    // P0-E8-S9H: administration moved from the Overview to Settings → Team & Permissions.
+    await expect(admin.getByRole("heading", { name: "Members" })).toHaveCount(0);
     await expectNoInventedFeatures(admin);
     await qaScreenshot(admin, "s3-operations-overview");
     await expectNoA11yViolations(admin);
@@ -251,7 +251,8 @@ test.describe.serial("agency operational surfaces", () => {
     await expectNoA11yViolations(admin);
 
     const trigger = table.getByRole("button", { name: "Details for Mercy Rehab" });
-    const drawer = await expectDrawerRoundTrip(admin, trigger, "Mercy Rehab");
+    const drawer = await expectDrawerRoundTrip(admin, trigger, "Facility Details");
+    await expect(drawer).toContainText("Mercy Rehab");
     await expect(drawer).toContainText("Linked to a CHELTH facility organisation");
     await qaScreenshot(admin, "s3-facility-drawer-open");
     await expectNoA11yViolations(admin);
@@ -278,13 +279,13 @@ test.describe.serial("agency operational surfaces", () => {
     await admin.goto(`/app/organisations/${world.agencyId}/attendance`);
     await expect(admin.getByRole("heading", { level: 1, name: "Attendance" })).toBeVisible();
     await expect(admin.getByRole("region", { name: "Correction requests" })).toBeVisible();
-    await expect(admin.getByRole("region", { name: "Open exceptions" })).toBeVisible();
+    await expect(admin.getByRole("region", { name: "Attendance Exceptions" })).toBeVisible();
     await qaScreenshot(admin, "s3-attendance");
     await expectNoA11yViolations(admin);
 
     await admin.goto(`/app/organisations/${world.agencyId}/timesheets`);
     const quick = admin.getByRole("region", { name: "Timesheets by status" });
-    await quick.getByRole("link", { name: /To approve/ }).click();
+    await quick.getByRole("link", { name: /Needs Review/ }).click();
     await expect(admin).toHaveURL(/status=submitted/);
     await expect(
       admin.getByRole("form", { name: "Filter timesheets" }).getByRole("combobox", {
@@ -293,16 +294,14 @@ test.describe.serial("agency operational surfaces", () => {
     ).toHaveValue("submitted");
     await expect(
       admin.getByRole("region", { name: "Timesheets by status" }).getByRole("link", {
-        name: /To approve/,
+        name: /Needs Review/,
       }),
     ).toHaveAttribute("aria-current", "true");
     await qaScreenshot(admin, "s3-timesheets");
     await expectNoA11yViolations(admin);
 
     await admin.goto(`/app/organisations/${world.agencyId}/compliance`);
-    await expect(
-      admin.getByRole("heading", { level: 1, name: "Credential requirements" }),
-    ).toBeVisible();
+    await expect(admin.getByRole("heading", { level: 1, name: "Compliance" })).toBeVisible();
     await expect(admin.getByRole("list", { name: "Agency baseline requirements" })).toContainText(
       "Basic Life Support",
     );

@@ -63,7 +63,7 @@ export function Panel({
         <div className="flex min-w-0 flex-col gap-1">
           <Heading
             id={titleId}
-            className="font-display text-lg leading-[26px] font-semibold text-chelth-navy in-[.chelth-locked]:text-[20px] in-[.chelth-locked]:font-extrabold in-[.chelth-locked]:tracking-[-0.02em] in-[.chelth-locked]:text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)]"
+            className="font-display text-lg leading-[26px] font-semibold text-chelth-navy in-[.chelth-locked]:text-[20px] in-[.chelth-locked]:font-semibold in-[.chelth-locked]:tracking-[-0.02em] in-[.chelth-locked]:text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)]"
           >
             {title}
           </Heading>

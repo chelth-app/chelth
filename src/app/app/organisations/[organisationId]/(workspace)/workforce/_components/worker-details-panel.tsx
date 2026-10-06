@@ -18,7 +18,7 @@ import { formatShiftDate, formatShiftTimeRangeParts } from "@/lib/domain/shifts"
 import { WORKER_STATUS_LABELS, type WorkerStatus } from "@/lib/domain/vocabulary";
 import { cn } from "@/lib/utils/cn";
 
-import { DetailsTabs } from "./details-tabs";
+import { DetailsTabs } from "@/components/reference/details-tabs";
 import { WORKER_STATUS_TONE } from "./worker-tones";
 
 /** Readiness item tone: met is fine, expiring is a warning, the rest block. */
@@ -97,7 +97,7 @@ function Section({
       )}
     >
       <div className="flex items-center justify-between gap-2">
-        <h3 id={id} className={cn("text-[16px] leading-[22px] font-extrabold", INK)}>
+        <h3 id={id} className={cn("text-[16px] leading-[22px] font-semibold", INK)}>
           {title}
         </h3>
         {action}
@@ -385,7 +385,7 @@ export function WorkerDetailsPanel({
       <div className="flex items-start gap-4 pt-1">
         <span
           aria-hidden="true"
-          className="inline-flex size-[90px] shrink-0 items-center justify-center rounded-full bg-[radial-gradient(circle_at_30%_25%,#f4fdfa_0%,#d3f2e8_45%,#a9e3d3_100%)] font-display text-[30px] font-extrabold tracking-[-0.02em] text-chelth-teal-dark shadow-[0_6px_16px_rgba(0,90,96,0.18),inset_0_1px_0_rgba(255,255,255,0.9)] ring-4 ring-white"
+          className="inline-flex size-[90px] shrink-0 items-center justify-center rounded-full bg-[radial-gradient(circle_at_30%_25%,#f4fdfa_0%,#d3f2e8_45%,#a9e3d3_100%)] font-display text-[30px] font-bold tracking-[-0.02em] text-chelth-teal-dark shadow-[0_6px_16px_rgba(0,90,96,0.18),inset_0_1px_0_rgba(255,255,255,0.9)] ring-4 ring-white"
         >
           {initialsOf(worker.displayName)}
         </span>
@@ -393,7 +393,7 @@ export function WorkerDetailsPanel({
           <div className="flex items-start justify-between gap-2">
             <p
               className={cn(
-                "font-display text-[23px] leading-[30px] font-extrabold tracking-[-0.02em]",
+                "font-display text-[23px] leading-[30px] font-bold tracking-[-0.02em]",
                 INK,
               )}
             >

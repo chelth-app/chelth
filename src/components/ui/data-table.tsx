@@ -102,7 +102,11 @@ export function DataTableHeaderCell({
   return (
     <th
       scope="col"
-      className={cn("px-3 py-2.5 font-medium", numeric && "text-right", className)}
+      className={cn(
+        "px-3 py-2.5 font-medium in-[.chelth-locked]:font-semibold",
+        numeric && "text-right",
+        className,
+      )}
       {...props}
     />
   );

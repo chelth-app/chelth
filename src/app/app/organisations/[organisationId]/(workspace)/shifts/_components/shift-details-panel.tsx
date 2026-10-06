@@ -3,7 +3,10 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { WorkspaceNavIcon } from "@/components/layout/workspace-nav-icon";
+import { DetailsTabs } from "@/components/reference/details-tabs";
 import { InitialsAvatar, RefChip } from "@/components/reference/locked-reference";
+import { ActivityTimeline } from "@/components/ui/activity-timeline";
+import { KeyValueList } from "@/components/ui/key-value-list";
 import { LocationPin } from "@/components/ui/location-pin";
 import type { StatusTone } from "@/components/ui/status-chip";
 import {
@@ -12,6 +15,7 @@ import {
   FILL_TONE,
   SHIFT_TONE,
   type ShiftAssignment,
+  type ShiftNote,
 } from "@/features/shifts";
 import { READINESS_LABELS, type ReadinessStatus } from "@/lib/domain/credentials";
 import {
@@ -27,8 +31,10 @@ import {
 import { RELATIONSHIP_STATUS_LABELS } from "@/lib/domain/vocabulary";
 import { cn } from "@/lib/utils/cn";
 
-/** A row of the paginated shift list (summary plus open issue count). */
-type ShiftListItem = AgencyShiftSummary & { openIssueCount: number };
+/** A row of the shift list (summary plus open issue count). */
+export type ShiftListItem = AgencyShiftSummary & { openIssueCount: number };
+
+const INK = "text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)]";
 
 const READINESS_TONE: Record<ReadinessStatus, StatusTone> = {
   ready: "success",
@@ -58,58 +64,78 @@ function statusLine(shift: ShiftListItem): {
     : { tone: FILL_TONE[shift.fillState], label: FILL_STATE_LABELS[shift.fillState], note };
 }
 
-/** One summary-card row (locked P3, CSS px): 37 px icon column, text at 59 px. */
-function SummaryRow({
-  icon,
-  children,
-  aside,
-  tall = false,
-}: {
-  icon: ReactNode;
-  children: ReactNode;
-  aside?: ReactNode;
-  tall?: boolean;
-}) {
-  return (
-    <div
-      className={cn(
-        "flex items-center gap-[13px] px-[9px]",
-        tall ? "min-h-[71px]" : "min-h-[60px]",
-      )}
-    >
-      {icon}
-      <div className="flex min-w-0 flex-1 flex-col">{children}</div>
-      {aside}
-    </div>
-  );
-}
-
-function IconCell({ circle = false, children }: { circle?: boolean; children: ReactNode }) {
+/** 36 px icon tile (locked drawer tile). */
+function IconTile({ children }: { children: ReactNode }) {
   return (
     <span
       aria-hidden="true"
-      className={cn(
-        "inline-flex size-[37px] shrink-0 items-center justify-center text-chelth-navy [&>svg]:size-5",
-        circle && "rounded-full bg-surface-muted",
-      )}
+      className="inline-flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-[linear-gradient(145deg,#e6f9f3,#ccefe3)] text-chelth-teal-dark [&>svg]:size-[18px]"
     >
       {children}
     </span>
   );
 }
 
+/** One row of the reference summary card. */
+function SummaryRow({
+  icon,
+  children,
+  aside,
+}: {
+  icon: ReactNode;
+  children: ReactNode;
+  aside?: ReactNode;
+}) {
+  return (
+    <div className="flex min-h-[60px] items-center gap-3 px-3.5 py-2.5">
+      <IconTile>{icon}</IconTile>
+      <div className="flex min-w-0 flex-1 flex-col">{children}</div>
+      {aside}
+    </div>
+  );
+}
+
+function Section({
+  id,
+  title,
+  children,
+  divided = true,
+}: {
+  id: string;
+  title: string;
+  children: ReactNode;
+  divided?: boolean;
+}) {
+  return (
+    <section
+      aria-labelledby={id}
+      className={cn(
+        "flex flex-col gap-2.5 py-3.5",
+        divided && "border-t border-[rgba(18,107,103,0.12)]",
+      )}
+    >
+      <h3 id={id} className={cn("text-[16px] leading-[22px] font-semibold", INK)}>
+        {title}
+      </h3>
+      {children}
+    </section>
+  );
+}
+
 /**
- * Shift Details drawer body — the locked P3 panel reproduced at CSS scale
- * (reference px / 0.87). Data: the list row plus the shift record's own
- * assignment and readiness loaders (same capability gates). Not fabricated:
- * no photos, phone numbers, notes or secondary actions that do not exist —
- * the slots keep their geometry with the truthful equivalent.
+ * Shift Details — the canonical Chelth drawer (CHELTH-LOCKED-VISUAL-SYSTEM.md,
+ * C) in the locked Shifts reference hierarchy: summary card, assigned worker,
+ * status and credential readiness, then Details / Notes / Activity and the
+ * real actions. Data: the list row plus the shift record's own assignment,
+ * readiness and note loaders (same capability gates). Nothing invented: no
+ * photos, phone numbers, pay rates, reminders or replacement actions.
  */
 export function ShiftDetailsPanel({
   shift,
   href,
   assignments,
   readiness,
+  notes,
   canSeeAssignments,
   canStaff,
   canOffer,
@@ -119,10 +145,13 @@ export function ShiftDetailsPanel({
   /** Active (assigned or accepted) assignments, when the viewer may see them. */
   assignments: ShiftAssignment[];
   readiness: AssignmentReadiness[];
+  /** Internal notes (agency only); null when not loaded. */
+  notes: ShiftNote[] | null;
   canSeeAssignments: boolean;
   canStaff: boolean;
   canOffer: boolean;
 }) {
+  const id = `shift-${shift.id}`;
   const role = disciplineNameParts(shift.disciplineName);
   const status = statusLine(shift);
   const lead = assignments[0];
@@ -132,18 +161,12 @@ export function ShiftDetailsPanel({
   const order: ReadinessStatus[] = ["not_eligible", "action_required", "ready"];
   const worst = order.find((value) => relevant.some((entry) => entry.readiness === value));
   const filled = shift.status === "open" && shift.fillState === "filled";
-  const details: { label: string; value: ReactNode }[] = [
-    { label: "Facility", value: shift.facilityName },
-    { label: "Unit", value: shift.locationName },
-    { label: "Role", value: shift.disciplineName },
-    { label: "Timezone", value: shift.timezone },
-    { label: "Source", value: SHIFT_SOURCE_LABELS[shift.source] },
-    { label: "Relationship", value: RELATIONSHIP_STATUS_LABELS[shift.relationshipStatus] },
-    ...(shift.externalReference ? [{ label: "Reference", value: shift.externalReference }] : []),
-  ];
+  const primaryAssign = canStaff && !filled;
+
   const activity = assignments
     .flatMap((assignment) => [
       {
+        id: `${assignment.id}-assigned`,
         at: assignment.assignedAt,
         title: `${assignment.workerName} assigned`,
         tone: "info" as const,
@@ -151,6 +174,7 @@ export function ShiftDetailsPanel({
       ...(assignment.acceptedAt
         ? [
             {
+              id: `${assignment.id}-accepted`,
               at: assignment.acceptedAt,
               title: `${assignment.workerName} accepted`,
               tone: "success" as const,
@@ -158,119 +182,200 @@ export function ShiftDetailsPanel({
           ]
         : []),
     ])
-    .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
-    .slice(0, 3);
-  const primaryAction = canStaff && !filled;
+    .sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+
+  const tabs = [
+    {
+      id: "details",
+      label: "Details",
+      content: (
+        <Section id={`${id}-details`} title="Shift Information" divided={false}>
+          <KeyValueList
+            className="sm:grid-cols-[minmax(7rem,auto)_minmax(0,1fr)] sm:gap-x-5"
+            items={[
+              { label: "Facility", value: shift.facilityName },
+              { label: "Unit", value: shift.locationName },
+              { label: "Role", value: shift.disciplineName },
+              {
+                label: "Workers needed",
+                value: `${shift.activeCount} of ${shift.requestedHeadcount} assigned · ${shift.acceptedCount} accepted`,
+              },
+              { label: "Timezone", value: shift.timezone },
+              { label: "Source", value: SHIFT_SOURCE_LABELS[shift.source] },
+              {
+                label: "Relationship",
+                value: RELATIONSHIP_STATUS_LABELS[shift.relationshipStatus],
+              },
+              ...(shift.externalReference
+                ? [{ label: "Reference", value: shift.externalReference }]
+                : []),
+            ]}
+          />
+        </Section>
+      ),
+    },
+    ...(notes
+      ? [
+          {
+            id: "notes",
+            label: "Notes",
+            content: (
+              <Section id={`${id}-notes`} title="Internal Notes" divided={false}>
+                <p className="text-[12.5px] leading-[18px] text-slate-600">
+                  Visible to your agency only — never to the facility or workers.
+                </p>
+                {notes.length === 0 ? (
+                  <p className="text-[13.5px] font-medium text-slate-600">No notes yet.</p>
+                ) : (
+                  <ul className="flex flex-col divide-y divide-[rgba(18,107,103,0.10)]">
+                    {notes.slice(0, 4).map((note) => (
+                      <li key={note.id} className="flex flex-col gap-1 py-2.5">
+                        <p className="line-clamp-3 text-[13.5px] leading-5 whitespace-pre-line text-chelth-navy">
+                          {note.body}
+                        </p>
+                        <time dateTime={note.createdAt} className="text-[12px] text-slate-500">
+                          {dateTime.format(new Date(note.createdAt))}
+                        </time>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Section>
+            ),
+          },
+        ]
+      : []),
+    {
+      id: "activity",
+      label: "Activity",
+      content: (
+        <Section id={`${id}-activity`} title="Recent Activity" divided={false}>
+          {activity.length === 0 ? (
+            <p className="text-[13.5px] font-medium text-slate-600">
+              {canSeeAssignments
+                ? "No assignment activity yet."
+                : "Assignment activity is on the shift record."}
+            </p>
+          ) : (
+            <ActivityTimeline
+              label={`Activity for ${shift.facilityName}`}
+              items={activity.slice(0, 5).map((event) => ({
+                id: event.id,
+                tone: event.tone,
+                title: event.title,
+                meta: <time dateTime={event.at}>{dateTime.format(new Date(event.at))}</time>,
+              }))}
+            />
+          )}
+        </Section>
+      ),
+    },
+  ];
 
   return (
-    <div className="flex flex-col text-[12px] leading-[17px]">
-      <div className="flex flex-col divide-y divide-chelth-border/70 rounded-xl border border-chelth-border/70">
+    <div className="flex min-h-full flex-col text-[13.5px] leading-5">
+      {/* Reference summary card: date and time, facility and unit, role. */}
+      <div className="flex flex-col divide-y divide-[rgba(18,107,103,0.12)] rounded-[12px] border border-[rgba(18,107,103,0.14)] bg-white/80">
         <SummaryRow
-          tall
-          icon={
-            <IconCell circle>
-              <WorkspaceNavIcon name="shifts" />
-            </IconCell>
-          }
-        >
-          <span className="flex items-center justify-between gap-2">
-            <span className="text-[14.25px] leading-5 tracking-[-0.01em] text-muted-foreground">
-              {formatShiftDate(shift)}
-            </span>
-            <span className="shrink-0 rounded-full bg-surface-muted px-2.5 py-0.5 text-[12px] leading-[18px] text-muted-foreground">
+          icon={<WorkspaceNavIcon name="shifts" strokeWidth={2.1} />}
+          aside={
+            <span className="shrink-0 rounded-full bg-surface-muted px-2.5 py-0.5 text-[12px] leading-[18px] font-medium text-slate-600">
               {durationLabel(shift)}
             </span>
+          }
+        >
+          <span className="text-[13px] leading-[18px] font-medium text-slate-600">
+            {formatShiftDate(shift)}
           </span>
-          <span className="text-[16.5px] leading-[22px] font-bold text-chelth-navy">
+          <span className={cn("font-display text-[17px] leading-[23px] font-bold", INK)}>
             {formatShiftTimeRange(shift)}
           </span>
         </SummaryRow>
-        <SummaryRow
-          icon={
-            <IconCell>
-              <LocationPin className="size-5 text-chelth-navy" />
-            </IconCell>
-          }
-        >
-          <span className="text-[13px] leading-[18px] font-semibold tracking-[-0.01em] text-chelth-navy">
+        <SummaryRow icon={<LocationPin className="size-[18px]" />}>
+          <span className={cn("text-[14px] leading-5 font-semibold", INK)}>
             {shift.facilityName}
           </span>
-          <span className="text-muted-foreground">{shift.locationName}</span>
+          <span className="text-[12.5px] leading-[18px] text-slate-600">{shift.locationName}</span>
         </SummaryRow>
-        <SummaryRow
-          icon={
-            <IconCell>
-              <WorkspaceNavIcon name="workforce" />
-            </IconCell>
-          }
-        >
-          <span className="text-[13px] leading-[18px] font-semibold tracking-[-0.01em] text-chelth-navy">
-            {role.name}
-          </span>
-          {role.code ? <span className="text-muted-foreground">{role.code}</span> : null}
-        </SummaryRow>
-
-        {/* Assigned worker (P3 block, 123 px). */}
-        <div className="flex min-h-[123px] flex-col gap-2.5 px-[15px] py-3.5">
-          <span className="text-[13px] leading-[18px] font-bold text-chelth-navy">
-            Assigned Worker{assignments.length > 1 ? "s" : ""}
-          </span>
-          {lead ? (
-            <span className="flex items-center gap-[17px]">
-              <span className="relative">
-                <InitialsAvatar name={lead.workerName} size={52} />
-              </span>
-              <span className="flex min-w-0 flex-col">
-                <span className="text-[13px] leading-[18px] font-semibold text-chelth-navy">
-                  {lead.workerName}
-                  {assignments.length > 1 ? ` +${assignments.length - 1}` : ""}
-                </span>
-                <span className="text-muted-foreground">{role.code ?? role.name}</span>
-                <span className="text-muted-foreground">
-                  {ASSIGNMENT_STATUS_LABELS[lead.status]}
-                </span>
-              </span>
-            </span>
-          ) : (
-            <span className="flex items-center gap-[17px]">
-              <InitialsAvatar name={null} size={52} muted />
-              <span className="flex min-w-0 flex-col">
-                <span className="text-[13px] leading-[18px] font-semibold text-chelth-navy">
-                  {shift.activeCount > 0 && !canSeeAssignments
-                    ? `${shift.activeCount} assigned`
-                    : "No worker assigned"}
-                </span>
-                <span className="text-muted-foreground">
-                  {shift.activeCount} of {shift.requestedHeadcount} assigned · {shift.acceptedCount}{" "}
-                  accepted
-                </span>
-              </span>
-            </span>
-          )}
-        </div>
-
-        {/* Status (P3 row, 55 px): label at 37 px, chip at 113 px, note under the chip. */}
-        <div className="grid min-h-[55px] grid-cols-[22px_76px_minmax(0,1fr)] items-center gap-y-1 py-2.5 pr-3 pl-[15px]">
-          <span aria-hidden="true" className="text-chelth-navy [&>svg]:size-4">
-            <WorkspaceNavIcon name="shifts" />
-          </span>
-          <span className="text-[12px] font-semibold text-chelth-navy">Status</span>
-          <span>
-            <RefChip tone={status.tone}>{status.label}</RefChip>
-          </span>
-          {status.note ? (
-            <span className="col-start-3 text-muted-foreground">{status.note}</span>
+        <SummaryRow icon={<WorkspaceNavIcon name="workforce" strokeWidth={2.1} />}>
+          <span className={cn("text-[14px] leading-5 font-semibold", INK)}>{role.name}</span>
+          {role.code ? (
+            <span className="text-[12.5px] leading-[18px] text-slate-600">{role.code}</span>
           ) : null}
-        </div>
+        </SummaryRow>
+      </div>
 
-        {/* Credential readiness (P3 row, 57 px): the assignees' live readiness. */}
-        <div className="grid min-h-[57px] grid-cols-[22px_minmax(0,1fr)_auto] items-center gap-x-1.5 py-2.5 pr-3 pl-[15px]">
-          <span aria-hidden="true" className="text-primary [&>svg]:size-[18px]">
-            <WorkspaceNavIcon name="compliance" />
+      <Section
+        id={`${id}-assigned`}
+        title={assignments.length > 1 ? "Assigned Workers" : "Assigned Worker"}
+      >
+        {lead ? (
+          <div className="flex items-center gap-3.5">
+            <span className="rounded-full shadow-[0_6px_16px_rgba(0,90,96,0.16)] ring-4 ring-white">
+              <InitialsAvatar name={lead.workerName} size={52} />
+            </span>
+            <span className="flex min-w-0 flex-col">
+              <span className={cn("truncate text-[15px] leading-5 font-semibold", INK)}>
+                {lead.workerName}
+                {assignments.length > 1 ? ` +${assignments.length - 1}` : ""}
+              </span>
+              <span className="text-[12.5px] leading-[18px] text-slate-600">
+                {role.code ?? role.name} · {ASSIGNMENT_STATUS_LABELS[lead.status]}
+              </span>
+              <span className="text-[12.5px] leading-[18px] text-slate-600">
+                {shift.activeCount} of {shift.requestedHeadcount} assigned · {shift.acceptedCount}{" "}
+                accepted
+              </span>
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3.5">
+            <InitialsAvatar name={null} size={52} muted />
+            <span className="flex min-w-0 flex-col">
+              <span className={cn("text-[15px] leading-5 font-semibold", INK)}>
+                {shift.activeCount > 0 && !canSeeAssignments
+                  ? `${shift.activeCount} assigned`
+                  : "No worker assigned"}
+              </span>
+              <span className="text-[12.5px] leading-[18px] text-slate-600">
+                {shift.activeCount} of {shift.requestedHeadcount} assigned · {shift.acceptedCount}{" "}
+                accepted
+              </span>
+            </span>
+          </div>
+        )}
+      </Section>
+
+      {/* Status and credential readiness (reference rows). */}
+      <div className="flex flex-col gap-3 border-t border-[rgba(18,107,103,0.12)] py-3.5">
+        <div className="flex items-start gap-3">
+          <span className="w-[136px] shrink-0 text-[13.5px] font-medium text-slate-600">
+            Status
           </span>
-          <span className="flex min-w-0 flex-col">
-            <span className="text-[12px] font-semibold text-chelth-navy">Credential Readiness</span>
-            <span className="text-[11.5px] leading-4 text-muted-foreground">
+          <span className="flex min-w-0 flex-col items-start gap-1">
+            <RefChip tone={status.tone} className="font-semibold">
+              {status.label}
+            </RefChip>
+            {status.note ? (
+              <span className="text-[12.5px] leading-[18px] text-slate-600">{status.note}</span>
+            ) : null}
+          </span>
+        </div>
+        <div className="flex items-start gap-3">
+          <span className="w-[136px] shrink-0 text-[13.5px] font-medium text-slate-600">
+            Credential readiness
+          </span>
+          <span className="flex min-w-0 flex-col items-start gap-1">
+            {worst ? (
+              <RefChip tone={READINESS_TONE[worst]} className="font-semibold">
+                {READINESS_LABELS[worst]}
+              </RefChip>
+            ) : (
+              <RefChip tone="neutral" className="font-semibold">
+                Not started
+              </RefChip>
+            )}
+            <span className="text-[12.5px] leading-[18px] text-slate-600">
               {worst === "ready"
                 ? "All required credentials are active."
                 : worst
@@ -280,137 +385,59 @@ export function ShiftDetailsPanel({
                     : "No worker assigned yet."}
             </span>
           </span>
-          {worst ? (
-            <RefChip tone={READINESS_TONE[worst]}>{READINESS_LABELS[worst]}</RefChip>
-          ) : (
-            <RefChip tone="neutral">Not started</RefChip>
-          )}
         </div>
       </div>
 
-      <section aria-labelledby={`shift-details-${shift.id}`} className="mt-3 flex flex-col">
-        {/* Locked P3 tab bar: three equal columns; only Details exists in Chelth. */}
-        <div className="grid h-[38px] grid-cols-3 border-b border-chelth-border">
-          <h3
-            id={`shift-details-${shift.id}`}
-            className="-mb-px flex items-center justify-center border-b-2 border-primary text-[12.5px] font-semibold text-chelth-navy"
-          >
-            Details
-          </h3>
-        </div>
-        <dl className="mt-3 grid grid-cols-[103px_minmax(0,1fr)] px-[6px] text-[11.75px] leading-[23px] font-medium">
-          {details.map((item) => (
-            <div key={item.label} className="contents">
-              <dt className="text-muted-foreground">{item.label}</dt>
-              <dd className="min-w-0 break-words text-slate-600">{item.value}</dd>
-            </div>
-          ))}
-        </dl>
-      </section>
+      <div className="mt-1">
+        <DetailsTabs label={`${shift.facilityName} shift`} tabs={tabs} />
+      </div>
 
-      {/* Locked P3 action region: one primary (334 × 44), two secondaries (163 × 44). */}
-      <div className="mt-[18px] flex flex-col gap-2 px-[6px]">
+      {/* Locked action region: real, permitted actions only. */}
+      <div className="mt-auto flex flex-col gap-2.5 pt-4">
         <Link
-          href={(primaryAction ? `${href}#assign-heading` : href) as Route}
-          className="inline-flex h-11 items-center justify-center gap-2.5 rounded-[7px] bg-chelth-teal-dark text-[13px] font-semibold text-white hover:bg-chelth-teal"
+          href={(primaryAssign ? `${href}#assign-heading` : href) as Route}
+          className="inline-flex h-12 items-center justify-center gap-2.5 rounded-[8px] bg-[linear-gradient(180deg,#00666c,#004f55)] text-[15px] font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_6px_14px_-4px_rgba(0,58,64,0.45)] transition-[filter] hover:brightness-110"
         >
-          {primaryAction ? (
-            <>
-              <svg
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-                focusable="false"
-                className="size-[18px]"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={1.8}
-                strokeLinecap="round"
-              >
-                <circle cx="9" cy="8" r="3.5" />
-                <path d="M2.5 20a6.5 6.5 0 0 1 13 0M19 8v6M16 11h6" />
-              </svg>
-              Assign worker
-            </>
-          ) : (
-            "Open shift"
-          )}
+          <WorkspaceNavIcon
+            name={primaryAssign ? "workforce" : "shifts"}
+            strokeWidth={2.1}
+            className="size-5"
+          />
+          {primaryAssign ? "Assign Worker" : "Open shift"}
         </Link>
-        <div className="grid grid-cols-2 gap-2">
-          {canOffer && !filled ? (
-            <Link
-              href={`${href}#offer-heading` as Route}
-              className="inline-flex h-11 items-center justify-center rounded-[7px] border border-chelth-teal-dark/45 text-[12.5px] font-medium text-chelth-navy hover:bg-surface-muted"
-            >
-              Offer shift
-            </Link>
-          ) : (
-            <span aria-hidden="true" />
-          )}
-          {primaryAction ? (
-            <Link
-              href={href}
-              className="inline-flex h-11 items-center justify-center rounded-[7px] border border-chelth-teal-dark/45 text-[12.5px] font-medium text-chelth-navy hover:bg-surface-muted"
-            >
-              Open shift
-            </Link>
-          ) : null}
-        </div>
-      </div>
-
-      {/* Locked P3 timeline region: real assignment events only. */}
-      <section
-        aria-labelledby={`shift-activity-${shift.id}`}
-        className="mt-[42px] flex flex-col gap-3 px-[6px]"
-      >
-        <div className="flex items-center justify-between">
-          <h3
-            id={`shift-activity-${shift.id}`}
-            className="text-[14.75px] leading-5 font-extrabold tracking-[-0.01em] text-chelth-navy"
+        {primaryAssign || (canOffer && !filled) ? (
+          <div
+            className={cn("grid gap-2.5", canOffer && !filled && primaryAssign && "grid-cols-2")}
           >
-            Recent Activity
-          </h3>
-          <Link
-            href={`${href}#assignments-heading` as Route}
-            className="text-[12.5px] font-medium text-primary hover:underline"
-          >
-            View All
-          </Link>
-        </div>
-        {activity.length === 0 ? (
-          <p className="text-muted-foreground">
-            {canSeeAssignments ? "No assignment activity yet." : "Activity is on the shift record."}
-          </p>
-        ) : (
-          <ol className="flex flex-col">
-            {activity.map((event, index) => (
-              <li
-                key={`${event.at}-${index}`}
-                className="grid min-h-[52px] grid-cols-[30px_minmax(0,1fr)]"
+            {canOffer && !filled ? (
+              <Link
+                href={`${href}#offer-heading` as Route}
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-[8px] border border-[rgba(0,90,96,0.35)] bg-white text-[14px] font-semibold text-chelth-navy shadow-[0_1px_2px_rgba(13,47,66,0.05)] hover:border-chelth-teal-dark hover:bg-[#f4fbf9]"
               >
-                <span aria-hidden="true" className="relative flex justify-center">
-                  <span
-                    className={cn(
-                      "mt-0.5 size-3.5 rounded-full",
-                      event.tone === "success" ? "bg-success-indicator" : "bg-info-indicator",
-                    )}
-                  />
-                  {index < activity.length - 1 ? (
-                    <span className="absolute top-5 bottom-0 w-px bg-chelth-border" />
-                  ) : null}
-                </span>
-                <span className="flex flex-col">
-                  <span className="text-[12.5px] font-semibold text-chelth-navy">
-                    {event.title}
-                  </span>
-                  <time dateTime={event.at} className="text-[11.5px] text-muted-foreground">
-                    {dateTime.format(new Date(event.at))}
-                  </time>
-                </span>
-              </li>
-            ))}
-          </ol>
-        )}
-      </section>
+                <WorkspaceNavIcon
+                  name="requests"
+                  strokeWidth={2.1}
+                  className="size-[18px] text-chelth-teal-dark"
+                />
+                Offer shift
+              </Link>
+            ) : null}
+            {primaryAssign ? (
+              <Link
+                href={href}
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-[8px] border border-[rgba(0,90,96,0.35)] bg-white text-[14px] font-semibold text-chelth-navy shadow-[0_1px_2px_rgba(13,47,66,0.05)] hover:border-chelth-teal-dark hover:bg-[#f4fbf9]"
+              >
+                <WorkspaceNavIcon
+                  name="shifts"
+                  strokeWidth={2.1}
+                  className="size-[18px] text-chelth-teal-dark"
+                />
+                Open shift
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

@@ -93,6 +93,8 @@ test.describe("facilities", () => {
     await expect(page.getByText("No client facilities yet.")).toBeVisible();
     await expectNoA11yViolations(page);
 
+    // Locked Facilities: "Add Facility" reveals the existing create form.
+    await page.getByRole("link", { name: "Add Facility" }).click();
     await page.getByLabel("Facility name").fill("Riverside Care Home");
     await page
       .getByRole("combobox", { name: "Facility type" })

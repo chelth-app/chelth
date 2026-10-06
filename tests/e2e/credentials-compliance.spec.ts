@@ -49,6 +49,8 @@ test.describe("credentials and compliance", () => {
 
     // A client facility that additionally requires orientation.
     await page.goto(`${organisationPath}/facilities`);
+    // Locked Facilities: "Add Facility" reveals the existing create form.
+    await page.getByRole("link", { name: "Add Facility" }).click();
     await page.getByLabel("Facility name").fill("Mercy Rehab");
     await page
       .getByRole("combobox", { name: "Facility type" })

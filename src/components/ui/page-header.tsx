@@ -48,7 +48,7 @@ export function PageHeader({
               "font-display text-[1.75rem] leading-9 font-semibold tracking-[-0.03em] text-chelth-navy sm:text-[2rem] sm:leading-10",
               // Locked P2/P3 rendering, calibrated against the approved PNG ink.
               variant === "reference" &&
-                "font-extrabold tracking-normal text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)] [-webkit-text-stroke:0.4px_currentColor] sm:text-[31.5px] sm:leading-[38px]",
+                "font-bold tracking-normal text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)] sm:text-[31.5px] sm:leading-[38px]",
             )}
           >
             {title}

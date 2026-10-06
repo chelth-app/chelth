@@ -1,0 +1,285 @@
+P0-E8 — SETTINGS CANONICAL VISUAL LOCK
+=====================================
+
+Branch: p0-e8-visual-implementation (uncommitted)
+Canonical screen: /app/organisations/[organisationId]/settings/compliance
+(Settings → Credentials & Compliance, approved).
+Status: LOCK PASS COMPLETE. Not committed. No other feature started.
+
+
+1. SCOPE
+--------
+This pass locks the approved Settings visual language as shared code and
+documentation. It does not redesign anything.
+
+Credentials & Compliance renders as approved. Apart from the internal-nav
+items in section 4, the only visible changes are:
+- the related-area cards now have equal height (section 5);
+- other Settings sections now use the canonical action button for
+  standalone links (section 2).
+
+Unchanged: Supabase, auth, RLS, migrations, RPCs, routes, capability checks,
+business logic, financial controls, attendance behaviour, credential logic
+and the data model. No data loader, gate or mutation was touched.
+
+
+2. FILES CHANGED
+----------------
+New:
+- settings/_components/settings-ui.tsx
+  The shared Settings patterns (section 3).
+- docs/reports/settings-canonical-lock/*
+  Screenshots (section 9).
+- this report
+
+Modified:
+- settings/compliance/page.tsx
+  Uses the shared components. Its local LINK_ACTION and IconTile copies
+  were removed. Content, data and links are unchanged.
+- settings/_components/settings-nav.tsx
+  Selected-state hairline, sticky offset and the current item kept in view
+  (section 4).
+- settings/attendance/page.tsx
+  "Manage location checks on Facilities": underlined text link →
+  SettingsActionLink.
+- settings/rates/page.tsx
+  "Manage rate cards and policies on Rates" and "Change in Timesheets &
+  Payroll" → SettingsActionLink.
+- settings/security/page.tsx
+  "Manage account security / Set up an authenticator app" and "Account
+  details" → SettingsActionRow + SettingsActionLink.
+- docs/ui-reference/CHELTH-LOCKED-VISUAL-SYSTEM.md
+  - Settings is marked LOCKED in the pages table.
+  - "Canonical Settings Implementation" is marked LOCKED.
+  - New "Settings canonical patterns (locked)" table and rules.
+- tests/e2e/settings.spec.ts
+  One new test (section 8).
+
+(All settings paths are under
+src/app/app/organisations/[organisationId]/(workspace)/.)
+
+Not changed:
+- settings/layout.tsx, settings/page.tsx (Organization), team/page.tsx and
+  payroll/page.tsx;
+- workspace-switcher.tsx (account menu), Panel, PageHeader, RefChip;
+- all non-Settings pages.
+
+
+3. REUSABLE SETTINGS PATTERNS LOCKED
+------------------------------------
+Mapping to the requested component names:
+
+- SettingsLayout → settings/layout.tsx (existing; unchanged)
+- SettingsSubnav / SettingsSubnavItem → SettingsNav (existing; refined,
+  section 4)
+- SettingsCard → the locked Panel inside .chelth-locked. It is not wrapped:
+  an alias would add no value, and Panel is already the single card.
+- SettingsIconTile (new)
+  - 36 px, 10 px radius, 18 px icon at 2.1 stroke.
+  - Mint by default.
+  - info / warning / danger tints use the locked KPI tile values. Use them
+    only when the row means that status.
+- SettingsExplanationList / SettingsExplanationRow (new)
+  - The record-list hairlines and 56 px rows.
+  - Title 15 / 600 heading ink, one 13 px slate line, optional trailing
+    chips.
+  - Used for both the readiness inputs and the requirement rule rows.
+- SettingsStatusSummary (new)
+  - A "Results:" label (13.5 / 500 slate), then compact RefChips (400).
+- SettingsActionRow / SettingsActionLink (new)
+  - The outlined secondary CTA: 44 px, 8 px radius, rgba(0,90,96,0.35)
+    border, 14 / 600 navy.
+  - Optional 18 px teal-dark icon; 10 px gap.
+- SettingsRelatedLinks (new)
+  - Navigation-only link cards: tile, 14.5 / 600 title, 12.5 slate
+    purpose.
+  - 1 / 2 / 3 columns.
+
+The explanatory pattern ("How Readiness Is Calculated") and the rule-card
+pattern ("Credential Requirement Rules") are written down as locked
+structures in the visual-system doc, with the rule that no editable control
+appears without a backing mutation.
+
+Semantic chips (unchanged values; now documented):
+- Ready / Active / Requirement met = success;
+- Warning / Action required = warning (amber);
+- Error / Not eligible = danger (red);
+- informational = info (blue) or neutral (slate).
+
+
+4. INTERNAL NAV TREATMENT
+-------------------------
+Unchanged: radius 8 px; height 46 px (44 px touch); 21 px icon at 1.9
+stroke in a 22 px column; 14.5 px label at 500, current item 600 heading
+ink; mint-mist 80% fill; 3 px teal left rule.
+
+Added:
+- A restrained navy hairline on the selected item, rgba(12,30,70,0.09),
+  as the lock specifies. It has no shadow.
+  - Non-selected items carry a transparent 1 px border, so nothing shifts.
+  - The primary sidebar's selected pill (dark teal gradient with lift)
+    stays clearly dominant: primary sidebar > internal Settings nav.
+
+Fixed (found during screenshot QA; both existing issues):
+a) Desktop sticky offset
+   - Problem: the subnav stuck at top: 16 px, under the 76 px sticky top
+     bar. Once the page scrolled, the top bar covered "Organization".
+   - Fix: it now sticks at 92 px (16 px below the top bar).
+b) Phones and tablets
+   - Problem: below lg the subnav is one horizontally scrolling row. It
+     always opened at the start, so on deeper sections the selected item
+     was off-screen (at 412 px, Credentials & Compliance was not visible).
+   - Fix: on load and on navigation, the nav now scrolls its own row to
+     the current item. The page's scroll position is never changed.
+   - No selector, menu or second mobile pattern was introduced.
+
+
+5. LOWER "RELATED COMPLIANCE AREAS" REVIEW
+------------------------------------------
+Reviewed in full (1440-, 768- and 412-related.png, and the full-page
+captures).
+
+- Same Panel card system, and the same tiles and type as the rows above.
+- Navigation only:
+  - Compliance; Facilities (facility.view); Workforce (worker.view).
+  - The test asserts no button, input, select or textarea in the region.
+- No metrics and no duplicated figures. Each card's one line states its
+  purpose and does not repeat the rule rows.
+- Heading at the locked 20 / 600. No extra vertical space: the card ends
+  20 px below the grid.
+- One cosmetic fix: cards in a row now share the same height (h-full). At
+  1440 the Compliance card wraps to three lines and the other two to two,
+  so the borders were uneven before.
+
+
+6. TYPOGRAPHY
+-------------
+No weight or size changes. The page uses the locked scale:
+- page title: Manrope 31.5 / 700 (PageHeader reference);
+- card titles: 20 / 600;
+- row titles: 15 / 600;
+- supporting text: 13–14 px at 400–500 slate;
+- chips: 11.5 px at 400 (header count chip at 600).
+
+The typography-weight-lock unit test passes. No heading weight was
+increased.
+
+
+7. RESPONSIVE BEHAVIOUR
+-----------------------
+- Desktop (≥1024)
+  - 264 px subnav on the left; the content area (max 1180 px) on the
+    right.
+  - The subnav is sticky below the top bar.
+  - Related areas use 3 columns.
+- 768
+  - The subnav becomes one scrolling row above the content, opened at the
+    current section.
+  - Related areas use 2 columns. Rule chips sit beside the requirement
+    name.
+- 412
+  - Same row, scrolled to "Credentials & Compliance".
+  - Cards stack; chips and actions wrap under the row text.
+  - Related areas use 1 column.
+- No page overflow at any width (asserted).
+- Same cards, type and semantic colours at every width.
+
+
+8. TESTS RUN
+------------
+New test in tests/e2e/settings.spec.ts: "canonical Settings lock: selected
+section visible, navigation-only related areas (P0-E8)". At 1440, 768 and
+412 it checks:
+- The selected subnav item has aria-current="page" and is inside the nav's
+  visible area.
+- The related-areas region has links and no form controls.
+- Every link in a Settings card is at least 44 px tall.
+- There is no page overflow.
+- At desktop, once scrolled, the sticky subnav sits fully below the sticky
+  top bar.
+- Screenshots are taken when QA_SCREENSHOTS_DIR is set.
+
+Results:
+- npm run format:check: pass
+- npm run lint: pass (0 warnings)
+- npm run typecheck: pass
+- npm test: 342 passed (29 files)
+- npm run build: pass
+- npm run check:bundle: OK (70 browser files, no secrets)
+- npx playwright test: 235 passed, 5 skipped, 0 failed (7.6 min)
+  - Of the 5 skipped, 4 are desktop-only tests skipped on the mobile
+    project.
+  - The fifth is the new test on the mobile project, which runs its own
+    widths.
+- Settings spec, desktop project, with screenshots: 5 / 5 passed.
+  This includes the existing S9H1 checks:
+  - axe is clean on Credentials & Compliance and with the account menu
+    open, at 1440 / 1920 / 768 / 412;
+  - Escape closes the menu and returns focus.
+
+
+9. SCREENSHOTS (docs/reports/settings-canonical-lock/)
+------------------------------------------------------
+Credentials & Compliance:
+- 1440px-settings-lock-compliance.png / -full.png (desktop, full page)
+- 1440px-settings-lock-related.png (lower Related Compliance Areas)
+- 1440px-settings-lock-subnav.png (selected internal nav state, while
+  scrolled)
+- 768px-settings-lock-{compliance,compliance-full,related,subnav}.png
+- 412px-settings-lock-{compliance,compliance-full,related,subnav}.png
+- {1440,1920,768,412}px-stqa-settings-compliance.png
+
+Account menu open:
+- {1440,1920,768,412}px-stqa-account-menu.png
+
+Other sections, for consistency with the new action links:
+- 1512px-stqa-settings{,-team,-attendance,-payroll,-security}.png
+- {1280,1440,1920,768,412,375}px-stqa-settings.png
+
+Note: the 768 and 412 "settings-lock-compliance" viewport captures keep the
+scroll position from the previous width (a reload restores scroll). The
+-full.png captures show each page from the top.
+
+
+10. VISUAL CONSISTENCY CHECK
+----------------------------
+Compared with Overview, Workforce, Facilities and Attendance (the locked
+system doc and their approved captures) and the approved Credentials &
+Compliance capture (settings-refinement/01b):
+
+- Heading weight: 700 page / 600 card. Matches.
+- Content width: max 1180 px administration column. Unchanged.
+- Card radius and shadow: Panel F surface, 12 px, two-layer shadow.
+  Matches.
+- Icon tile size: 36 px, the same as the drawer and record tiles. Matches.
+- Text colour depth: heading ink for titles, slate-600 for support.
+  Matches.
+- Muted text: 13–14 px slate. Matches.
+- Chip saturation: RefChip locked palette, 400 weight. Matches.
+- Spacing rhythm: 16 px between cards, 18 px inside cards. Unchanged.
+
+Pixel check: the approved capture (settings-refinement/01b, 1440×900) was
+compared with the new 1440px-stqa-settings-compliance.png, using a
+per-channel threshold of 24.
+- The only differing pixels are x 258–262, y 428–474. This is the selected
+  subnav item's edge, where the new navy hairline meets the teal rule.
+- The content area (x ≥ 520) is identical.
+
+
+11. REMAINING COSMETIC DIFFERENCES
+----------------------------------
+- Organization and Security still use KeyValueList with StatusChip.
+  Organization keeps its inline "Change" text links inside values; this is
+  intentional and documented.
+- Team & Permissions keeps its own invitation and role lists, which are
+  very close to the record list but not identical (14 px rows, no icon
+  tiles). Converting them would change an approved operational table area,
+  so it was left for a later pass if wanted.
+- Sections whose only content is a single action (Rates "Rate Integrity
+  Rules", Attendance "Geofence Defaults") now show the outlined CTA instead
+  of a text link. This is consistent with the lock, but those cards are
+  visually heavier than before. Worth a quick look during approval.
+- Facility workspaces have no Credentials & Compliance section (agency
+  only, by capability). This is unchanged.
+
+STATUS: SETTINGS LOCK PASS COMPLETE. AWAITING HUMAN REVIEW. NOT COMMITTED.

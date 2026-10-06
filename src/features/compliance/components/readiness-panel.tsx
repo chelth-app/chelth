@@ -21,7 +21,7 @@ export function ReadinessPanel({ title, readiness, headingId }: ReadinessPanelPr
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3
           id={headingId}
-          className="font-semibold in-[.chelth-locked]:text-[16px] in-[.chelth-locked]:font-extrabold in-[.chelth-locked]:text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)]"
+          className="font-semibold in-[.chelth-locked]:text-[16px] in-[.chelth-locked]:font-semibold in-[.chelth-locked]:text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)]"
         >
           {title}
         </h3>

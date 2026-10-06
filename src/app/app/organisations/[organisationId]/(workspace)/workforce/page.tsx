@@ -249,7 +249,7 @@ export default async function WorkforcePage({
           <div className="flex items-start justify-between gap-3">
             <h2
               id="invite-worker-heading"
-              className="font-display text-[18px] leading-6 font-extrabold text-chelth-navy"
+              className="font-display text-[18px] leading-6 font-semibold text-chelth-navy"
             >
               Invite a healthcare worker
             </h2>

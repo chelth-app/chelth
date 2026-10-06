@@ -185,6 +185,8 @@ test.describe("organisation access", () => {
     await expect(page.getByRole("note")).toHaveCount(0);
 
     // Invite (the role list is limited to the admin's ceiling; DB enforces it).
+    // P0-E8-S9H: invitations live in Settings → Team & Permissions.
+    await page.goto(`${organisationUrl.replace(/\/$/, "")}/settings/team`);
     const inviteeEmail = uniqueEmail("e2e-invitee");
     await page.getByLabel("Email address").fill(inviteeEmail);
     await page

@@ -113,9 +113,9 @@ export function DetailDrawer({
               id={titleId}
               className={cn(
                 "font-display text-lg leading-6 font-semibold text-chelth-navy",
-                panel && "sm:text-[20px] sm:font-extrabold sm:tracking-[-0.02em]",
+                panel && "sm:text-[20px] sm:font-semibold sm:tracking-[-0.02em]",
                 width === "profile" &&
-                  "text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)] [-webkit-text-stroke:0.2px_currentColor] sm:text-[20.5px]",
+                  "text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)] sm:text-[20.5px]",
               )}
             >
               {title}
@@ -154,6 +154,9 @@ export function DetailDrawer({
           className={cn(
             "flex flex-1 flex-col overflow-y-auto",
             panel ? "px-4 pb-4" : "gap-5 px-5 py-4",
+            // Locked drawer scrollbar: thin, teal-hairline thumb, no track (scrolling kept).
+            width === "profile" &&
+              "[scrollbar-width:thin] [scrollbar-color:rgba(18,107,103,0.22)_transparent]",
           )}
         >
           {children}
@@ -167,8 +170,8 @@ export function DetailDrawer({
 }
 
 type DetailDrawerTriggerProps = Omit<DetailDrawerProps, "open" | "onOpenChange"> & {
-  /** Visible button text, e.g. "Details". */
-  triggerLabel: string;
+  /** Visible trigger content, e.g. "Details" (or a compact calendar block). */
+  triggerLabel: ReactNode;
   /** Accessible name when the visible text alone is ambiguous in a table. */
   triggerAccessibleLabel?: string;
   triggerClassName?: string;
