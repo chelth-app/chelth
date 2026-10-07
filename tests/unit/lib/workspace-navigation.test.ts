@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { isNavItemActive } from "@/components/layout/workspace-navigation-model";
 import {
   buildWorkspaceNavigation,
+  financeAreas,
   isWorkspaceStaff,
 } from "@/features/organisations/workspace-navigation";
 import {
@@ -130,10 +131,7 @@ describe("buildWorkspaceNavigation", () => {
       "Workforce",
       "Facilities",
       "Compliance",
-      "Rates",
-      "Pricing",
-      "Payroll",
-      "Invoices",
+      "Finance",
       "Settings",
     ]);
   });
@@ -151,15 +149,12 @@ describe("buildWorkspaceNavigation", () => {
     ]);
   });
 
-  it("gives agency finance the finance routes and no operational ones", () => {
+  it("gives agency finance one Finance item and no operational ones", () => {
     expect(navFor("agency.finance", "agency").labels).toEqual([
       "Overview",
       "Timesheets",
       "Facilities",
-      "Rates",
-      "Pricing",
-      "Payroll",
-      "Invoices",
+      "Finance",
       "Settings",
     ]);
   });
@@ -196,7 +191,7 @@ describe("buildWorkspaceNavigation", () => {
   });
 
   it("lists capabilities pending MFA step-up (the page renders a step-up notice)", () => {
-    expect(navFor("agency.finance", "agency", { stepUp: true }).labels).toContain("Payroll");
+    expect(navFor("agency.finance", "agency", { stepUp: true }).labels).toContain("Finance");
   });
 
   it("lists Timesheets for a staff member who is also a worker (own timesheets)", () => {
@@ -237,6 +232,46 @@ describe("buildWorkspaceNavigation", () => {
     }
   });
 
+  it("never lists the four finance areas as separate sidebar items (P0-E8-F2.5)", () => {
+    for (const role of Object.keys(ROLE_GRANTS)) {
+      const type: OrganisationType = role.startsWith("facility.") ? "facility" : "agency";
+      const { labels } = navFor(role, type);
+      for (const label of ["Rates", "Pricing", "Payroll", "Invoices"]) {
+        expect(labels).not.toContain(label);
+      }
+    }
+  });
+
+  it("shows Finance only when a finance area is held, linking to the first one", () => {
+    const only = (keys: CapabilityKey[]) =>
+      buildWorkspaceNavigation({
+        organisationId: ORG,
+        organisationType: "agency",
+        can: (capability) =>
+          capabilityState(
+            ["organisation.view", ...keys].map((capabilityKey) => ({
+              capabilityKey,
+              isPrivileged: false,
+              isSatisfied: true,
+            })),
+            capability,
+          ),
+        hasWorkerRecord: false,
+      })
+        .flatMap((group) => group.items)
+        .find((item) => item.label === "Finance");
+    expect(only([])).toBeUndefined();
+    expect(only(["worker.view"])).toBeUndefined();
+    expect(only(["rates.view"])?.href).toBe(`/app/organisations/${ORG}/rates`);
+    expect(only(["payroll.view"])?.href).toBe(`/app/organisations/${ORG}/payroll`);
+    expect(only(["invoice.view", "pricing.view"])?.href).toBe(`/app/organisations/${ORG}/pricing`);
+    expect(only(["payroll.view", "invoice.view"])?.activePaths).toEqual([
+      `/app/organisations/${ORG}/payroll`,
+      `/app/organisations/${ORG}/invoices`,
+    ]);
+    expect(navFor("agency.scheduler", "agency").labels).not.toContain("Finance");
+  });
+
   it("drops empty groups and labels visible group headings", () => {
     const { groups } = navFor("agency.scheduler", "agency");
     expect(groups.map((group) => group.label)).toEqual([
@@ -245,6 +280,31 @@ describe("buildWorkspaceNavigation", () => {
       "Administration",
     ]);
     expect(groups.every((group) => group.items.length > 0)).toBe(true);
+  });
+});
+
+describe("financeAreas", () => {
+  const grantsOf = (keys: CapabilityKey[]) => (capability: CapabilityKey) =>
+    capabilityState(
+      keys.map((capabilityKey) => ({ capabilityKey, isPrivileged: false, isSatisfied: true })),
+      capability,
+    );
+
+  it("keeps the locked order Rates, Pricing, Payroll, Invoices", () => {
+    expect(financeAreas("agency", grantsOf(ALL)).map((area) => area.label)).toEqual([
+      "Rates",
+      "Pricing",
+      "Payroll",
+      "Invoices",
+    ]);
+  });
+
+  it("lists only the areas the caller can open, and none in a facility workspace", () => {
+    expect(financeAreas("agency", grantsOf(["payroll.view"])).map((area) => area.key)).toEqual([
+      "payroll",
+    ]);
+    expect(financeAreas("agency", grantsOf(["organisation.view"]))).toEqual([]);
+    expect(financeAreas("facility", grantsOf(ALL))).toEqual([]);
   });
 });
 
@@ -281,5 +341,31 @@ describe("isNavItemActive", () => {
     expect(isNavItemActive(shifts, `${base}/shifts`)).toBe(true);
     expect(isNavItemActive(shifts, `${base}/shifts/abc`)).toBe(true);
     expect(isNavItemActive(shifts, `${base}/shifts-archive`)).toBe(false);
+  });
+
+  it("keeps Finance active on every route of its four areas, records included", () => {
+    const finance = {
+      label: "Finance",
+      href: `${base}/rates`,
+      icon: "payroll",
+      match: "prefix",
+      activePaths: ["rates", "pricing", "payroll", "invoices"].map((key) => `${base}/${key}`),
+    } as const;
+    for (const path of [
+      "rates",
+      "pricing",
+      "pricing/abc",
+      "payroll",
+      "payroll/abc",
+      "payroll/adjustments/abc",
+      "invoices",
+      "invoices/abc",
+      "invoices/adjustments/abc",
+    ]) {
+      expect(isNavItemActive(finance, `${base}/${path}`), path).toBe(true);
+    }
+    expect(isNavItemActive(finance, `${base}/settings/payroll`)).toBe(false);
+    expect(isNavItemActive(finance, `${base}/payroll-archive`)).toBe(false);
+    expect(isNavItemActive(finance, `${base}/timesheets`)).toBe(false);
   });
 });

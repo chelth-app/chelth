@@ -177,33 +177,49 @@ test.describe.serial("pay & bill rates and pricing", () => {
   test("Flow 1: a rate is created, activated and shown as current", async ({ browser }) => {
     const path = `/app/organisations/${world.agencyId}/rates`;
     const admin = await steppedUpAdmin(browser, path);
-    await admin
+    // P0-E8-F1: "Add Rate Card" reveals the existing create form.
+    await admin.getByRole("link", { name: "Add Rate Card" }).first().click();
+    const form = admin.getByRole("region", { name: "Add a rate card" });
+    await form
       .getByRole("combobox", { name: "Facility" })
       .selectOption({ label: "Riverside Clinic" });
-    await admin
+    await form
       .getByRole("combobox", { name: "Discipline" })
       .selectOption({ label: "Certified Nursing Assistant (CNA)" });
-    await admin.getByLabel("Pay rate per hour").first().fill("42.50");
-    await admin.getByLabel("Bill rate per hour").first().fill("58.00");
-    await admin.getByLabel("Effective from").first().fill(addDays(ps, -30));
-    await admin.getByRole("button", { name: "Save draft rate" }).click();
-    const versions = admin.getByRole("region", {
-      name: "Versions: Riverside Clinic · Certified Nursing Assistant (CNA) · Any shift type",
-    });
+    await form.getByLabel("Pay rate per hour").fill("42.50");
+    await form.getByLabel("Bill rate per hour").fill("58.00");
+    await form.getByLabel("Effective from").fill(addDays(ps, -30));
+    await form.getByRole("button", { name: "Save draft rate" }).click();
+    // The new card is a row; Rate Details holds its versions and the existing forms.
+    const scope = "Riverside Clinic · Certified Nursing Assistant (CNA) · Any shift type";
+    await admin.getByRole("button", { name: `Rate details for ${scope}` }).click(AFTER_ACTION);
+    const drawer = admin.getByRole("dialog", { name: "Rate Details" });
+    await drawer.getByRole("tab", { name: "Versions" }).click();
+    const versions = drawer.getByRole("region", { name: `Versions: ${scope}` });
     await expect(versions).toContainText("Draft", AFTER_ACTION);
     await versions.getByRole("button", { name: /^Activate v1/ }).click();
     // P0-E8-S5: rate version status renders as a text chip; Rates | Pricing mode switch.
     await expect(versions.getByRole("row", { name: /v1/ })).toContainText("Current", AFTER_ACTION);
+    await expect(versions).toContainText("$42.50/h");
+    await expect(versions).toContainText("$58.00/h");
+    await expectNoA11yViolations(admin);
+    await qaScreenshot(admin, "f1-rate-details");
+    // Closing the drawer returns to the table: the card is active with the same rates.
+    await admin.keyboard.press("Escape");
+    await expect(drawer).toBeHidden();
+    const row = admin
+      .getByRole("region", { name: "Rate cards table" })
+      .getByRole("row", { name: /Riverside Clinic/ });
+    await expect(row).toContainText("Active");
+    await expect(row).toContainText("$42.50/h");
+    await expect(row).toContainText("$58.00/h");
     await expect(
-      admin.getByRole("navigation", { name: "Rates and pricing" }).getByRole("link", {
+      admin.getByRole("navigation", { name: "Finance", exact: true }).getByRole("link", {
         name: "Rates",
       }),
     ).toHaveAttribute("aria-current", "page");
     await expectNoPaymentVocabulary(admin);
     await qaScreenshot(admin, "s5-rates");
-    await expect(versions).toContainText("Current", AFTER_ACTION);
-    await expect(versions).toContainText("$42.50/h");
-    await expect(versions).toContainText("$58.00/h");
     await expectNoA11yViolations(admin);
     await admin.context().close();
   });
@@ -293,7 +309,9 @@ test.describe.serial("pay & bill rates and pricing", () => {
     const path = `/app/organisations/${world.agencyId}/rates`;
     const admin = await steppedUpAdmin(browser, path);
     const scope = "Riverside Clinic · Certified Nursing Assistant (CNA) · Any shift type";
-    const card = admin.getByRole("listitem", { name: scope });
+    await admin.getByRole("button", { name: `Rate details for ${scope}` }).click();
+    const card = admin.getByRole("dialog", { name: "Rate Details" });
+    await card.getByRole("tab", { name: "Versions" }).click();
     await card.getByText(`New version for ${scope}`).click();
     await card.getByLabel("Pay rate per hour").fill("44.00");
     await card.getByLabel("Bill rate per hour").fill("60.00");
@@ -301,11 +319,78 @@ test.describe.serial("pay & bill rates and pricing", () => {
       .getByLabel("Effective from")
       .fill(addDays(new Date().toISOString().slice(0, 10), 30));
     await card.getByRole("button", { name: "Save draft version" }).click();
-    const versions = admin.getByRole("region", { name: `Versions: ${scope}` });
+    const versions = card.getByRole("region", { name: `Versions: ${scope}` });
     await versions.getByRole("button", { name: /^Activate v2/ }).click();
     await expect(versions.getByRole("row", { name: /v2/ })).toContainText("Upcoming", AFTER_ACTION);
     await expect(versions.getByRole("row", { name: /v1/ })).toContainText("Current");
     await expect(versions.getByRole("row", { name: /v1/ })).toContainText("$42.50/h");
+    await admin.context().close();
+  });
+
+  test("F1 visual: Rates and Pricing on the locked system, drawer and record (P0-E8-F1)", async ({
+    browser,
+  }, testInfo) => {
+    test.skip(testInfo.project.name.startsWith("mobile"), "explicit widths below");
+    const admin = await signedIn(browser, world.admin.email);
+    const base = `/app/organisations/${world.agencyId}`;
+    const scope = "Riverside Clinic · Certified Nursing Assistant (CNA) · Any shift type";
+    for (const [width, height] of [
+      [1512, 982],
+      [1280, 900],
+      [768, 1024],
+    ] as const) {
+      await admin.setViewportSize({ width, height });
+
+      // Rates: KPI quick filters, the rate-card table and Rate Details.
+      await admin.goto(`${base}/rates`);
+      await expect(admin.getByRole("heading", { level: 1, name: "Rates" })).toBeVisible();
+      const summary = admin.getByRole("region", { name: "Rate cards by status" });
+      await expect(summary.getByRole("link", { name: /Active Rate Cards/ })).toBeVisible();
+      const row = admin
+        .getByRole("region", { name: "Rate cards table" })
+        .getByRole("row", { name: /Riverside Clinic/ });
+      await expect(row).toContainText("Active");
+      await expectNoPageOverflow(admin);
+      await expectNoA11yViolations(admin);
+      await qaScreenshot(admin, "f1-rates");
+      await admin.getByRole("button", { name: `Rate details for ${scope}` }).click();
+      const drawer = admin.getByRole("dialog", { name: "Rate Details" });
+      await expect(drawer).toContainText("Matching level");
+      await expect(drawer).toContainText("Prices matching work");
+      await expectNoA11yViolations(admin);
+      await qaScreenshot(admin, "f1-rates-drawer");
+      await admin.keyboard.press("Escape");
+      await expect(drawer).toBeHidden();
+      // Quick filter: no card is without a rate in force here.
+      await summary.getByRole("link", { name: /Needs Attention/ }).click();
+      await expect(admin.getByText("No rate cards match these filters.")).toBeVisible();
+
+      // Pricing: queue KPIs, the engine's matching order (no fallback) and the queue.
+      await admin.goto(`${base}/pricing?state=priced`);
+      await expect(admin.getByRole("heading", { level: 1, name: "Pricing" })).toBeVisible();
+      const matching = admin.getByRole("region", { name: "How Rates Are Matched" });
+      await expect(matching.getByRole("listitem")).toHaveCount(4);
+      await expect(matching.getByRole("listitem").first()).toContainText(
+        "Facility + discipline + shift type",
+      );
+      await expect(matching).toContainText("No fallback to a broader rate");
+      await expect(
+        admin
+          .getByRole("region", { name: "Priced table" })
+          .getByRole("row", { name: /Tia Priced/ }),
+      ).toBeVisible();
+      await expectNoPageOverflow(admin);
+      await expectNoA11yViolations(admin);
+      await qaScreenshot(admin, "f1-pricing");
+
+      // The priced snapshot on the canonical record arrangement.
+      await admin.getByRole("link", { name: "Tia Priced" }).first().click();
+      await expect(admin.getByRole("heading", { level: 1, name: "Tia Priced" })).toBeVisible();
+      await expect(admin.getByText("Current snapshot")).toBeVisible();
+      await expectNoPageOverflow(admin);
+      await expectNoA11yViolations(admin);
+      await qaScreenshot(admin, "f1-priced-record");
+    }
     await admin.context().close();
   });
 

@@ -1,0 +1,398 @@
+P0-E8-F1 — RATES + PRICING VISUAL IMPLEMENTATION
+================================================
+
+Branch: p0-e8-visual-implementation (uncommitted)
+Base:   18ad514 feat: complete Chelth operational visual implementation
+Status: COMPLETE, AWAITING HUMAN VISUAL REVIEW. Not committed.
+Payroll, Invoices and other areas: not started.
+
+
+1. ROUTES CHANGED
+-----------------
+- /app/organisations/[organisationId]/rates
+  Rates list, plus a new Rate Details drawer. There is no rate record
+  route and none was added.
+- /app/organisations/[organisationId]/pricing
+  The pricing overview and its queue.
+- /app/organisations/[organisationId]/pricing/[pricedTimesheetId]
+  The priced timesheet record (pricing detail).
+
+No route was added, removed or renamed. Capability gates are unchanged:
+- rates.view and agency-only for Rates;
+- pricing.view and agency-only for Pricing and the record.
+
+
+2. COMPONENTS
+-------------
+Created:
+- (workspace)/_components/finance-locked.tsx
+  Locked presentation shared by Rates and Pricing:
+  - LockedFilterSelect: the locked 46 px filter control. Timesheets,
+    Facilities and Compliance each keep their own copy; this is one copy
+    for both finance pages.
+  - LockedEmpty: the quiet empty tile.
+  - LockedTile: the 36 px mint tile.
+  - HeaderAddAction: the Facilities "Add" header CTA.
+  - INK: heading ink.
+- rates/_components/rate-card-summary.ts
+  A presentation summary of each loaded rate card:
+  - its state today;
+  - the version the row shows;
+  - its precedence tier;
+  - the quick-filter predicates.
+  It decides nothing about pricing.
+- rates/_components/rate-details-panel.tsx
+  Rate Details content, using the canonical drawer anatomy.
+
+Reused unchanged:
+- PageHeader variant="reference"; FinanceModeTabs; SectionTabs; RefKpiCard
+  and KpiNote; RefPanel; REF_TABLE / REF_TEXT; RefChip; InitialsAvatar.
+- DetailDrawerTrigger width="profile"; DetailsTabs; KeyValueList;
+  LocationPin.
+- RecordPage, RecordMeta, RecordNote and RecordList / RECORD_ROW*; Panel;
+  DataTable*.
+- StepUpNotice; InlineActionForm.
+- The existing pricing forms: NewRateForm, NewVersionForm,
+  Rounding/OvertimePolicyForm and PriceTimesheetForm.
+
+Changed (presentation only):
+- features/pricing/components/rate-forms.tsx
+  NewVersionForm gains an optional `stacked` layout (one column) for the
+  397 px drawer. The fields, action and validation are the same.
+
+
+3. REFERENCE FILES CONSULTED
+----------------------------
+docs/ui-reference/p08-e8/canonical/Chelth_Rates_Pricing/:
+- assets/chelth-rates-pricing-locked.png
+- README.md
+- LOCKED-DESIGN-SPEC.md
+- CLAUDE-IMPLEMENTATION.md
+- RATES-PRICING-DATA-RULES.md
+- RATES-PRICING-INTERACTIONS.md
+
+Locked implementation (styling truth):
+- docs/ui-reference/CHELTH-LOCKED-VISUAL-SYSTEM.md (A–J; Canonical Record
+  Page Primitives)
+- Timesheets agency page and Timesheet Details drawer
+- Facilities page and Facility Details drawer
+- Timesheet record
+- Settings explanatory pattern
+- docs/brand/CLAUDE-CHELTH-BRAND-RULES.md
+
+Engine (behaviour truth):
+- supabase/migrations/20261001100400_pricing_engine.sql
+  (internal.resolve_rate: tiers 1–4, no fallback)
+
+Not found: there is no DERIVATION-MAP entry or visual audit report for
+Rates / Pricing.
+
+
+4. VISUAL DECISIONS INHERITED FROM THE LOCKED SYSTEM
+----------------------------------------------------
+- .chelth-locked page scope and 13 px section rhythm (as Timesheets).
+- Page title Manrope 31.5 / 700; subtitle 18 / 400 muted.
+- Panel and card titles Manrope 20 / 600.
+- KPI cards: RefKpiCard lg.
+  - Luminous semantic tiles: teal, danger, warning, info.
+  - Label 14.75 / 600 and value 30.5 / 700.
+  - KpiNote footer; the whole card is a quick-filter link.
+- Filters: locked 46 px controls with leading icons, a "Show" submit and a
+  "Clear filters" link.
+- Tables: REF_TABLE.
+  - Tinted header band; 11.5 px header and body; 42 px rows.
+  - Hover fill; the selected row (drawer open) gets a mint fill and a 3 px
+    teal inset rule.
+  - Horizontal scrolling inside a labelled region.
+- Drawer: the canonical profile drawer.
+  - 397 px; 84 px luminous identity tile; Manrope 21 / 700 name; status
+    chip.
+  - DetailsTabs; 16 / 600 section headings; teal hairline dividers.
+  - Outlined 48 px footer CTA; dimmed modal backdrop.
+  - On screens ≥1536 px the work area contracts beside the open drawer.
+- Record: RecordPage, PageHeader reference with back link, a status chip
+  and RecordMeta, SectionTabs anchors, Panel cards, KeyValueList and
+  RecordNote.
+- Chips: RefChip 26 px with semantic glyphs.
+- Teal stays the brand; blue is used only for informational states (no
+  blue-centric finance).
+- No gradients, glows or new colours beyond the locked palette.
+
+
+5. RATES — IMPLEMENTATION SUMMARY
+---------------------------------
+Header:
+- "Rates" with the subtitle "Manage pay and bill rate structures used when
+  pricing approved work."
+- "+ Add Rate Card" (rates.manage only) reveals the existing create form
+  (CSS :target, the same pattern as Facilities). The new card is saved as
+  a draft.
+
+KPI cards (counts over the loaded rate cards; each is a quick filter):
+- Active Rate Cards: rate in force today; footer "N disciplines covered".
+- Needs Attention: no rate in force today; footer "Blocks matching work".
+  Per the engine, such a card blocks matching work with no fallback.
+- Draft Versions: waiting to be activated.
+- Upcoming Changes: a version starting later; footer "N ending within 30
+  days", from the computed period end.
+
+Filters:
+- Facility scope: each facility, plus "All facilities (agency-wide)".
+- Discipline.
+- Shift type: each classification, plus "Any shift type".
+- Status.
+The filters narrow the loaded list; no new query. The earlier `?show=`
+links still work.
+
+Current Rate Cards table, one row per card:
+- Facility, Discipline, Shift Type;
+- Pay Rate and Bill Rate (in the version's own currency);
+- Effective From and Effective To;
+- Status: Active / Starts later / Draft / Not in force, with a
+  "drafts · change upcoming" note;
+- "⋯", which opens Rate Details.
+
+Rate Details drawer:
+- Overview tab:
+  - Rate Details: pay, bill, currency, version, effective from / to, and
+    the matching level (the engine tier, 1–4).
+  - Pricing Rule note: "prices matching work", or "no rate in force today
+    — no fallback".
+- Versions tab:
+  - the version table with phase chips;
+  - the existing Activate / Discard forms on drafts;
+  - the existing "New version" form (rates.manage).
+- Footer: "View Pricing Queue" (pricing.view).
+
+Rounding and Overtime: the same rules, policies and forms, now in a
+RefPanel with a locked table and empty state.
+
+Pagination is unchanged (first 50 cards; "Next rate cards").
+
+Reference elements deliberately not built, because they are not supported
+by Chelth:
+- Missing Rates as role × facility combinations;
+- Expiring Soon as a separate status;
+- Rate Exceptions;
+- weekend and night differentials;
+- Export;
+- Duplicate Rate;
+- Deactivate (versions are superseded, never deactivated);
+- View Related Shifts (no rate-to-shift relation);
+- Usage & Related Data metrics;
+- per-rate audit history;
+- Recent Pricing Activity (no rate activity feed).
+The reference's "Edit Rate" is the existing new-version flow, so history
+is never rewritten.
+
+
+6. PRICING — IMPLEMENTATION SUMMARY
+-----------------------------------
+The Pricing route is the real pricing queue: locked timesheets that are
+blocked, ready or priced. Rate configuration lives on Rates. The page
+therefore explains how rates are matched and keeps the queue.
+
+Subtitle: "How Chelth determines the pay and bill rates for approved work,
+and the timesheets waiting to be priced." The brief's "Configure how…"
+wording was not used, because nothing is configured on this page.
+
+KPI cards (each is a quick filter to its queue):
+- Needs Attention: footer "N missing rates" (RATE_NOT_CONFIGURED issues).
+- Ready for Pricing.
+- Priced: footer "N superseded by a revision".
+- Rate Cards in Force: shown only with rates.view granted; links to Rates.
+Queue counts show "50+" once a queue fills its first page (50).
+
+How Rates Are Matched (the Settings explanatory pattern):
+- The four engine tiers in order:
+  1. facility + discipline + shift type;
+  2. facility + discipline, any shift type;
+  3. all facilities + discipline + shift type;
+  4. all facilities + discipline, any shift type.
+- With rates.view, each tier shows the count of rate cards at that level.
+- An amber "No fallback to a broader rate" note: if the first matching card
+  has no version in force on the work date, the timesheet waits in Needs
+  attention; priced timesheets keep their rates.
+- "Manage rate cards" in the header.
+This text describes internal.resolve_rate; the logic is unchanged.
+
+Queue:
+- SectionTabs (Needs attention / Ready for pricing / Priced).
+- A RefPanel with a REF_TABLE: worker avatar and name (a link for priced
+  rows), week, facilities, worked time, pay / bill or status.
+- Issue chips with date and shift type.
+- The existing Price / Price again forms and the "Add or activate a rate"
+  link, which now opens Rates filtered to Needs attention.
+- Pagination unchanged.
+
+Priced timesheet record (canonical record arrangement):
+- Back link "Pricing".
+- Title: worker name. Subtitle: week · timesheet revision.
+- Header meta: a "Current snapshot" or "Superseded by revision N" chip,
+  then "Priced <when> by <name> · Calculation version N".
+- Section tabs: Summary and Priced Shifts.
+- Summary card: worked, priced time, pay, bill, derived margin, currency
+  and lines.
+- Priced Shifts card: the per-line table, unchanged, plus the amounts
+  note.
+
+
+7. ACCESSIBILITY CHECKS
+-----------------------
+axe (wcag2a / 2aa / 22aa) is clean on:
+- Rates at 1512, 1280 and 768;
+- Rate Details open;
+- Pricing (priced queue);
+- the priced record;
+- the stepped-up Rate Details Versions tab (Flow 1);
+- every route in the final sweep at 1280 / 1024 / 768 / 412 / 375.
+
+Semantics:
+- KPI quick filters are links with aria-current.
+- Filters have labels ("Filter by facility", and so on).
+- Tables are labelled regions ("Rate cards table", "Versions: <scope>",
+  "<queue> table", "Priced lines").
+- The drawer is a native modal dialog: focus trap; Escape closes it and
+  returns focus to the trigger.
+- The row trigger is named "Rate details for <scope>".
+- Tabs are a tablist.
+- Empty states use h3 inside h2 panels.
+- Status is always text, never colour alone.
+
+
+8. RESPONSIVE CHECKS
+--------------------
+- 1512 / 1280:
+  - 4-up KPI cards and wrapping filter row;
+  - the table fills the work area;
+  - the drawer overlays (the work area contracts only ≥1536, as
+    Timesheets).
+- 768:
+  - KPI cards 2×2; filters wrap;
+  - the table scrolls horizontally inside its region;
+  - the drawer uses the same canonical panel.
+- 412 / 375 (final sweep):
+  - the existing sidebar overlay and stacked cards;
+  - no page overflow;
+  - no new mobile navigation.
+- No page overflow is asserted at every width tested.
+
+
+9. SECURITY / AUTHZ CONFIRMATION
+--------------------------------
+Unchanged:
+- schema, migrations, RLS, RPCs, actions and capability keys.
+- rates.manage still gates every write: create, version, activate,
+  discard and policies. The forms are shown only when granted, and the
+  database re-checks every action (step-up where required).
+- Facility and worker users still cannot reach Rates or Pricing (Flows 5
+  and 6 pass).
+
+Data reads:
+- Pricing reads rate cards only when rates.view is granted.
+- No service role is used; the existing user-scoped RPCs are used.
+- No client-side authorization was introduced.
+- No hidden data is exposed: the drawer shows only fields already listed
+  on the page.
+- Pricing snapshots remain immutable; precedence and no-fallback logic are
+  untouched.
+
+No payment vocabulary was introduced (asserted).
+
+
+10. VALIDATION RESULTS
+----------------------
+- npm run format:check: pass
+- npm run lint: pass (0 warnings)
+- npm run typecheck: pass
+- npm test: 342 passed (29 files)
+- npm run build: pass
+- npm run check:bundle: OK (69 browser files, no secrets)
+- npx playwright test: 237 passed, 7 skipped, 0 failed (6.7 min)
+  The skips are desktop-only visual tests on the mobile project, including
+  the new F1 test.
+
+Tests updated (tests/e2e/pricing.spec.ts):
+- Flow 1: "Add Rate Card" reveals the form. The new card's Rate Details
+  drawer → Versions shows the draft, which is activated. After the drawer
+  closes, the table row shows Active, $42.50/h and $58.00/h.
+- Flow 4: the new version is created and activated from the drawer;
+  Upcoming and Current are shown.
+- New "F1 visual" test at 1512 / 1280 / 768:
+  - the KPIs and the rate-card row;
+  - drawer content (matching level, pricing rule);
+  - the Needs Attention quick filter;
+  - Pricing: four precedence tiers in order and the no-fallback note;
+  - the priced queue;
+  - the record page;
+  - axe and overflow checks.
+
+Also updated, tests/e2e/workspace-shell.spec.ts: the priced-queue empty
+heading is now h3, because it sits inside the queue panel's h2.
+
+
+11. SCREENSHOTS (docs/reports/finance-fidelity/)
+------------------------------------------------
+rates/:
+- 00-reference-vs-rates-1512.png (reference | implementation, drawer open)
+- 01-rates-1512.png
+- 02-rates-1280.png
+- 03-rates-768.png
+- 04-rate-details-drawer-1512.png
+- 05-rate-details-versions-manage-1280.png (stepped-up; Versions tab
+  forms)
+- 06-rate-details-drawer-768.png
+- 07-rates-empty-1280.png
+- 08-rates-empty-412.png
+
+pricing/:
+- 00-reference-vs-pricing-1512.png
+- 01-pricing-1512.png
+- 02-pricing-1280.png
+- 03-pricing-768.png
+- 04-priced-record-1512.png
+- 05-priced-record-768.png
+- 06-pricing-empty-1280.png
+- 07-pricing-empty-412.png
+
+
+12. KNOWN GAPS
+--------------
+- Figures are counts over the first 50 rate cards and the first 50 rows
+  of each queue, labelled as such ("first 50", "50+"). There are no
+  aggregate count RPCs, and none were added.
+- Facility, discipline and shift-type filters narrow the loaded rate cards
+  only.
+- Rate Details has no facility-record link: rate cards carry the
+  relationship, not the agency facility id.
+- On Pricing at 1512×982, the precedence card places the queue just below
+  the fold. This is by design (precedence first), but worth a look at
+  review.
+- KPI footers wrap to two lines at 1280. This is the same RefKpiCard
+  behaviour as Timesheets.
+- The reference elements listed in section 5 do not exist in Chelth and
+  were not imitated.
+
+
+13. DEFERRED TO PAYROLL / INVOICES
+----------------------------------
+Spend and billing context; invoice references; payroll batches; export.
+FinanceModeTabs (Payroll | Invoices) are untouched.
+
+
+14. GIT DIFF SUMMARY
+--------------------
+ M pricing/[pricedTimesheetId]/page.tsx       (record arrangement)
+ M pricing/page.tsx                           (locked page, precedence card)
+ M rates/page.tsx                             (locked page, table, drawer)
+ M src/features/pricing/components/rate-forms.tsx   (+ stacked layout)
+ M tests/e2e/pricing.spec.ts
+ M tests/e2e/workspace-shell.spec.ts
+ ?? (workspace)/_components/finance-locked.tsx
+ ?? rates/_components/ (rate-card-summary.ts, rate-details-panel.tsx)
+ ?? docs/reports/finance-fidelity/ (17 PNGs)
+ ?? this report
+
+6 tracked files changed: +1102 / −559.
+
+STATUS: RATES + PRICING COMPLETE. AWAITING HUMAN VISUAL REVIEW. NOT COMMITTED.

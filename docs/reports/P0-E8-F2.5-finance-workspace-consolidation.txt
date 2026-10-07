@@ -1,0 +1,280 @@
+P0-E8-F2.5 — FINANCE WORKSPACE CONSOLIDATION
+=============================================
+
+Branch: p0-e8-visual-implementation (uncommitted)
+Base:   18ad514, plus the uncommitted F1 (Rates + Pricing) and F2 (Payroll)
+        work.
+
+This is an information-architecture and navigation consolidation only:
+- no redesign;
+- no Invoices visual work;
+- no Finance dashboard;
+- no backend change.
+
+No screenshots were saved to the repository. The QA captures went to a
+local scratch directory outside the repo.
+
+
+1. ROUTES REVIEWED
+------------------
+All existing routes are kept with identical URLs; none are renamed,
+aliased or removed.
+
+- /app/organisations/[organisationId]/rates
+- /app/organisations/[organisationId]/pricing
+- /app/organisations/[organisationId]/pricing/[pricedTimesheetId]
+- /app/organisations/[organisationId]/payroll
+- /app/organisations/[organisationId]/payroll/[batchId]
+- /app/organisations/[organisationId]/payroll/adjustments/[adjustmentId]
+- /app/organisations/[organisationId]/invoices
+- /app/organisations/[organisationId]/invoices/[draftId]
+- /app/organisations/[organisationId]/invoices/adjustments/[adjustmentId]
+
+On disk, the four route families moved from (workspace)/<area> into the
+(workspace)/(finance)/<area> route group. A parenthesised group adds no URL
+segment, so every URL and bookmark is unchanged; the move only lets one
+layout serve all nine pages.
+
+There is no /finance route; a test asserts that it returns 404.
+
+
+2. SIDEBAR CHANGES
+------------------
+Agency sidebar: Overview · Operations · Shifts · Attendance · Timesheets ·
+Workforce · Facilities · Compliance · Finance · Settings.
+
+- Rates, Pricing, Payroll and Invoices are no longer separate sidebar items.
+- There is one "Finance" item with the existing "payroll" (banknote) icon
+  from the Chelth icon set. No new icon library.
+- Finance sits immediately before Settings, which stays its own item.
+- Finance links to the first finance area the member can open, in the
+  locked order. There is no new route.
+- The facility sidebar is unchanged; facility workspaces never list
+  Finance.
+
+
+3. SHARED FINANCE NAVIGATION COMPONENT
+--------------------------------------
+- Definition: FINANCE_AREAS and financeAreas() in
+  src/features/organisations/workspace-navigation.ts.
+  - Holds the locked order Rates · Pricing · Payroll · Invoices and each
+    area's view capability.
+  - The sidebar and the Finance tabs use the same definition, so they
+    cannot disagree.
+- Component: (finance)/_components/finance-workspace-nav.tsx
+  (FinanceWorkspaceNav).
+  - A "FINANCE" label with the finance icon, then the locked SectionTabs
+    (14.5 px; current tab 600 ink with a 3 px teal underline; others
+    slate-500).
+  - Each tab is a link, and the current one has aria-current="page".
+- Placement: (finance)/layout.tsx renders it once above every finance
+  page, records included. The pages keep their own headers.
+- Header hierarchy chosen: Finance label + [Rates | Pricing | Payroll |
+  Invoices], then the page's own title ("Rates", "Payroll",
+  "PAY-2026-000001"…).
+  - This keeps the locked page-title scale and avoids two stacked large
+    headings.
+  - The Finance identity comes from the label, the tab row and the active
+    sidebar item.
+  - The suggested Finance description line was not added, to avoid header
+    clutter. Each page keeps its own subtitle.
+- Removed:
+  - (workspace)/_components/finance-mode-tabs.tsx, which held the pairwise
+    "Rates and pricing" and "Payroll and invoices" tabs;
+  - its use in the rates, pricing, payroll and invoices pages.
+- finance-locked.tsx (from F1/F2) moved with the routes to
+  (finance)/_components/. It is unchanged.
+- The Invoices pages are not wrapped in .chelth-locked: only the nav
+  itself is, so Invoices content renders exactly as before.
+
+
+4. CAPABILITY-GATING BEHAVIOUR
+------------------------------
+Areas use the same predicate as the page gates: held means granted or
+pending step-up.
+- Rates: rates.view.
+- Pricing: pricing.view.
+- Payroll: payroll.view.
+- Invoices: invoice.view.
+Agency workspaces only.
+
+- Finance appears only when at least one area is held.
+- The tab row lists only the held areas.
+- No role names are used.
+- This is a UI hint only. Every page keeps its own gate (404 when not
+  held), and every operation is re-authorised by the database.
+- Seeded roles:
+  - agency.admin, agency.finance and agency.operations_manager hold all
+    four views;
+  - scheduler, recruiter, credentialing officer and healthcare worker hold
+    none.
+  - No seeded role has partial finance access, so partial gating is proven
+    in unit tests with synthetic grants (rates only, payroll only,
+    pricing + invoices, payroll + invoices).
+
+
+5. ACTIVE-ROUTE BEHAVIOUR
+-------------------------
+- Sidebar: WorkspaceNavItem gains an optional `activePaths`.
+  isNavItemActive treats each path as a prefix root (exact or followed by
+  "/"). Finance is therefore current on all four families and their detail
+  and adjustment pages, and only there: /settings/payroll and
+  /payroll-archive do not match.
+- Tabs: the area is current when the pathname is the area root or under
+  it. For example, /payroll/[batchId] and /payroll/adjustments/[id] mark
+  Payroll; /invoices/[draftId] marks Invoices; /pricing/[id] marks
+  Pricing.
+- Exactly one tab is current at a time (asserted).
+
+
+6. RESPONSIVE BEHAVIOUR
+-----------------------
+- Desktop: one row; the Finance label is left of the tabs; a teal hairline
+  runs below.
+- Tablet and phone:
+  - same row; the tab list scrolls horizontally inside its own nav
+    (SectionTabs); no 2×2 grid;
+  - the current area stays underlined;
+  - no page overflow at 1512 / 1280 / 1024 / 768 / 412 / 375 (asserted in
+    the F1/F2 tests, the shell finance test and the final sweep).
+- The sidebar overlay is unchanged: hamburger, modal, Escape closes, focus
+  returns to the trigger (asserted for the finance routes on the mobile
+  project).
+- Finance is one overlay item. There is no bottom navigation.
+
+
+7. ACCESSIBILITY RESULTS
+------------------------
+- Sidebar Finance link: aria-current="page" on every finance route.
+- Finance tabs: a <nav aria-label="Finance"> of links with aria-current.
+  These are links, not ARIA tabs, matching the existing SectionTabs
+  decision for URL navigation. The current tab is identified by weight,
+  colour, underline and aria-current, so not by colour alone.
+- The visual "FINANCE" label is aria-hidden; the landmark name carries it,
+  so nothing is announced twice.
+- Landmarks are uniquely labelled: "Workspace" (sidebar), "Finance", and
+  the page's own section navs ("Payroll batch sections", …).
+- Targets are ≥44 px; the global focus ring is kept.
+- axe (wcag2a / 2aa / 22aa) is clean on Rates, Pricing, Payroll and
+  Invoices for finance users on desktop and mobile, and on all F1/F2
+  pages and records.
+
+
+8. TESTS ADDED / UPDATED
+------------------------
+tests/unit/lib/workspace-navigation.test.ts (347 unit tests total, +5):
+- Agency admin and finance navigation now list "Finance" instead of the
+  four items.
+- New: no role ever gets separate Rates / Pricing / Payroll / Invoices
+  items.
+- New: Finance appears only with a held finance area, links to the first
+  one, carries activePaths for the held areas only, and is absent for a
+  scheduler.
+- New: financeAreas keeps the locked order, lists only held areas, and
+  lists none in a facility workspace.
+- New: isNavItemActive keeps Finance current on every finance route
+  (including records and adjustments) and on no other route.
+
+tests/e2e/workspace-shell.spec.ts:
+- The sidebar label lists now use Finance.
+- New test "finance workspace: one sidebar item, capability-filtered
+  areas, active states", on desktop and mobile:
+  - Rates, Pricing, Payroll and Invoices each have the Finance tabs in
+    locked order, with exactly one current tab;
+  - no legacy sidebar items; the sidebar Finance item is current;
+  - Finance links to /rates;
+  - Escape returns focus on mobile;
+  - no overflow; axe clean;
+  - /finance returns 404;
+  - a scheduler has no Finance item and gets 404 on /rates.
+
+tests/e2e/financial.spec.ts:
+- The navigation name is now "Finance".
+- The batch record keeps Finance › Payroll current, with the sidebar
+  Finance item current at ≥1024.
+- The invoice draft record keeps Finance › Invoices current, with the
+  sidebar Finance item current.
+
+tests/e2e/financial-adjustments.spec.ts:
+- The adjustment record keeps Finance › Payroll current.
+
+tests/e2e/pricing.spec.ts:
+- The navigation name is now "Finance" (Rates current).
+
+
+9. VALIDATION RESULTS
+---------------------
+- npm run format:check: pass
+- npm run lint: pass (0 warnings)
+- npm run typecheck: pass
+- npm test: 347 passed (29 files)
+- npm run build: pass
+- npm run check:bundle: OK (71 browser files, no secrets)
+- npx playwright test: 241 passed, 9 skipped, 0 failed (9.3 min). The
+  skips are desktop-only tests on the mobile project.
+
+
+10. FILES CHANGED
+-----------------
+Moved, with URLs unchanged:
+  (workspace)/{rates,pricing,payroll,invoices}/**
+    → (workspace)/(finance)/{rates,pricing,payroll,invoices}/**
+  (workspace)/_components/finance-locked.tsx
+    → (workspace)/(finance)/_components/finance-locked.tsx
+
+Added:
+  (workspace)/(finance)/layout.tsx
+  (workspace)/(finance)/_components/finance-workspace-nav.tsx
+  docs/reports/P0-E8-F2.5-finance-workspace-consolidation.txt (this report)
+
+Removed:
+  (workspace)/_components/finance-mode-tabs.tsx
+
+Modified:
+  (finance)/rates/page.tsx, pricing/page.tsx, payroll/page.tsx and
+    invoices/page.tsx: the FinanceModeTabs import and usage removed only.
+  src/features/organisations/workspace-navigation.ts: FINANCE_AREAS,
+    financeAreas and the single Finance item.
+  src/features/organisations/index.ts: exports financeAreas and the
+    FinanceArea type.
+  src/components/layout/workspace-navigation-model.ts: `activePaths` and
+    isNavItemActive.
+  tests/unit/lib/workspace-navigation.test.ts
+  tests/e2e/workspace-shell.spec.ts
+  tests/e2e/financial.spec.ts
+  tests/e2e/financial-adjustments.spec.ts
+  tests/e2e/pricing.spec.ts
+
+Git index: `git mv` staged the moves during the work. The index was reset
+afterwards (no working-tree change), so nothing is staged. Git therefore
+shows the moved paths as deleted plus the untracked (finance)/ directory.
+
+
+11. NO DB / SECURITY LOGIC CHANGED
+----------------------------------
+- No file under supabase/ (schema, migrations, RLS, authz functions,
+  RPCs) is in the diff.
+- No change to capabilities, AAL2, tenant isolation, maker-checker,
+  exports, pricing snapshots, payroll or invoice claims, financial
+  adjustments, or any action or lifecycle.
+- Navigation visibility reads the existing my_capabilities grants through
+  the same capabilityState as before. It is a UI hint, never the security
+  boundary.
+- No service role is used.
+
+
+12. KNOWN GAPS
+--------------
+- Partial finance access cannot be exercised end-to-end with seeded roles
+  (none hold only some areas). It is covered by unit tests.
+- The Invoices pages still use their pre-locked header (back link to the
+  organisation, older KPI cards). This is intentionally untouched until
+  F3, so on Invoices the Finance nav sits above the old-style header.
+- Phones: the "FINANCE" label takes about 110 px of the row, so the
+  Invoices tab is reached by scrolling the tab row horizontally. This was
+  checked at 412 and 375.
+- docs/reports/: the earlier removal of the screenshot subfolders (346
+  tracked files, noted in the F2 report) is still in the working tree. Per
+  instruction, nothing was restored.
+
+STATUS: FINANCE WORKSPACE CONSOLIDATION COMPLETE. AWAITING HUMAN REVIEW. NOT COMMITTED.

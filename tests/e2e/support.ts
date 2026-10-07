@@ -123,7 +123,7 @@ export async function qaScreenshot(page: Page, name: string): Promise<void> {
 export async function expectNoPaymentVocabulary(page: Page): Promise<void> {
   const main = page.getByRole("main");
   await expect(main).not.toContainText(
-    /\bPaid\b|\bOverdue\b|\bACH\b|\bOutstanding\b|Payment received|Process payroll|Collected/,
+    /\bPaid\b|\bOverdue\b|\bACH\b|\bOutstanding\b|Payment received|Payment sent|Process payroll|Collected|Collect payment|Mark paid|\bSent\b|Stripe|Direct deposit|Funds transferred|Bank processed/,
   );
   await expect(
     main.getByRole("button", {

@@ -381,6 +381,71 @@ test.describe.serial("financial adjustments and controls", () => {
     await checker.context().close();
   });
 
+  test("F2 visual: payroll adjustments keep their own delta treatment (P0-E8-F2)", async ({
+    browser,
+  }, testInfo) => {
+    test.skip(testInfo.project.name.startsWith("mobile"), "desktop capture");
+    const page = await signedIn(browser, fay.email);
+    await page.setViewportSize({ width: 1512, height: 982 });
+    await page.goto(`/app/organisations/${world.agencyId}/payroll#payroll-adjustments-heading`);
+    const panel = page.getByRole("region", { name: "Payroll Adjustments", exact: true });
+    await expect(panel).toContainText("Pay-side delta only");
+    await expect(panel.getByRole("region", { name: "Payroll adjustments table" })).toContainText(
+      /PAY-ADJ-\d{4}-\d{6}/,
+    );
+    await expectNoPaymentVocabulary(page);
+    await qaScreenshot(page, "f2-payroll-adjustments");
+    await page.goto(adjustmentPath);
+    await expect(page.getByText("Adjustment — not payment")).toBeVisible();
+    // Finance › Payroll stays current on an adjustment record (P0-E8-F2.5).
+    await expect(
+      page
+        .getByRole("navigation", { name: "Finance", exact: true })
+        .getByRole("link", { name: "Payroll" }),
+    ).toHaveAttribute("aria-current", "page");
+    await expect(
+      page.getByRole("navigation", { name: "Payroll adjustment sections" }),
+    ).toBeVisible();
+    await expect(page.getByLabel("Net pay change")).toContainText("+$11.32");
+    await expectNoPaymentVocabulary(page);
+    await qaScreenshot(page, "f2-payroll-adjustment-detail");
+    await page.context().close();
+  });
+
+  test("F3 visual: invoice adjustments keep their own bill-side delta treatment (P0-E8-F3)", async ({
+    browser,
+  }, testInfo) => {
+    test.skip(testInfo.project.name.startsWith("mobile"), "desktop capture");
+    const page = await signedIn(browser, fay.email);
+    await page.setViewportSize({ width: 1512, height: 982 });
+    await page.goto(`/app/organisations/${world.agencyId}/invoices#invoice-adjustments-heading`);
+    const panel = page.getByRole("region", { name: "Invoice Adjustments", exact: true });
+    await expect(panel).toContainText("Bill-side delta only");
+    await expect(panel).toContainText(/INV-ADJ-\d{4}-\d{6}/);
+    await expectNoPaymentVocabulary(page);
+    await qaScreenshot(page, "f3-invoice-adjustments");
+    await page.goto(invoiceAdjustmentPath);
+    await expect(
+      page.getByRole("navigation", { name: "Finance", exact: true }).getByRole("link", {
+        name: "Invoices",
+      }),
+    ).toHaveAttribute("aria-current", "page");
+    await expect(
+      page.getByRole("navigation", { name: "Invoice adjustment sections" }),
+    ).toBeVisible();
+    // The original draft stays referenced and unchanged; the change is a bill-side delta.
+    await expect(page.getByLabel("Adjustment lineage")).toContainText(/INV-DRAFT-\d{4}-\d{6}/);
+    await expect(page.getByLabel("Adjustment lineage")).toContainText("(unchanged)");
+    await expect(page.getByLabel("Net bill adjustment")).toContainText("+$15.10");
+    await expect(page.getByLabel("Net bill adjustment")).toContainText("Additional charge");
+    await expect(page.getByRole("main")).not.toContainText(/margin|pay rate|\$11\.32/i);
+    await expectNoPaymentVocabulary(page);
+    await expectNoPageOverflow(page);
+    await expectNoA11yViolations(page);
+    await qaScreenshot(page, "f3-invoice-adjustment-detail");
+    await page.context().close();
+  });
+
   test("Flow 6: workers, schedulers and facilities cannot reach adjustment routes", async ({
     browser,
   }) => {

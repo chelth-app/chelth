@@ -1,0 +1,437 @@
+P0-E8-F2 — PAYROLL VISUAL IMPLEMENTATION
+========================================
+
+Branch: p0-e8-visual-implementation (uncommitted)
+Base:   18ad514, plus the uncommitted F1 Rates + Pricing work
+Scope:  Payroll only. Invoices was not touched. No commit, no push.
+
+No database, migration, RLS, RPC, action, capability or lifecycle change.
+
+
+1. ROUTES CHANGED
+-----------------
+The route tree has exactly three Payroll routes. All three were changed and
+none were added:
+
+- /app/organisations/[organisationId]/payroll
+  The Payroll overview, with the new Payroll Batch Details drawer.
+- /app/organisations/[organisationId]/payroll/[batchId]
+  The batch record.
+- /app/organisations/[organisationId]/payroll/adjustments/[adjustmentId]
+  The adjustment record.
+
+Gates are unchanged:
+- payroll.view, otherwise 404;
+- agency-only on the overview (as before);
+- the records keep their own payroll.view gate and organisation check.
+
+
+2. COMPONENTS CREATED
+---------------------
+- payroll/_components/payroll-tones.ts
+  - lifecycle → RefChip tone, with the same mapping as PayrollStatusBadge;
+  - attention tones;
+  - next-step labels.
+- payroll/_components/batch-details-panel.tsx
+  Payroll Batch Details content, using the canonical drawer anatomy.
+- (workspace)/_components/finance-locked.tsx (F1 file, extended)
+  LockedNotice: a locked semantic note (info / warning / danger) with a
+  glyph, title and line. Used for attention, blocked, maker-checker and
+  cancelled notes.
+
+
+3. COMPONENTS REUSED
+--------------------
+F1 / locked system:
+- PageHeader variant="reference"; FinanceModeTabs (Payroll | Invoices,
+  unchanged).
+- RefKpiCard and KpiNote; RefPanel; REF_TABLE / REF_TEXT; RefChip.
+- LockedFilterSelect, LockedEmpty, HeaderAddAction.
+- DetailDrawerTrigger width="profile"; DetailsTabs; KeyValueList.
+- RecordPage, RecordMeta, RecordNote; Panel; SectionTabs; DataTable*.
+- StepUpNotice; InlineActionForm.
+
+Existing financial components, unchanged:
+- IssuesTable, PayrollAdjustmentCandidates, PayrollAdjustmentsTable and
+  ReconciliationTable;
+- ExportsTable, HistoryList and SignedAmount;
+- CancelPayrollBatchForm and CancelPayrollAdjustmentForm.
+They are shared with Invoices, so they were not restyled. Inside
+.chelth-locked they pick up the locked DataTable and StatusChip geometry.
+
+
+4. REFERENCE FILES CONSULTED
+----------------------------
+Reference documents:
+- docs/reports/P0-E8-F1-rates-pricing-visual-implementation.txt (styling
+  parent)
+- docs/ui-reference/CHELTH-LOCKED-VISUAL-SYSTEM.md
+- docs/brand/CLAUDE-CHELTH-BRAND-RULES.md
+
+docs/ui-reference/p08-e8/canonical/Chelth_Payroll_Invoices/:
+- assets/chelth-payroll-invoices-locked.png
+- README.md
+- LOCKED-DESIGN-SPEC.md
+- CLAUDE-IMPLEMENTATION.md
+- PAYROLL-INVOICES-INTERACTIONS.md
+- PAYROLL-INVOICES-DATA-RULES.md
+
+Behaviour truth:
+- src/features/financial (queries, adjustment-queries, components);
+- src/lib/domain/financial.ts;
+- supabase/migrations/20261001130000_adjustment_controls.sql
+  (financial_authorize, maker-checker);
+- supabase/migrations/20261001130400_adjustment_rpcs.sql (approve_payroll_
+  batch).
+
+
+5. VISUAL DECISIONS INHERITED FROM F1
+-------------------------------------
+- .chelth-locked scope; 13 px rhythm.
+- Title Manrope 31.5 / 700; subtitle 18 / 400.
+- Header meta: a neutral chip plus RecordMeta.
+- KPI row: four RefKpiCard lg, with luminous semantic tiles and KpiNote
+  footers.
+  - Quick filters only where a real filter exists (status). The others
+    anchor to their panel.
+- Filter row: LockedFilterSelect (46 px, hairline, icon), "Show", and
+  "Clear filters".
+- Batch table: REF_TABLE, 42 px rows, hover fill.
+  - With the drawer open: mint fill and a 3 px teal inset on the row.
+  - On screens ≥1536 the work area contracts by 407 px.
+- Drawer: canonical profile drawer.
+  - 84 px luminous identity tile, Manrope 21 / 700 reference, status chip.
+  - DetailsTabs; 16 / 600 sections; teal dividers.
+  - Gradient primary and outlined secondary CTAs.
+- Records: RecordPage, PageHeader reference with "Payroll" back link,
+  meta chips and RecordMeta, SectionTabs anchors, Panel cards,
+  KeyValueList, RecordNote.
+- Money stays integer minor units, formatted by the existing formatMoney /
+  formatSignedMoney / formatHourlyRate in the record's own currency. No UI
+  arithmetic beyond summing worker counts for a KPI footer.
+
+
+6. PAYROLL LIFECYCLE MAPPING
+----------------------------
+Draft → Reviewed → Approved → Locked → Exported; Cancelled before lock.
+The existing domain labels (PAYROLL_BATCH_STATUS_LABELS) are used.
+
+Tones (unchanged meaning):
+- Draft and Cancelled: neutral.
+- Reviewed, Approved and Locked: info (in progress).
+- Exported: success.
+
+Attention tones:
+- Adjustment required: amber.
+- Includes revised work: red.
+- Adjustment in progress: blue.
+- Revision resolved: neutral.
+
+KPI cards (real counts over the loaded records):
+- Needs Attention: payroll issues; footer "N adjustments required"; anchors
+  to Needs Attention.
+- Ready to Prepare: priced periods not in a batch; footer "N workers";
+  anchors to Ready to Prepare.
+- Awaiting Approval: reviewed batches; footer "N draft · N ready to lock";
+  quick filter status=reviewed.
+- Ready to Export: locked, not yet exported; footer "N exported"; quick
+  filter status=locked.
+
+No Paid, Outstanding, Funds or Tax KPIs exist.
+
+Language:
+- "Prepare Payroll Batch" (header CTA), "Review Batch", "Approve Batch",
+  "Lock Batch", "Export CSV".
+- "Preparation and export only" chip; "Chelth does not pay workers."
+
+
+7. DRAWER IMPLEMENTATION (Payroll Batch Details)
+------------------------------------------------
+- Trigger: "⋯" per row, named "Payroll batch details for <reference>".
+- Identity: payroll tile, reference, "Payroll batch · <currency>", period
+  and lifecycle chip.
+- Overview tab:
+  - Batch Summary: pay total, currency, workers, lines, status, prepared by,
+    prepared at, exports.
+  - Approval Control: maker-checker Required / Not required (plus "by an
+    eligible member other than the preparer" when required), the attention
+    chip and the preparation-only line.
+- Workers tab: real worker totals (lines, time, overtime, pay).
+- History tab: real batch history (HistoryList), newest first.
+- Details are loaded for the first 15 listed batches. Further rows say the
+  details are on the record.
+- Footer (lifecycle- and capability-aware):
+  - The primary CTA is the next step this viewer can take: Review Batch
+    (draft + payroll.prepare), Approve Batch (reviewed + payroll.approve,
+    not blocked), Lock Batch (approved + payroll.approve, not blocked) or
+    Export CSV (locked + payroll.export). Each opens the record's Next Step
+    section.
+  - Otherwise the primary CTA is "Open Payroll Batch".
+  - No mutation runs in the drawer. The existing forms on the record keep
+    step-up, blocking and maker-checker handling, so the drawer cannot show
+    an impossible action.
+- Native modal dialog: focus moves into the drawer; Escape returns focus to
+  the row trigger (tested).
+
+
+8. RECORD-PAGE IMPLEMENTATION (batch)
+-------------------------------------
+- Header: back link "Payroll"; title = reference; subtitle "<Weekly…>
+  period <dates> · <currency>".
+- Meta: status chip, attention chip, and "Payroll preparation only — no
+  payment, tax or deductions".
+- Section tabs: Summary · Next Step · Exports · Workers · Lines · History.
+- Notices: StepUpNotice (unchanged); LockedNotice for "Adjustment required"
+  and "Includes revised work" (role status / alert kept).
+- Summary panel:
+  - Batch totals: pay, workers, lines, regular, overtime, currency.
+  - Batch lifecycle: prepared, reviewed, approved and locked (each with time
+    and actor); exported.
+  - A note: amounts are copied from pricing, and Chelth does not pay
+    workers.
+- Next Step panel:
+  - The existing lifecycle forms with unchanged labels and gates: Mark
+    reviewed, Approve batch, Lock batch, Export CSV / again, Cancel batch.
+  - The lock note ("A locked batch never changes.").
+- Exports, Worker Totals, Lines and History panels: the existing tables, now
+  under locked panels.
+
+
+9. ADJUSTMENT IMPLEMENTATION
+----------------------------
+Adjustments stay distinct from batch entries.
+
+Overview: a "Payroll Adjustments" panel with a "Pay-side delta only" chip,
+the delta explanation, and the existing candidates and adjustments tables:
+- PAY-ADJ references;
+- signed net change with Increase / Decrease text;
+- "Revision 1 → 2" lineage.
+When there are no candidates and no adjustments, the panel uses the locked
+quiet tile instead of the shared dashed empty state. That fix is scoped to
+Payroll, so Invoices is unaffected.
+
+Adjustment record:
+- RecordPage; title PAY-ADJ-…; subtitle worker · week · currency.
+- Meta: lifecycle chip, attention chip, an "Adjustment — not payment" chip,
+  and "Pay-side delta · the original batch never changes".
+- Section tabs: What It Adjusts · Net Change · Next Step · Exports ·
+  Changed Lines · History.
+- Lineage, net change (SignedAmount), changed lines (original → revised)
+  and the immutable history are unchanged in content.
+
+No refund, repayment or clawback state was introduced.
+
+
+10. MAKER / CHECKER TREATMENT
+-----------------------------
+The logic is unchanged.
+
+The database enforces it for batches and adjustments: financial_authorize
+returns MAKER_CHECKER when the preparer approves and the setting is on, and
+the denial is audited.
+
+Surfaced in the UI:
+- Batch drawer, Approval Control: "Maker-checker: Required / Not
+  required".
+- Batch record, while draft or reviewed with maker-checker on: an info
+  notice, "Second approver required — Prepared by <name>. Approval must be
+  completed by another eligible member."
+  The batch model exposes no "prepared by me" flag, so the existing Approve
+  button is shown as before and the database refuses the preparer.
+- Adjustment record (existing preparedByMe logic, unchanged): an info
+  notice, "Second approver required — You prepared this adjustment. A
+  different finance member must approve it." Approve stays hidden for the
+  preparer, as before.
+- When maker-checker is off: no warning noise; only "Not required" in the
+  drawer.
+
+
+11. EXPORT TREATMENT
+--------------------
+- The existing ExportsTable: CSV file name, status at export, actor, total,
+  short SHA-256 checksum, and an audited same-origin POST download (shown
+  only with payroll.export granted).
+- A record note: "Deterministic CSV files with a SHA-256 checksum, kept in
+  private storage. Downloading is recorded."
+- Export storage, AAL2 and download routes are unchanged. Without AAL2 the
+  existing StepUpNotice is shown.
+- Nothing says "Sent to bank", "Paid", "Bank file accepted" or "Deposit
+  date".
+
+
+12. UNSUPPORTED REFERENCE FEATURES DELIBERATELY OMITTED
+-------------------------------------------------------
+- The combined "Payroll + Invoices" title. Payroll and Invoices remain two
+  routes joined by the existing FinanceModeTabs.
+- Invoice KPIs on the Payroll page (Invoices Draft, Outstanding Invoices).
+- Worker-level "payroll records" with Ready / Exception / Pending; Chelth's
+  unit is the batch.
+- Facility column and filter; search; the date-range picker.
+- Shift differentials; weekend and night rates; rate information in the
+  drawer.
+- Usage metrics.
+- "Process Payroll"; Export as a toolbar button (export is per locked batch,
+  on the record).
+- "Recent Billing Activity" with Sent / Paid / Overdue / ACH; any payment
+  state.
+- Bulk row checkboxes.
+
+
+13. RESPONSIVE RESULTS
+----------------------
+Tested at 1512, 1280, 1024, 768, 412 and 375 (new F2 test), plus the
+final sweep at 1280 / 1024 / 768 / 412 / 375.
+
+- Desktop: four-up KPI row; the table fills the work area; the drawer
+  overlays (and contracts the work area ≥1536).
+- Tablet (768): KPI cards 2×2; filters wrap; tables scroll inside labelled
+  regions; the drawer is the same canonical panel.
+- Mobile: the existing sidebar overlay; stacked cards; scrollable tables;
+  no bottom navigation.
+- No page overflow at any width (asserted).
+
+
+14. ACCESSIBILITY RESULTS
+-------------------------
+axe (wcag2a / 2aa / 22aa) is clean on:
+- the Payroll overview at all six widths;
+- the drawer open (1512, 768);
+- the batch record (1512, 768);
+- existing flow pages (record, adjustment record, maker-checker state);
+- the final sweep.
+
+Semantics:
+- The drawer is a native dialog with a focus trap; Escape returns focus to
+  its trigger.
+- Filter controls are labelled ("Payroll period", "Batch status") inside
+  the "Filter payroll batches" form.
+- Tables are labelled regions.
+- Every status is text.
+- Empty states are h3 inside h2 panels.
+- Targets are at least 44 px on touch.
+
+
+15. SECURITY / AUTHZ CONFIRMATION
+---------------------------------
+Unchanged:
+- schema, migrations, RLS, RPCs, actions and lifecycle transitions;
+- capability names; the audit model; AAL2; maker-checker; tenant
+  isolation; immutable snapshots; export storage and security.
+
+Every action is still rendered only behind the existing capability checks,
+and the database re-authorises it. The drawer adds no mutation.
+
+No service role and no client-only authorization. The new data reads use
+the existing user-scoped RPCs (worker totals and history), already used by
+the record.
+
+Flows 5 / 6 still pass: workers, schedulers and facilities cannot reach
+Payroll or its records.
+
+
+16. VALIDATION RESULTS
+----------------------
+- npm run format:check: pass
+- npm run lint: pass (0 warnings)
+- npm run typecheck: pass
+- npm test: 342 passed
+- npm run build: pass
+- npm run check:bundle: OK (70 browser files, no secrets)
+- npx playwright test: 239 passed, 9 skipped, 0 failed (14.3 min, with
+  QA capture). The skips are desktop-only tests on the mobile project,
+  including the two new F2 tests.
+
+Test changes:
+- tests/e2e/financial.spec.ts
+  - Flow 2: the batch drawer is now "Payroll Batch Details" (trigger
+    "Payroll batch details for PAY-…"). It is still inspection only: no
+    approve / lock / export buttons. Escape returns focus.
+  - New "F2 visual" test across six widths:
+    - KPI labels and lifecycle labels;
+    - "Preparation and export only";
+    - no payment vocabulary;
+    - overflow and axe checks;
+    - drawer content, including the maker-checker state;
+    - record arrangement (section tabs, Summary, lifecycle actors).
+- tests/e2e/financial-adjustments.spec.ts
+  New "F2 visual" adjustment test:
+  - "Pay-side delta only" chip;
+  - PAY-ADJ rows;
+  - "Adjustment — not payment";
+  - adjustment section tabs;
+  - net change +$11.32.
+- tests/e2e/support.ts
+  expectNoPaymentVocabulary now also rejects "Payment sent", "Direct
+  deposit", "Funds transferred" and "Bank processed" (Paid and ACH were
+  already covered).
+
+
+17. SCREENSHOT PATHS
+--------------------
+IMPORTANT: see "18. Known gaps" (screenshot loss).
+
+Intended curated set, docs/reports/finance-fidelity/payroll/:
+- 00-reference-vs-payroll-1512.png (native pixels, no scaling; reference
+  1536×1024 | implementation 1512×982)
+- 01-payroll-1512.png
+- 02-payroll-1280.png
+- 03-payroll-768.png
+- 04-payroll-empty-1280.png
+- 05-payroll-empty-412.png
+- 06-payroll-drawer-1512.png
+- 07-payroll-drawer-768.png
+- 08-payroll-record-1512.png
+- 09-payroll-record-768.png
+- 10-payroll-adjustments-1512.png
+- 11-payroll-adjustment-detail-1512.png
+
+All of these were generated and reviewed. They were then removed from disk
+together with every other docs/reports/ subfolder (section 18).
+
+
+18. KNOWN GAPS
+--------------
+- SCREENSHOT LOSS (not caused by this implementation)
+  - What was removed (~22:25 local, during a test run): every subfolder of
+    docs/reports/, including
+    - 346 tracked files (attendance-fidelity, compliance-fidelity,
+      settings-fidelity and others);
+    - the untracked docs/reports/finance-fidelity/ (F1 rates/pricing and F2
+      payroll evidence).
+  - The .txt reports are intact.
+  - No command in this pass deleted those paths. The directory's .DS_Store
+    was rewritten at the same moment.
+  - Not restored or regenerated, pending your decision. The tracked files
+    can be restored from git; the F1/F2 captures can be regenerated from
+    the tests.
+- Batch maker-checker: the batch model has no "prepared by me" field, so
+  the record shows an informational notice and leaves the refusal to the
+  database (MAKER_CHECKER, audited). Hiding Approve for the preparer would
+  need a data-layer field, which is out of scope.
+- The shared financial tables (issues, adjustments, reconciliation,
+  exports) keep their bordered DataTable look inside locked panels. This is
+  the same as other record pages. Restyling them would also change
+  Invoices.
+- Filters cover payroll period and status only, over loaded batches.
+  Facility, worker and search filters have no backing in the batch model.
+- Drawer worker totals and history are loaded for the first 15 listed
+  batches only.
+
+
+19. GIT DIFF SUMMARY
+--------------------
+F2 changes (on top of uncommitted F1):
+ M payroll/page.tsx
+ M payroll/[batchId]/page.tsx
+ M payroll/adjustments/[adjustmentId]/page.tsx
+ ?? payroll/_components/ (payroll-tones.ts, batch-details-panel.tsx)
+ M (workspace)/_components/finance-locked.tsx (F1 file, +LockedNotice)
+ M tests/e2e/financial.spec.ts
+ M tests/e2e/financial-adjustments.spec.ts
+ M tests/e2e/support.ts
+ ?? this report
+
+Also in the working tree, NOT from this pass: 346 deletions under
+docs/reports/* (section 18).
+
+STATUS: PAYROLL VISUAL IMPLEMENTATION COMPLETE. AWAITING HUMAN VISUAL REVIEW. NOT COMMITTED.

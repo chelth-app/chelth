@@ -214,7 +214,7 @@ test.describe.serial("payroll preparation and invoice drafting", () => {
     // P0-E8-S5: P3-F workspace — summary from real counts, Payroll | Invoices mode switch.
     await expect(page.getByRole("region", { name: "Payroll summary" })).toBeVisible();
     await expect(
-      page.getByRole("navigation", { name: "Payroll and invoices" }).getByRole("link", {
+      page.getByRole("navigation", { name: "Finance", exact: true }).getByRole("link", {
         name: "Payroll",
       }),
     ).toHaveAttribute("aria-current", "page");
@@ -278,7 +278,7 @@ test.describe.serial("payroll preparation and invoice drafting", () => {
     exportId = exportRows[0]?.id ?? "";
     await expectNoA11yViolations(page);
 
-    // The batch list: status filter keeps URL state; the preview drawer is inspection only.
+    // The batch list: status filter keeps URL state; Payroll Batch Details is inspection only.
     await page.goto(`/app/organisations/${world.agencyId}/payroll?status=exported`);
     const batches = page.getByRole("region", { name: "Payroll batches table" });
     await expect(
@@ -286,9 +286,11 @@ test.describe.serial("payroll preparation and invoice drafting", () => {
         name: "Batch status",
       }),
     ).toHaveValue("exported");
-    const preview = batches.getByRole("button", { name: /^Preview PAY-/ }).first();
+    const preview = batches
+      .getByRole("button", { name: /^Payroll batch details for PAY-/ })
+      .first();
     await preview.click();
-    const drawer = page.getByRole("dialog", { name: /^PAY-\d{4}-\d{6}$/ });
+    const drawer = page.getByRole("dialog", { name: "Payroll Batch Details" });
     await expect(drawer).toBeVisible();
     await expect(drawer.getByRole("button", { name: "Close details" })).toBeFocused();
     await expect(drawer).toContainText("Exported");
@@ -309,7 +311,7 @@ test.describe.serial("payroll preparation and invoice drafting", () => {
     await expect(page.getByText("Internal drafts — not sent")).toBeVisible();
     await expectNoPaymentVocabulary(page);
     await qaScreenshot(page, "s5-invoices");
-    const billable = page.getByRole("region", { name: "Billable work for Riverside Clinic" });
+    const billable = page.getByRole("region", { name: "Billable invoice work" });
     await expect(billable).toContainText("$1,133.90");
     await billable
       .getByRole("button", { name: /^Create invoice draft for Riverside Clinic/ })
@@ -348,14 +350,14 @@ test.describe.serial("payroll preparation and invoice drafting", () => {
     await qaScreenshot(page, "s5-invoice-draft");
     await expectNoA11yViolations(page);
 
-    // The draft preview on the list shows bill-side values only.
+    // Invoice Details on the list shows bill-side values only.
     await page.goto(`/app/organisations/${world.agencyId}/invoices`);
     const preview = page
       .getByRole("region", { name: "Invoice drafts table" })
-      .getByRole("button", { name: /^Preview INV-DRAFT-/ })
+      .getByRole("button", { name: /^Invoice details for INV-DRAFT-/ })
       .first();
     await preview.click();
-    const drawer = page.getByRole("dialog", { name: /^INV-DRAFT-/ });
+    const drawer = page.getByRole("dialog", { name: "Invoice Details" });
     await expect(drawer).toContainText("$1,133.90");
     await expect(drawer).not.toContainText(/\$660\.88|\$340\.00|\$320\.88|margin/i);
     await page.keyboard.press("Escape");
@@ -453,6 +455,253 @@ test.describe.serial("payroll preparation and invoice drafting", () => {
     await expect(page.getByText("Adjustment required").first()).toBeVisible();
     await expect(page.getByText("$1,133.90").first()).toBeVisible();
     await expectNoA11yViolations(page);
+    await page.context().close();
+  });
+  test("F2 visual: Payroll on the locked finance system — KPIs, drawer, record (P0-E8-F2)", async ({
+    browser,
+  }, testInfo) => {
+    test.skip(testInfo.project.name.startsWith("mobile"), "explicit widths below");
+    const page = await signedIn(browser, finance.email);
+    const path = `/app/organisations/${world.agencyId}/payroll`;
+    for (const [width, height] of [
+      [1512, 982],
+      [1280, 900],
+      [1024, 900],
+      [768, 1024],
+      [412, 915],
+      [375, 812],
+    ] as const) {
+      await page.setViewportSize({ width, height });
+      await page.goto(path);
+      await expect(page.getByRole("heading", { level: 1, name: "Payroll" })).toBeVisible();
+      const summary = page.getByRole("region", { name: "Payroll summary" });
+      for (const label of ["Needs Attention", "Ready to Prepare", "Awaiting Approval"]) {
+        await expect(summary).toContainText(label);
+      }
+      await expect(summary.getByRole("link", { name: /Ready to Export/ })).toBeVisible();
+      // Lifecycle labels only — preparation and export, never payment.
+      const batches = page.getByRole("region", { name: "Payroll batches table" });
+      await expect(batches).toContainText("Exported");
+      await expect(batches).toContainText("Adjustment required");
+      await expect(page.getByText("Preparation and export only", { exact: true })).toBeVisible();
+      await expectNoPaymentVocabulary(page);
+      await expectNoPageOverflow(page);
+      await expectNoA11yViolations(page);
+      await qaScreenshot(page, "f2-payroll");
+
+      if (width === 1512 || width === 768) {
+        // Payroll Batch Details: native dialog, focus in, Escape returns focus to the row.
+        const trigger = batches
+          .getByRole("button", { name: /^Payroll batch details for PAY-/ })
+          .first();
+        await trigger.click();
+        const drawer = page.getByRole("dialog", { name: "Payroll Batch Details" });
+        await expect(drawer).toBeVisible();
+        await expect(drawer).toContainText("Maker-checker");
+        await expect(drawer).toContainText("Not required");
+        await expect(drawer.getByRole("tab", { name: "Workers" })).toBeVisible();
+        await expect(drawer.getByRole("button", { name: /approve|lock|export/i })).toHaveCount(0);
+        await expectNoA11yViolations(page);
+        await qaScreenshot(page, "f2-payroll-drawer");
+        await page.keyboard.press("Escape");
+        await expect(trigger).toBeFocused();
+
+        // The batch record on the canonical record arrangement; Finance › Payroll stays current.
+        await page.goto(batchPath);
+        await expect(
+          page
+            .getByRole("navigation", { name: "Finance", exact: true })
+            .getByRole("link", { name: "Payroll" }),
+        ).toHaveAttribute("aria-current", "page");
+        if (width >= 1024) {
+          await expect(
+            page
+              .getByRole("navigation", { name: "Workspace" })
+              .getByRole("link", { name: "Finance" }),
+          ).toHaveAttribute("aria-current", "page");
+        }
+        await expect(
+          page.getByRole("navigation", { name: "Payroll batch sections" }),
+        ).toBeVisible();
+        await expect(page.getByRole("region", { name: "Summary", exact: true })).toContainText(
+          "$830.88",
+        );
+        await expect(page.getByLabel("Batch lifecycle")).toContainText("Fay Finance");
+        await expectNoPaymentVocabulary(page);
+        await expectNoPageOverflow(page);
+        await expectNoA11yViolations(page);
+        await qaScreenshot(page, "f2-payroll-record");
+      }
+    }
+    // An invoice record keeps Finance › Invoices current (P0-E8-F2.5).
+    await page.setViewportSize({ width: 1512, height: 982 });
+    await page.goto(draftPath);
+    await expect(
+      page
+        .getByRole("navigation", { name: "Finance", exact: true })
+        .getByRole("link", { name: "Invoices" }),
+    ).toHaveAttribute("aria-current", "page");
+    await expect(
+      page.getByRole("navigation", { name: "Workspace" }).getByRole("link", { name: "Finance" }),
+    ).toHaveAttribute("aria-current", "page");
+    await page.context().close();
+  });
+  test("F3 visual: Invoices on the locked finance system — KPIs, drawer, record (P0-E8-F3)", async ({
+    browser,
+  }, testInfo) => {
+    test.skip(testInfo.project.name.startsWith("mobile"), "explicit widths below");
+    const page = await signedIn(browser, finance.email);
+    const path = `/app/organisations/${world.agencyId}/invoices`;
+    const financeNav = page.getByRole("navigation", { name: "Finance", exact: true });
+    for (const [width, height] of [
+      [1512, 982],
+      [1280, 900],
+      [1024, 900],
+      [768, 1024],
+      [412, 915],
+      [375, 812],
+    ] as const) {
+      await page.setViewportSize({ width, height });
+      await page.goto(path);
+      await expect(page.getByRole("heading", { level: 1, name: "Invoices" })).toBeVisible();
+      // Inside the locked Finance shell: Invoices current, Finance current in the sidebar.
+      await expect(financeNav.getByRole("link", { name: "Invoices" })).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+      if (width >= 1024) {
+        await expect(
+          page
+            .getByRole("navigation", { name: "Workspace" })
+            .getByRole("link", { name: "Finance" }),
+        ).toHaveAttribute("aria-current", "page");
+      }
+      const summary = page.getByRole("region", { name: "Invoice summary" });
+      for (const label of ["Needs Attention", "Ready to Draft", "Awaiting Approval"]) {
+        await expect(summary).toContainText(label);
+      }
+      await expect(summary.getByRole("link", { name: /Ready to Export/ })).toBeVisible();
+      const drafts = page.getByRole("region", { name: "Invoice drafts table" });
+      await expect(drafts).toContainText(/INV-DRAFT-\d{4}-\d{6}/);
+      await expect(drafts).toContainText("Exported");
+      await expect(page.getByText("Internal drafts — not sent", { exact: true })).toBeVisible();
+      await expectNoPaymentVocabulary(page);
+      await expectNoPageOverflow(page);
+      await expectNoA11yViolations(page);
+      await qaScreenshot(page, "f3-invoices");
+
+      if (width === 1512 || width === 768) {
+        // Invoice Details: identity, status, bill side only, no lifecycle buttons; Escape returns focus.
+        const trigger = drafts
+          .getByRole("button", { name: /^Invoice details for INV-DRAFT-/ })
+          .first();
+        await trigger.click();
+        const drawer = page.getByRole("dialog", { name: "Invoice Details" });
+        await expect(drawer).toBeVisible();
+        await expect(drawer).toContainText(/INV-DRAFT-\d{4}-\d{6}/);
+        await expect(drawer).toContainText("Riverside Clinic");
+        await expect(drawer).toContainText("Exported");
+        await expect(drawer).toContainText("$1,133.90");
+        await expect(drawer).not.toContainText(/\$660\.88|\$340\.00|\$320\.88|margin|pay rate/i);
+        await expect(drawer.getByRole("button", { name: /approve|lock|export|void/i })).toHaveCount(
+          0,
+        );
+        await expect(drawer.getByRole("tab", { name: "Lines" })).toBeVisible();
+        await expectNoA11yViolations(page);
+        await qaScreenshot(page, "f3-invoice-drawer");
+        await page.keyboard.press("Escape");
+        await expect(trigger).toBeFocused();
+
+        // The draft record on the canonical record arrangement.
+        await page.goto(draftPath);
+        await expect(financeNav.getByRole("link", { name: "Invoices" })).toHaveAttribute(
+          "aria-current",
+          "page",
+        );
+        await expect(
+          page.getByRole("navigation", { name: "Invoice draft sections" }),
+        ).toBeVisible();
+        await expect(page.getByRole("region", { name: "Summary", exact: true })).toContainText(
+          "$1,133.90",
+        );
+        await expect(page.getByLabel("Draft lifecycle")).toContainText("Fay Finance");
+        await expect(page.getByText("Draft invoice — internal, not sent")).toBeVisible();
+        await expect(page.getByRole("main")).not.toContainText(/margin|pay rate/i);
+        await expectNoPaymentVocabulary(page);
+        await expectNoPageOverflow(page);
+        await expectNoA11yViolations(page);
+        await qaScreenshot(page, "f3-invoice-record");
+      }
+    }
+    await page.context().close();
+  });
+  test("F3.1: the current Finance tab is visible on narrow screens, routes and records included", async ({
+    browser,
+  }, testInfo) => {
+    test.skip(testInfo.project.name.startsWith("mobile"), "explicit widths below");
+    const page = await signedIn(browser, finance.email);
+    const base = `/app/organisations/${world.agencyId}`;
+    const row = page.getByRole("navigation", { name: "Finance", exact: true });
+    const expectCurrentVisible = async (area: string) => {
+      await expect(row.locator('[aria-current="page"]')).toHaveCount(1);
+      const current = row.getByRole("link", { name: area });
+      await expect(current).toHaveAttribute("aria-current", "page");
+      const [rowBox, tabBox] = await Promise.all([row.boundingBox(), current.boundingBox()]);
+      if (!rowBox || !tabBox) throw new Error("Finance navigation is not rendered");
+      expect(tabBox.x).toBeGreaterThanOrEqual(rowBox.x - 1);
+      expect(tabBox.x + tabBox.width).toBeLessThanOrEqual(rowBox.x + rowBox.width + 1);
+    };
+
+    for (const [width, height] of [
+      [375, 812],
+      [412, 915],
+    ] as const) {
+      await page.setViewportSize({ width, height });
+      for (const [path, area] of [
+        [`${base}/invoices`, "Invoices"],
+        [draftPath, "Invoices"],
+        [`${base}/payroll`, "Payroll"],
+        [batchPath, "Payroll"],
+        [`${base}/rates`, "Rates"],
+      ] as const) {
+        await page.goto(path);
+        await expectCurrentVisible(area);
+        await expectNoPageOverflow(page);
+      }
+      // Client-side navigation through the tabs keeps the new area in view.
+      for (const area of ["Pricing", "Payroll", "Invoices"]) {
+        await row.getByRole("link", { name: area }).click();
+        await expect(page).toHaveURL(new RegExp(`/${area.toLowerCase()}$`));
+        await expectCurrentVisible(area);
+      }
+      // The row stays manually scrollable; only the row moved, never the page.
+      expect(await page.evaluate(() => window.scrollX)).toBe(0);
+      const scroll = await row.evaluate((element) => {
+        const before = element.scrollLeft;
+        element.scrollLeft = 0;
+        return {
+          before,
+          after: element.scrollLeft,
+          scrollable: element.scrollWidth > element.clientWidth,
+        };
+      });
+      expect(scroll.scrollable).toBe(true);
+      expect(scroll.before).toBeGreaterThan(0);
+      expect(scroll.after).toBe(0);
+      // Keyboard focus still moves between tabs.
+      await row.getByRole("link", { name: "Payroll" }).focus();
+      await page.keyboard.press("Tab");
+      await expect(row.getByRole("link", { name: "Invoices" })).toBeFocused();
+      await expectNoA11yViolations(page);
+      await qaScreenshot(page, "f31-finance-invoices");
+    }
+
+    // Desktop: everything already fits, so the row is never scrolled.
+    await page.setViewportSize({ width: 1512, height: 982 });
+    for (const path of [`${base}/pricing`, `${base}/invoices`]) {
+      await page.goto(path);
+      expect(await row.evaluate((element) => element.scrollLeft)).toBe(0);
+    }
     await page.context().close();
   });
 });

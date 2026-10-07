@@ -1,0 +1,170 @@
+P0-E8-F2.6 — FINANCE SHELL VISUAL REFINEMENT
+============================================
+
+Branch: p0-e8-visual-implementation (uncommitted)
+Base:   18ad514, plus the uncommitted F1, F2 and F2.5 work
+
+Scope: shell only. The change is in the one shared Finance navigation
+component.
+
+Unchanged:
+- routes, permissions and finance logic;
+- page content and page titles;
+- the sidebar, logo, cards, KPIs, filters and tables;
+- the mobile navigation architecture.
+
+No screenshots were saved to the repository. Local QA captures were kept
+outside the repo.
+
+
+1. FILES CHANGED
+----------------
+- src/app/app/organisations/[organisationId]/(workspace)/(finance)/
+  _components/finance-workspace-nav.tsx
+  Label, tab focus treatment and shell spacing (presentation only).
+- tests/e2e/workspace-shell.spec.ts
+  Shell presentation and behaviour checks (section 6).
+- docs/reports/P0-E8-F2.6-finance-shell-visual-refinement.txt (this
+  report).
+
+No other source file changed. SectionTabs, PageHeader and the pages are
+untouched.
+
+
+2. FINANCE LABEL REFINEMENT
+---------------------------
+Before: 12.5 px / 600, tracking 0.06em, slate-500. It read as faint
+metadata.
+
+After: 12.5 px / 700, tracking 0.04em, slate-700. It reads as the
+workspace section identity.
+
+Kept:
+- the icon (teal-dark banknote, 18 px, 2.1 stroke);
+- the uppercase treatment;
+- its position left of the tabs;
+- aria-hidden (the landmark name "Finance" carries the meaning).
+
+Scale is unchanged at 12.5 px, well below the 31.5 px page title, so it
+does not compete.
+
+
+3. TAB ACTIVE-STATE REFINEMENT
+------------------------------
+The cause of the "side borders": the global :focus-visible ring (2 px,
+offset 2 px) on the focused tab.
+
+- After moving between areas with the tabs, or when tabbing with the
+  keyboard, the link keeps focus.
+- The tab row is a horizontal scroll container (overflow-x: auto). It
+  clips an outset ring at the top and bottom, which leaves only two hard
+  dark vertical bars beside the tab.
+- This was reproduced with real keyboard focus before the fix.
+
+Fix (Finance nav only):
+- The focus ring is drawn inside each tab (outline-offset −3 px, 6 px top
+  radius).
+- A keyboard user now sees a complete, unclipped rounded ring. There are no
+  stray side bars, and nothing is shown after a mouse click.
+
+Active cue (locked SectionTabs treatment, unchanged):
+- a 3 px Chelth-teal underline;
+- 600 weight;
+- dark ink (chelth-navy);
+- aria-current="page".
+
+Inactive tabs: 500 weight, slate-500, with a darker ink hover.
+
+No pills, no boxes, no new font or tokens.
+
+
+4. SPACING CHANGES
+------------------
+- The workspace column gap between the Finance row and the page header is
+  20 px. The shell now pulls the page up by 8 px (-mb-2 on the shared
+  shell), so the gap is 12 px.
+- The change is made once in the shared component, not per page. It
+  applies equally to Rates, Pricing, Payroll and Invoices, and to the
+  Payroll, Pricing and Invoices record pages.
+- The divider is unchanged: a soft teal hairline, rgba(18,107,103,0.14),
+  matching the locked tab divider and panel borders. No navy rule.
+
+
+5. RESPONSIVE CHECKS
+--------------------
+Checked:
+- 1512 / 1280 / 1024 / 768 / 412 / 375 (the F1/F2 tests, the final sweep
+  and the shell test);
+- the local captures of /rates, /pricing and /payroll, desktop and phone,
+  compared side by side.
+
+All three pages:
+- render the same shell from the same component;
+- have the same label, the same 12 px gap to the title and the same
+  active-tab behaviour;
+- show no page-specific drift.
+
+Phones (412 / 375):
+- The label and tabs stay in one row; the tab list scrolls horizontally
+  (no wrapping).
+- The current tab stays underlined and visible, and the label is readable.
+- No viewport overflow (asserted); the title spacing feels natural.
+
+
+6. ACCESSIBILITY CHECKS
+-----------------------
+- aria-current="page" is on exactly one Finance tab (asserted after moving
+  between areas with the tabs).
+- Keyboard: Tab moves between the tab links (asserted), and the focus ring
+  is now fully visible instead of clipped.
+- The active state is underline, weight and ink, not colour alone.
+- Navigation semantics are unchanged: a <nav aria-label="Finance"> of
+  links. The shell renders once (asserted, including after navigation).
+- axe (wcag2a / 2aa / 22aa) is clean on Rates, Pricing, Payroll and
+  Invoices (desktop and mobile), plus all F1/F2 pages and records.
+
+Test updates (workspace-shell.spec.ts, finance workspace test, desktop
+and mobile):
+- from Rates, the "Pricing" tab navigates to /pricing;
+- the Pricing heading shows;
+- exactly one Finance shell;
+- Pricing is current, with exactly one current tab;
+- keyboard Tab moves focus to "Payroll".
+No pixel-value assertions, following existing conventions.
+
+
+7. VALIDATION RESULTS
+---------------------
+- npm run format:check: pass
+- npm run lint: pass (0 warnings)
+- npm run typecheck: pass
+- npm test: 347 passed
+- npm run build: pass
+- npm run check:bundle: OK (71 browser files, no secrets)
+- npx playwright test: 241 passed, 9 skipped, 0 failed (8.1 min). The
+  skips are desktop-only tests on the mobile project.
+
+
+8. NO BACKEND / SECURITY CHANGES
+--------------------------------
+There is no database, migration, RLS, RPC, authz, capability, action or
+route change. No supabase/ file is in the diff.
+
+The navigation visibility logic from F2.5 is unchanged.
+
+
+9. REMAINING VISUAL CONCERNS
+----------------------------
+- The same clipped-focus-ring effect exists on other locked SectionTabs
+  rows (for example, record-page section tabs and the Pricing queue tabs),
+  because they also scroll horizontally. It was fixed only in the Finance
+  shell, as this phase is shell-only. A one-line fix in SectionTabs would
+  apply it everywhere; it is recommended as a follow-up.
+- Invoices still shows its pre-locked header under the Finance shell, as
+  intended until F3.
+- Phones: the Invoices tab is reached by scrolling the tab row; the label
+  takes about 110 px.
+- docs/reports/: the earlier removal of the screenshot subfolders is still
+  in the working tree. Nothing was restored.
+
+STATUS: FINANCE SHELL VISUAL REFINEMENT COMPLETE. AWAITING HUMAN REVIEW. NOT COMMITTED.
