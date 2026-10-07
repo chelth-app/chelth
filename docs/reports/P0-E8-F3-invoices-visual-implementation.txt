@@ -1,0 +1,370 @@
+P0-E8-F3 — INVOICES VISUAL IMPLEMENTATION
+=========================================
+
+Branch: p0-e8-visual-implementation (uncommitted)
+Base:   18ad514, plus the uncommitted F1, F2, F2.5 and F2.6 work
+
+Scope: Invoices only.
+
+Unchanged:
+- the Finance shell (sidebar item, Finance label, tabs, spacing,
+  responsive behaviour);
+- the backend.
+
+No screenshots were saved to the repository; QA captures were kept in a
+local scratch folder.
+
+
+1. ROUTES REVIEWED
+------------------
+All three Invoices routes were changed. No route was added:
+
+- /app/organisations/[organisationId]/invoices
+  Overview, with a new Invoice Details drawer.
+- /app/organisations/[organisationId]/invoices/[draftId]
+  Invoice draft record.
+- /app/organisations/[organisationId]/invoices/adjustments/[adjustmentId]
+  Invoice adjustment record.
+
+Gates are unchanged:
+- invoice.view, otherwise 404;
+- agency-only on the overview;
+- organisation check on the records.
+
+
+2. REFERENCE FILES USED
+-----------------------
+Reference documents:
+- docs/ui-reference/CHELTH-LOCKED-VISUAL-SYSTEM.md
+- docs/brand/CLAUDE-CHELTH-BRAND-RULES.md
+- docs/reports/P0-E8-F2.5-finance-workspace-consolidation.txt
+- docs/reports/P0-E8-F2.6-finance-shell-visual-refinement.txt
+- docs/ui-reference/p08-e8/canonical/Chelth_Payroll_Invoices/ (PNG,
+  LOCKED-DESIGN-SPEC.md, PAYROLL-INVOICES-INTERACTIONS.md,
+  PAYROLL-INVOICES-DATA-RULES.md, CLAUDE-IMPLEMENTATION.md)
+
+Implementation truth: the Rates, Pricing and (above all) Payroll pages,
+drawer and records from F1 and F2.
+
+Behaviour truth:
+- src/features/financial (queries, adjustment-queries, components);
+- src/lib/domain/financial.ts.
+
+
+3. INVOICE OVERVIEW CHANGES
+---------------------------
+Built as the Payroll sibling: same structure, same primitives.
+
+- Header:
+  - PageHeader reference "Invoices", with the subtitle "Prepare, review and
+    export facility invoice drafts from approved, priced work. Chelth does
+    not send invoices or collect payment."
+  - Meta: an "Internal drafts — not sent" chip and "Bill side only · no tax
+    calculated".
+  - "Prepare Invoice Draft" CTA (invoice.prepare, when weeks are ready).
+- StepUpNotice: unchanged wording and behaviour.
+- KPI cards (region "Invoice summary"; real counts over the loaded
+  records):
+  - Needs Attention: invoice issues; footer "N adjustments required";
+    anchors to its panel.
+  - Ready to Draft: billable weeks not in a draft; footer "N facilities";
+    anchors to its panel.
+  - Awaiting Approval: reviewed drafts; footer "N draft · N ready to lock";
+    quick filter status=reviewed.
+  - Ready to Export: locked drafts; footer "N exported"; quick filter
+    status=locked.
+- Filter row: LockedFilterSelect "Facility" (from the drafts) and "Draft
+  status", with "Show" and "Clear filters" (form "Filter invoice drafts").
+- Invoice Drafts (RefPanel, REF_TABLE, region "Invoice drafts table"):
+  - Reference (with export count);
+  - Facility (pin);
+  - Week;
+  - Lines;
+  - Billed Time;
+  - Bill Total (right-aligned, formatMoney from integer minor units);
+  - Status chip plus attention chip;
+  - "⋯" opens the drawer.
+  The row is mint with a 3 px teal inset while its drawer is open.
+- Ready to Draft (region "Billable invoice work"):
+  - Facility, Week (currency, relationship status), Workers, Time, Bill
+    Total.
+  - The existing "Create draft" form, or an "Adjustment required" chip.
+  - This replaces the per-facility sub-tables with one table that has a
+    Facility column.
+- Needs Attention: the existing IssuesTable ("Invoice issues").
+- Invoice Adjustments: a "Bill-side delta only" chip and an explanatory
+  note.
+  - Shows the existing candidates and adjustments tables.
+  - When both are empty, the locked quiet tile: "No adjustments required."
+- Reconciliation: the existing ReconciliationTable with a note that this
+  is revision reconciliation, not payment tracking.
+- Empty states use the locked quiet tile, for example "No invoice drafts
+  yet. Approved work appears here when it is ready for invoice
+  preparation."
+
+
+4. DRAWER IMPLEMENTATION (Invoice Details)
+------------------------------------------
+- Canonical profile drawer, as Payroll, Workforce and Facility.
+  - Title "Invoice Details"; trigger "Invoice details for <reference>".
+- Identity: luminous invoice tile (84 px), reference (Manrope 21 / 700),
+  facility (pin), week, lifecycle chip.
+- Overview tab:
+  - Draft Summary: bill total, currency, lines, billed time, status,
+    prepared by, prepared at, documents.
+  - Approval Control: maker-checker Required / Not required, the attention
+    chip, and an internal-draft note.
+- Lines tab: the real billed lines (worker, date, discipline, time, bill
+  amount). Bill rates are not repeated here; they are on the record.
+- History tab: the real draft history (HistoryList), newest first.
+- Details are loaded for the first 15 listed drafts. Further rows say the
+  details are on the record.
+- Footer (lifecycle- and capability-aware):
+  - The primary CTA is the next step this viewer can take: Review Draft
+    (draft + invoice.prepare), Approve Draft (reviewed + invoice.approve,
+    not blocked), Lock Draft (approved + invoice.approve, not blocked) or
+    Export Draft Documents (locked + invoice.export). Each opens the
+    record's Next Step section.
+  - Otherwise the primary CTA is "Open Invoice Draft".
+- No mutation runs in the drawer. Bill side only: no pay rate, pay amount
+  or margin (asserted).
+
+
+5. RECORD-PAGE IMPLEMENTATION (invoice draft)
+---------------------------------------------
+- RecordPage; PageHeader reference; back link "Invoices"; title =
+  reference; subtitle "facility · week · currency".
+- Meta: lifecycle chip, attention chip, "Draft invoice — internal, not
+  sent", and "No tax calculated · not a request for payment".
+- Section tabs: Summary · Next Step · Documents · Lines · History (all
+  real; Next Step is hidden when voided).
+- Notices: StepUpNotice (unchanged); LockedNotice for "Adjustment
+  required" and "Includes revised work" (role status / alert kept).
+- Summary:
+  - Draft totals: bill total before any tax, lines, billed time, facility,
+    billing week, currency.
+  - Draft lifecycle: prepared, reviewed, approved and locked (time and
+    actor); exported.
+  - Immutability note: bill amounts are copied from pricing, a locked draft
+    never changes, and corrections are separate adjustments.
+- Next Step:
+  - Maker-checker notice when it is on (draft / reviewed).
+  - The existing forms with unchanged labels and gates: Mark reviewed,
+    Approve draft, Lock draft, Export draft PDF / CSV, Void.
+  - Lock note.
+- Draft Documents: the existing ExportsTable plus a note: deterministic
+  PDF / CSV, SHA-256 checksum, private storage, recorded downloads, not
+  sent.
+- Lines: the existing table (bill rate and amount, source revision).
+- History: unchanged.
+
+
+6. ADJUSTMENT-PAGE IMPLEMENTATION (invoice adjustment)
+------------------------------------------------------
+- Same arrangement as the Payroll adjustment record.
+  - Title INV-ADJ-…; subtitle "direction · facility · week · currency".
+  - Meta: lifecycle chip, attention chip (revision state), "Draft invoice
+    adjustment — internal, not sent", and "Bill-side delta · the original
+    draft never changes · no tax".
+- Section tabs: What It Adjusts · Net Change · Next Step · Documents ·
+  Changed Lines · History.
+- What It Adjusts ("Adjustment lineage"): original draft link with
+  "(unchanged)", Follows (when chained), revision change, direction.
+- Net Change ("Net bill adjustment"):
+  - signed net with its direction text (SignedAmount);
+  - additional charges, credits, billed time;
+  - a note that the original keeps its amounts.
+- Next Step: the existing forms and maker-checker logic (preparedByMe) are
+  unchanged; the LockedNotice reads "You prepared this adjustment…".
+- Changed Lines: original → revised bill time, rate and amount, plus the
+  signed change.
+- No pay-side field exists anywhere on the page (asserted: no "pay rate",
+  "margin" or pay delta).
+
+
+7. LIFECYCLE STATES PRESERVED
+-----------------------------
+Draft → Reviewed → Approved → Locked → Exported, and Voided. The existing
+INVOICE_DRAFT_STATUS_LABELS are used.
+
+Tones match the existing InvoiceStatusBadge:
+- Draft and Voided: neutral.
+- Reviewed, Approved and Locked: info.
+- Exported: success.
+
+Attention / revision states use the existing labels:
+- Adjustment required: amber.
+- Adjustment in progress: blue.
+- Revision resolved: neutral.
+- Includes revised work: red.
+
+Reconciliation keeps the existing vocabulary, including "Adjustment
+required", "Adjustment in progress" and "Adjusted or no financial
+change".
+
+
+8. UNSUPPORTED REFERENCE CONCEPTS INTENTIONALLY OMITTED
+------------------------------------------------------
+Omitted because they are not implemented in Chelth:
+- Sent, Paid, Overdue, Outstanding, Partially paid, Payment received.
+- ACH, card, Stripe; collection or reminder states.
+- Accounting sync (QuickBooks / Xero).
+- Bank reconciliation.
+- The combined "Payroll + Invoices" page.
+- Recent Billing Activity with payment events.
+- Invoice emailing or sending; due dates.
+- Search; date-range picker; bulk selection.
+
+
+9. RESPONSIVE BEHAVIOUR
+-----------------------
+Tested at 1512, 1280, 1024, 768, 412 and 375 (F3 test), plus the final
+sweep.
+
+- Desktop: four-up KPIs; the table fills the work area; the drawer
+  overlays (and contracts the work area ≥1536).
+- 768: KPIs 2×2; filters wrap; tables scroll inside labelled regions; the
+  drawer is the same canonical panel (full-height sheet on phones).
+- 412 / 375: stacked cards; scrollable tables; actions ≥44 px; no page
+  overflow (asserted); the Finance tabs still scroll horizontally.
+
+
+10. ACCESSIBILITY
+-----------------
+axe (wcag2a / 2aa / 22aa) is clean on:
+- the Invoices overview at all six widths;
+- the drawer open (1512, 768);
+- the draft record (1512, 768);
+- the adjustment record;
+- the existing flows.
+
+- The drawer is a native dialog: focus moves in; Escape returns focus to
+  the row trigger (asserted).
+- Filters are labelled; tables are labelled regions; statuses are text;
+  headings follow h1 › h2 › h3; empty-state titles are h3.
+- Finance shell: Invoices tab aria-current, and the sidebar Finance item
+  aria-current, on the overview and on both record types (asserted).
+
+
+11. SECURITY / CAPABILITY BEHAVIOUR
+-----------------------------------
+- Every action is rendered only behind the existing checks:
+  - invoice.prepare: create, review, void (draft / reviewed);
+  - invoice.approve: approve, lock, void (approved), not blocked;
+  - invoice.export: PDF / CSV and downloads.
+- AAL2: the StepUpNotice is unchanged on the overview and records. The
+  database still returns MFA_REQUIRED.
+- Maker-checker: unchanged.
+  - Adjustments hide Approve for the preparer (existing preparedByMe).
+  - Drafts show an informational notice when the setting is on, and the
+    database refuses the preparer (MAKER_CHECKER, audited). The draft
+    model has no "prepared by me" field, as with payroll batches.
+- The drawer runs no mutation. No service role and no client-only
+  authorization. New reads (draft lines and history for the drawer) use
+  the existing user-scoped RPCs the record already uses.
+
+
+12. TESTS
+---------
+tests/e2e/financial.spec.ts:
+- Flow 3: billable work is now the region "Billable invoice work". The
+  "Create invoice draft for Riverside Clinic…" button is unchanged.
+- Flow 4: the drawer is now "Invoice Details" (trigger "Invoice details
+  for INV-DRAFT-…"). Still bill side only; Escape returns focus.
+- New "F3 visual" test at six widths:
+  - inside the Finance shell (Invoices tab and sidebar Finance current);
+  - KPI labels; draft rows and status;
+  - "Internal drafts — not sent";
+  - no payment vocabulary; no overflow; axe clean;
+  - drawer identity, status and bill-only values;
+  - no approve / lock / export / void buttons in the drawer;
+  - Escape focus return;
+  - the record's sections, Summary, lifecycle actors and no pay values.
+
+tests/e2e/financial-adjustments.spec.ts:
+- New "F3 visual" invoice adjustment test:
+  - "Bill-side delta only" and INV-ADJ rows;
+  - Finance › Invoices current;
+  - adjustment sections;
+  - lineage keeps the original draft reference "(unchanged)";
+  - net +$15.10 Additional charge;
+  - no pay or margin values; overflow and axe checks.
+
+tests/e2e/support.ts (forbidden text):
+- expectNoPaymentVocabulary now also rejects "Sent" (case-sensitive,
+  as a state label), "Stripe", "Collect payment" and "Mark paid".
+- It already rejected Paid, Overdue, Outstanding, ACH, Payment received,
+  Payment sent and others.
+- Exemption: lowercase "not sent" in "Internal drafts — not sent" and
+  "Draft invoice — internal, not sent" is explicit non-sending language,
+  already present before this phase. "\bSent\b" is case-sensitive, so it
+  is not matched.
+- It runs on the Invoices overview, draft record and adjustment record.
+
+Existing security tests (workers, schedulers and facilities get 404;
+maker-checker; step-up) pass unchanged.
+
+
+13. VALIDATION RESULTS
+----------------------
+- npm run format:check: pass
+- npm run lint: pass (0 warnings)
+- npm run typecheck: pass
+- npm test: 347 passed
+- npm run build: pass
+- npm run check:bundle: OK (70 browser files, no secrets)
+- npx playwright test: 243 passed, 11 skipped, 0 failed (7.0 min). The
+  skips are desktop-only tests on the mobile project, including the two
+  new F3 tests.
+
+
+14. FILES CHANGED
+-----------------
+Under src/app/app/organisations/[organisationId]/(workspace)/(finance)/
+invoices/:
+- page.tsx (overview)
+- [draftId]/page.tsx (draft record)
+- adjustments/[adjustmentId]/page.tsx (adjustment record)
+- _components/invoice-tones.ts (new: lifecycle tones, next-step labels;
+  attentionTone shared with Payroll)
+- _components/invoice-details-panel.tsx (new: Invoice Details drawer)
+
+Tests:
+- tests/e2e/financial.spec.ts
+- tests/e2e/financial-adjustments.spec.ts
+- tests/e2e/support.ts
+
+This report.
+
+No change to the Finance shell, Payroll, Rates or Pricing, the shared
+financial components, or any feature, query or action.
+
+
+15. KNOWN GAPS
+--------------
+- Finance shell at 412 / 375: the tab row starts scrolled to the left, so
+  the active "Invoices" tab (the last one) is only partly visible until the
+  row is scrolled. The shell is locked in this phase, so this was not
+  changed. A follow-up could scroll the active tab into view in
+  FinanceWorkspaceNav.
+- Draft maker-checker: the draft model has no "prepared by me" field, so
+  Approve stays visible to the preparer and the database refuses it,
+  audited. This is the same as payroll batches.
+- Filters cover facility and status over the loaded drafts only; there is
+  no search or date range.
+- The drawer loads lines and history for the first 15 listed drafts.
+- The shared tables (issues, adjustments, reconciliation, exports) keep
+  their bordered DataTable look inside locked panels. They are shared with
+  Payroll and were not restyled.
+
+
+16. NO DB / SECURITY / BACKEND BEHAVIOUR CHANGED
+------------------------------------------------
+- No supabase/ file (schema, migrations, RLS, RPCs, authz) is in the diff.
+- No change to capabilities, the invoice or adjustment lifecycle, pricing
+  snapshots, payroll, financial claims, maker-checker, tenant isolation,
+  audit, export generation or retention.
+- No new financial capability. No sending, payment collection or
+  accounting integration.
+
+STATUS: INVOICES VISUAL IMPLEMENTATION COMPLETE. AWAITING HUMAN REVIEW. NOT COMMITTED.

@@ -2,6 +2,7 @@
 
 import type { Route } from "next";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef } from "react";
 
 import { WorkspaceNavIcon } from "@/components/layout/workspace-nav-icon";
 import { SectionTabs } from "@/components/ui/section-tabs";
@@ -13,7 +14,9 @@ import { SectionTabs } from "@/components/ui/section-tabs";
  * current on its detail and adjustment pages. Rendered once by the (finance)
  * layout above every finance page. Locked tab treatment (SectionTabs): the
  * current area is a 3 px teal underline, 600 ink and aria-current; the others
- * 500 slate. It scrolls horizontally on phones without widening the page.
+ * 500 slate. It scrolls horizontally on phones without widening the page; on
+ * each route the row (never the page) is scrolled just enough to show the
+ * current area, instantly, and only when it is not already fully visible.
  */
 export function FinanceWorkspaceNav({
   organisationId,
@@ -24,10 +27,31 @@ export function FinanceWorkspaceNav({
 }) {
   const pathname = usePathname();
   const base = `/app/organisations/${organisationId}`;
+  const shellRef = useRef<HTMLDivElement>(null);
+
+  // Keep the current area visible in the scrolling tab row (phones). Smallest
+  // scroll of the row itself: no page scroll, no focus move, no smooth motion,
+  // and nothing at all when the tab already fits (desktop).
+  useEffect(() => {
+    const row = shellRef.current?.querySelector<HTMLElement>('nav[aria-label="Finance"]');
+    const current = row?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!row || !current || row.scrollWidth <= row.clientWidth) return;
+    const rowBox = row.getBoundingClientRect();
+    const tabBox = current.getBoundingClientRect();
+    if (tabBox.left < rowBox.left) {
+      row.scrollLeft -= rowBox.left - tabBox.left;
+    } else if (tabBox.right > rowBox.right) {
+      row.scrollLeft += tabBox.right - rowBox.right;
+    }
+  }, [pathname]);
+
   return (
     // -mb-2: the shell sits 12 px above the page title (the workspace column gap is 20 px),
     // so the Finance row and the page heading read as one header.
-    <div className="chelth-locked -mb-2 flex min-w-0 items-end gap-4 border-b border-[rgba(18,107,103,0.14)] sm:gap-6">
+    <div
+      ref={shellRef}
+      className="chelth-locked -mb-2 flex min-w-0 items-end gap-4 border-b border-[rgba(18,107,103,0.14)] sm:gap-6"
+    >
       <span
         aria-hidden="true"
         className="mb-3 inline-flex shrink-0 items-center gap-2 text-[12.5px] leading-5 font-bold tracking-[0.04em] text-slate-700 uppercase"

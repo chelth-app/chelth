@@ -1,8 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { Panel } from "@/components/ui/panel";
 import { z } from "zod";
 
 import {
@@ -14,16 +13,18 @@ import {
   DataTableRow,
 } from "@/components/ui/data-table";
 import { InlineActionForm } from "@/components/forms/inline-action-form";
-import { Badge } from "@/components/ui/badge";
+import { RefChip } from "@/components/reference/locked-reference";
+import { RecordMeta, RecordNote, RecordPage } from "@/components/reference/record-page";
 import { KeyValueList } from "@/components/ui/key-value-list";
 import { PageHeader } from "@/components/ui/page-header";
+import { Panel } from "@/components/ui/panel";
+import { SectionTabs } from "@/components/ui/section-tabs";
 import {
-  AttentionBadge,
   ExportsTable,
+  getFinancialSettings,
   getInvoiceDraft,
   HistoryList,
   invoiceDraftStepAction,
-  InvoiceStatusBadge,
   listFinancialExports,
   listInvoiceDraftHistory,
   listInvoiceDraftLines,
@@ -35,8 +36,12 @@ import {
   StepUpNotice,
 } from "@/features/organisations";
 import { CAPABILITIES } from "@/lib/authz";
+import { attentionLabel, INVOICE_DRAFT_STATUS_LABELS } from "@/lib/domain/financial";
 import { formatHourlyRate, formatMoney } from "@/lib/domain/pricing";
 import { formatPeriod, formatWorkedMinutes } from "@/lib/domain/timesheets";
+
+import { LockedNotice } from "../../_components/finance-locked";
+import { attentionTone, INVOICE_TONE } from "../_components/invoice-tones";
 
 export const metadata: Metadata = { title: "Invoice draft" };
 
@@ -47,10 +52,14 @@ const dateFormat = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
 });
+const when = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" });
 
 /**
  * One internal invoice draft: bill side only. No pay rate, pay amount or
- * margin is read, stored or shown for a draft.
+ * margin is read, stored or shown for a draft. Canonical record arrangement
+ * (Canonical Record Page Primitives); lifecycle steps keep the existing forms
+ * and gates, and the database re-checks each one (capability, AAL2,
+ * maker-checker).
  */
 export default async function InvoiceDraftPage({
   params,
@@ -63,10 +72,11 @@ export default async function InvoiceDraftPage({
   if (!parsed.success) notFound();
   const draft = await getInvoiceDraft(parsed.data);
   if (!draft || draft.organisationId !== organisationId) notFound();
-  const [lines, exports, history] = await Promise.all([
+  const [lines, exports, history, settings] = await Promise.all([
     listInvoiceDraftLines(draft.id),
     listFinancialExports("invoice_draft", draft.id),
     listInvoiceDraftHistory(draft.id),
+    getFinancialSettings(organisationId),
   ]);
 
   const prepare = can(CAPABILITIES.INVOICE_PREPARE);
@@ -84,9 +94,24 @@ export default async function InvoiceDraftPage({
     draft.status !== "voided" &&
     (["draft", "reviewed"].includes(draft.status) ? prepare === "granted" : approve === "granted");
 
+  const sections = [
+    { label: "Summary", href: "#draft-summary-heading" as Route, current: true },
+    ...(draft.status !== "voided"
+      ? [{ label: "Next Step", href: "#draft-steps-heading" as Route, current: false }]
+      : []),
+    { label: "Documents", href: "#draft-exports-heading" as Route, current: false },
+    { label: "Lines", href: "#draft-lines-heading" as Route, current: false },
+    { label: "History", href: "#draft-history-heading" as Route, current: false },
+  ];
+  const step = (at: string | null, by: string | null) =>
+    at ? `${when.format(new Date(at))} · ${by ?? "a former member"}` : "—";
+  const attention = attentionLabel(draft.attention);
+
   return (
-    <>
+    // Locked inner-page system (docs/ui-reference/CHELTH-LOCKED-VISUAL-SYSTEM.md).
+    <RecordPage>
       <PageHeader
+        variant="reference"
         title={draft.reference}
         back={
           <Link href={base} className="text-primary underline underline-offset-4">
@@ -94,20 +119,30 @@ export default async function InvoiceDraftPage({
           </Link>
         }
         description={
-          <p className="text-sm">
+          <p>
             {draft.facilityName} · week {formatPeriod(draft.periodStart, draft.periodEnd)} ·{" "}
-            {draft.currency} · No tax calculated. Not a request for payment.
+            {draft.currency}
           </p>
         }
         meta={
           <>
-            <Badge tone="neutral">Draft invoice — internal, not sent</Badge>
-            <InvoiceStatusBadge status={draft.status} />
-            <AttentionBadge code={draft.attention} />
-            <Badge tone="neutral">{draft.currency}</Badge>
+            <RefChip tone={INVOICE_TONE[draft.status]} className="font-semibold">
+              {INVOICE_DRAFT_STATUS_LABELS[draft.status]}
+            </RefChip>
+            {attention && draft.attention ? (
+              <RefChip tone={attentionTone(draft.attention)} className="font-semibold">
+                {attention}
+              </RefChip>
+            ) : null}
+            <RefChip tone="neutral" className="font-semibold">
+              Draft invoice — internal, not sent
+            </RefChip>
+            <RecordMeta>No tax calculated · not a request for payment</RecordMeta>
           </>
         }
       />
+
+      <SectionTabs label="Invoice draft sections" tabs={sections} />
 
       {needsStepUp ? (
         <StepUpNotice returnTo={`${base}/${draft.id}`}>
@@ -117,28 +152,22 @@ export default async function InvoiceDraftPage({
       ) : null}
 
       {draft.attention === "ADJUSTMENT_REQUIRED" ? (
-        <p
-          role="status"
-          className="rounded-md border border-border bg-warning-soft p-3 text-sm text-warning-soft-foreground"
-        >
-          Adjustment required: some billed work was revised after this draft was locked. The draft
-          stays exactly as approved; record the difference as an adjustment.
-        </p>
+        <LockedNotice tone="warning" title="Adjustment required" role="status">
+          Some billed work was revised after this draft was locked. The draft stays exactly as
+          approved; record the difference as an adjustment.
+        </LockedNotice>
       ) : null}
       {blocked ? (
-        <p
-          role="alert"
-          className="rounded-md border border-border bg-danger-soft p-3 text-sm text-danger-soft-foreground"
-        >
+        <LockedNotice tone="danger" title="Includes revised work" role="alert">
           Some work in this draft was revised after it was prepared, so it cannot be approved or
           locked. Void the draft and create it again.
-        </p>
+        </LockedNotice>
       ) : null}
 
-      <Panel titleId="draft-totals-heading" title={<>Totals</>}>
+      <Panel titleId="draft-summary-heading" title={<>Summary</>}>
         <KeyValueList
           aria-label="Draft totals"
-          className="max-w-xl"
+          className="max-w-2xl"
           items={[
             {
               label: "Bill total (before any tax)",
@@ -157,12 +186,39 @@ export default async function InvoiceDraftPage({
                 </span>
               ),
             },
+            { label: "Facility", value: draft.facilityName },
+            { label: "Billing week", value: formatPeriod(draft.periodStart, draft.periodEnd) },
+            { label: "Currency", value: draft.currency },
           ]}
         />
+        <KeyValueList
+          aria-label="Draft lifecycle"
+          className="max-w-2xl"
+          items={[
+            { label: "Prepared", value: step(draft.createdAt, draft.createdByName) },
+            { label: "Reviewed", value: step(draft.reviewedAt, draft.reviewedByName) },
+            { label: "Approved", value: step(draft.approvedAt, draft.approvedByName) },
+            { label: "Locked", value: step(draft.lockedAt, draft.lockedByName) },
+            {
+              label: "Exported",
+              value: draft.exportedAt ? when.format(new Date(draft.exportedAt)) : "—",
+            },
+          ]}
+        />
+        <RecordNote>
+          Bill amounts are copied exactly from pricing and never recalculated. A locked draft never
+          changes; later corrections are prepared as separate adjustments.
+        </RecordNote>
       </Panel>
 
       {draft.status !== "voided" ? (
-        <Panel titleId="draft-steps-heading" title={<>Next step</>}>
+        <Panel titleId="draft-steps-heading" title={<>Next Step</>}>
+          {settings.makerCheckerRequired && ["draft", "reviewed"].includes(draft.status) ? (
+            <LockedNotice tone="info" title="Second approver required">
+              Prepared by {draft.createdByName ?? "a former member"}. Approval must be completed by
+              another eligible member.
+            </LockedNotice>
+          ) : null}
           <div className="flex flex-wrap items-start gap-3">
             {draft.status === "draft" && prepare === "granted" ? (
               <InlineActionForm
@@ -207,20 +263,30 @@ export default async function InvoiceDraftPage({
               <VoidInvoiceDraftForm organisationId={organisationId} draftId={draft.id} />
             ) : null}
           </div>
+          {exportable ? (
+            <RecordNote>
+              Locked {draft.lockedAt ? when.format(new Date(draft.lockedAt)) : ""} by{" "}
+              {draft.lockedByName ?? "a former member"}. A locked draft never changes.
+            </RecordNote>
+          ) : null}
         </Panel>
       ) : (
-        <p className="text-sm text-muted-foreground">
+        <LockedNotice tone="info" title="Voided">
           Voided by {draft.voidedByName ?? "a former member"}: “{draft.voidReason}”. The draft is
           unchanged; its work was released for a new draft.
-        </p>
+        </LockedNotice>
       )}
 
-      <Panel titleId="draft-exports-heading" title={<>Draft documents</>}>
+      <Panel titleId="draft-exports-heading" title={<>Draft Documents</>}>
         <ExportsTable
           rows={exports}
           canDownload={exportCap === "granted"}
           label="Invoice draft exports"
         />
+        <RecordNote>
+          Deterministic PDF and CSV files with a SHA-256 checksum, kept in private storage.
+          Downloading is recorded. Chelth does not send these documents.
+        </RecordNote>
       </Panel>
 
       <Panel titleId="draft-lines-heading" title={<>Lines</>}>
@@ -244,16 +310,16 @@ export default async function InvoiceDraftPage({
                     {dateFormat.format(new Date(`${line.workDate}T00:00:00Z`))}
                   </DataTableCell>
                   <DataTableCell>
-                    {line.workerName}
+                    <div className="font-medium text-chelth-navy">{line.workerName}</div>
                     {line.workerReference ? (
-                      <div className="text-xs text-muted-foreground">{line.workerReference}</div>
+                      <div className="text-xs text-slate-600">{line.workerReference}</div>
                     ) : null}
                   </DataTableCell>
                   <DataTableCell>{line.disciplineName}</DataTableCell>
                   <DataTableCell numeric>
                     {formatWorkedMinutes(line.pricedMinutes)}
                     {line.billOvertimeMinutes > 0 ? (
-                      <div className="text-xs text-muted-foreground">
+                      <div className="text-xs text-slate-600">
                         incl. {formatWorkedMinutes(line.billOvertimeMinutes)} overtime
                       </div>
                     ) : null}
@@ -267,9 +333,7 @@ export default async function InvoiceDraftPage({
                   <DataTableCell className="text-xs">
                     Revision {line.timesheetRevision}
                     {line.superseded ? (
-                      <div className="text-muted-foreground">
-                        Now revision {line.currentRevision}
-                      </div>
+                      <div className="text-slate-600">Now revision {line.currentRevision}</div>
                     ) : null}
                   </DataTableCell>
                 </DataTableRow>
@@ -282,6 +346,6 @@ export default async function InvoiceDraftPage({
       <Panel titleId="draft-history-heading" title={<>History</>}>
         <HistoryList rows={history} label="Invoice draft history" />
       </Panel>
-    </>
+    </RecordPage>
   );
 }

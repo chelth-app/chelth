@@ -1,0 +1,147 @@
+P0-E8-F3.1 — FINANCE MOBILE ACTIVE-TAB VISIBILITY FIX
+=====================================================
+
+Branch: p0-e8-visual-implementation (uncommitted)
+Scope:  Finance shell only (FinanceWorkspaceNav). No routes, page
+        content, permissions, finance logic, sidebar or desktop spacing
+        changed. No screenshots were saved to the repository.
+
+
+1. ROOT CAUSE
+-------------
+The Finance tab row (SectionTabs <nav aria-label="Finance">) is a
+horizontal scroll container (overflow-x: auto). It always starts at
+scrollLeft 0.
+
+At 375 and 412 px, the "FINANCE" label plus four tabs are wider than the
+row. The tabs to the right, Invoices most of all (the last tab), started
+partly or fully outside the visible part of the row, and nothing brought
+the current tab into view.
+
+
+2. IMPLEMENTATION
+-----------------
+File: (finance)/_components/finance-workspace-nav.tsx
+
+- A ref on the shell, and a useEffect keyed on the pathname. The layout
+  keeps the shell mounted across finance routes, so the effect runs on the
+  first render and after every client-side navigation.
+- The effect finds the Finance row (nav[aria-label="Finance"]) and its
+  current link ([aria-current="page"]). It returns at once when there is no
+  overflow (scrollWidth ≤ clientWidth), which covers every desktop width.
+- If the current tab extends past the right edge of the row, the row
+  scrolls right by exactly that overflow. If it starts before the left
+  edge, the row scrolls left by exactly that amount. Otherwise, nothing
+  happens.
+- Only row.scrollLeft is set. This is equivalent to scrollIntoView with
+  inline "nearest", but it can never scroll the page:
+  - no vertical or page movement;
+  - no smooth scrolling, so the adjustment is instant on the first render;
+  - no focus change;
+  - no live-region announcement.
+- Tab order, labels, styles, spacing and focus treatment are unchanged.
+
+
+3. ROUTES VERIFIED
+------------------
+At 375 and 412 (automated):
+- /invoices → Invoices visible
+- /invoices/[draftId] → Invoices visible
+- /payroll → Payroll visible
+- /payroll/[batchId] → Payroll visible
+- /rates → Rates visible
+- Client-side navigation Rates → Pricing → Payroll → Invoices: each newly
+  current tab is brought into view.
+
+Also covered by the existing suites (F1, F2, F2.5, F3), with the
+current-tab state unchanged:
+- /pricing and /pricing/[id];
+- /payroll/adjustments/[id];
+- /invoices/adjustments/[id].
+
+Local QA captures (scratch only):
+- 375: Rates, Payroll, Invoices;
+- 412: Invoices, invoice record;
+- desktop: Pricing, Payroll.
+At 375, Invoices shows fully with its underline, and Rates is scrolled out
+of view to the left (reachable by scrolling the row).
+
+
+4. RESPONSIVE BEHAVIOUR
+-----------------------
+- 375 / 412: the current tab is always fully inside the row. The row still
+  scrolls manually in both directions. No page-level horizontal overflow
+  (asserted); window.scrollX stays 0.
+- 768: the row normally fits. If it does not, the same minimal adjustment
+  applies.
+- 1024 / 1280 / 1512: no overflow, so the effect does nothing. Asserted:
+  scrollLeft is 0 on /pricing and /invoices at 1512. Desktop is visually
+  unchanged.
+
+
+5. ACCESSIBILITY
+----------------
+- aria-current="page": exactly one current tab on every route checked
+  (asserted).
+- Keyboard: Tab still moves between tab links (asserted). The inset
+  focus-visible ring from F2.6 is unchanged.
+- Focus is never moved by the scroll; there is no live-region message.
+- Link semantics and manual horizontal scrolling are preserved.
+- axe (wcag2a / 2aa / 22aa) is clean at 375 and 412 on Invoices, and on
+  all existing finance pages.
+
+
+6. TESTS
+--------
+New in tests/e2e/financial.spec.ts: "F3.1: the current Finance tab is
+visible on narrow screens, routes and records included". It runs on
+desktop Chromium at explicit widths and is skipped on the mobile project.
+
+At 375 and 412:
+- the current tab is fully within the row's bounds for /invoices, the
+  invoice draft record, /payroll, the payroll batch record and /rates;
+- exactly one aria-current tab;
+- no page overflow;
+- clicking Pricing, then Payroll, then Invoices keeps each new area in
+  view;
+- the page did not scroll horizontally;
+- the row is scrollable, was scrolled (scrollLeft > 0 before the manual
+  reset), and can be scrolled back to 0 by hand;
+- keyboard Tab moves focus to the next tab;
+- axe is clean.
+
+At 1512: the row's scrollLeft stays 0 on /pricing and /invoices (desktop
+unchanged).
+
+No pixel or screenshot assertions.
+
+
+7. VALIDATION RESULTS
+---------------------
+- npm run format:check: pass
+- npm run lint: pass (0 warnings)
+- npm run typecheck: pass
+- npm test: 347 passed
+- npm run build: pass
+- npm run check:bundle: OK (70 browser files, no secrets)
+- npx playwright test: 244 passed, 12 skipped, 0 failed (7.4 min). The
+  skips are desktop-only tests on the mobile project, including the new
+  F3.1 test.
+
+
+8. FILES CHANGED
+----------------
+- src/app/app/organisations/[organisationId]/(workspace)/(finance)/
+  _components/finance-workspace-nav.tsx (active-tab visibility effect)
+- tests/e2e/financial.spec.ts (F3.1 test)
+- docs/reports/P0-E8-F3.1-finance-mobile-active-tab-visibility.txt (this
+  report)
+
+
+9. NO BACKEND / SECURITY CHANGES
+--------------------------------
+There is no database, migration, RLS, RPC, authz, capability, route,
+action or finance-logic change. No supabase/ file is in the diff. The
+sidebar and page content are untouched.
+
+STATUS: FINANCE MOBILE ACTIVE-TAB VISIBILITY FIX COMPLETE. AWAITING HUMAN REVIEW. NOT COMMITTED.
