@@ -5,8 +5,8 @@
  *   npm run dev:scan-documents                # mark every `scanning` document clean
  *   npm run dev:scan-documents -- quarantine  # mark them quarantined instead
  *
- * Production has no equivalent: documents stay `scanning` until a real scanner
- * integration clears them (docs/security/CREDENTIAL_DOCUMENT_SECURITY.md).
+ * Production uses the real scanner pipeline instead (scan worker route + scanner
+ * principal + queue; docs/security/CREDENTIAL_DOCUMENT_SECURITY.md).
  * Refuses to run against anything but a local database.
  */
 import postgres from "postgres";

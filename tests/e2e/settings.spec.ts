@@ -242,6 +242,34 @@ test.describe.serial("settings", () => {
       }
       await expectNoPageOverflow(page);
 
+      if (width < 1024) {
+        // P0-E8-A1.3: the mobile row keeps scrolling but hides scrollbar chrome.
+        const row = await nav.evaluate((element) => {
+          const style = getComputedStyle(element);
+          return {
+            overflowX: style.overflowX,
+            overflowY: style.overflowY,
+            scrollbarWidth: style.scrollbarWidth,
+            scrollable: element.scrollWidth > element.clientWidth,
+          };
+        });
+        expect(row).toMatchObject({
+          overflowX: "auto",
+          overflowY: "hidden",
+          scrollbarWidth: "none",
+        });
+        if (row.scrollable) {
+          expect(
+            await nav.evaluate((element) => {
+              element.scrollLeft = 0;
+              element.scrollLeft = 120;
+              return element.scrollLeft;
+            }),
+          ).toBeGreaterThan(0);
+        }
+        await expectNoA11yViolations(page);
+      }
+
       if (width >= 1024) {
         // Desktop: the sticky section nav stays clear of the sticky top bar when scrolled.
         await related.scrollIntoViewIfNeeded();

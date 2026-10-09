@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 
+import { InitialsAvatar } from "@/components/reference/locked-reference";
 import { BrandLogo } from "@/components/shared/brand-logo";
 import { cn } from "@/lib/utils/cn";
 
@@ -64,7 +65,7 @@ function NavIcon({ name }: { name: keyof typeof ICONS }) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.75}
+      strokeWidth={1.9}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
@@ -80,10 +81,13 @@ const sheetRow =
   "flex min-h-11 w-full items-center gap-3 rounded-md px-3 text-left text-base text-foreground hover:bg-surface-muted";
 
 /**
- * Worker self-service shell (P7). Mobile-first: compact header, one content
- * column, bottom navigation of real worker destinations, and a "More" sheet
- * for workspace home, switching, Account, Security and Sign out. Never the
- * Agency sidebar; at wider widths it stays a centred column.
+ * Worker self-service shell (P7; locked Worker Mobile reference, P0-E8-W1).
+ * Mobile-first: compact header with the Chelth mark, workspace and the
+ * worker's initials; one content column on the locked off-white canvas; a
+ * bottom navigation of real worker destinations (teal current item with a top
+ * rule, 64 px targets, safe-area padding); and a "More" sheet for workspace
+ * home, switching, Account, Security and Sign out. Never the Agency sidebar;
+ * at wider widths it stays a centred phone-width column.
  */
 export function WorkerShell({
   workspaceName,
@@ -123,28 +127,29 @@ export function WorkerShell({
   const isCurrent = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
   return (
-    <div className="flex min-h-dvh flex-col bg-background">
-      <header className="sticky top-0 z-30 border-b border-border bg-surface">
-        <div className="mx-auto flex min-h-14 w-full max-w-xl items-center gap-3 px-4">
+    <div className="flex min-h-dvh flex-col bg-[linear-gradient(180deg,#fafcfe_0%,#f6fafc_55%,#f1f9fa_100%)]">
+      <header className="sticky top-0 z-30 border-b border-[rgba(18,107,103,0.10)] bg-white/95 backdrop-blur-[6px]">
+        <div className="mx-auto flex min-h-16 w-full max-w-xl items-center gap-3 px-4">
           <Link href={homeHref as Route} className="shrink-0 rounded-sm">
-            <BrandLogo variant="mark" height={28} />
+            <BrandLogo variant="mark" height={30} />
           </Link>
           <div className="min-w-0 flex-1">
-            <p className="truncate font-display text-base font-semibold text-chelth-navy">
+            <p className="truncate font-display text-[16px] leading-5 font-semibold text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)]">
               {workspaceName}
             </p>
-            <p className="truncate text-xs text-muted-foreground">Worker · {name}</p>
+            <p className="truncate text-[12.5px] leading-[18px] text-slate-600">Worker · {name}</p>
           </div>
+          <InitialsAvatar name={user.displayName ?? user.email} />
         </div>
       </header>
 
-      <main id={MAIN_CONTENT_ID} className="flex-1 pt-6 pb-28">
-        <div className="mx-auto flex w-full max-w-xl flex-col gap-6 px-4">{children}</div>
+      <main id={MAIN_CONTENT_ID} className="flex-1 pt-5 pb-28">
+        <div className="mx-auto flex w-full max-w-xl flex-col gap-5 px-4">{children}</div>
       </main>
 
       <nav
         aria-label="Worker"
-        className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface pb-[env(safe-area-inset-bottom)]"
+        className="fixed inset-x-0 bottom-0 z-30 border-t border-[rgba(18,107,103,0.12)] bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-6px_18px_rgba(13,47,66,0.06)]"
       >
         <ul className="mx-auto grid w-full max-w-xl auto-cols-fr grid-flow-col">
           {items.map((item) => {
@@ -155,10 +160,10 @@ export function WorkerShell({
                   href={item.href as Route}
                   aria-current={current ? "page" : undefined}
                   className={cn(
-                    "relative flex min-h-16 flex-col items-center justify-center gap-0.5 px-2 text-xs font-medium",
+                    "relative flex min-h-16 flex-col items-center justify-center gap-1 px-2 text-[12px] font-medium",
                     current
-                      ? "font-semibold text-primary before:absolute before:inset-x-4 before:top-0 before:h-0.5 before:rounded-full before:bg-primary"
-                      : "text-muted-foreground hover:text-foreground",
+                      ? "font-semibold text-chelth-teal-dark before:absolute before:inset-x-5 before:top-0 before:h-[3px] before:rounded-b-full before:bg-chelth-teal"
+                      : "text-slate-500 hover:text-chelth-navy",
                   )}
                 >
                   <NavIcon name={item.icon} />
@@ -174,7 +179,7 @@ export function WorkerShell({
               aria-expanded={moreOpen}
               aria-controls={sheetId}
               onClick={() => setMoreOpen(true)}
-              className="flex min-h-16 w-full flex-col items-center justify-center gap-0.5 px-2 text-xs font-medium text-muted-foreground hover:text-foreground"
+              className="flex min-h-16 w-full flex-col items-center justify-center gap-1 px-2 text-[12px] font-medium text-slate-500 hover:text-chelth-navy"
             >
               <NavIcon name="more" />
               More

@@ -5,7 +5,7 @@ import { useActionState } from "react";
 import { FormAlert, fieldErrorsFor } from "@/components/forms/form-alert";
 import { SubmitButton } from "@/components/forms/submit-button";
 import { FormField } from "@/components/ui/form-field";
-import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { PASSWORD_MIN_LENGTH } from "@/lib/validation/common";
 
 import { updatePasswordAction } from "../actions";
@@ -22,7 +22,7 @@ export function ResetPasswordForm() {
         required
         errors={fieldErrorsFor(state, "password")}
       >
-        <Input name="password" type="password" autoComplete="new-password" />
+        <PasswordInput name="password" autoComplete="new-password" revealLabel="new password" />
       </FormField>
       <FormField
         id="confirmPassword"
@@ -30,7 +30,11 @@ export function ResetPasswordForm() {
         required
         errors={fieldErrorsFor(state, "confirmPassword")}
       >
-        <Input name="confirmPassword" type="password" autoComplete="new-password" />
+        <PasswordInput
+          name="confirmPassword"
+          autoComplete="new-password"
+          revealLabel="confirm password"
+        />
       </FormField>
       <SubmitButton>Update password</SubmitButton>
     </form>

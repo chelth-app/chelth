@@ -149,7 +149,7 @@ export default async function AttendancePage({
             method="get"
             className="flex w-full flex-wrap items-center gap-2 sm:w-auto"
           >
-            <span className="flex h-11 w-full items-center gap-2 rounded-lg border border-chelth-border bg-white/90 px-3 text-chelth-navy shadow-[0_1px_2px_rgba(13,47,66,0.04)] focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring sm:w-auto">
+            <span className="flex h-[46px] w-full items-center gap-2 rounded-lg border border-chelth-border bg-white/90 px-3 text-chelth-navy shadow-[0_1px_2px_rgba(13,47,66,0.04)] focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring sm:h-11 sm:w-auto">
               <WorkspaceNavIcon name="shifts" strokeWidth={2.1} className="size-[18px]" />
               <Label htmlFor="attendance-from" className="sr-only">
                 From (empty: today at each facility)
@@ -159,7 +159,7 @@ export default async function AttendancePage({
                 name="from"
                 type="date"
                 defaultValue={from ?? ""}
-                className="w-0 min-w-0 flex-1 bg-transparent text-base font-medium outline-none sm:w-auto sm:flex-none sm:text-[14px]"
+                className="h-full w-0 min-w-0 flex-1 bg-transparent text-base font-medium outline-none sm:w-auto sm:flex-none sm:text-[14px]"
               />
               <span aria-hidden="true" className="text-muted-foreground">
                 –
@@ -172,7 +172,7 @@ export default async function AttendancePage({
                 name="to"
                 type="date"
                 defaultValue={to ?? ""}
-                className="w-0 min-w-0 flex-1 bg-transparent text-base font-medium outline-none sm:w-auto sm:flex-none sm:text-[14px]"
+                className="h-full w-0 min-w-0 flex-1 bg-transparent text-base font-medium outline-none sm:w-auto sm:flex-none sm:text-[14px]"
               />
             </span>
             <button
@@ -369,8 +369,8 @@ export default async function AttendancePage({
                             </td>
                             <td className="text-right">
                               <DetailDrawerTrigger
-                                triggerLabel="⋯"
-                                triggerClassName="justify-center px-2 text-lg font-bold text-chelth-navy no-underline sm:min-h-9"
+                                triggerLabel="⋮"
+                                triggerClassName="justify-center px-2 text-xl font-bold text-chelth-navy no-underline sm:min-h-9"
                                 triggerAccessibleLabel={`Details for ${worker}`}
                                 title="Attendance Details"
                                 width="profile"

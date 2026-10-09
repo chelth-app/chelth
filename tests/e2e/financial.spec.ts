@@ -702,6 +702,51 @@ test.describe.serial("payroll preparation and invoice drafting", () => {
       await page.goto(path);
       expect(await row.evaluate((element) => element.scrollLeft)).toBe(0);
     }
+
+    // P0-E8-A1.2: shared SectionTabs rows carry no scrollbar chrome and cannot scroll
+    // vertically (the 1 px content overflow was the right-edge artifact), yet still
+    // scroll horizontally.
+    const tabRowMetrics = (label: string) =>
+      page.getByRole("navigation", { name: label, exact: true }).evaluate((element) => {
+        const style = getComputedStyle(element);
+        return {
+          overflowX: style.overflowX,
+          overflowY: style.overflowY,
+          scrollbarWidth: style.scrollbarWidth,
+          scrollable: element.scrollWidth > element.clientWidth,
+          gutter: (element as HTMLElement).offsetWidth - element.clientWidth,
+        };
+      });
+    for (const [path, label] of [
+      [batchPath, "Payroll batch sections"],
+      [draftPath, "Invoice draft sections"],
+      [`${base}/pricing`, "Pricing queues"],
+      [`${base}/pricing`, "Finance"],
+    ] as const) {
+      await page.goto(path);
+      const metrics = await tabRowMetrics(label);
+      expect(metrics, `${label} at 1512`).toMatchObject({
+        overflowX: "auto",
+        overflowY: "hidden",
+        scrollbarWidth: "none",
+        gutter: 0,
+      });
+    }
+    // Narrow: the record tabs overflow and still scroll by hand; focus stays reachable.
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto(batchPath);
+    const sections = page.getByRole("navigation", { name: "Payroll batch sections" });
+    expect((await tabRowMetrics("Payroll batch sections")).scrollable).toBe(true);
+    expect(
+      await sections.evaluate((element) => {
+        element.scrollLeft = 200;
+        return element.scrollLeft;
+      }),
+    ).toBeGreaterThan(0);
+    await sections.getByRole("link", { name: "History" }).focus();
+    await expect(sections.getByRole("link", { name: "History" })).toBeFocused();
+    await expectNoPageOverflow(page);
+    await expectNoA11yViolations(page);
     await page.context().close();
   });
 });

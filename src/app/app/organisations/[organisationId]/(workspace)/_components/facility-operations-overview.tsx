@@ -3,21 +3,32 @@ import Link from "next/link";
 
 import { WorkspaceNavIcon } from "@/components/layout/workspace-nav-icon";
 import {
-  DataTable,
-  DataTableCell,
-  DataTableHead,
-  DataTableHeaderCell,
-  DataTableRegion,
-  DataTableRow,
-} from "@/components/ui/data-table";
-import { EmptyState } from "@/components/ui/empty-state";
-import { KpiFilterCard, KpiFilterGroup } from "@/components/ui/kpi-filter-card";
-import { Panel, PanelLink } from "@/components/ui/panel";
-import { FillBadge, listFacilityShifts, ShiftStatusBadge } from "@/features/shifts";
+  InitialsAvatar,
+  KpiAction,
+  KpiNote,
+  REF_TABLE,
+  REF_TEXT,
+  RefChip,
+  RefKpiCard,
+  RefPanel,
+  RefPanelAction,
+} from "@/components/reference/locked-reference";
+import { DataTableRegion } from "@/components/ui/data-table";
+import { FILL_TONE, listFacilityShifts, SHIFT_TONE } from "@/features/shifts";
 import { listFacilityTimesheetEntries } from "@/features/timesheets";
 import { CAPABILITIES, type CapabilityKey, type CapabilityState } from "@/lib/authz";
-import { formatShiftDate, formatShiftTimeRange, hasEnded, localDate } from "@/lib/domain/shifts";
+import {
+  FILL_STATE_LABELS,
+  formatShiftDate,
+  formatShiftTimeRange,
+  hasEnded,
+  localDate,
+  SHIFT_STATUS_LABELS,
+} from "@/lib/domain/shifts";
 import { formatWorkedMinutes } from "@/lib/domain/timesheets";
+import { cn } from "@/lib/utils/cn";
+
+import { LockedEmpty } from "../(finance)/_components/finance-locked";
 
 const PANEL_ROWS = 8;
 
@@ -31,6 +42,9 @@ const PANEL_ROWS = 8;
  * Worker names and attendance stay on each request page, whose per-shift
  * reads are individually audited; they are deliberately not fanned out here.
  * No agency-internal issues, pay, pricing, coordinates or audit data.
+ *
+ * Presentation (P0-E8-QA-F1): the locked Overview family — RefKpiCard, RefPanel
+ * and REF_TABLE — with the same facility data and gates as before.
  */
 export async function FacilityOperationsOverview({
   organisationId,
@@ -65,135 +79,180 @@ export async function FacilityOperationsOverview({
   const pending = entries.filter((entry) => entry.facilityState === "pending");
 
   return (
-    <>
-      <KpiFilterGroup label="Facility summary">
+    <div className="flex flex-col gap-[13px]">
+      <section
+        aria-label="Facility summary"
+        className="grid grid-cols-2 gap-3 xl:grid-cols-4 xl:gap-[13px]"
+      >
         {showRequests ? (
           <>
-            <KpiFilterCard
-              label="Awaiting agency"
+            <RefKpiCard
+              label="Awaiting Agency"
               value={awaitingAgency}
               supporting="Requests not yet opened"
-              icon={<WorkspaceNavIcon name="requests" />}
+              footer={<KpiAction>View requests</KpiAction>}
+              glyph="document"
+              icon={<WorkspaceNavIcon name="requests" strokeWidth={2.4} duotone />}
+              tone="info"
               href={`${base}/staffing-requests?status=submitted&when=upcoming` as Route}
             />
-            <KpiFilterCard
-              label="Open requests"
+            <RefKpiCard
+              label="Open Requests"
               value={open.length}
-              supporting={`${notFullyStaffed} not fully staffed`}
-              icon={<WorkspaceNavIcon name="shifts" />}
+              supporting="Upcoming and open"
+              footer={
+                <KpiNote tone={notFullyStaffed > 0 ? "warning" : "success"}>
+                  {notFullyStaffed} not fully staffed
+                </KpiNote>
+              }
+              glyph="calendar"
+              icon={<WorkspaceNavIcon name="shifts" strokeWidth={2.4} duotone />}
+              tone="teal"
               href={`${base}/staffing-requests?status=open&when=upcoming` as Route}
             />
-            <KpiFilterCard
-              label="Workers expected today"
+            <RefKpiCard
+              label="Workers Expected Today"
               value={expectedToday}
               supporting={`Across ${today.length} shift${today.length === 1 ? "" : "s"} today`}
-              icon={<WorkspaceNavIcon name="workforce" />}
+              glyph="people"
+              icon={<WorkspaceNavIcon name="workforce" strokeWidth={2.4} duotone />}
+              tone="teal"
             />
           </>
         ) : null}
         {showSignoff ? (
-          <KpiFilterCard
-            label="Timesheets to sign off"
+          <RefKpiCard
+            label="Timesheets to Sign Off"
             value={pending.length}
             supporting="Entries approved by agencies"
-            icon={<WorkspaceNavIcon name="timesheets" />}
+            footer={<KpiAction>Sign off</KpiAction>}
+            glyph="document"
+            icon={<WorkspaceNavIcon name="timesheets" strokeWidth={2.4} duotone />}
+            tone="info"
             href={`${base}/timesheets?state=pending` as Route}
           />
         ) : null}
-      </KpiFilterGroup>
+      </section>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      <div
+        className={cn(
+          "grid gap-4",
+          showRequests && showSignoff && "xl:grid-cols-[minmax(0,1.787fr)_minmax(0,1fr)]",
+        )}
+      >
         {showRequests ? (
-          <Panel
+          <RefPanel
             title="Today and upcoming"
             titleId="facility-upcoming-heading"
-            description="Requests and shifts at your facility, earliest first. Who is coming and attendance are on each request."
             action={
-              <PanelLink href={`${base}/staffing-requests` as Route}>View requests</PanelLink>
+              <RefPanelAction href={`${base}/staffing-requests` as Route}>
+                View requests
+              </RefPanelAction>
             }
           >
             {upcoming.length === 0 ? (
-              <EmptyState headingLevel={3} title="Nothing scheduled or requested ahead." />
+              <LockedEmpty
+                icon="requests"
+                title="Nothing scheduled or requested ahead."
+                note="Requests and shifts at your facility appear here, earliest first."
+              />
             ) : (
-              <DataTableRegion aria-label="Upcoming requests table">
-                <DataTable className="min-w-[36rem]">
-                  <DataTableHead>
+              <DataTableRegion
+                aria-label="Upcoming requests table"
+                className="mt-[9px] rounded-none border-0 bg-transparent"
+              >
+                <table className={cn(REF_TABLE, "min-w-[36rem] table-fixed")}>
+                  <colgroup>
+                    <col className="w-[38%]" />
+                    <col className="w-[24%]" />
+                    <col className="w-[15%]" />
+                    <col className="w-[23%]" />
+                  </colgroup>
+                  <thead className={REF_TEXT.tableHead}>
                     <tr>
-                      <DataTableHeaderCell>Request</DataTableHeaderCell>
-                      <DataTableHeaderCell>Time</DataTableHeaderCell>
-                      <DataTableHeaderCell>Status</DataTableHeaderCell>
-                      <DataTableHeaderCell>Staffing</DataTableHeaderCell>
+                      <th scope="col">Request</th>
+                      <th scope="col">Time</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Staffing</th>
                     </tr>
-                  </DataTableHead>
-                  <tbody>
+                  </thead>
+                  <tbody className={REF_TEXT.tableBody}>
                     {upcoming.slice(0, PANEL_ROWS).map((shift) => (
-                      <DataTableRow key={shift.id}>
-                        <DataTableCell>
-                          <Link
-                            href={`${base}/staffing-requests/${shift.id}` as Route}
-                            className="font-medium text-primary underline underline-offset-4"
-                          >
-                            {shift.disciplineName} · {formatShiftDate(shift)}
-                          </Link>
-                          <div className="text-muted-foreground">
-                            {shift.agencyName} · {shift.locationName}
-                          </div>
-                        </DataTableCell>
-                        <DataTableCell>{formatShiftTimeRange(shift)}</DataTableCell>
-                        <DataTableCell>
-                          <ShiftStatusBadge status={shift.status} />
-                        </DataTableCell>
-                        <DataTableCell>
+                      <tr key={shift.id}>
+                        <td>
+                          <span className="flex flex-col py-2">
+                            <Link
+                              href={`${base}/staffing-requests/${shift.id}` as Route}
+                              className="font-medium text-chelth-navy hover:text-primary hover:underline hover:underline-offset-4"
+                            >
+                              {shift.disciplineName} · {formatShiftDate(shift)}
+                            </Link>
+                            <span className="truncate text-muted-foreground">
+                              {shift.agencyName} · {shift.locationName}
+                            </span>
+                          </span>
+                        </td>
+                        <td>{formatShiftTimeRange(shift)}</td>
+                        <td>
+                          <RefChip tone={SHIFT_TONE[shift.status]} className="font-normal">
+                            {SHIFT_STATUS_LABELS[shift.status]}
+                          </RefChip>
+                        </td>
+                        <td>
                           {shift.status === "open" ? (
-                            <FillBadge
-                              fillState={shift.fillState}
-                              activeCount={shift.activeCount}
-                              requestedHeadcount={shift.requestedHeadcount}
-                            />
+                            <RefChip tone={FILL_TONE[shift.fillState]} className="font-normal">
+                              {FILL_STATE_LABELS[shift.fillState]} · {shift.activeCount} of{" "}
+                              {shift.requestedHeadcount}
+                            </RefChip>
                           ) : (
                             <span className="text-muted-foreground">
                               {shift.requestedHeadcount} needed
                             </span>
                           )}
-                        </DataTableCell>
-                      </DataTableRow>
+                        </td>
+                      </tr>
                     ))}
                   </tbody>
-                </DataTable>
+                </table>
               </DataTableRegion>
             )}
             {upcoming.length > PANEL_ROWS ? (
-              <p className="text-sm text-muted-foreground">
+              <p className="px-[5px] pt-2 text-[12.75px] text-muted-foreground">
                 Showing {PANEL_ROWS} of {upcoming.length}.
               </p>
             ) : null}
-          </Panel>
+          </RefPanel>
         ) : null}
 
         {showSignoff ? (
-          <Panel
+          <RefPanel
             title="Awaiting sign-off"
             titleId="facility-signoff-heading"
-            description="Worked time your agencies have approved."
             action={
-              <PanelLink href={`${base}/timesheets?state=pending` as Route}>Sign off</PanelLink>
+              <RefPanelAction href={`${base}/timesheets?state=pending` as Route}>
+                Sign off
+              </RefPanelAction>
             }
           >
             {pending.length === 0 ? (
-              <EmptyState headingLevel={3} title="Nothing to sign off." />
+              <LockedEmpty
+                icon="timesheets"
+                title="Nothing to sign off."
+                note="Worked time your agencies approve appears here."
+              />
             ) : (
               <ul
                 aria-label="Entries awaiting sign-off"
-                className="flex flex-col divide-y divide-border"
+                className="mt-[9px] flex flex-col divide-y divide-[rgba(18,107,103,0.12)] px-[5px]"
               >
                 {pending.slice(0, 5).map((entry) => (
-                  <li
-                    key={entry.id}
-                    className="flex items-center justify-between gap-3 py-3 text-sm first:pt-0 last:pb-0"
-                  >
-                    <span className="min-w-0">
-                      <span className="block font-medium">{entry.workerName ?? "Worker"}</span>
-                      <span className="block text-xs text-muted-foreground">
+                  <li key={entry.id} className="flex items-center gap-3 py-2.5">
+                    <InitialsAvatar name={entry.workerName} size={36} />
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate text-[14px] leading-5 font-semibold text-chelth-navy">
+                        {entry.workerName ?? "Worker"}
+                      </span>
+                      <span className="truncate text-[12.5px] leading-[18px] text-slate-600">
                         {entry.agencyName} ·{" "}
                         {formatShiftDate({
                           startAt: entry.scheduledStartAt,
@@ -201,16 +260,16 @@ export async function FacilityOperationsOverview({
                         })}
                       </span>
                     </span>
-                    <span className="font-semibold tabular-nums">
+                    <span className="text-[14px] font-semibold text-chelth-navy tabular-nums">
                       {formatWorkedMinutes(entry.workedMinutes)}
                     </span>
                   </li>
                 ))}
               </ul>
             )}
-          </Panel>
+          </RefPanel>
         ) : null}
       </div>
-    </>
+    </div>
   );
 }

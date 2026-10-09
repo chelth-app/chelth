@@ -10,7 +10,7 @@ import { expectNoPageOverflow, qaScreenshot, signIn } from "./support";
  */
 
 const A11Y_TAGS = ["wcag2a", "wcag2aa", "wcag22aa"];
-const WIDTHS = [375, 412, 768, 1024, 1280];
+const WIDTHS = [375, 390, 412, 430, 768, 1024, 1280, 1512];
 const RANDOM_ORG = "00000000-0000-4000-8000-000000000000";
 
 async function expectNoA11yViolations(page: Page) {
@@ -70,10 +70,66 @@ test.describe("auth canvas", () => {
     }
   });
 
+  test("password fields: accessible show / hide that never submits (P0-E8-A1.2)", async ({
+    page,
+  }) => {
+    for (const [path, autocomplete] of [
+      ["/sign-in", "current-password"],
+      ["/sign-up", "new-password"],
+    ] as const) {
+      await page.goto(path);
+      const field = page.getByRole("textbox", { name: "Password", exact: true });
+      await expect(field).toHaveAttribute("type", "password");
+      await expect(field).toHaveAttribute("autocomplete", autocomplete);
+      await field.fill("Fixture-Passw0rd-1");
+      const show = page.getByRole("button", { name: "Show password" });
+      expect((await show.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+      await show.click();
+      await expect(field).toHaveAttribute("type", "text");
+      await expect(field).toHaveValue("Fixture-Passw0rd-1");
+      await expect(page).toHaveURL(new RegExp(`${path}$`)); // not submitted
+      // No form submission: no form alert in the page content (Next's route announcer aside).
+      await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
+      // Keyboard: the toggle is reachable and operable; the label reflects the state.
+      const hide = page.getByRole("button", { name: "Hide password" });
+      await hide.focus();
+      await page.keyboard.press("Enter");
+      await expect(field).toHaveAttribute("type", "password");
+      await expect(page.getByRole("button", { name: "Show password" })).toBeFocused();
+      await expect(field).toHaveAttribute("autocomplete", autocomplete);
+      await qaScreenshot(page, `a12-password${path.replace("/", "-")}`);
+      await expectNoA11yViolations(page);
+    }
+  });
+
   test("unmatched routes: 404 on the canvas", async ({ page }) => {
     const response = await page.goto("/definitely-not-a-page");
     expect(response?.status()).toBe(404);
     await expect(page.getByRole("heading", { level: 1, name: "Page not found" })).toBeVisible();
+    // One safe destination; no technical detail.
+    await expect(page.getByRole("link", { name: "Return home" })).toHaveAttribute("href", "/");
+    await expect(page.getByRole("main")).not.toContainText(/stack|digest|supabase|error code/i);
+    await qaScreenshot(page, "a1-not-found");
+    await expectNoA11yViolations(page);
+  });
+
+  test("sign in: validation and incorrect credentials are announced in plain language (P0-E8-A1)", async ({
+    page,
+  }) => {
+    await page.goto("/sign-in");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    // Native/field validation keeps the user on the form; nothing is submitted.
+    await expect(page).toHaveURL(/\/sign-in/);
+    await page.getByLabel("Email address").fill("nobody@example.test");
+    await page.getByLabel("Password").fill("not-the-password-1");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    const alert = page.getByRole("alert").filter({ hasText: "incorrect" });
+    await expect(alert).toBeVisible({ timeout: 20_000 });
+    // Calm wording; no provider internals or error codes.
+    await expect(page.getByRole("main")).not.toContainText(
+      /AuthApiError|supabase|status 4\d\d|oops/i,
+    );
+    await qaScreenshot(page, "a1-sign-in-error");
     await expectNoA11yViolations(page);
   });
 });

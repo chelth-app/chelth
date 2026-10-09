@@ -406,8 +406,8 @@ export default async function PayrollPage({
                         </td>
                         <td className="text-right">
                           <DetailDrawerTrigger
-                            triggerLabel="⋯"
-                            triggerClassName="justify-center px-2 text-lg font-bold text-chelth-navy no-underline sm:min-h-9"
+                            triggerLabel="⋮"
+                            triggerClassName="justify-center px-2 text-xl font-bold text-chelth-navy no-underline sm:min-h-9"
                             triggerAccessibleLabel={`Payroll batch details for ${batch.reference}`}
                             title="Payroll Batch Details"
                             width="profile"

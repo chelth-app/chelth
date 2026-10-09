@@ -141,7 +141,7 @@ export default async function TimesheetPage({
             href={`/app/organisations/${organisationId}/my-shifts`}
             className="w-fit text-sm font-medium text-primary underline underline-offset-4"
           >
-            Request a correction on My shifts
+            Request a correction on My Shifts
           </Link>
         ) : null}
       </div>
@@ -366,7 +366,7 @@ export default async function TimesheetPage({
                 action={rebuildTimesheetAction}
                 fields={{ organisationId, timesheetId: sheet.id }}
                 label="Recalculate from attendance"
-                variant="ghost"
+                variant="outline"
               />
             </div>
           ) : null}

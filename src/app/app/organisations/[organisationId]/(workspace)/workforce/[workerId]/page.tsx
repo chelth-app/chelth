@@ -50,6 +50,7 @@ import {
 } from "@/features/credentials";
 import { listActiveRelationships, listFacilities } from "@/features/facilities";
 import { CAPABILITIES } from "@/lib/authz";
+import { formatCalendarDate } from "@/lib/domain/credentials";
 import { cn } from "@/lib/utils/cn";
 import { WORKER_STATUS_LABELS, WORKER_STATUS_TRANSITIONS } from "@/lib/domain/vocabulary";
 
@@ -312,7 +313,7 @@ export default async function WorkerPage({
                   <span className="flex flex-wrap items-center gap-2">
                     {credential.effectiveExpiryDate ? (
                       <span className={RECORD_ROW_META}>
-                        expires {credential.effectiveExpiryDate}
+                        expires {formatCalendarDate(credential.effectiveExpiryDate)}
                       </span>
                     ) : null}
                     {credential.latestVersionNumber === null ? (

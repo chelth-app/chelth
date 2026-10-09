@@ -406,7 +406,7 @@ export default async function CompliancePage({
                 </option>
               ))}
             </FilterSelect>
-            <span className="flex h-11 min-w-44 flex-1 items-center gap-2.5 rounded-md border border-chelth-border bg-white/90 px-3 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring sm:h-[46px] xl:max-w-[240px]">
+            <span className="flex h-[46px] min-w-44 flex-1 items-center gap-2.5 rounded-md border border-chelth-border bg-white/90 px-3 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring xl:max-w-[240px]">
               <svg
                 viewBox="0 0 24 24"
                 aria-hidden="true"
@@ -429,7 +429,7 @@ export default async function CompliancePage({
                 type="search"
                 defaultValue={search}
                 placeholder="Search credentials…"
-                className="min-w-0 flex-1 bg-transparent text-base text-chelth-navy outline-none placeholder:text-muted-foreground sm:text-[13.5px]"
+                className="h-full min-w-0 flex-1 bg-transparent text-base text-chelth-navy outline-none placeholder:text-muted-foreground sm:text-[13.5px]"
               />
             </span>
             <button
@@ -719,7 +719,7 @@ function FilterSelect({
   return (
     <span
       className={cn(
-        "flex h-11 min-w-36 items-center gap-2 rounded-md border border-chelth-border bg-white/90 pl-3 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring sm:h-[46px]",
+        "flex h-[46px] min-w-36 items-center gap-2 rounded-md border border-chelth-border bg-white/90 pl-3 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring",
         className,
       )}
     >

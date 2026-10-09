@@ -235,7 +235,7 @@ export async function AgencyTimesheets({
           method="get"
           className="flex flex-wrap items-center gap-[9px]"
         >
-          <span className="flex h-11 min-w-44 items-center gap-2 rounded-md border border-chelth-border bg-white/90 px-3 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring sm:h-[46px]">
+          <span className="flex h-[46px] min-w-44 items-center gap-2 rounded-md border border-chelth-border bg-white/90 px-3 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring">
             <WorkspaceNavIcon
               name="shifts"
               strokeWidth={2.1}
@@ -249,7 +249,7 @@ export async function AgencyTimesheets({
               name="period"
               type="date"
               defaultValue={filter.period ?? ""}
-              className="w-0 min-w-0 flex-1 bg-transparent text-base font-medium text-chelth-navy outline-none sm:w-auto sm:flex-none sm:text-[13.5px]"
+              className="h-full w-0 min-w-0 flex-1 bg-transparent text-base font-medium text-chelth-navy outline-none sm:w-auto sm:flex-none sm:text-[13.5px]"
             />
           </span>
           <FilterSelect
@@ -296,7 +296,7 @@ export async function AgencyTimesheets({
               </option>
             ))}
           </FilterSelect>
-          <span className="flex h-11 min-w-44 flex-1 items-center gap-2.5 rounded-md border border-chelth-border bg-white/90 px-3 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring sm:h-[46px] xl:max-w-[260px]">
+          <span className="flex h-[46px] min-w-44 flex-1 items-center gap-2.5 rounded-md border border-chelth-border bg-white/90 px-3 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring xl:max-w-[260px]">
             <svg
               viewBox="0 0 24 24"
               aria-hidden="true"
@@ -319,7 +319,7 @@ export async function AgencyTimesheets({
               type="search"
               defaultValue={search}
               placeholder="Search timesheets…"
-              className="min-w-0 flex-1 bg-transparent text-base text-chelth-navy outline-none placeholder:text-muted-foreground sm:text-[13.5px]"
+              className="h-full min-w-0 flex-1 bg-transparent text-base text-chelth-navy outline-none placeholder:text-muted-foreground sm:text-[13.5px]"
             />
           </span>
           <button
@@ -460,8 +460,8 @@ export async function AgencyTimesheets({
                           </td>
                           <td className="text-right">
                             <DetailDrawerTrigger
-                              triggerLabel="⋯"
-                              triggerClassName="justify-center px-2 text-lg font-bold text-chelth-navy no-underline sm:min-h-9"
+                              triggerLabel="⋮"
+                              triggerClassName="justify-center px-2 text-xl font-bold text-chelth-navy no-underline sm:min-h-9"
                               triggerAccessibleLabel={`Details for ${worker}, week ${compactPeriod(row.periodStart, row.periodEnd)}`}
                               title="Timesheet Details"
                               width="profile"
@@ -638,7 +638,7 @@ function FilterSelect({
   return (
     <span
       className={cn(
-        "flex h-11 min-w-36 items-center gap-2 rounded-md border border-chelth-border bg-white/90 pl-3 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring sm:h-[46px]",
+        "flex h-[46px] min-w-36 items-center gap-2 rounded-md border border-chelth-border bg-white/90 pl-3 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring",
         className,
       )}
     >

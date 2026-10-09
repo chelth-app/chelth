@@ -1,0 +1,236 @@
+P0-E8-A1.3 — PERSONAL FRAME LAYOUT REFINEMENT
+==============================================
+
+Branch: p0-e8-visual-implementation (uncommitted)
+Base:   18ad514, plus the uncommitted F1–A1.2 work
+
+Scope: presentation only.
+- /app gateway composition;
+- /app/account and /app/security composition;
+- the Settings mobile sub-navigation scrollbar chrome.
+
+The personal header and navigation (approved in A1.1) are unchanged. No
+route, auth, selection, creation, permission, database or security change.
+No screenshots were saved to the repository.
+
+
+1. /APP DESKTOP LAYOUT REFINEMENT
+---------------------------------
+File: src/app/app/(personal)/page.tsx
+
+- The welcome h1 and supporting line, plus the existing notices
+  (password-updated, pending invitation), span the top.
+- Below, from lg (1024 px), a two-column gateway:
+  - left column (minmax(0, 1.7fr), about 63%): "Your organisations" with
+    the workspace card grid. This is the primary task;
+  - right column (minmax(320 px, 1fr), about 37%): the "Create a new
+    agency" panel. This is the secondary task.
+- Both columns start at the "Your organisations" line (top-aligned), so the
+  create panel lines up with the workspace section. Notices never misalign
+  it, because there is no fixed offset.
+- Measured (asserted): the organisations column is more than 1.4× the width
+  of the create panel, they sit side by side, and their tops are aligned
+  within 8 px.
+
+
+2. MOBILE / TABLET BEHAVIOUR
+----------------------------
+- Below lg (375 / 390 / 412 / 430 / 768): one column, stacked in order:
+  welcome → organisations → Create a new agency (asserted on the mobile
+  project: create starts below the organisations section).
+- No cramped tablet split: at 768 the gateway stays stacked; the card grid
+  inside it uses two columns from sm.
+- No page overflow (asserted at 375 / 412).
+
+
+3. MULTIPLE-ORGANISATION HANDLING
+---------------------------------
+- The left column's internal grid is 1 column below sm and 2 columns from
+  sm. The previous xl 3-column rule was removed, because the left column is
+  now narrower.
+- 1 organisation: one card. 2 (the fixture: agency plus facility): a 2-up
+  row. 3–4 or many: rows of two flow down the left column, while the create
+  panel stays a stable, top-aligned secondary column on the right.
+  No sticky behaviour was added.
+- 0 organisations: the A1 empty tile ("You are not a member of any
+  organisation yet." plus guidance) sits in the left column beside the
+  create panel. There is no awkward empty column, and the real action
+  stays visible.
+
+
+4. CREATE AGENCY TREATMENT
+--------------------------
+- An intentionally secondary panel:
+  - quieter depth than the workspace cards (white / 80 surface, teal
+    hairline, a single 1 px contact shadow, no two-layer ambient shadow);
+  - h2 "Create a new agency";
+  - the supporting line "Use Chelth for a separate staffing
+    organisation.";
+  - the unchanged CreateOrganisationForm: "Agency name" with the
+    administrator note, and "Create agency" (locked primary).
+- The form's behaviour, validation and redirect are unchanged.
+- It is not a KPI-style card.
+
+
+5. ACCOUNT PAGE REFINEMENT
+--------------------------
+File: src/app/app/(personal)/account/page.tsx
+
+- A left-aligned content column, max 760 px (the frame's left-aligned
+  convention; never centred).
+- PageHeader reference "Account" with "Signed in as <email>" (identity
+  context kept).
+- A locked Panel, "Profile details", described "Manage the name shown
+  across Chelth.", containing the unchanged DisplayNameForm ("Full name"
+  and "Save").
+- No new fields: no avatar, phone, address or role editing.
+- Asserted: the panel is ≤760 px and contains "Full name" and "Save".
+
+
+6. SECURITY PAGE REFINEMENT
+---------------------------
+File: src/app/app/(personal)/security/page.tsx
+
+- The same 760 px left-aligned column; PageHeader reference "Security"
+  with the existing verification explanation.
+- Page-to-card spacing tightened to the frame rhythm (24 px).
+- The "mfa-enabled" notice uses the locked success surface.
+- The Authenticator app Panel is preserved:
+  - "This session:" with the Verified / Password-only chip;
+  - the set-up flow (MfaEnrollment) or "An authenticator app is set up…";
+  - "Verify this session", now a 44 px outlined locked secondary link with
+    the same href and safe `next`.
+- MFA, TOTP, AAL2 and safe-next handling are unchanged.
+
+/app/security/verify keeps the A1 AuthPanel (its own max-w-md column); it
+does not conflict with the new widths.
+
+
+7. SETTINGS MOBILE SUB-NAV RESULT
+---------------------------------
+File: settings/_components/settings-nav.tsx
+
+Inspection: below lg the sub-navigation is a horizontal overflow-x: auto
+row; from lg it is a static sticky column (lg:overflow-visible). Like
+SectionTabs before A1.2, the row can show native scrollbar chrome on
+platforms that always draw scrollbars.
+
+Change (mobile row only):
+- overflow-y hidden;
+- scrollbar-width: none, and ::-webkit-scrollbar hidden.
+
+The same proven approach as SectionTabs. overflow-x: auto is kept, so
+touch, trackpad, wheel and keyboard scrolling still work, and the existing
+"scroll the current section into view" behaviour is untouched. The row's
+8 px padding keeps outset focus rings unclipped.
+
+Desktop is unchanged: lg:overflow-visible resets both axes.
+
+Asserted below 1024:
+- overflow-x auto, overflow-y hidden, scrollbar-width none;
+- when the row overflows it still scrolls (scrollLeft moves);
+- the current section remains visible (existing check);
+- axe clean.
+The component was not converted to SectionTabs.
+
+
+8. ACCESSIBILITY
+----------------
+- One h1 per page.
+- h2 structure: "Your organisations" and "Create a new agency"; the Panel
+  titles "Profile details" and "Authenticator app".
+- The organisation list is labelled; workspace actions keep unique names
+  ("Open workspace <organisation>").
+- Form labels are unchanged; aria-current in the personal nav is
+  unchanged.
+- Focus is visible; targets are ≥44 px (Verify this session is now 44
+  px).
+- No colour-only states.
+- axe (wcag2a / 2aa / 22aa) is clean on /app, /app/account and
+  /app/security (desktop and mobile) and on mobile Settings.
+
+
+9. RESPONSIVE QA
+----------------
+- /app: side by side from 1024 (1024 / 1280 / 1512); stacked at 768 / 430
+  / 412 / 390 / 375. No overlap; no dead column with 0 organisations.
+- /app/account and /app/security: a ≤760 px column on desktop, full width
+  on phones. No overflow.
+- /settings (mobile): scrolling preserved, no visible scrollbar chrome,
+  current section in view.
+- Checked through the automated suite (desktop project at its default
+  viewport, the mobile project, and explicit 375 / 412 / 768 widths in
+  the settings tests) and local captures.
+
+
+10. TESTS
+---------
+tests/e2e/workspace-shell.spec.ts ("app entry…", desktop and mobile):
+- Gateway geometry: desktop is side by side with the primary column wider
+  (>1.4×) and tops aligned; mobile is stacked (create below
+  organisations).
+- Account and Security:
+  - the current nav item is marked;
+  - the locked panels ("Profile details", "Authenticator app") are
+    visible and ≤760 px wide;
+  - no overflow; axe clean;
+  - "Full name" and "Save" are inside Profile details.
+- The existing two-organisation fixture keeps both cards usable in the
+  left column ("Open workspace" opens the right organisation).
+
+tests/e2e/settings.spec.ts (canonical Settings lock test): below 1024, the
+sub-navigation hides scrollbar chrome but still scrolls when it overflows;
+axe clean.
+
+No pixel-diff tests were added.
+
+
+11. VALIDATION RESULTS
+----------------------
+- npm run format:check: pass
+- npm run lint: pass (0 warnings)
+- npm run typecheck: pass
+- npm test: 347 passed
+- npm run build: pass
+- npm run check:bundle: OK (70 browser files, no secrets)
+- npx playwright test: 256 passed, 12 skipped, 0 failed (9.0 min). The
+  skips are existing desktop-only tests on the mobile project.
+
+
+12. FILES CHANGED
+-----------------
+- src/app/app/(personal)/page.tsx (gateway composition)
+- src/app/app/(personal)/account/page.tsx (column + Profile details panel)
+- src/app/app/(personal)/security/page.tsx (column, notice, 44 px verify
+  link)
+- src/app/app/organisations/[organisationId]/(workspace)/settings/
+  _components/settings-nav.tsx (mobile scrollbar chrome)
+- tests/e2e/workspace-shell.spec.ts
+- tests/e2e/settings.spec.ts
+- this report
+
+The personal frame and nav files are unchanged in this phase.
+
+
+13. NO BACKEND / SECURITY CHANGES
+---------------------------------
+No change to:
+- auth / session handling; MFA / AAL2;
+- workspace membership or selection;
+- organisation creation or its authorisation;
+- RLS, capabilities, tenant isolation, redirect validation or sign-out.
+
+No supabase/, src/lib/auth, proxy, middleware or src/features/organisations
+file is in the diff. No service role.
+
+
+14. KNOWN GAPS
+--------------
+- With many organisations, the left column grows long while the create
+  panel stays at the top of the right column. This is intended (not
+  sticky); a very long list scrolls the page normally.
+- The Account and Security bodies keep the existing form components
+  (DisplayNameForm, MfaEnrollment) and their styling inside the locked
+  panels. No functional change was requested.
+
+STATUS: PERSONAL FRAME LAYOUT REFINEMENT COMPLETE. AWAITING HUMAN REVIEW. NOT COMMITTED.

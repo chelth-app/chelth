@@ -1,4 +1,4 @@
-export { AuthCard } from "./components/auth-card";
+export { AuthCard, AuthPanel } from "./components/auth-card";
 export { DisplayNameForm } from "./components/display-name-form";
 export { ForgotPasswordForm } from "./components/forgot-password-form";
 export { MfaChallengeForm } from "./components/mfa-challenge-form";

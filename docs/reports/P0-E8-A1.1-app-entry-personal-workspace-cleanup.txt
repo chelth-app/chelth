@@ -1,0 +1,265 @@
+P0-E8-A1.1 — APP ENTRY + PERSONAL WORKSPACE VISUAL CLEANUP
+==========================================================
+
+Branch: p0-e8-visual-implementation (uncommitted)
+Base:   18ad514, plus the uncommitted F1–A1 work
+
+Scope:
+- the root entry;
+- the personal frame;
+- the workspace chooser;
+- the create-agency presentation;
+- inheritance by Account / Security.
+
+Unchanged: the agency, worker and Finance shells; A1 auth flows; the
+backend.
+
+No screenshots were saved to the repository.
+
+
+1. ROOT ROUTING CHANGES
+-----------------------
+File: src/app/page.tsx
+
+`/` is now a server redirect, using the existing identity helper (the same
+getAuthIdentity the sign-in page uses):
+- signed out → /sign-in;
+- signed in → /app, the existing app entry and workspace chooser.
+
+/app keeps its existing behaviour: it lists memberships and does not
+auto-open a workspace.
+
+Unaffected, because they never pass through `/`:
+- invite links (/invite);
+- recovery links (/auth/confirm → /reset-password);
+- the safe `next` handling, which stays exactly as it is on /sign-in.
+
+Sign-out still redirects to `/` (unchanged action); a signed-out visitor
+then lands on Sign in.
+
+No auth primitive, proxy, middleware or redirect validator was changed.
+
+
+2. PLACEHOLDER RETIREMENT
+-------------------------
+The coming-soon page has been removed from the app domain:
+- "Reliable workforce operations for healthcare staffing.";
+- "The Chelth platform is being established… upcoming releases.";
+- its Sign in / Create account buttons.
+
+The root no longer advertises "Create account". /sign-up is untouched, and
+the sign-in page keeps its existing "New to CHELTH? Create an account"
+link, which is part of the current product model: identities sign up, then
+join by invitation or create an agency. See section 15.
+
+
+3. PERSONAL-FRAME CHANGES
+-------------------------
+Files:
+- src/app/app/_components/personal-frame.tsx
+- src/app/app/_components/personal-nav.tsx (new, client)
+
+- Sticky white header with a teal hairline and light blur.
+- The canonical logo: the full primary lockup from sm (its locked 48 px
+  minimum), the Shift Mark on phones.
+- Compact account navigation (nav "Account"):
+  - Organisations, Security and Account links (44 px);
+  - the current destination is mint-filled, teal-dark, 600 and marked with
+    aria-current="page";
+  - Sign out is an outlined 44 px button. It posts the same signOutAction
+    as before; the old ghost button was 36 px.
+- The main area is on the locked off-white canvas wash.
+- No operational sidebar and no worker bottom navigation (asserted).
+
+
+4. WORKSPACE CHOOSER IMPLEMENTATION
+-----------------------------------
+File: src/app/app/(personal)/page.tsx
+
+- One h1: "Welcome, <name>" (PageHeader reference), with "Choose an
+  organisation to continue."
+- The password-updated notice and the pending-invitation banner use the
+  locked notice surfaces; "Review invitation" is a 44 px link.
+- "Your organisations" (h2): a list of workspace cards in a responsive
+  grid (1 / 2 / 3 columns), scaling to many organisations.
+- The existing preference (readActiveOrganisationPreference) still only
+  reorders the list. Nothing is opened automatically.
+- Empty case: the A1 canonical empty tile is preserved ("You are not a
+  member of any organisation yet." plus the guidance line). The real
+  action, the create-agency panel, follows.
+
+
+5. WORKSPACE-CARD TREATMENT
+---------------------------
+Each card is an article named after the organisation, with:
+- the locked card surface (14 px radius, teal hairline, white → cool-mint,
+  two-layer shadow);
+- a luminous identity tile (workforce icon for agencies, facility icon for
+  facilities);
+- the organisation name (Manrope 18 / 600);
+- chips:
+  - type (Agency / Facility; informational tone);
+  - "Suspended" when the organisation is suspended (warning);
+  - "Last used", only when it matches the real stored preference
+    (neutral, restrained);
+- a role line (section 6);
+- "Open workspace": full-width locked primary, posting the existing
+  selectOrganisationAction. The accessible name is "Open workspace
+  <organisation>", which is unique per card.
+
+
+6. ROLE-LABEL TREATMENT
+-----------------------
+Role keys are resolved to their real names with the existing listRoles
+(queried once per organisation type present):
+- one role: its name (e.g. "Finance", "Facility Scheduler", "Agency
+  Admin");
+- two roles: "A · B";
+- more: "A · B +N more".
+
+"1 role(s)" no longer appears (asserted). A screen-reader prefix reads
+"Your role:".
+
+
+7. CREATE-AGENCY TREATMENT
+--------------------------
+A separate, quieter setup surface: a white card with a teal hairline and
+minimal shadow, below the organisations list. It contains:
+- the h2 "Create a new agency";
+- the supporting line "Use Chelth for a separate staffing organisation.";
+- the existing CreateOrganisationForm, unchanged.
+
+The field keeps "You will become the administrator of this agency." as its
+field description (supporting copy). The "Create agency" button uses the
+locked primary through the panel's .chelth-locked scope.
+
+Creation behaviour, validation and redirect are unchanged.
+
+
+8. ACCOUNT / SECURITY INHERITANCE
+---------------------------------
+/app/account, /app/security and /app/security/verify:
+- inherit the new frame and canvas;
+- mark their nav item current (asserted for Account and Security);
+- keep their forms unchanged.
+
+The A1 AuthPanel on verify remains. Worker self-service and fallback pages
+that use the personal frame inherit the same header.
+
+
+9. RESPONSIVE RESULTS
+---------------------
+- 375 / 412 (asserted on the mobile project): no page overflow.
+  - The header shows the mark, then the navigation wrapping beneath it
+    (four 44 px targets); nothing is clipped.
+  - Cards stack; "Open workspace" is full width and visible; the create
+    form is full width.
+- 768 / 1024: two-column cards.
+- 1280 / 1512: up to three columns in the 1152 px container.
+- No large dead whitespace: the create panel follows the cards directly.
+
+
+10. ACCESSIBILITY RESULTS
+-------------------------
+- One h1 on /app.
+- The organisation list is a labelled list of articles; workspace actions
+  have unique accessible names.
+- The current personal-nav item has aria-current; Sign out is a labelled
+  button.
+- Form labels are unchanged (FormField).
+- Focus rings are visible; targets are ≥44 px.
+- Chips are text, never colour alone.
+- axe (wcag2a / 2aa / 22aa) is clean on /app (desktop and mobile), on the
+  auth pages and on the root redirect target.
+
+
+11. SECURITY / AUTH CONFIRMATION
+--------------------------------
+Unchanged:
+- Supabase session handling; the auth architecture;
+- the invite flow; password reset / recovery; MFA / AAL2;
+- redirect validation (getSafeRedirectPath);
+- organisation membership logic and selection;
+- capability checks; RLS; tenant isolation; workspace route gates;
+- organisation-creation authorisation.
+
+No supabase/, src/lib/auth, proxy or middleware file is in the diff.
+
+The only new read is listRoles(type), the public role catalogue the Team
+page already reads. No service role; no client authorization.
+
+Cross-tenant behaviour is unchanged: the tenant-safe 404 tests pass.
+
+
+12. TESTS
+---------
+tests/e2e/foundation.spec.ts:
+- `/` now lands on /sign-in (status 200 after redirect), with no
+  placeholder copy ("being established", "Reliable workforce operations",
+  "upcoming releases").
+- The existing CSP, header, skip-link, axe and brand-icon checks on `/`
+  still pass, now on the sign-in page.
+
+tests/e2e/identity.spec.ts:
+- After sign-out, the URL is /sign-in (sign-out still targets `/`).
+- After signing in again, the chooser's "Open workspace Signup Agency" is
+  visible. The A1 empty-state text check is unchanged.
+
+tests/e2e/workspace-shell.spec.ts: new "app entry: workspace chooser with
+real cards; personal frame navigation", on desktop and mobile:
+- signed-in `/` → /app;
+- one h1 "Welcome…";
+- two organisation cards (agency and facility) with type chips and
+  readable roles ("Finance", "Scheduler");
+- no "role(s)"; "Last used" appears at most once;
+- the "Create a new agency" region;
+- the Account nav has Organisations current and Sign out;
+- no Workspace or Worker navigation;
+- axe clean; no overflow at 375 / 412 on mobile;
+- Account and Security pages mark their item current;
+- "Open workspace" opens the correct organisation.
+
+The existing invite, reset, MFA, cross-tenant and system-state tests are
+unchanged and passing.
+
+
+13. VALIDATION RESULTS
+----------------------
+- npm run format:check: pass
+- npm run lint: pass (0 warnings)
+- npm run typecheck: pass
+- npm test: 347 passed
+- npm run build: pass
+- npm run check:bundle: OK (70 browser files, no secrets)
+- npx playwright test: 254 passed, 12 skipped, 0 failed (9.4 min). The
+  skips are existing desktop-only tests on the mobile project.
+
+
+14. FILES CHANGED
+-----------------
+- src/app/page.tsx (root entry redirect; placeholder retired)
+- src/app/app/_components/personal-frame.tsx
+- src/app/app/_components/personal-nav.tsx (new)
+- src/app/app/(personal)/page.tsx (workspace chooser)
+- tests/e2e/foundation.spec.ts
+- tests/e2e/identity.spec.ts
+- tests/e2e/workspace-shell.spec.ts
+- this report
+
+
+15. KNOWN GAPS
+--------------
+- Public sign-up: the sign-in page still links to /sign-up ("New to
+  CHELTH? Create an account"). Sign-up plus "Create a new agency" is the
+  current product model, and the brief forbids changing signup policy.
+  Hiding the link would be a product decision; it is flagged here, not
+  made.
+- The header does not show the signed-in identity: the frame does not load
+  the profile, and adding that read to every personal / fallback page was
+  out of scope. The chooser greets the user by name.
+- Account and Security page bodies keep their existing card styling
+  inside the new frame (no functionality change was requested).
+- "Last used" depends on the existing preference cookie. It is shown only
+  when it matches a membership.
+
+STATUS: APP ENTRY + PERSONAL WORKSPACE CLEANUP COMPLETE. AWAITING HUMAN REVIEW. NOT COMMITTED.

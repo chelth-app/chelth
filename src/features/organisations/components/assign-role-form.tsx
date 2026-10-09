@@ -32,7 +32,7 @@ export function AssignRoleForm({
         <label htmlFor={selectId} className="sr-only">
           Role to assign to {memberName}
         </label>
-        <Select id={selectId} name="roleKey" defaultValue="" className="h-9 text-sm">
+        <Select id={selectId} name="roleKey" defaultValue="" className="h-11 text-sm sm:h-9">
           <option value="" disabled>
             Add role…
           </option>

@@ -1,5 +1,5 @@
 import { StatusChip } from "@/components/ui/status-chip";
-import { COMPLIANCE_REASON_LABELS } from "@/lib/domain/credentials";
+import { COMPLIANCE_REASON_LABELS, formatCalendarDate } from "@/lib/domain/credentials";
 
 import type { Readiness } from "../queries";
 import { ReadinessBadge } from "./readiness-badge";
@@ -45,7 +45,7 @@ export function ReadinessPanel({ title, readiness, headingId }: ReadinessPanelPr
               </span>
               {item.effectiveExpiryDate ? (
                 <span className="text-muted-foreground in-[.chelth-locked]:text-slate-600">
-                  expires {item.effectiveExpiryDate}
+                  expires {formatCalendarDate(item.effectiveExpiryDate)}
                 </span>
               ) : null}
               {item.scope === "facility" ? (
@@ -89,7 +89,7 @@ export function ReadinessPanel({ title, readiness, headingId }: ReadinessPanelPr
               {item.effectiveExpiryDate ? (
                 <span className="in-[.chelth-locked]:text-slate-600">
                   {" "}
-                  — valid to {item.effectiveExpiryDate}
+                  — valid to {formatCalendarDate(item.effectiveExpiryDate)}
                 </span>
               ) : null}
             </li>

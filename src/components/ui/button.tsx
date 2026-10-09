@@ -18,7 +18,8 @@ export const buttonVariants = {
 } as const;
 
 export const buttonSizes = {
-  sm: "h-9 px-3 text-sm",
+  // 44 px touch target on phones (P0-E8-QA-F3); the compact 36 px from sm.
+  sm: "h-11 px-3 text-sm sm:h-9",
   md: "h-11 px-4 text-sm", // 44px: comfortable touch target on mobile
   lg: "h-12 px-6 text-base",
 } as const;

@@ -15,7 +15,10 @@ import { cn } from "@/lib/utils/cn";
  * hairline — deliberately quieter than the primary sidebar's selected item. A
  * labelled nav of links (each section is a URL), current marked with
  * aria-current="page". Below lg it is one horizontally scrolling row (no second
- * mobile pattern) that opens scrolled to the current section. On desktop it
+ * mobile pattern) that opens scrolled to the current section; its scrollbar
+ * chrome is visually hidden (as SectionTabs, P0-E8-A1.3) while touch, trackpad
+ * and keyboard scrolling still work, and the 8 px padding keeps focus rings
+ * unclipped. From lg it is a static column (overflow visible). On desktop it
  * sticks 16 px below the 76 px sticky top bar.
  */
 export function SettingsNav({
@@ -43,7 +46,7 @@ export function SettingsNav({
     <nav
       ref={navRef}
       aria-label="Settings sections"
-      className="min-w-0 overflow-x-auto rounded-xl border border-[rgba(18,107,103,0.10)] bg-white/90 p-2 shadow-[0_2px_10px_rgba(21,45,49,0.05)] lg:sticky lg:top-[92px] lg:overflow-visible lg:p-2.5"
+      className="min-w-0 [scrollbar-width:none] overflow-x-auto overflow-y-hidden rounded-xl border border-[rgba(18,107,103,0.10)] bg-white/90 p-2 shadow-[0_2px_10px_rgba(21,45,49,0.05)] lg:sticky lg:top-[92px] lg:overflow-visible lg:p-2.5 [&::-webkit-scrollbar]:hidden"
     >
       <ul className="flex min-w-max gap-1 lg:min-w-0 lg:flex-col">
         {items.map((item) => {

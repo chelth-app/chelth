@@ -1,12 +1,10 @@
-import type { Metadata } from "next";
+import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { Panel } from "@/components/ui/panel";
-import { EmptyState } from "@/components/ui/empty-state";
+import { REF_TEXT, RefChip } from "@/components/reference/locked-reference";
 import { PageHeader } from "@/components/ui/page-header";
-import { StatusChip } from "@/components/ui/status-chip";
-import { getReadiness, ReadinessPanel } from "@/features/compliance";
+import { getReadiness, ReadinessBadge } from "@/features/compliance";
 import {
   CreateCredentialForm,
   listCredentialTypes,
@@ -15,13 +13,27 @@ import {
 } from "@/features/credentials";
 import { loadOrganisationPage } from "@/features/organisations";
 import { getMyWorkerRecord } from "@/features/workforce";
+import { COMPLIANCE_REASON_LABELS, formatCalendarDate } from "@/lib/domain/credentials";
+import { cn } from "@/lib/utils/cn";
 
-export const metadata: Metadata = { title: "My credentials" };
+import { complianceTone } from "../../(workspace)/compliance/_components/compliance-tones";
+import {
+  FactRows,
+  INK,
+  WORKER_CARD,
+  WORKER_PRIMARY_CTA,
+  WorkerEmpty,
+  WorkerIconTile,
+} from "../my-shifts/_components/worker-cards";
+
+export const metadata: Metadata = { title: "My Credentials" };
 
 /**
- * The worker's own credential area in the context of one agency. Credentials
- * belong to the person; this page shows which of them are shared with this
- * agency and what this agency's requirements need.
+ * The worker's own credential area in the context of one agency (P0-E8-QA-F2:
+ * the W1 worker card language on the locked system). Credentials belong to
+ * the person; this page shows which of them are shared with this agency and
+ * the readiness engine's own result for this agency's requirements. Nothing
+ * here recomputes readiness.
  */
 export default async function MyCredentialsPage({
   params,
@@ -38,83 +50,174 @@ export default async function MyCredentialsPage({
     listCredentialTypes(),
     listJurisdictions(),
   ]);
+  // Engine order is kept within each group: what needs attention first, then what is met.
+  const readinessItems = [
+    ...readiness.items.filter((item) => item.severity !== "ok"),
+    ...readiness.items.filter((item) => item.severity === "ok"),
+  ];
 
   return (
-    <>
+    <div className="chelth-locked flex flex-col gap-6">
       <PageHeader
-        title="My credentials"
+        variant="reference"
+        title="My Credentials"
         description={
-          <p className="text-sm">
+          <p>
             Your credentials belong to you. {organisation.name} can see a credential only while you
             share it with them, and they verify it independently of any other agency.
           </p>
         }
         primaryAction={
-          <a
-            href="#add-credential-heading"
-            className="inline-flex min-h-11 items-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary-hover"
-          >
+          <a href="#add-credential-heading" className={cn(WORKER_PRIMARY_CTA, "sm:w-auto")}>
             Add a credential
           </a>
         }
       />
 
-      <ReadinessPanel
-        title={`Readiness at ${organisation.name}`}
-        readiness={readiness}
-        headingId="my-readiness"
-      />
-
-      <Panel titleId="my-credentials-heading" title={<>Credentials</>}>
-        {credentials.length === 0 ? (
-          <EmptyState
-            headingLevel={3}
-            title="You have not added any credentials yet."
-            description="Add one below, upload its evidence and submit it for review."
-          />
+      <section aria-labelledby="my-readiness" className={WORKER_CARD}>
+        <div className="flex items-start gap-3">
+          <WorkerIconTile icon="compliance" />
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <h2 id="my-readiness" className={REF_TEXT.panelTitle}>
+              Readiness at {organisation.name}
+            </h2>
+            <p className="text-[13px] leading-[18px] text-slate-600">
+              From {organisation.name}&apos;s credential requirements.
+            </p>
+            <div className="mt-0.5 flex flex-wrap gap-1.5">
+              <ReadinessBadge status={readiness.status} />
+            </div>
+          </div>
+        </div>
+        {readinessItems.length === 0 ? (
+          <p className="text-[13px] leading-[18px] text-slate-600">
+            No credential requirements apply.
+          </p>
         ) : (
-          <ul className="flex flex-col divide-y divide-border border-y border-border text-sm">
-            {credentials.map((credential) => (
+          <ul
+            aria-label="Readiness requirements"
+            className="flex flex-col divide-y divide-[rgba(18,107,103,0.12)] border-t border-[rgba(18,107,103,0.12)]"
+          >
+            {readinessItems.map((item, index) => (
               <li
-                key={credential.id}
-                className="flex flex-wrap items-center justify-between gap-2 p-3"
+                key={`${item.requirementId ?? item.reason}-${index}`}
+                className="flex flex-col gap-1.5 py-3 last:pb-0"
               >
-                <Link
-                  href={`/app/organisations/${organisationId}/my-credentials/${credential.id}`}
-                  className="font-medium text-primary underline underline-offset-4"
-                >
-                  {credential.typeName}
-                  {credential.jurisdictionCode ? ` (${credential.jurisdictionCode})` : ""}
-                </Link>
-                <span className="flex flex-wrap items-center gap-2">
-                  {credential.status === "withdrawn" ? (
-                    <StatusChip tone="neutral">Withdrawn</StatusChip>
-                  ) : null}
-                  {credential.latestVersion?.expiryDate ? (
-                    <span className="text-muted-foreground">
-                      expires {credential.latestVersion.expiryDate}
-                    </span>
-                  ) : null}
-                  <StatusChip tone={credential.sharedWithAgency ? "info" : "neutral"}>
-                    {credential.sharedWithAgency
-                      ? `Shared with ${organisation.name}`
-                      : "Not shared"}
-                  </StatusChip>
+                <span className={cn("text-[15px] leading-5 font-semibold break-words", INK)}>
+                  {item.credentialTypeName ?? "Worker"}
                 </span>
+                {item.effectiveExpiryDate || item.scope === "facility" ? (
+                  <span className="text-[13px] leading-[18px] text-slate-600">
+                    {[
+                      item.effectiveExpiryDate
+                        ? `${item.severity === "ok" ? "Valid to" : "Expires"} ${formatCalendarDate(item.effectiveExpiryDate)}`
+                        : null,
+                      item.scope === "facility" ? "Facility requirement" : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                ) : null}
+                <RefChip tone={complianceTone(item.reason)} className="w-fit font-semibold">
+                  {COMPLIANCE_REASON_LABELS[item.reason]}
+                </RefChip>
               </li>
             ))}
           </ul>
         )}
-      </Panel>
+      </section>
 
-      <Panel titleId="add-credential-heading" title={<>Add a credential</>}>
+      <section aria-labelledby="my-credentials-heading" className="flex flex-col gap-3">
+        <h2 id="my-credentials-heading" className={REF_TEXT.panelTitle}>
+          Credentials
+        </h2>
+        {credentials.length === 0 ? (
+          <WorkerEmpty
+            icon="compliance"
+            title="No credentials yet."
+            note="Add a credential to keep your readiness information up to date."
+          />
+        ) : (
+          <ul aria-label="My credentials" className="flex flex-col gap-3">
+            {credentials.map((credential) => {
+              const name = `${credential.typeName}${
+                credential.jurisdictionCode ? ` (${credential.jurisdictionCode})` : ""
+              }`;
+              const expiry = credential.latestVersion?.expiryDate;
+              return (
+                <li key={credential.id} className={cn(WORKER_CARD, "relative")}>
+                  <div className="flex items-start gap-3">
+                    <WorkerIconTile icon="compliance" />
+                    <div className="flex min-w-0 flex-1 flex-col gap-1">
+                      {/* The whole card opens the record; the link keeps the credential's name. */}
+                      <Link
+                        href={
+                          `/app/organisations/${organisationId}/my-credentials/${credential.id}` as Route
+                        }
+                        className={cn(
+                          "text-[16px] leading-[22px] font-semibold break-words underline-offset-4 after:absolute after:inset-0 after:rounded-[14px] after:content-[''] hover:underline",
+                          INK,
+                        )}
+                      >
+                        {name}
+                      </Link>
+                      <div className="mt-0.5 flex flex-wrap gap-1.5">
+                        {credential.status === "withdrawn" ? (
+                          <RefChip tone="neutral" className="font-semibold">
+                            Withdrawn
+                          </RefChip>
+                        ) : null}
+                        {credential.status !== "withdrawn" &&
+                        credential.latestVersion?.status === "draft" ? (
+                          <RefChip tone="neutral" className="font-semibold">
+                            Draft
+                          </RefChip>
+                        ) : null}
+                        <RefChip
+                          tone={credential.sharedWithAgency ? "info" : "neutral"}
+                          className="max-w-full font-semibold whitespace-normal"
+                        >
+                          {credential.sharedWithAgency
+                            ? `Shared with ${organisation.name}`
+                            : "Not shared"}
+                        </RefChip>
+                      </div>
+                    </div>
+                  </div>
+                  <FactRows
+                    rows={[
+                      {
+                        icon: "shifts",
+                        label: "Expiry",
+                        value: expiry
+                          ? `Expires ${formatCalendarDate(expiry)}`
+                          : "No expiry date recorded",
+                      },
+                    ]}
+                  />
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      <section aria-labelledby="add-credential-heading" className={cn(WORKER_CARD, "gap-4")}>
+        <div className="flex flex-col gap-0.5">
+          <h2 id="add-credential-heading" className={cn(REF_TEXT.panelTitle, "scroll-mt-24")}>
+            Add a credential
+          </h2>
+          <p className="text-[13px] leading-[18px] text-slate-600">
+            Add it here, then upload its evidence and submit it for review.
+          </p>
+        </div>
         <CreateCredentialForm
           organisationId={organisationId}
           organisationName={organisation.name}
           credentialTypes={credentialTypes}
           jurisdictions={jurisdictions}
         />
-      </Panel>
-    </>
+      </section>
+    </div>
   );
 }

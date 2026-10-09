@@ -103,7 +103,7 @@ export function buildWorkspaceNavigation({
           has(CAPABILITIES.SHIFT_VIEW) &&
             item("Staffing requests", "staffing-requests", "requests"),
           has(CAPABILITIES.TIMESHEET_FACILITY_SIGNOFF) &&
-            item("Timesheet sign-off", "timesheets", "timesheets"),
+            item("Sign-off", "timesheets", "timesheets"),
         ]),
       },
       settings,

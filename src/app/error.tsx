@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
+
 import { AuthCanvas } from "@/components/layout/auth-canvas";
 import { Button } from "@/components/ui/button";
-import { SystemState } from "@/components/ui/system-state";
+import { stateSecondaryActionClass, SystemState } from "@/components/ui/system-state";
 import { ERROR_CODES } from "@/lib/errors/error-codes";
 
 /**
@@ -21,10 +23,17 @@ export default function RouteError({
     <AuthCanvas>
       <SystemState
         tone="error"
-        title="Something went wrong"
+        title="We couldn't load this page"
         description={ERROR_CODES.INTERNAL.message}
         reference={error.digest}
-        action={<Button onClick={reset}>Try again</Button>}
+        action={
+          <>
+            <Button onClick={reset}>Try again</Button>
+            <Link href="/" className={stateSecondaryActionClass}>
+              Return home
+            </Link>
+          </>
+        }
       />
     </AuthCanvas>
   );

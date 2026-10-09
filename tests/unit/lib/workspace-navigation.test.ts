@@ -163,7 +163,7 @@ describe("buildWorkspaceNavigation", () => {
     expect(navFor("facility.admin", "facility").labels).toEqual([
       "Overview",
       "Staffing requests",
-      "Timesheet sign-off",
+      "Sign-off",
       "Settings",
     ]);
   });
@@ -180,14 +180,14 @@ describe("buildWorkspaceNavigation", () => {
     expect(navFor("facility.supervisor", "facility").labels).toEqual([
       "Overview",
       "Staffing requests",
-      "Timesheet sign-off",
+      "Sign-off",
       "Settings",
     ]);
   });
 
   it("never lists agency routes in a facility workspace, even with every capability", () => {
     const { labels } = navFor("agency.admin", "facility");
-    expect(labels).toEqual(["Overview", "Staffing requests", "Timesheet sign-off", "Settings"]);
+    expect(labels).toEqual(["Overview", "Staffing requests", "Sign-off", "Settings"]);
   });
 
   it("lists capabilities pending MFA step-up (the page renders a step-up notice)", () => {
