@@ -476,8 +476,8 @@ export default async function RatesPage({
                         </td>
                         <td className="text-right">
                           <DetailDrawerTrigger
-                            triggerLabel="⋯"
-                            triggerClassName="justify-center px-2 text-lg font-bold text-chelth-navy no-underline sm:min-h-9"
+                            triggerLabel="⋮"
+                            triggerClassName="justify-center px-2 text-xl font-bold text-chelth-navy no-underline sm:min-h-9"
                             triggerAccessibleLabel={`Rate details for ${scope}`}
                             title="Rate Details"
                             width="profile"

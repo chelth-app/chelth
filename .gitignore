@@ -55,3 +55,7 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Canonical reference archive: its contents are tracked, extracted, under
+# docs/ui-reference/p08-e8/canonical/Chelth_Hero/ (P0-E8-QA-F3).
+docs/ui-reference/p08-e8/canonical/Chelth_Hero.zip

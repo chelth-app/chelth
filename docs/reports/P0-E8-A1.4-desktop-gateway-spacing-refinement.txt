@@ -1,0 +1,136 @@
+P0-E8-A1.4 — DESKTOP WORKSPACE GATEWAY SPACING REFINEMENT
+=========================================================
+
+Branch: p0-e8-visual-implementation (uncommitted)
+Base:   18ad514, plus the uncommitted F1–A1.3 work
+
+Scope: the /app workspace gateway on desktop (lg, 1024 px and wider) only.
+This is presentation only: no route, auth, selection, creation, permission,
+database or security change. No screenshots were saved to the repository.
+
+
+1. SPACING CHANGE
+-----------------
+File: src/app/app/(personal)/page.tsx
+
+- The gap between the two gateway columns went from lg:gap-8 (32 px) to
+  lg:gap-6 (24 px). gap-6 is the existing spacing token that the frame and
+  locked panels already use.
+- The column split went from minmax(0,1.7fr) / minmax(320px,1fr) to
+  minmax(0,1.8fr) / minmax(320px,1fr). The organisations column moves from
+  about 63% to about 64%, inside the 63–65% target; the create panel is
+  about 36%.
+- Top alignment is unchanged (lg:items-start; both columns begin at the
+  "Your organisations" line).
+- The Create a new agency panel is unchanged: same surface, padding, h2,
+  supporting line and form. It stays the secondary column.
+
+
+2. ORGANISATION-CARD WIDTH ADJUSTMENT
+-------------------------------------
+- Two or more organisations: unchanged 2-up grid (sm:grid-cols-2, 16 px
+  gap). The cards gain width from the narrower gap and the slightly wider
+  column.
+- Exactly one organisation, from lg only: the list is one column, capped
+  at 560 px (lg:max-w-[560px] lg:grid-cols-1). A lone workspace now gets
+  one comfortable card instead of half the column, but it does not stretch
+  across the whole column.
+- The card's internals are unchanged: tile, name, chips, role line and the
+  Open workspace action.
+
+
+3. DESKTOP RESULTS (measured at 1280 px, 1,088 px of content)
+-------------------------------------------------------------
+                              Before (A1.3)   After (A1.4)
+  Gap between columns         32 px           24 px
+  Organisations column        ~665 px (63%)   ~684 px (64.3%)
+  Create panel                ~391 px         ~380 px
+  Each card in a 2-up row     ~324 px         ~334 px
+  Single organisation card    ~324 px         560 px
+
+- Single organisation: "Mercy Health shell-desktop" fits on one line.
+- 2-up: each card gives its name about 10 px more than before. Short and
+  typical names stay on one line. The fixture's long test name ("Mercy
+  Health shell-desktop") still wraps at its hyphen in the 2-up row. It
+  needs about 20 px more than the card provides, and making room would mean
+  reducing the card's type, tile or padding. That would be a card redesign,
+  which is outside this brief, so it was left unchanged.
+- No overflow; tops aligned; the create panel stays secondary.
+
+
+4. MOBILE REGRESSION CHECK
+--------------------------
+- Every change is gated at lg (1024 px). At 768, 430, 412, 390 and 375 the
+  classes are identical to A1.3: one stacked column (welcome →
+  organisations → Create a new agency), and the card grid is 2-up from sm,
+  as before.
+- The mobile project (asserted):
+  - Create starts below the organisations section;
+  - a single card fills the list width;
+  - no page overflow;
+  - axe clean.
+
+
+5. TESTS
+--------
+I updated the existing gateway test in tests/e2e/workspace-shell.spec.ts
+("app entry: workspace chooser…"; desktop and mobile).
+
+Desktop, two organisations (Fran):
+- side by side, with the column gap between 0 and 25 px;
+- the organisations column is more than 1.4× the create panel and makes up
+  60–68% of the pair;
+- tops aligned within 8 px;
+- both fixture cards render on one row and do not overlap (the check does
+  not depend on card order);
+- no page overflow.
+
+Single organisation (Sue, a facility-only member):
+- exactly one card;
+- on desktop, the card is wider than half the column by more than 60 px
+  and at most 561 px; the create panel is beside it with aligned tops;
+- on mobile, the layout is stacked and the card is full width;
+- no page overflow.
+
+No screenshot or pixel-diff assertions were added. Captures went to the
+scratchpad only.
+
+
+6. VALIDATION
+-------------
+- npm run format:check: pass
+- npm run lint: pass (0 warnings)
+- npm run typecheck: pass. The first full run flagged a TS18048 narrowing
+  error in the new test's order-independent check. I rewrote that check and
+  typecheck now passes with 0 errors.
+- npm test: 347 passed
+- npm run build: pass
+- npm run check:bundle: OK (70 browser files, no secrets)
+- npx playwright test:
+  - full suite: 256 passed, 12 skipped, 0 failed (11.3 min). The skips are
+    existing desktop-only tests on the mobile project.
+  - After the typecheck fix, I re-ran tests/e2e/workspace-shell.spec.ts:
+    18 passed. The fix only touched that spec, which is not part of the
+    application build.
+
+
+7. FILES CHANGED
+----------------
+- src/app/app/(personal)/page.tsx: column gap, ratio and single-card width
+  (plus the cn import)
+- tests/e2e/workspace-shell.spec.ts: the gateway test
+- this report
+
+
+8. CONFIRMATION: NO BACKEND / SECURITY CHANGES
+----------------------------------------------
+No change to:
+- auth / session handling; MFA / AAL2;
+- workspace membership or selection;
+- organisation creation or its authorisation;
+- routes; RLS; RPCs; capabilities; tenant isolation; middleware / proxy.
+
+No supabase/, migration, src/lib/auth, proxy, middleware or
+src/features/organisations file is in the diff. No service role.
+
+STATUS: DESKTOP WORKSPACE GATEWAY SPACING REFINEMENT COMPLETE. AWAITING HUMAN REVIEW. NOT COMMITTED.

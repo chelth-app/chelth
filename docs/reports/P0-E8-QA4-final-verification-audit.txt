@@ -1,0 +1,385 @@
+P0-E8-QA4 — FINAL VERIFICATION RE-AUDIT
+=======================================
+CHELTH — Healthcare Workforce Operations
+
+Branch: p0-e8-visual-implementation
+HEAD:   f8b7f77. The W1, A1–A1.4 and QA-F1–F3 work is uncommitted.
+Mode:   READ-ONLY.
+        - No source, test, style, route or database file was changed.
+        - Nothing was committed or pushed.
+        - The audit crawler, its config, its data and every capture live
+          in the session scratchpad only.
+        - This report is the only file written to the repository.
+
+Baseline: P0-E8-QA1-final-visual-consistency-audit.txt.
+
+Also read:
+- the QA-F1, QA-F2 and QA-F3 reports;
+- CHELTH-LOCKED-VISUAL-SYSTEM.md and CLAUDE-CHELTH-BRAND-RULES.md.
+
+Method:
+1. Full validation suite, with QA_SCREENSHOTS_DIR set: 484 captures
+   across every family. Visual review of samples from every family.
+2. A read-only Playwright crawler (scratchpad) built a fresh staffing
+   world:
+   - agency, facility organisation, a facility supervisor and workers;
+   - an open shift; a facility staffing request;
+   - past attendance with a derived timesheet; device location evidence;
+   - verified, shared credentials.
+   It visited 45 routes at 1512 / 1280 / 1024 / 768 / 430 / 412 / 390 /
+   375 (360 page measurements) as:
+   - agency owner (AAL2);
+   - facility admin (AAL2);
+   - worker;
+   - signed out.
+   Per page and width it recorded:
+   - HTTP status and page overflow;
+   - h1 count and h1 / first-h2 type; any 800+ weight; locked scope;
+   - scroll regions with overflow;
+   - interactive targets under 44 px at ≤430;
+   - worker-nav aria-current;
+   - console errors / warnings and 4xx / 5xx (RSC prefetch excluded).
+   It also:
+   - ran axe (wcag2a / 2aa / 22aa) at 1280 and 375;
+   - opened the first "⋮" row drawer on Shifts, Timesheets, Workforce,
+     Facilities, Compliance and facility Staffing requests at 1512 /
+     1280 / 375 (geometry, title type, label, Escape, focus return);
+   - probed secure 404 and AAL1 behaviour.
+3. A static source review covered:
+   - glyphs, legacy CTAs and headings;
+   - raw ISO date renders;
+   - product-truth vocabulary;
+   - the changed-path set and git hygiene.
+
+
+1. EXECUTIVE VERDICT
+--------------------
+A. E8 READY TO CLOSE.
+
+- Both QA1 P1 items are closed.
+- Every approved P2 item is closed, or documented as intentionally
+  scrollable.
+- No locked family regressed.
+- Every crawled route, at every width, has:
+  - zero page-level overflow;
+  - exactly one h1 on the locked scale;
+  - no 800+ weights;
+  - axe clean.
+- The full validation suite is green (Playwright 262 passed, 12 skipped,
+  0 failed).
+- No security, product-truth or data-exposure regression was found.
+
+The remaining items are pre-existing P3-class polish, listed in section
+12. None is a blocker.
+
+
+2. QA1 P1 CLOSURE VERIFICATION
+------------------------------
+P1-1  Facility workspace — CLOSED.
+Overview, Staffing requests list, request record and Sign-off:
+- `.chelth-locked`; reference header h1 31.5 / 700; panel h2 20 / 600 at
+  every width.
+- Locked KPI, RefPanel and REF_TABLE treatment; locked filter row; the
+  "New request" CTA (captures s4- / s8-facility-*).
+- The Staffing request drawer is the canonical profile drawer:
+  - 397 px <dialog> at 1512 / 1280 (the panel geometry matches the drawer
+    family; DetailDrawer is unchanged since HEAD);
+  - a full-width sheet at 375; title 20.5 / 600 (18 / 600 on phones);
+  - labelled, closes on Escape, returns focus;
+  - identity tile, Overview / Staffing tabs, KeyValueList facts.
+- Sidebar "Sign-off" label: full text, not truncated (measured at 1280).
+- No overflow; axe clean at 1280 and 375.
+- Facility truth: the facility gets 404 on agency Workforce, agency
+  attendance evidence and a worker's credential record. No pay, bill,
+  payroll or coordinates appear on facility pages (suite assertions in
+  facility-surfaces and timesheets Flow 3 / 6).
+
+P1-2  Worker Timesheets, My Credentials and its record — CLOSED.
+- All three use the W1 worker family inside WorkerShell:
+  - h1 31.5 / 700 from sm (28 px on phones, the same as My Shifts);
+  - panel h2 20 / 600;
+  - W1 cards, tiles, canonical chips and 48 px CTAs.
+- Titles: "Timesheets" (matches the nav and the record's back link) and
+  "My Credentials" (h1, metadata and the record's back link). The agency
+  back-link is gone from the worker Timesheets list.
+- Dates: "Nov 13, 2027"-style everywhere. No ISO and no "✓" glyph
+  (crawler plus the QA-F2 e2e).
+- Readiness: a W1 card with the engine's ReadinessBadge and per-item
+  RefChips (complianceTone). Nothing is recomputed on the client.
+- Bottom nav aria-current is correct on every worker route:
+  - Shifts on my-shifts;
+  - Timesheets on the list and the record;
+  - Credentials on the list and the record.
+- Worker-safe data only:
+  - no $ / pay / bill / payroll text;
+  - no reviewer controls;
+  - the scheduler and facility admin get 404 on my-credentials and on the
+    worker's credential record;
+  - the worker gets 404 on every agency route probed.
+
+
+3. QA1 P2 CLOSURE VERIFICATION
+------------------------------
+P2-1  Row-action glyph — CLOSED.
+      - 0 "⋯" in src/.
+      - 12 "⋮" row triggers.
+      - Every crawled drawer opened from "⋮".
+P2-2  Mobile small actions — CLOSED.
+      - The shared Button sm is h-11 below sm and h-9 from sm.
+      - No <button> under 44 px on any crawled page at ≤430.
+      - e2e: Recalculate is 44 at 375 and 36 at 1280; the worker
+        credential actions are ≥44.
+P2-3  Filter controls — CLOSED.
+      - The locked filter wrappers are 46 px, so the inner controls are
+        44 px.
+      - No select or text input under 44 px on any crawled page at ≤430.
+      - e2e: the Timesheets filter form is ≥44 at 375.
+P2-4  Recalculate — CLOSED: variant="outline" (1 px border, 600 weight;
+      e2e).
+P2-5  Facility sidebar — CLOSED: "Sign-off", not truncated.
+P2-6  1280 overflows — CLOSED where documented.
+      - At 1280 / 1512 the only overflowing region on crawled pages is the
+        worker Timesheet entries region (320 px in the 576 px worker
+        column): intended and documented.
+      - Workers, Client facilities, facility Staffing requests, agency
+        Timesheets, Rates, Payroll and Invoices: 0.
+      - The Attendance "Scheduled workers" region (documented as intended
+        scroll) had no rows in the crawl window; QA-F3 measured it with
+        data.
+      - At 1024 / 768 regions scroll inside their labelled containers; the
+        page never overflows.
+P2-7  Attendance evidence — CLOSED.
+      - RecordPage `.chelth-locked`; h1 31.5 / 700; h2 20 / 600.
+      - The locked info note (role="note"); the table in a Panel.
+      - axe clean at 1280 / 375 (crawler and e2e).
+P2-8  Sign-up success — CLOSED: "Check your email" is 20 / 600 heading
+      ink (asserted in the shared signUp helper on every sign-up).
+P2-9  Worker casing / navigation — CLOSED (P1-2 above). The organisation
+      home self-service links read "My Shifts" / "My Credentials".
+P2-10 Chelth_Hero.zip — CLOSED.
+      - Not tracked; ignored by a single-path .gitignore rule.
+      - Its contents are already tracked, byte-identical, under
+        Chelth_Hero/.
+      - No __MACOSX in the index.
+
+Also verified:
+- The shared ReadinessPanel prints "expires / valid to Nov 11, 2027"
+  (unit test). The agency Worker record's credential list and the
+  facility Overview's shared-worker lines also use formatCalendarDate.
+- The shared StepUpNotice uses the locked warning note: glyph, hairline
+  border, teal "Verify now", role="note", the same /app/security/
+  verify?next=… route. This was seen on Settings → Team (1512), the
+  Payroll gate (1280) and the agency Worker record (375). Every suite
+  flow through "Verify now" passes.
+
+
+4. LOCKED-FAMILY REGRESSION RESULTS
+-----------------------------------
+No drift found.
+
+- Agency (Overview, Operations, Shifts list / calendar / record,
+  Attendance and its record, Timesheets and its record, Workforce,
+  Worker record, Facilities, Facility record, Compliance, Settings and
+  all six sections):
+  - h1 31.5 / 700 and the locked scope at every width;
+  - drawers on Shifts, Timesheets, Workforce, Facilities and Compliance
+    are identical in geometry and behaviour (see facility, above).
+- Finance (Rates, Pricing, Payroll, Invoices; batch, draft, priced and
+  adjustment records; the Rate / Payroll / Invoice drawers): suite
+  captures f1- / f2- / f3- / s5- / s8- reviewed. The locked KPI / panel
+  / table, "⋮" rows, Finance tabs with aria-current and the locked
+  step-up note are all intact.
+- Worker (My Shifts and its flow, Timesheets list and record, My
+  Credentials and its record): one family. My Shifts is unchanged apart
+  from its browser-tab title.
+- Facility: section 2.
+- Auth (Sign in, Sign up, Forgot, Reset, Invite, Auth error, 404, MFA
+  verify): AuthPanel h1 26 / 700, system states 24 / 700; no overflow;
+  axe clean.
+- Personal (/app gateway, Account, Security): h1 31.5 / 700, h2 20 / 600.
+- Shell, sidebar, DetailDrawer, DetailsTabs: these files are unchanged
+  since HEAD.
+
+The first-h2 sizes of 16–18 px recorded on Shifts, Workforce, Facilities
+and Rates are not panel titles: they are the first h2 in DOM order (KPI
+or dialog headings). Those pages' panel titles are unchanged since their
+locks.
+
+
+5. RESPONSIVE RESULTS
+---------------------
+45 routes × 1512 / 1280 / 1024 / 768 / 430 / 412 / 390 / 375:
+- page-level overflow 0 everywhere (360 / 360);
+- internal table scrolling only inside labelled regions;
+- drawers: docked panel on desktop; full-width sheet at 375;
+- tabs: SectionTabs / Finance tabs unchanged (no scrollbar chrome; suite
+  assertions);
+- worker bottom nav: correct current item; content not obscured (the
+  final-sweep assertion passes);
+- facility nav: correct items, untruncated label;
+- no newly visible scrollbar artifacts. No region overflows by a few
+  pixels at 1280 / 1512; the only overflowing region is the intended,
+  substantial worker entries region.
+
+Focus: the global :focus-visible ring and the focus-within outlines on the
+filter wrappers are unchanged; no clipping was observed in the captures.
+
+
+6. ACCESSIBILITY
+----------------
+- axe (wcag2a / 2aa / 22aa): 0 violations on all 45 crawled routes at
+  1280 and 375, plus every suite axe check (262 passing tests).
+- Exactly one h1 per page; heading order h1 › h2 › h3.
+- Dialogs are labelled. Escape closes them and focus returns to the "⋮"
+  trigger (6 drawers × 3 widths).
+- aria-current is correct on the worker nav (crawled), and on the
+  sidebar, Finance tabs, Settings subnav and personal nav (suite).
+- Status is text plus glyph (RefChip / locked StatusChip); glyphs are
+  aria-hidden.
+- Mobile targets for everything fixed in QA-F2 / F3 are ≥44 px.
+- Pre-existing items under 44 px at ≤430 (WCAG 2.2 AA 24 px still met or
+  excepted; none in the P2-2 / P2-3 scope):
+  - table-cell name links (16–20 px text inside 42–48 px rows);
+  - row checkboxes (16 px) and List / Calendar (40 px): QA1 P3-4;
+  - <summary> disclosure toggles at 20 px ("Deactivate", "Unavailable
+    workers (n)");
+  - three standalone text links at 20 px ("View raw location evidence",
+    "Request a correction on My Shifts", a facility Overview request
+    link at 32 px).
+
+
+7. PRODUCT-TRUTH
+----------------
+- Source scan of rendered strings: no Paid, Overdue, "Mark as paid", "Pay
+  now", "Send invoice", QuickBooks, Xero, Stripe, ACH, Notifications or
+  Reports UI.
+- The suite's expectNoPaymentVocabulary checks pass.
+- No worker pay, live timer, maps / directions, messaging, notification
+  inbox, global search or fake reporting.
+- Finance keeps "Preparation and export only" and "Chelth does not pay
+  workers" (Payroll capture).
+- Coordinates appear only on the AAL2-gated evidence page.
+
+
+8. SECURITY VISUAL VERIFICATION
+-------------------------------
+Secure 404:
+- worker → workforce / payroll / invoices / rates / pricing / attendance
+  / operations / shifts / compliance, the facility organisation, and a
+  nil-UUID organisation: all 404;
+- facility admin → agency workforce, agency attendance evidence, a
+  worker's credential record: 404;
+- scheduler → payroll (no capability), my-credentials (no worker record),
+  another worker's credential: 404;
+- signed out → agency workspace redirects to sign-in.
+
+AAL2: the agency owner at AAL1 on the evidence page sees the step-up note
+and no coordinates.
+
+Maker-checker, invite privacy and password recovery:
+- the suite flows pass (financial, identity, settings);
+- no src/lib/auth, authz, proxy, middleware, supabase/ or migration path
+  is in the diff or the untracked set.
+
+No client-side gating, service role or storage use was introduced (QA-F1
+to F3 are presentation only).
+
+
+9. CONSOLE / NETWORK
+--------------------
+- 0 React warnings, 0 hydration errors, 0 page errors across all crawled
+  page loads.
+- No failed asset requests. The only 4xx is the intentional
+  /definitely-not-a-page 404.
+- Known pre-existing items:
+  - P3-1: the "logo-primary.svg was preloaded … but not used" warning at
+    lg+ (3 occurrences in the crawl);
+  - P3-7: the supabase-js getSession() server-log warning (QA1);
+  - the "[WebServer] destination stream closed early" log line in the
+    suite run: aborted RSC prefetch noise (QA1 section 16).
+- No new console noise.
+
+
+10. VALIDATION
+--------------
+- npm run format:check: pass
+- npm run lint: pass (0 warnings)
+- npm run typecheck: pass
+- npm test: 355 passed (30 files)
+- npm run build: pass
+- npm run check:bundle: OK (69 browser files, no secrets)
+- npx playwright test: 262 passed, 12 skipped, 0 failed (8.2 min). The
+  skips are existing desktop-only tests on the mobile project.
+
+Failures to classify: none.
+
+
+11. GIT HYGIENE
+---------------
+- git diff --stat HEAD: 71 tracked files changed (W1, A1–A1.4, QA-F1–F3).
+- No deletions.
+- Untracked (18), all expected E8 artifacts:
+  - 10 reports;
+  - personal-nav.tsx, password-input.tsx;
+  - worker-cards.tsx, facility-step-up-notice.tsx,
+    request-details-panel.tsx, facility-entry-details-panel.tsx,
+    locked-notice.tsx;
+  - shared-visual-polish.test.tsx.
+- None of these:
+  - database or migration changes;
+  - QA screenshots, PNG / JPG, temp assets or test-results;
+  - Chelth_Hero.zip (ignored) or __MACOSX;
+  - restored deleted evidence (the PNG removal committed in 8daf3ec
+    stands).
+
+Closure note: the untracked source files above are required by tracked
+code. The closure commit must add them explicitly (`git add -u` alone
+would leave the build broken). Use named paths, not `git add .`.
+
+
+12. DEFERRED P3 LIST (non-blocking)
+-----------------------------------
+- P3-1: the logo preload warning at lg+.
+- P3-2: gateway secondary h2 18 / 600.
+- P3-3: My Shifts section h2s at 19 / 600 (the metadata casing is fixed).
+- P3-4: 16 px row checkboxes; the 40 px List / Calendar toggle.
+- P3-5: long organisation names wrap at the hyphen in the 2-up gateway.
+- P3-6: the Workforce "Expires in 20 days" chip is tight against Next
+  Shift (still visible at about 1137 px).
+- P3-7: the supabase-js getSession server warning (security backlog).
+- P3-8: maker-checker Approve shown to the preparer (data layer).
+
+New P3 observations (pre-existing, not regressions):
+- The agency Worker record shows the start date as ISO ("Started
+  2026-10-09"; "Start date 2026-10-09"). It is not a credential or
+  readiness date, so it was outside QA-F2 / F3. Candidate: one
+  formatCalendarDate call.
+- The facility Sign-off page's h1 is "Timesheets" while its nav label is
+  "Sign-off" (P2-5 shortened the label). Copy alignment is optional.
+- The 20 px <summary> disclosure toggles and the three standalone text
+  links listed in section 6 (below the 44 px brand target, above WCAG
+  24 px or excepted).
+- Overview "Today's schedule": 9 px intrinsic overflow at 1280 (QA-F3).
+  Not reproduced in this crawl (no rows today).
+
+
+13. FINAL E8 RECOMMENDATION
+---------------------------
+Close E8.
+
+The facility and worker families, the shared polish and every locked
+family verify clean at all eight widths, with:
+- axe clean;
+- zero page overflow;
+- the locked typography;
+- unchanged security and product-truth boundaries;
+- a green full suite.
+
+Before closing:
+- commit the uncommitted E8 work with explicit paths, including the
+  untracked source files listed in section 11;
+- keep Chelth_Hero.zip out.
+
+The section 12 items can go to the post-E8 polish backlog.
+
+STATUS: E8 READY TO CLOSE. READ-ONLY VERIFICATION COMPLETE.

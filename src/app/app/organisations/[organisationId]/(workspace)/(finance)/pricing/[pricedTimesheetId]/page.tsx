@@ -166,7 +166,7 @@ export default async function PricedTimesheetPage({
 
       <Panel titleId="priced-shifts-heading" title={<>Priced Shifts</>}>
         <DataTableRegion aria-label="Priced lines">
-          <DataTable className="min-w-[1040px]">
+          <DataTable className="min-w-[960px]">
             <DataTableHead>
               <tr>
                 <DataTableHeaderCell>Shift</DataTableHeaderCell>

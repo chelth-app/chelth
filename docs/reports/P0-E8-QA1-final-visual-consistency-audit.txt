@@ -1,0 +1,592 @@
+P0-E8-QA1 — FINAL VISUAL CONSISTENCY + RESPONSIVE + REGRESSION AUDIT
+=====================================================================
+CHELTH — Healthcare Workforce Operations
+
+Branch: p0-e8-visual-implementation
+HEAD:   f8b7f77. F1–F3.1 are committed (8daf3ec, f8b7f77); W1 and
+        A1–A1.4 are uncommitted.
+Mode:   READ-ONLY. No source, test, style, route or database file was
+        changed. Nothing was committed or pushed. All captures and the
+        audit crawler live in the session scratchpad only.
+
+Sources read:
+- CHELTH-LOCKED-VISUAL-SYSTEM.md and CLAUDE-CHELTH-BRAND-RULES.md;
+- the F1, F2, F2.5, F2.6, F3, F3.1, W1, A1, A1.1, A1.2, A1.3 and A1.4
+  reports (including their known gaps);
+- the current implementation.
+
+Method:
+1. The full validation suite, with QA_SCREENSHOTS_DIR set, gave 493
+   captures across every family, at widths from 375 to 3440.
+2. A read-only Playwright crawler (scratchpad) built a fresh staffing
+   world (agency, facility organisation, workers, a rate card, priced work,
+   a payroll batch and an invoice draft). It visited 59 routes as agency
+   owner (AAL2), facility admin, worker, worker-personal and signed out,
+   each at 1512 / 1280 / 1024 / 768 / 430 / 412 / 390 / 375.
+
+   For each page and width it recorded:
+   - HTTP status; page overflow;
+   - h1 count and computed h1 / h2 / h3 typography; any weight of 800 or
+     more;
+   - targets under 44 px at 430 and below;
+   - scroll regions that could show scrollbar chrome;
+   - console errors and warnings, failed requests and 4xx / 5xx responses.
+
+   It also ran axe (wcag2a / 2aa / 22aa) at 1280 and 375. At 1512 / 1280 /
+   375 it opened the first row drawer and measured its geometry, title
+   type, identity tile, tabs and footer CTAs, then checked Escape and
+   focus return.
+
+   That is 424 + 66 page measurements.
+3. Static source review covered:
+   - legacy primitives; PageHeader variants; DetailDrawer widths;
+   - row-action glyphs; ad-hoc heading styles;
+   - off-palette colours, purple / indigo, glow, faux-bold and 800 / 900
+     weights;
+   - product-truth vocabulary; search wiring; reduced motion;
+   - client-side gating in the diff.
+
+
+1. EXECUTIVE SUMMARY
+--------------------
+- The agency product is visually coherent and locked:
+  - Overview, Operations, Shifts, Attendance, Timesheets, Workforce,
+    Facilities, Compliance and Settings;
+  - the whole Finance family (Rates, Pricing, Payroll, Invoices, their
+    records, adjustments and the Finance shell);
+  - the record pages and all nine profile drawers.
+- Every crawled agency route renders on `.chelth-locked` with the locked
+  type scale (h1 Manrope 31.5 / 700, section h2 20 / 600).
+- At every width, all routes have zero axe violations, zero page-level
+  overflow and exactly one h1. No text weight of 800 or more and no
+  purple / indigo / glow / faux-bold were found.
+- The drawer family is measurably identical: 387 px wide, 178 px from the
+  top, 18 px radius, title 20.5 / 600, 48 px CTAs, a full-screen sheet on
+  phones, and Escape plus focus return working in every case.
+- Auth, the personal frame (/app, Account, Security, Verify) and the
+  worker My Shifts flow are on the system.
+- No unsupported product UI was found, and secure 404 holds.
+- The full validation suite is green (Playwright 256 passed, 12 skipped,
+  0 failed).
+
+The remaining drift is concentrated in surfaces that no E8 page pass has
+re-implemented yet:
+- (a) the FACILITY workspace: Facility Overview, Staffing requests list,
+  record and drawer, and Timesheet sign-off;
+- (b) the worker's own Timesheets list, My Credentials and the My
+  Credentials record (W1 restyled only their shell);
+- (c) the agency Attendance evidence page.
+
+These still use the pre-lock primitives:
+- h1 32 / 600 instead of 31.5 / 700;
+- flat white cards and legacy KpiFilterCard;
+- grey-header DataTable and legacy selects;
+- hand-written `rounded-md bg-primary` CTAs;
+- a default-width flat drawer.
+
+A family of smaller consistency items follows (P2 / P3).
+
+No P0 blocker was found.
+
+
+2. OVERALL E8 VISUAL READINESS SCORE
+------------------------------------
+84 / 100.
+- Agency operations, Finance, drawers, records, auth and personal: ~95.
+- Worker mobile: ~85 (My Shifts locked; own Timesheets / Credentials
+  content legacy).
+- Facility workspace: ~55 (shell locked, content pre-lock).
+
+The score would reach about 95 once the P1 items are closed.
+
+
+3. P0 BLOCKERS
+--------------
+None.
+- No security, data-exposure or broken primary flow was found.
+- No inaccessible state: axe is clean everywhere crawled.
+- Secure 404 was verified (section 15).
+
+
+4. P1 — MUST FIX BEFORE E8 CLOSE
+--------------------------------
+P1-1  Facility workspace is not on the locked system (desktop and
+      mobile).
+      Routes, as facility admin / supervisor:
+      - Overview (/app/organisations/<facility>);
+      - /staffing-requests and /staffing-requests/<shiftId>;
+      - /timesheets (the facility sign-off branch in timesheets/page.tsx);
+      - _components/facility-operations-overview.tsx.
+      Evidence (measured at 1280):
+      - h1 Manrope 32 px / 600, against the locked 31.5 / 700;
+      - h2 18 / 600 (`text-lg font-semibold`) instead of 20 / 600;
+      - `.chelth-locked` absent;
+      - PageHeader not variant="reference";
+      - legacy KpiFilterCard (flat white, grey tile);
+      - legacy DataTable (grey header);
+      - native-styled selects plus "Apply filters";
+      - hand-written `rounded-md bg-primary` CTAs ("New request",
+        "Request");
+      - the flat amber "Verify now" notice.
+      The Staffing request drawer is the default (non-profile) width:
+      - full-height flat white panel;
+      - no identity tile, tabs or section rhythm;
+      - flat CTA.
+      Captures: s4-facility-overview, s4-staffing-requests,
+      s4-staffing-request-drawer-open, s4-staffing-request-detail,
+      s4-timesheet-signoff.
+      This family was not in the brief's enumerated audit list, but it is
+      a primary, user-facing workspace inside the same shell, so it fails
+      the "same locked product" test.
+      Fix: one page pass applying the locked page / record / drawer
+      primitives:
+      - RefKpiCard;
+      - RefPanel plus REF_TABLE;
+      - the Facilities filter geometry;
+      - DetailDrawer width="profile" with the Timesheet Details anatomy;
+      - RecordPage for the request record.
+      Content and capabilities stay unchanged.
+
+P1-2  Worker Timesheets list, My Credentials and the My Credentials
+      record keep legacy content inside the new worker shell (375–430 and
+      desktop).
+      Evidence:
+      - h1 32 / 600 on all three; the record h2s are 18 / 600;
+      - `.chelth-locked` absent;
+      - My Credentials has a flat grey "Readiness at …" block with a raw
+        "✓ … — valid to 2027-11-11" line;
+      - ISO dates ("expires 2027-11-11"), where the rest of the product
+        uses "Nov 11, 2027";
+      - legacy dot chips ("Open", "Shared with …");
+      - a hand-written `rounded-md bg-primary` "Add a credential" CTA;
+      - the timesheet card uses legacy chips.
+      The worker timesheet RECORD is already locked (31.5 / 700).
+      W1 documented this as a known gap.
+      Captures: 412px-s6-credentials, s6-timesheets, s8-worker-credentials,
+      crawl worker_my_credentials_*.
+      Fix: a worker content pass reusing the W1 card, chip, icon-tile and
+      date patterns. No new data.
+
+
+5. P2 — SHOULD FIX
+------------------
+P2-1  Row-action glyph inconsistency.
+      - The canonical "⋮" is used on Shifts, Workforce, Facilities and
+        Compliance.
+      - "⋯" is used on Attendance and Timesheets. The locked doc allows
+        these until their next pass.
+      - Rates, Payroll and Invoices also use "⋯". Finance therefore
+        extended the interim glyph rather than adopting the canonical
+        one.
+      Fix: switch the five to "⋮" (one prop each). Low risk.
+
+P2-2  Record and settings action buttons are 36 px tall at phone widths.
+      They are below the brand's 44 px mobile target. WCAG 2.2 target size
+      (24 px) still passes.
+      Examples at 375:
+      - Shift record: Mark completed, Re-check readiness, Remove <worker>;
+      - Worker record: Set inactive / suspended / terminated, Add
+        discipline …;
+      - Facility record: Mark suspended / ended / inactive / archived;
+      - Payroll batch / Invoice draft: Mark reviewed, Cancel batch, Void
+        draft;
+      - Settings → Team: Assign role, Suspend, Remove; role select 36 px;
+      - Settings → Payroll: Save payroll settings, Require a second
+        approver;
+      - Timesheet record: Recalculate from attendance;
+      - My Credentials record: Stop sharing, Open document.
+      Source: the shared InlineActionForm / small Button size.
+      Fix: one shared change (min-h-11 below sm).
+
+P2-3  Filter selects are 42 px at phone widths (all locked filter rows:
+      Shifts, Timesheets, Workforce, Facilities, Compliance, Rates,
+      Payroll, Invoices).
+      Fix: a 2 px change in the shared filter control, to 44.
+
+P2-4  "Recalculate from attendance" (Timesheet record → Approval) uses
+      Button variant="ghost". It renders as plain text with no button
+      chrome, which is not in the locked CTA hierarchy (J).
+      Fix: the outlined secondary.
+
+P2-5  Sidebar label truncation in the facility workspace: "Timesheet
+      sign-off" shows as "Timesheet sign..." at the locked 214 px sidebar
+      (every lg+ width).
+      Fix: a shorter label ("Sign-off") or allow two lines. A product copy
+      decision.
+
+P2-6  Desktop table scroll regions overflow by a few pixels at 1280.
+      Measured horizontal overflow:
+      - Workers 25 px, Client facilities 25 px, Staffing requests 20 px;
+      - Agency timesheets 6 px, Rate cards 7 px, Payroll batches 7 px,
+        Invoice drafts 7 px;
+      - Priced lines 67 px.
+      "Timesheet entries" on the Timesheet record reports 320 px of
+      overflow even at 1512. This region is not visible in the default
+      view; it was measured as a scroll container, not seen as a visible
+      defect.
+      Headless Chromium uses overlay scrollbars. On platforms that always
+      draw scrollbars (Windows, macOS with a mouse) these regions show a
+      horizontal scrollbar for a few pixels: the same class of artifact
+      fixed in A1.2 for tabs.
+      At 1024 / 768 the overflow (150–360 px) is intended
+      (scroll-in-region; no page overflow anywhere).
+      Fix: tune column min-widths for 1280, or hide the bar until real
+      overflow. Verify on a classic-scrollbar platform.
+
+P2-7  Agency Attendance evidence page
+      (/attendance/<id>/evidence, AAL2-gated) is on legacy primitives:
+      no reference PageHeader, no `.chelth-locked`.
+      It has low traffic, but it is reached from the locked Attendance
+      record.
+
+P2-8  Sign-up success state ("Check your email") uses a legacy
+      `text-lg font-semibold` h2 and muted text inside the locked
+      AuthPanel. This is a small typographic mismatch.
+
+P2-9  Worker page-title casing is inconsistent: "My Shifts" (title case)
+      against "My credentials" (sentence case). The worker Timesheets list
+      also shows an agency back-link that My Shifts / My credentials do
+      not.
+
+P2-10 Git hygiene: the untracked
+      docs/ui-reference/p08-e8/canonical/Chelth_Hero.zip is 21.7 MB and
+      contains __MACOSX resource-fork files. A blanket `git add .` would
+      commit it. Decide whether to ignore it, extract the needed assets,
+      or keep it out of the repository.
+
+
+6. P3 — OPTIONAL
+----------------
+P3-1  A browser warning on agency pages at lg+: "logo-primary.svg was
+      preloaded … but not used". The mobile-header logo is preloaded (it
+      has priority) while hidden at lg+. This is cosmetic console noise.
+
+P3-2  The /app gateway has two h2s at different sizes: "Your
+      organisations" 20 / 600 and "Create a new agency" 18 / 600. This is
+      intentional secondary emphasis, but it is off-scale.
+
+P3-3  Worker My Shifts section h2s are 19 / 600, against the locked 20 /
+      600.
+
+P3-4  The 16 px row checkboxes (Attendance, Compliance) and the Shifts
+      List / Calendar toggle (40 px) are under 44 px at 375.
+
+P3-5  The A1.4 known item: in the 2-up gateway row, long organisation
+      names (the fixture "Mercy Health shell-desktop") wrap at the hyphen.
+
+P3-6  Workforce at 1706: the "Expires in 20 days" credential chip runs
+      tight against the Next Shift "—" column.
+
+P3-7  Server log: supabase-js warns "Using the user object as returned
+      from supabase.auth.getSession() … could be insecure".
+      - Source: supabase-js internals behind
+        mfa.getAuthenticatorAssuranceLevel() / mfa.listFactors().
+      - The application authenticates with getUser() first
+        (src/lib/auth/session.ts), and that file is unchanged since
+        d87d810, so this predates E8.
+      - It is not a visual regression; it is noted for the security
+        backlog.
+
+P3-8  The batch / draft maker-checker shows Approve to the preparer, and
+      the database refuses it (an audited MAKER_CHECKER refusal).
+      Documented in F2 / F3. The fix needs a data-layer field, so it is
+      out of visual scope.
+
+
+7. PAGE-BY-PAGE FINDINGS
+------------------------
+OPERATIONS (agency owner, all 8 widths): locked; no defects beyond
+P2-1, P2-2, P2-3 and P2-6.
+- Overview: canonical (B). Uses .ref-overview; KPI lg cards; 31.5 / 700.
+- Operations, Shifts (List / Calendar), Attendance, Timesheets,
+  Workforce, Facilities, Compliance: `.chelth-locked`, reference header,
+  RefKpiCard, REF_TABLE, Facilities filter geometry.
+- Settings and all six sections (Team, Attendance, Payroll, Rates,
+  Compliance, Security): locked canonical. The subnav has no scrollbar
+  chrome on mobile (A1.3).
+
+FINANCE:
+- Rates, Pricing, Payroll and Invoices are locked. They use the same KPI
+  variant as Overview (lg).
+- The Finance shell tabs show:
+  - correct aria-current;
+  - the active tab scrolled into view at 375 / 412 (F3.1);
+  - no scrollbar chrome (A1.2).
+- Records (payroll batch, invoice draft, priced timesheet, payroll and
+  invoice adjustments): RecordPage family.
+
+WORKER:
+- My Shifts / Shift Details / check-in states / active / break / check
+  out / timesheet handoff: locked (W1). Suite captures s6-*, w1-*.
+- Own Timesheets list, My Credentials and its record: P1-2.
+- The worker timesheet record: locked.
+
+FACILITY: P1-1, P2-5.
+
+AUTH / PERSONAL: section 11.
+
+
+8. DRAWER CONSISTENCY FINDINGS
+------------------------------
+Measured at 1512 / 1280 / 375 (agency drawers):
+
+  Drawer                  W×top      radius  title        tabs  footer CTAs
+  Shift Details           387×178    18 px   20.5 / 600   3     1 × 354×48
+  Timesheet Details       387×178    18 px   20.5 / 600   3     354 + 172 + 172
+  Professional Details    387×178    18 px   20.5 / 600   3     354 + 172 + 172
+  Facility Details        387×178    18 px   20.5 / 600   4     354 + 172 + 172
+  Credential Details      387×178    18 px   20.5 / 600   2     354 + 354
+  Rate Details            387×178    18 px   20.5 / 600   2     354
+  Payroll Batch Details   387×178    18 px   20.5 / 600   3     354 + 354
+  Invoice Details         387×178    18 px   20.5 / 600   3     354 + 354
+
+- All of them:
+  - are a full-screen sheet at 375 (title 18 / 600);
+  - use 16 / 600 section headings;
+  - close on Escape and return focus to the trigger.
+- The identity tile is 90 px for people (Workforce) and 84 px for record
+  icon tiles (Timesheet, Facility, Credential, Rate, Payroll, Invoice).
+  The Shift drawer has no identity tile: it was approved separately under
+  the Shifts canonical lock.
+- Attendance Details was not opened by the crawler (no row in today's
+  window). The suite capture 1512px-atqa-attendance-drawer shows the same
+  anatomy.
+- Outlier: the facility Staffing request drawer (P1-1): default width,
+  flat, no anatomy.
+- Note: Credential, Payroll and Invoice use two full-width CTAs where
+  others use primary plus half-width secondaries. Compliance is the
+  approved precedent, so this is consistent within the lock.
+
+
+9. RECORD-PAGE CONSISTENCY FINDINGS
+-----------------------------------
+- Worker, Facility, Shift, Timesheet, Attendance, Credential, Payroll
+  batch, Invoice draft and Priced timesheet: all RecordPage plus a
+  reference header (h1 31.5 / 700, panel h2 20 / 600), SectionTabs, Panel,
+  KeyValueList and RecordList.
+- Payroll and invoice adjustment records follow the same pattern (suite
+  captures f2/f3-*-adjustment-detail).
+- Outliers:
+  - the Staffing request record (P1-1);
+  - the My Credentials record (P1-2);
+  - Attendance evidence (P2-7);
+  - the ghost "Recalculate" CTA on the Timesheet record (P2-4).
+- The shared financial sub-tables (issues, adjustments, reconciliation,
+  exports) keep the bordered DataTable look inside locked panels. This is
+  a known F2 / F3 gap, accepted.
+
+
+10. MOBILE FINDINGS
+-------------------
+- No page-level overflow at 430 / 412 / 390 / 375 on any crawled route.
+  Wide tables scroll inside their labelled regions.
+- Worker bottom navigation:
+  - real destinations, current tab marked;
+  - content not hidden behind it (suite capture review).
+- Under-44 px targets: P2-2, P2-3 and P3-4.
+- Worker content legacy: P1-2.
+- No pay visibility, live timer, map / directions or raw coordinates on
+  worker surfaces (W1 tests plus visual review).
+
+
+11. AUTH / PERSONAL FINDINGS
+----------------------------
+- Sign in, Sign up, Forgot password, Reset password, Invite, Auth error,
+  404 and Verify:
+  - locked AuthPanel (h1 26 / 700; system states 24 / 700);
+  - show / hide password on every password field (A1.2);
+  - axe clean; no overflow at any width.
+- /app:
+  - two-column gateway from 1024 (A1.3 / A1.4) and stacked below;
+  - the single-organisation card is 560 px.
+- Account and Security: 760 px locked column; personal nav aria-current
+  correct.
+- Remaining: P2-8 (sign-up success heading), P3-2 (gateway h2 sizes).
+
+
+12. FINANCE FINDINGS
+--------------------
+- Locked and consistent. The only drift is P2-1 (⋯ glyph), with P2-2,
+  P2-3 and P2-6 shared with operations.
+- The product-truth disclaimers are present:
+  - "Preparation and export only";
+  - "Internal drafts — not sent";
+  - "Chelth does not pay workers / send invoices / collect payment".
+
+
+13. ACCESSIBILITY FINDINGS
+--------------------------
+- axe (wcag2a / 2aa / 22aa): 0 violations on every crawled route at 1280
+  and 375. The full suite's own axe checks pass.
+- Exactly one h1 per page, everywhere.
+- Navigation and states:
+  - aria-current correct on the sidebar, Finance tabs, Settings subnav,
+    worker nav and personal nav;
+  - dialogs labelled;
+  - Escape closes and focus returns (all drawers).
+- Global prefers-reduced-motion rule; the spinner also has
+  motion-reduce:animate-none.
+- Status chips carry text plus glyph (not colour-only).
+- Deviations: the target sizes in P2-2, P2-3 and P3-4.
+
+
+14. PRODUCT-TRUTH FINDINGS
+--------------------------
+- Source search for Paid / Sent / Overdue / Outstanding / ACH / Stripe /
+  QuickBooks / Xero / "Mark as paid": no UI matches.
+- No ratings, messaging, availability, global search, reports,
+  notification inbox or bell. The top bar has no search or notifications.
+- Page search inputs (Timesheets, Workforce, Compliance, Facilities) are
+  real GET filters (q) applied server-side to loaded data.
+- No HIGH product-truth defects.
+- P3-8 (Approve shown to the preparer, refused by the database) is
+  already documented.
+
+
+15. SECURITY VISUAL FINDINGS
+----------------------------
+- Secure 404, as a password-only worker:
+  - another organisation (the facility) → 404;
+  - a nil-UUID organisation → 404;
+  - agency /payroll without the capability → 404;
+  - unknown public route → 404.
+- AAL2 surfaces show "Verify now" step-up notices and never render
+  privileged data at AAL1.
+- No `disabled` / aria-disabled / client-state permission gating,
+  localStorage / sessionStorage, or console logging was added in the
+  uncommitted diff.
+- No supabase/, migration, src/lib/auth, proxy or middleware file is in
+  either the committed F-phase range (18ad514..HEAD) or the uncommitted
+  diff.
+- P3-7: a pre-existing supabase-js server warning (not E8).
+
+
+16. CONSOLE / NETWORK FINDINGS
+------------------------------
+- 0 React warnings, 0 hydration errors, 0 key / controlled-uncontrolled
+  warnings, 0 page errors across 490 page loads.
+- 4,730 "requestfailed net::ERR_ABORTED" entries are Next.js RSC link
+  prefetches (?_rsc=), cancelled when the crawler navigated away. This is
+  expected, not a defect.
+- The only 404s are the intentional not-found routes.
+- Fonts, icons and brand assets load.
+- P3-1: logo-primary preload unused at lg+.
+- P3-7: the supabase-js getSession() server-log warning.
+
+
+17. RESPONSIVE MATRIX
+---------------------
+Legend: OK = no page overflow, axe clean (1280 / 375), layout as
+designed. Numbers refer to findings.
+
+  Surface              1512  1280  1024  768   430   412   390   375
+  Agency operations    OK    6     OK*   OK*   2,3   2,3   2,3   2,3
+  Finance              OK    1,6   OK*   OK*   2,3   2,3   2,3   2,3
+  Settings             OK    OK    OK    OK    2     2     2     2
+  Records              6†    6     OK*   OK*   2     2     2     2
+  Drawers              OK    OK    OK    OK    sheet sheet sheet sheet
+  Facility workspace   P1-1 at every width; 5 at lg+
+  Worker My Shifts     OK    OK    OK    OK    OK    OK    OK    OK
+  Worker TS / Creds    P1-2 at every width
+  Auth / system        OK    OK    OK    OK    OK    OK    OK    OK
+  /app gateway         OK    OK    OK    OK    OK    OK    OK    OK
+  Account / Security   OK    OK    OK    OK    OK    OK    OK    OK
+
+  * Tables scroll inside their regions (intended).
+  † The Timesheet entries scroll region (P2-6).
+
+
+18. TEST RESULTS
+----------------
+- npm run format:check: pass
+- npm run lint: pass (0 warnings)
+- npm run typecheck: pass
+- npm test: 347 passed (29 files)
+- npm run build: pass
+- npm run check:bundle: OK (70 browser files, no secrets)
+- npx playwright test: 256 passed, 12 skipped, 0 failed (11.2 min). The
+  skips are existing desktop-only tests on the mobile project.
+
+No failures, so there is nothing to triage.
+
+
+19. GIT HYGIENE RESULTS
+-----------------------
+- Modified: 36 tracked files (W1 and A1–A1.4 source and tests).
+- Untracked:
+  - 6 reports (W1, A1, A1.1–A1.4);
+  - personal-nav.tsx, password-input.tsx, my-shifts/_components/;
+  - Chelth_Hero.zip (P2-10).
+- No database or migration changes.
+- No tracked PNGs under docs/reports. The earlier screenshot removal was
+  committed deliberately in 8daf3ec; nothing was restored.
+- No QA captures in the tree. test-results/ and .next/ are git-ignored.
+  .DS_Store files are ignored.
+- No large generated artifacts other than the zip.
+
+
+20. RECOMMENDED FIX SEQUENCE
+----------------------------
+1. QA-F1 (P1-1): facility workspace pass.
+   - Overview, Staffing requests list, record and drawer, Timesheet
+     sign-off.
+   - Includes P2-5 (label).
+2. QA-F2 (P1-2 and P2-9): worker Timesheets list, My Credentials and its
+   record.
+   - Includes title casing and the date format.
+3. QA-F3 (shared polish, one sweep):
+   - P2-1 (⋮ glyph);
+   - P2-2 / P2-3 (44 px mobile actions and filters);
+   - P2-4 (ghost CTA);
+   - P2-6 (1280 table widths);
+   - P2-7 (attendance evidence);
+   - P2-8 (sign-up success heading).
+4. Housekeeping before commit: P2-10 (the zip).
+5. Optional: the P3 items.
+
+
+21. ESTIMATED NUMBER OF FIX PASSES
+----------------------------------
+3 implementation passes (QA-F1, QA-F2, QA-F3) plus 1 short verification
+re-audit. P3 items can ride along with QA-F3 or be deferred.
+
+
+22. AREAS CONSIDERED VISUALLY LOCKED
+------------------------------------
+- Application shell: sidebar, logo, top bar, canvas, mobile overlay.
+- Operations: Overview, Operations, Shifts (List / Calendar / drawer /
+  record), Attendance (page / drawer / record), Timesheets (page / drawer /
+  record), Workforce (page / drawer / Worker record), Facilities (page /
+  drawer / Facility record), Compliance (page / Credential drawer /
+  Credential record).
+- Settings and all sections; the Settings subnav.
+- Finance: shell and tabs; Rates, Pricing, Payroll, Invoices; batch,
+  draft, priced and adjustment records; Rate / Payroll / Invoice drawers.
+- Worker: shell, bottom nav, More sheet, My Shifts flow (offers,
+  assignments, Shift Details sheet, check-in / geofence outcomes, active,
+  break, check out, handoff), the worker timesheet record.
+- Auth / system: all auth screens, show / hide password, auth error, 404 /
+  error / system states, MFA verify.
+- Personal: /app gateway (A1.4), Account, Security, personal nav.
+- Shared: SectionTabs (scrollbar-free, inset focus); typography weight
+  lock; palette; chips; CTA hierarchy; drawer anatomy.
+
+
+23. AREAS THAT SHOULD NOT BE TOUCHED
+------------------------------------
+- Everything listed in section 22, except the targeted shared-primitive
+  tweaks in QA-F3 (glyph, mobile control height, ghost CTA, table
+  min-widths). Those must keep the locked appearance unchanged at desktop.
+- Authorization and security behaviour:
+  - capability gates; secure 404; AAL2 step-up; maker-checker;
+  - RLS / RPCs / migrations; proxy / middleware; src/lib/auth;
+  - invite privacy and password recovery.
+- Product-truth boundaries:
+  - no payment / sending / accounting vocabulary;
+  - no worker pay, timer, map or coordinates;
+  - no search / notifications chrome;
+  - no route-level loading.tsx where it would weaken secure 404.
+- Typography weight lock (no heading weight increases) and the logo
+  assets.
+
+STATUS: FINAL E8 VISUAL AUDIT COMPLETE. READ-ONLY. AWAITING HUMAN DECISION.

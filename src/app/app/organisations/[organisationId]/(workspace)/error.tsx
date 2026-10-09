@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
+
 import { Button } from "@/components/ui/button";
-import { SystemState } from "@/components/ui/system-state";
+import { stateSecondaryActionClass, SystemState } from "@/components/ui/system-state";
 import { ERROR_CODES } from "@/lib/errors/error-codes";
 
 /**
@@ -22,7 +24,14 @@ export default function WorkspaceError({
       title="This page could not be loaded"
       description={ERROR_CODES.INTERNAL.message}
       reference={error.digest}
-      action={<Button onClick={reset}>Try again</Button>}
+      action={
+        <>
+          <Button onClick={reset}>Try again</Button>
+          <Link href="/app" className={stateSecondaryActionClass}>
+            Back to your workspaces
+          </Link>
+        </>
+      }
     />
   );
 }

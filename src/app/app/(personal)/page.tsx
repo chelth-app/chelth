@@ -2,14 +2,16 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { PageHeader } from "@/components/ui/page-header";
-import { StatusChip } from "@/components/ui/status-chip";
-import { Badge } from "@/components/ui/badge";
+import { WorkspaceNavIcon } from "@/components/layout/workspace-nav-icon";
+import { RefChip } from "@/components/reference/locked-reference";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { StateIcon } from "@/components/ui/state-icon";
 import { getMyProfile } from "@/features/identity";
+import { cn } from "@/lib/utils/cn";
 import {
   CreateOrganisationForm,
   listMyMemberships,
+  listRoles,
   readActiveOrganisationPreference,
   readPendingInviteToken,
   selectOrganisationAction,
@@ -21,6 +23,20 @@ const NOTICES: Record<string, string> = {
   "password-updated": "Your password has been updated.",
 };
 
+/** Readable role summary: one role by name; several joined; never a raw count. */
+function roleSummary(names: string[]): string {
+  if (names.length === 0) return "No active role";
+  if (names.length <= 2) return names.join(" · ");
+  return `${names.slice(0, 2).join(" · ")} +${names.length - 2} more`;
+}
+
+/**
+ * Workspace chooser (locked system, P0-E8-A1.1): the signed-in app entry.
+ * Real memberships only, as polished workspace cards (organisation, type,
+ * readable role names, the existing "last used" preference, Open workspace).
+ * The preference only reorders the list; nothing is opened automatically.
+ * Creating an agency is a secondary setup surface with the existing form.
+ */
 export default async function AppHomePage({ searchParams }: PageProps<"/app">) {
   const [profile, memberships, preferredOrganisationId, pendingInvite, { notice }] =
     await Promise.all([
@@ -37,19 +53,29 @@ export default async function AppHomePage({ searchParams }: PageProps<"/app">) {
       Number(b.organisation?.id === preferredOrganisationId) -
       Number(a.organisation?.id === preferredOrganisationId),
   );
+  const types = [
+    ...new Set(visible.flatMap(({ organisation }) => (organisation ? [organisation.type] : []))),
+  ];
+  const roleLists = await Promise.all(types.map((type) => listRoles(type)));
+  const roleName = new Map(roleLists.flat().map((role) => [role.key, role.name]));
   const noticeText = typeof notice === "string" ? NOTICES[notice] : undefined;
 
   return (
-    <>
+    // Gateway (P0-E8-A1.3, spacing A1.4): the welcome spans the top; from lg the primary
+    // task (open a workspace) takes ~64% on the left and the secondary "Create a new agency"
+    // panel ~36% on the right (24 px gap), aligned with "Your organisations"; below lg the
+    // order stacks.
+    <div className="flex flex-col gap-7">
       <PageHeader
+        variant="reference"
         title={`Welcome${profile.displayName ? `, ${profile.displayName}` : ""}`}
-        description={<p className="text-sm">Choose an organisation to work in.</p>}
+        description={<p>Choose an organisation to continue.</p>}
       />
 
       {noticeText ? (
         <p
           role="status"
-          className="rounded-md bg-success-soft p-3 text-sm text-success-soft-foreground"
+          className="rounded-[12px] border border-[rgba(18,107,103,0.12)] bg-[linear-gradient(180deg,#f6fbfa,#eef7f4)] px-4 py-3 text-sm font-medium text-chelth-navy"
         >
           {noticeText}
         </p>
@@ -58,72 +84,134 @@ export default async function AppHomePage({ searchParams }: PageProps<"/app">) {
       {pendingInvite ? (
         <div
           role="status"
-          className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-info-soft p-4 text-sm text-info-soft-foreground"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-[rgba(47,116,240,0.14)] bg-info-soft/45 px-4 py-3 text-sm text-chelth-navy"
         >
-          <span>You have a pending invitation.</span>
-          <Link href="/invite" className="font-medium underline underline-offset-4">
+          <span className="font-medium">You have a pending invitation.</span>
+          <Link
+            href="/invite"
+            className="inline-flex min-h-11 items-center font-semibold text-primary underline underline-offset-4"
+          >
             Review invitation
           </Link>
         </div>
       ) : null}
 
-      <section aria-labelledby="organisations-heading" className="flex flex-col gap-3">
-        <h2 id="organisations-heading" className="text-lg font-semibold">
-          Your organisations
-        </h2>
-        {ordered.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            You are not a member of any organisation yet. Ask an administrator to invite you, or
-            create an agency below.
-          </p>
-        ) : (
-          <ul className="grid gap-3 sm:grid-cols-2">
-            {ordered.map(({ membershipId, organisation, roleKeys }) =>
-              organisation ? (
-                <li key={membershipId}>
-                  <Card className="h-full">
-                    <CardHeader>
-                      <CardTitle>{organisation.name}</CardTitle>
-                      <CardDescription className="flex flex-wrap gap-2">
-                        <Badge tone="brand">
-                          {organisation.type === "agency" ? "Agency" : "Facility"}
-                        </Badge>
-                        {organisation.status !== "active" ? (
-                          <StatusChip tone="warning">Suspended</StatusChip>
-                        ) : null}
-                        {organisation.id === preferredOrganisationId ? (
-                          <Badge tone="info">Last used</Badge>
-                        ) : null}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex flex-col gap-3">
-                      <p className="text-sm text-muted-foreground">{roleKeys.length} role(s)</p>
-                      <form action={selectOrganisationAction}>
-                        <input type="hidden" name="organisationId" value={organisation.id} />
-                        <Button
-                          type="submit"
-                          variant="outline"
-                          size="sm"
-                          aria-label={`Open ${organisation.name}`}
-                        >
-                          Open
-                        </Button>
-                      </form>
-                    </CardContent>
-                  </Card>
-                </li>
-              ) : null,
+      <div className="grid gap-7 lg:grid-cols-[minmax(0,1.8fr)_minmax(320px,1fr)] lg:items-start lg:gap-6">
+        <div className="flex min-w-0 flex-col gap-7">
+          <section aria-labelledby="organisations-heading" className="flex flex-col gap-3">
+            <h2
+              id="organisations-heading"
+              className="font-display text-[20px] leading-[26px] font-semibold tracking-[-0.02em] text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)]"
+            >
+              Your organisations
+            </h2>
+            {ordered.length === 0 ? (
+              // Canonical system empty state: tile, short heading, one line; the real
+              // action (create an agency) is the panel below.
+              <div className="flex items-center gap-3 rounded-[14px] border border-[rgba(18,107,103,0.10)] bg-white p-4 shadow-[0_8px_24px_rgba(13,47,66,0.06),0_1px_2px_rgba(13,47,66,0.04)]">
+                <StateIcon name="empty" />
+                <div className="flex flex-col gap-0.5">
+                  <h3 className="text-[15px] leading-5 font-semibold text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)]">
+                    You are not a member of any organisation yet.
+                  </h3>
+                  <p className="text-[13.5px] leading-5 text-slate-600">
+                    Ask an administrator to invite you, or create an agency below.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <ul
+                aria-label="Your organisations"
+                className={cn(
+                  "grid gap-4 sm:grid-cols-2",
+                  // Desktop (A1.4): a single workspace gets one comfortable card, not half the column.
+                  ordered.length === 1 && "lg:max-w-[560px] lg:grid-cols-1",
+                )}
+              >
+                {ordered.map(({ membershipId, organisation, roleKeys }) =>
+                  organisation ? (
+                    <li key={membershipId}>
+                      <article
+                        aria-label={organisation.name}
+                        className="chelth-locked flex h-full flex-col gap-4 rounded-[14px] border border-[rgba(18,107,103,0.10)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,252,252,0.95))] p-5 shadow-[0_10px_30px_rgba(13,47,66,0.07),0_1px_2px_rgba(13,47,66,0.05)]"
+                      >
+                        <div className="flex items-start gap-3.5">
+                          <span
+                            aria-hidden="true"
+                            className="inline-flex size-12 shrink-0 items-center justify-center rounded-[12px] bg-[radial-gradient(circle_at_30%_25%,#f4fdfa_0%,#d3f2e8_45%,#a9e3d3_100%)] text-chelth-teal-dark shadow-[0_4px_12px_rgba(0,90,96,0.14),inset_0_1px_0_rgba(255,255,255,0.9)] [&>svg]:size-6"
+                          >
+                            <WorkspaceNavIcon
+                              name={organisation.type === "agency" ? "workforce" : "facilities"}
+                              strokeWidth={1.9}
+                              duotone
+                            />
+                          </span>
+                          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                            <h3 className="font-display text-[18px] leading-6 font-semibold tracking-[-0.01em] break-words text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)]">
+                              {organisation.name}
+                            </h3>
+                            <div className="flex flex-wrap gap-1.5">
+                              <RefChip tone="info" className="font-semibold">
+                                {organisation.type === "agency" ? "Agency" : "Facility"}
+                              </RefChip>
+                              {organisation.status !== "active" ? (
+                                <RefChip tone="warning" className="font-semibold">
+                                  Suspended
+                                </RefChip>
+                              ) : null}
+                              {organisation.id === preferredOrganisationId ? (
+                                <RefChip tone="neutral" className="font-normal">
+                                  Last used
+                                </RefChip>
+                              ) : null}
+                            </div>
+                          </div>
+                        </div>
+                        <p className="flex items-center gap-2 text-[14px] leading-5 text-slate-700">
+                          <WorkspaceNavIcon
+                            name="compliance"
+                            strokeWidth={2.1}
+                            className="size-[18px] shrink-0 text-chelth-teal-dark"
+                          />
+                          <span className="sr-only">Your role: </span>
+                          {roleSummary(roleKeys.map((key) => roleName.get(key) ?? key))}
+                        </p>
+                        <form action={selectOrganisationAction} className="mt-auto">
+                          <input type="hidden" name="organisationId" value={organisation.id} />
+                          <Button type="submit" className="w-full">
+                            Open workspace
+                            <span className="sr-only"> {organisation.name}</span>
+                          </Button>
+                        </form>
+                      </article>
+                    </li>
+                  ) : null,
+                )}
+              </ul>
             )}
-          </ul>
-        )}
-      </section>
+          </section>
+        </div>
 
-      <section aria-labelledby="create-heading" className="flex flex-col gap-3">
-        <h2 id="create-heading" className="text-lg font-semibold">
-          Create an agency
-        </h2>
-        <CreateOrganisationForm />
-      </section>
-    </>
+        <section
+          aria-labelledby="create-heading"
+          className="flex flex-col gap-4 rounded-[14px] border border-[rgba(18,107,103,0.10)] bg-white/80 p-5 shadow-[0_1px_2px_rgba(13,47,66,0.04)] sm:p-6"
+        >
+          <div className="flex flex-col gap-1">
+            <h2
+              id="create-heading"
+              className="font-display text-[18px] leading-6 font-semibold text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)]"
+            >
+              Create a new agency
+            </h2>
+            <p className="text-[14px] leading-5 text-slate-600">
+              Use Chelth for a separate staffing organisation.
+            </p>
+          </div>
+          <div className="chelth-locked">
+            <CreateOrganisationForm />
+          </div>
+        </section>
+      </div>
+    </div>
   );
 }

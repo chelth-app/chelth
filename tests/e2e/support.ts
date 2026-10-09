@@ -27,7 +27,12 @@ export async function signUp(page: Page, name: string, email: string): Promise<v
   await page.getByLabel("Email address").fill(email);
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible();
+  const success = page.getByRole("heading", { name: "Check your email" });
+  await expect(success).toBeVisible();
+  // P0-E8-QA-F3: the locked section heading inside the AuthPanel (20 / 600).
+  await expect(success).toHaveCSS("font-size", "20px");
+  await expect(success).toHaveCSS("font-weight", "600");
+  await qaScreenshot(page, "qaf3-sign-up-success");
 }
 
 export async function signUpAndConfirm(page: Page, name: string, email: string): Promise<void> {

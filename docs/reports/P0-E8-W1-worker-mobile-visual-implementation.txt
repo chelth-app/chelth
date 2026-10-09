@@ -1,0 +1,393 @@
+P0-E8-W1 — WORKER MOBILE VISUAL IMPLEMENTATION
+==============================================
+
+Branch: p0-e8-visual-implementation (uncommitted)
+Base:   18ad514, plus the uncommitted F1–F3.1 work
+
+Scope: the healthcare worker mobile experience only.
+
+Unchanged:
+- the agency / facility shells and the Finance family;
+- the backend.
+
+No screenshots were saved to the repository; QA captures were kept in a
+local scratch folder.
+
+
+1. ROUTES CHANGED
+-----------------
+No route was added, removed or renamed.
+
+- /app/organisations/[organisationId]/my-shifts (self-service)
+  My Shifts, including Attendance, Offers, Assignments and the Shift
+  Details sheet.
+- Every worker self-service page via the shared WorkerShell:
+  - my-shifts and my-credentials;
+  - the worker's own Timesheets list and record when rendered in the
+    worker frame.
+  The shell restyle covers the header, canvas and bottom navigation.
+
+Shift Details stays the existing drawer, now presented as the canonical
+mobile sheet (full-height on phones). No separate shift-detail route
+exists, and none was added.
+
+
+2. CANONICAL REFERENCES USED
+----------------------------
+docs/ui-reference/p08-e8/canonical/Chelth_Worker mobile Flow/:
+- assets/chelth-worker-mobile-flow-locked.png
+- LOCKED-DESIGN-SPEC.md
+- WORKER-MOBILE-INTERACTIONS.md
+- ATTENDANCE-GEOFENCE-FLOW.md
+- CLAUDE-IMPLEMENTATION.md
+
+Also:
+- docs/ui-reference/CHELTH-LOCKED-VISUAL-SYSTEM.md
+- docs/brand/CLAUDE-CHELTH-BRAND-RULES.md
+
+Behaviour truth:
+- src/features/attendance (ClockControl, actions, list_my_attendance);
+- src/features/shifts (list_my_shift_assignments / offers);
+- src/features/timesheets (list_my_timesheets);
+- supabase/migrations/20260930150300_attendance_hardening_rpcs.sql:
+  clock-in refusal rules; clock-out never blocked by location.
+
+
+3. WORKER SHELL IMPLEMENTATION
+------------------------------
+File: src/components/layout/worker-shell.tsx
+
+- Header (sticky, 64 px):
+  - the approved Chelth mark (BrandLogo variant="mark", unchanged asset);
+  - the workspace name (Manrope 16 / 600 heading ink);
+  - "Worker · name" (12.5 slate);
+  - the worker's initials avatar (locked InitialsAvatar). No bell, because
+    in-app notifications do not exist.
+- Canvas: the locked off-white wash (#FAFCFE → #F6FAFC → #F1F9FA). A
+  centred phone-width column (max-w-xl) at every width; it never stretches.
+- Bottom navigation (nav "Worker"):
+  - solid white with a teal hairline and a soft upward shadow;
+  - 64 px targets; safe-area bottom padding;
+  - current item: teal-dark, 600 weight, 3 px teal top rule, and
+    aria-current="page";
+  - other items: slate-500, darker on hover; icons in the same line family
+    at 1.9 stroke.
+  - Destinations are unchanged and real: Shifts, Timesheets (only when the
+    route shows the worker's own timesheets), Credentials (when not
+    terminated), and More.
+  - The reference's "Home" is not added: My Shifts is the worker landing
+    page.
+- The More sheet (account, security, switch workspace, sign out) is
+  unchanged in behaviour.
+- Agency and facility staff never get this shell. The server chooses the
+  frame: the worker frame only for members whose only grant is
+  organisation.view and who have a worker record.
+
+
+4. MY SHIFTS IMPLEMENTATION
+---------------------------
+File: (self-service)/my-shifts/page.tsx, with
+_components/worker-cards.tsx (new).
+
+- Header: PageHeader reference "My Shifts", with the subtitle "Your shifts
+  with <agency>. Times are in the facility's timezone."
+- Attendance (the reference's Today / Next Shift): one card per accepted
+  shift around today, from list_my_attendance. Each card has:
+  - identity: a luminous facility tile (Chelth has no facility photos),
+    facility name, location name, and the attendance state chip (Not
+    started / Clocked in / On break / Completed / Needs review);
+  - icon-led rows for date and time;
+  - the recorded clock-in and clock-out times in two tiles, once started;
+  - the state panel and actions (sections 6, 8, 9);
+  - attendance notes, corrections and "Request a time correction"
+    (existing behaviour, restyled).
+- Offers: the same card language (facility, discipline, offer status,
+  date / time / location rows) and the existing RespondToOffer.
+- Assignments:
+  - The existing Upcoming / Past tabs, the locked SectionTabs labelled
+    "Assignment period". A "Today" tab was not added: today is the
+    Attendance section, and no separate "today" assignment state exists.
+  - Each card shows:
+    - facility, discipline, assignment status and shift status chips;
+    - date, time and location rows;
+    - instructions and cancellation reason when present;
+    - Accept / Decline (existing forms);
+    - a full-width "View Shift Details" button (48 px), accessible name
+      "Shift details: <facility> <date>".
+- Empty states use the locked quiet tile with the existing copy ("You have
+  no assignments yet.", "No past assignments.", "No shift offers right
+  now.", "No accepted shifts around today.").
+
+
+5. SHIFT DETAILS IMPLEMENTATION
+-------------------------------
+The canonical drawer (profile width; full-height sheet on phones), titled
+with the facility name:
+
+- Identity: large facility tile, facility name (Manrope 20 / 700),
+  location name, assignment status chip, and the attendance state chip when
+  attendance exists.
+- A date block (date, time range, timezone).
+- Icon-led rows: Role (discipline), Facility, Location.
+- Instructions section, when present.
+- "Next step" panel from the real state:
+  - accept or decline;
+  - clock in from the Attendance card;
+  - clocked in, so clock out later;
+  - attendance captured, time is on the timesheet;
+  - attendance opens shortly before the shift starts.
+  The success tone is used only once attendance is captured.
+- Own data only: no other workers, no pay or bill values (asserted). There
+  are no desktop tables on this sheet.
+
+
+6. CHECK IN TREATMENT
+---------------------
+File: src/features/attendance/components/clock-control.tsx (presentation
+only).
+
+Unchanged logic:
+- the server records the time;
+- a one-shot getCurrentPosition, only after the worker continues; nothing
+  is watched or polled;
+- the explanation before the browser prompt;
+- "never fake success";
+- the same actions, refusal codes and accessible names ("Clock in at
+  <facility>", "Share location and clock in").
+
+Presentation:
+- A full-width primary button (locked gradient, 48 px) with a pin glyph.
+- The location check (region "Location check") is now the reference's
+  centred "Verify your location" panel:
+  - luminous pin tile and Manrope title;
+  - the same explanatory text (location used only for this action; read
+    once; never in the background; result visible to the agency; precise
+    location restricted);
+  - "Share location and clock in" and "Not now".
+- While reading location: "Checking your location…" on a soft mint row.
+
+
+7. GEOFENCE / LOCATION STATES
+-----------------------------
+The existing server outcomes are shown in worker language. No coordinates
+or debug values are ever shown.
+
+- Within the area (location required, no exceptions): "Clocked in. Recorded
+  at Chelth's server time. You're within the approved site area."
+- Recorded with review: "Recorded. Your agency will review this
+  attendance." (amber).
+- Refusals keep the existing titles and the server message, plus a next
+  step (guidance only; the rule stays the server's):
+  - "Outside the site area" (OUTSIDE_GEOFENCE): move closer and try again,
+    or contact your agency.
+  - "Location not precise enough" (LOCATION_ACCURACY_TOO_LOW): wait for a
+    stronger signal and try again.
+  - "Location not available" / "Location needed for this site"
+    (LOCATION_UNAVAILABLE / GEOFENCE_REQUIRED): allow location access for
+    this site in the browser, then try again.
+- Permission denied or unreadable: the existing notice ("Your location
+  could not be read. Chelth will record the attempt without it."), now an
+  amber note.
+- No supervisor-override request was added: no such flow exists.
+
+
+8. ACTIVE-SHIFT TREATMENT
+-------------------------
+After clock-in:
+- the card chip becomes "Clocked in";
+- the clock-in time shows in its tile;
+- a green "Checked in" panel reads "Clocked in at <time> · shift <range>.
+  Clock out when your shift is complete."
+- Below it: "Clock out" (coral outline, exit glyph) and the existing "Start
+  break".
+- On a break: an "On a break" info panel ("You are on a break. End it
+  before you clock out.") and "End break". Clock out is hidden, as before.
+
+No live timer was added: none is supported.
+
+
+9. CHECK OUT TREATMENT
+----------------------
+- The existing clock-out action. It is never blocked by location (verified
+  in clock_out_assignment: geofence outcomes only open review exceptions).
+- Success: "Clocked out." with "Recorded at Chelth's server time", or the
+  amber "Recorded. Your agency will review this attendance." when
+  exceptions were opened.
+- The card shows both recorded times, "Worked <time> · breaks <time>",
+  and, when exceptions exist, the amber "Review required" panel. That panel
+  lists the existing exception labels (Early clock-out, Outside site area,
+  etc.) and reads "Reviewed by your agency" once resolved.
+
+No supervisor approval step was invented.
+
+
+10. TIMESHEET HANDOFF
+---------------------
+After clock-out, a green "Attendance captured" panel reads: "Your worked
+time goes to your weekly timesheet from this record — no need to type it
+in."
+
+When the worker's own timesheet week containing the shift's local date
+exists (list_my_timesheets, which the worker's Timesheets page already
+uses), the panel also shows:
+- "Week <period>";
+- the real timesheet status chip (Open / Submitted / …);
+- "View timesheet", which opens the worker's own timesheet record ("My
+  timesheet"). Submission stays there, with the existing flow.
+
+No pay amounts are shown (worker pay visibility is deferred).
+
+
+11. UNSUPPORTED REFERENCE FEATURES OMITTED
+------------------------------------------
+- Facility photos (replaced by the locked facility tile).
+- The notification bell; a profile photo (initials instead).
+- A "Home" nav item.
+- A "Today" tab.
+- "View All" links.
+- Unit (e.g. ICU).
+- Facility contact name and phone, and the call action.
+- Map / directions; parking notes.
+- A requirements checklist on Shift Details.
+- Supervisor override requests.
+- Live checklist ticks ("Within facility radius"). The result comes from
+  the server after the action, so it is shown afterwards, never as a
+  pre-check.
+- A break dropdown and notes on a mobile timesheet submit form. The
+  worker's existing timesheet record handles submission.
+- A live shift timer.
+- Offline / PWA behaviour (none existed; none added).
+
+
+12. RESPONSIVE RESULTS
+----------------------
+- 375 / 390 / 412 / 430 (asserted):
+  - one column; the bottom navigation is visible with the current item
+    marked;
+  - every nav target and "View Shift Details" ≥44 px (nav 64 px, details
+    48 px);
+  - no page overflow;
+  - axe clean at 375 and 412.
+- 768: the same centred column (≤576 px), no overflow.
+- Desktop (1280): still the centred worker column. Never the sidebar
+  (existing responsive test).
+- The bottom navigation is now solid white. A non-generated opacity class
+  briefly let content show through; this was fixed before validation.
+
+
+13. ACCESSIBILITY
+-----------------
+- Landmarks: a "Worker" navigation with aria-current; the More dialog is
+  labelled "More"; Shift Details is a labelled native dialog. Focus moves
+  in, and Escape returns focus to "View Shift Details" (existing test).
+- Every action has a text name, including "Clock in at <facility>",
+  "Shift details: …" and "View timesheet". Icons are decorative
+  (aria-hidden), and fact rows carry sr-only labels.
+- State is always text (chips, panel titles), never colour alone. Live
+  feedback uses role="status" and role="alert".
+- Headings: h1 "My Shifts" › h2 sections › h3 empty states.
+- The visible focus ring is kept; targets are ≥44 px.
+- axe (wcag2a / 2aa / 22aa) is clean on:
+  - My Shifts;
+  - the location-check explanation;
+  - weak-GPS and outside-area refusals;
+  - checked in; on a break; clocked out;
+  - correction entry;
+  - the Shift Details sheet;
+  - the handoff.
+
+
+14. SECURITY / AUTHZ CONFIRMATION
+---------------------------------
+Unchanged:
+- schema, migrations, RLS, RPCs, capabilities;
+- attendance rules, geofence rules, location retention;
+- tenant isolation, shift eligibility, assignment logic, timesheet logic
+  and audit.
+
+No supabase/ file is in the diff.
+
+- The only new read is list_my_timesheets, the worker's own projection,
+  already used by the worker Timesheets page.
+- No service role; no client-side authorization.
+- No raw location is ever displayed (asserted: no latitude or longitude on
+  the page).
+- Role isolation (asserted):
+  - an agency scheduler and a facility admin never get the Worker
+    navigation;
+  - /my-shifts is 404 for a scheduler (no worker record).
+  The existing tests also cover the worker never getting the operational
+  sidebar and other tenants getting 404.
+
+
+15. TEST CHANGES
+----------------
+tests/e2e/worker-mobile.spec.ts (new; serial suite, both projects):
+- "W1: after clock-out the attendance hands off to the worker's own
+  timesheet":
+  - "Attendance captured" and "Clocked out";
+  - no coordinates or pay values;
+  - axe clean;
+  - "View timesheet" opens /timesheets/<id> ("My timesheet"), with the
+    Timesheets nav item current.
+- "W1: My Shifts at phone widths": 375 / 390 / 412 / 430 / 768:
+  - heading; Shifts current;
+  - nav targets ≥44 px; "View Shift Details" ≥44 px;
+  - no overflow; axe at 375 and 412.
+- "W1: staff and facility users never get the worker navigation".
+
+Unchanged and passing (every accessible name and text they use was kept):
+- worker-mobile: shell, More sheet, accept + Shift Details drawer, the
+  attendance journey, responsive, and worker scoping;
+- attendance.spec: clock in / out, late clock-in, the geofence explanation,
+  weak GPS, outside area, then success;
+- timesheets.spec, assignment-operations.spec and shifts-assignments.spec
+  flows on My Shifts.
+
+
+16. VALIDATION RESULTS
+----------------------
+- npm run format:check: pass
+- npm run lint: pass (0 warnings)
+- npm run typecheck: pass
+- npm test: 347 passed
+- npm run build: pass
+- npm run check:bundle: OK (69 browser files, no secrets)
+- npx playwright test: 250 passed, 12 skipped, 0 failed (8.8 min). The
+  skips are existing desktop-only tests on the mobile project; the new W1
+  tests run on both projects.
+
+
+17. FILES CHANGED
+-----------------
+- src/components/layout/worker-shell.tsx (header, canvas, bottom
+  navigation presentation)
+- src/features/attendance/components/clock-control.tsx (check-in /
+  check-out presentation, worker-language outcomes and next steps; logic
+  unchanged)
+- src/app/app/organisations/[organisationId]/(self-service)/my-shifts/
+  page.tsx (My Shifts, Shift Details sheet, active state, handoff)
+- src/app/app/organisations/[organisationId]/(self-service)/my-shifts/
+  _components/worker-cards.tsx (new: worker card language)
+- tests/e2e/worker-mobile.spec.ts (three W1 tests)
+- this report
+
+
+18. KNOWN GAPS
+--------------
+- There is no dedicated Shift Details route or separate Check-In screen.
+  The reference's four screens are realised as the My Shifts card (with
+  its in-card check-in states) plus the Shift Details sheet, because the
+  existing product has one worker route.
+- Facility contact, directions / map, unit, parking notes and per-shift
+  requirements are not in the worker read models, so they are omitted.
+- The pre-action "within facility radius" checklist cannot be shown
+  truthfully: the server decides at the action. The outcome is shown
+  after it.
+- The worker Timesheets list and record pages and My Credentials inherit
+  the restyled shell but kept their content styling (out of this phase's
+  flow scope).
+- BreakControl and the correction form keep their existing form styling
+  inside the new cards.
+
+STATUS: WORKER MOBILE VISUAL IMPLEMENTATION COMPLETE. AWAITING HUMAN REVIEW. NOT COMMITTED.

@@ -1,21 +1,21 @@
-import type { Metadata } from "next";
+import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { Panel } from "@/components/ui/panel";
-
-import {
-  DataTable,
-  DataTableCell,
-  DataTableHead,
-  DataTableHeaderCell,
-  DataTableRegion,
-  DataTableRow,
-} from "@/components/ui/data-table";
 import { InlineActionForm } from "@/components/forms/inline-action-form";
-import { EmptyState } from "@/components/ui/empty-state";
+import { InitialsAvatar, REF_TABLE, REF_TEXT } from "@/components/reference/locked-reference";
+import {
+  RECORD_ROW,
+  RECORD_ROW_META,
+  RECORD_ROW_TITLE,
+  RecordList,
+  RecordPage,
+} from "@/components/reference/record-page";
+import { DataTableRegion } from "@/components/ui/data-table";
 import { KeyValueList } from "@/components/ui/key-value-list";
 import { PageHeader } from "@/components/ui/page-header";
+import { Panel } from "@/components/ui/panel";
+import { SectionTabs } from "@/components/ui/section-tabs";
 import { StatusChip } from "@/components/ui/status-chip";
 import { AttendanceStateBadge, listFacilityShiftAttendance } from "@/features/attendance";
 import { ReadinessBadge } from "@/features/compliance";
@@ -37,6 +37,9 @@ import {
   hasStarted,
   SHIFT_CANCELLATION_REASON_LABELS,
 } from "@/lib/domain/shifts";
+import { cn } from "@/lib/utils/cn";
+
+import { LockedEmpty } from "../../(finance)/_components/finance-locked";
 
 export const metadata: Metadata = { title: "Staffing request" };
 
@@ -63,9 +66,16 @@ export default async function StaffingRequestPage({
       ? await listFacilityShiftAttendance(shift.id)
       : [];
 
+  const canWithdraw =
+    shift.status === "submitted" &&
+    shift.source === "facility" &&
+    can(CAPABILITIES.SHIFT_REQUEST) === "granted";
+
   return (
-    <>
+    // Canonical record page (P0-E8-QA-F1): the Facility / Shift record arrangement.
+    <RecordPage>
       <PageHeader
+        variant="reference"
         title={`${shift.disciplineName} · ${formatShiftDate(shift)}`}
         back={
           <Link
@@ -76,7 +86,7 @@ export default async function StaffingRequestPage({
           </Link>
         }
         description={
-          <p className="text-sm">
+          <p>
             {shift.agencyName} · {shift.locationName}
           </p>
         }
@@ -95,6 +105,25 @@ export default async function StaffingRequestPage({
             ) : null}
           </>
         }
+      />
+
+      <SectionTabs
+        label="Request sections"
+        tabs={[
+          { label: "Details", href: "#request-details-heading" as Route, current: false },
+          ...(shift.status === "open"
+            ? [{ label: "Who is coming", href: "#coming-heading" as Route, current: false }]
+            : []),
+          ...(attendance.length > 0
+            ? [
+                {
+                  label: "Attendance",
+                  href: "#facility-attendance-heading" as Route,
+                  current: false,
+                },
+              ]
+            : []),
+        ]}
       />
 
       <Panel titleId="request-details-heading" title={<>Details</>}>
@@ -127,9 +156,7 @@ export default async function StaffingRequestPage({
               : []),
           ]}
         />
-        {shift.status === "submitted" &&
-        shift.source === "facility" &&
-        can(CAPABILITIES.SHIFT_REQUEST) === "granted" ? (
+        {canWithdraw ? (
           <div>
             <InlineActionForm
               action={withdrawFacilityRequestAction}
@@ -143,91 +170,90 @@ export default async function StaffingRequestPage({
       {shift.status === "open" ? (
         <Panel titleId="coming-heading" title={<>Who is coming</>}>
           {workers.length === 0 ? (
-            <EmptyState headingLevel={3} title="No workers assigned yet." />
+            <LockedEmpty
+              icon="workforce"
+              title="No workers assigned yet."
+              note="Workers your agency assigns to this request appear here."
+            />
           ) : (
-            <DataTableRegion aria-label="Workers coming">
-              <DataTable className="min-w-[32rem]">
-                <DataTableHead>
-                  <tr>
-                    <DataTableHeaderCell>Worker</DataTableHeaderCell>
-                    <DataTableHeaderCell>Discipline</DataTableHeaderCell>
-                    <DataTableHeaderCell>Assignment</DataTableHeaderCell>
-                    <DataTableHeaderCell>Readiness</DataTableHeaderCell>
-                  </tr>
-                </DataTableHead>
-                <tbody>
-                  {workers.map((worker) => (
-                    <DataTableRow key={worker.assignmentId}>
-                      <DataTableCell className="font-medium">
-                        {worker.displayName ?? "Worker"}
-                      </DataTableCell>
-                      <DataTableCell>{worker.disciplineName}</DataTableCell>
-                      <DataTableCell>
-                        <AssignmentStatusBadge status={worker.status} />
-                      </DataTableCell>
-                      <DataTableCell>
-                        <ReadinessBadge status={worker.readiness} />
-                      </DataTableCell>
-                    </DataTableRow>
-                  ))}
-                </tbody>
-              </DataTable>
-            </DataTableRegion>
+            <RecordList label="Workers coming">
+              {workers.map((worker) => (
+                <li key={worker.assignmentId} className={RECORD_ROW}>
+                  <InitialsAvatar name={worker.displayName} size={36} />
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className={RECORD_ROW_TITLE}>{worker.displayName ?? "Worker"}</span>
+                    <span className={RECORD_ROW_META}>{worker.disciplineName}</span>
+                  </span>
+                  <span className="flex flex-wrap items-center gap-2">
+                    <AssignmentStatusBadge status={worker.status} />
+                    <ReadinessBadge status={worker.readiness} />
+                  </span>
+                </li>
+              ))}
+            </RecordList>
           )}
         </Panel>
       ) : null}
 
       {attendance.length > 0 ? (
         <Panel titleId="facility-attendance-heading" title={<>Attendance</>}>
-          <DataTableRegion aria-label="Attendance for this request">
-            <DataTable className="min-w-[560px]">
-              <DataTableHead>
+          <DataTableRegion
+            aria-label="Attendance for this request"
+            className="rounded-none border-0 bg-transparent"
+          >
+            <table className={cn(REF_TABLE, "min-w-[560px]")}>
+              <thead className={REF_TEXT.tableHead}>
                 <tr>
-                  <DataTableHeaderCell>Worker</DataTableHeaderCell>
-                  <DataTableHeaderCell>Status</DataTableHeaderCell>
-                  <DataTableHeaderCell>Clock in</DataTableHeaderCell>
-                  <DataTableHeaderCell>Clock out</DataTableHeaderCell>
+                  <th scope="col">Worker</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Clock in</th>
+                  <th scope="col">Clock out</th>
                 </tr>
-              </DataTableHead>
-              <tbody>
+              </thead>
+              <tbody className="text-[13.5px] leading-5 text-slate-600">
                 {attendance.map((row) => (
-                  <DataTableRow key={row.assignmentId}>
-                    <DataTableCell className="font-medium">
-                      {row.workerName ?? "Worker"}
-                    </DataTableCell>
-                    <DataTableCell>
+                  <tr key={row.assignmentId}>
+                    <td className="py-2.5">
+                      <span className="flex items-center gap-2.5">
+                        <InitialsAvatar name={row.workerName} />
+                        <span className="font-medium text-chelth-navy">
+                          {row.workerName ?? "Worker"}
+                        </span>
+                      </span>
+                    </td>
+                    <td className="py-2.5">
                       <AttendanceStateBadge
                         clockState={row.clockState}
                         needsReview={row.hasOpenException}
                       />
-                    </DataTableCell>
-                    <DataTableCell>
-                      {formatLocalClockTime(row.clockInAt, shift.timezone)}
-                      {row.clockInLocation && row.clockInLocation !== "not_required" ? (
-                        <div>
+                    </td>
+                    <td className="py-2.5">
+                      <span className="flex flex-col items-start gap-1">
+                        {formatLocalClockTime(row.clockInAt, shift.timezone)}
+                        {row.clockInLocation && row.clockInLocation !== "not_required" ? (
                           <StatusChip tone="neutral">
                             {GEOFENCE_RESULT_LABELS[row.clockInLocation]}
                           </StatusChip>
-                        </div>
-                      ) : null}
-                    </DataTableCell>
-                    <DataTableCell>
-                      {formatLocalClockTime(row.clockOutAt, shift.timezone)}
-                      {row.clockOutLocation && row.clockOutLocation !== "not_required" ? (
-                        <div>
+                        ) : null}
+                      </span>
+                    </td>
+                    <td className="py-2.5">
+                      <span className="flex flex-col items-start gap-1">
+                        {formatLocalClockTime(row.clockOutAt, shift.timezone)}
+                        {row.clockOutLocation && row.clockOutLocation !== "not_required" ? (
                           <StatusChip tone="neutral">
                             {GEOFENCE_RESULT_LABELS[row.clockOutLocation]}
                           </StatusChip>
-                        </div>
-                      ) : null}
-                    </DataTableCell>
-                  </DataTableRow>
+                        ) : null}
+                      </span>
+                    </td>
+                  </tr>
                 ))}
               </tbody>
-            </DataTable>
+            </table>
           </DataTableRegion>
         </Panel>
       ) : null}
-    </>
+    </RecordPage>
   );
 }

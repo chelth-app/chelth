@@ -2,10 +2,20 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { Panel } from "@/components/ui/panel";
 import { InlineActionForm } from "@/components/forms/inline-action-form";
+import { RefChip } from "@/components/reference/locked-reference";
+import {
+  RECORD_ROW,
+  RECORD_ROW_META,
+  RECORD_ROW_TITLE,
+  RecordList,
+  RecordMeta,
+  RecordNote,
+  RecordPage,
+  RecordStatusBlock,
+} from "@/components/reference/record-page";
 import { PageHeader } from "@/components/ui/page-header";
-import { StatusChip } from "@/components/ui/status-chip";
+import { Panel } from "@/components/ui/panel";
 import {
   credentialIdSchema,
   DocumentStatusBadge,
@@ -21,12 +31,26 @@ import {
   withdrawVersionAction,
 } from "@/features/credentials";
 import { listMyMemberships, loadOrganisationPage } from "@/features/organisations";
-import { REJECTION_REASON_LABELS } from "@/lib/domain/credentials";
+import { formatCalendarDate, REJECTION_REASON_LABELS } from "@/lib/domain/credentials";
+
+import { WorkerIconTile } from "../../my-shifts/_components/worker-cards";
 
 export const metadata: Metadata = { title: "Credential" };
 
 const dateTime = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" });
 
+const VERSION_STATUS = {
+  draft: { label: "Draft", tone: "neutral" },
+  submitted: { label: "Submitted", tone: "info" },
+  withdrawn: { label: "Withdrawn", tone: "neutral" },
+} as const;
+
+/**
+ * The worker's own credential record (P0-E8-QA-F2): the canonical record
+ * arrangement inside the worker column, like the worker timesheet record.
+ * Owner-only; the reads, sharing, versions, uploads and document gate are
+ * unchanged. Agency reviewer notes and other agencies' shares are never read.
+ */
 export default async function MyCredentialPage({
   params,
 }: PageProps<"/app/organisations/[organisationId]/my-credentials/[credentialId]">) {
@@ -52,19 +76,20 @@ export default async function MyCredentialPage({
   const base = { organisationId, credentialId: credential.id };
 
   return (
-    <>
+    <RecordPage>
       <PageHeader
+        variant="reference"
         title={credential.typeName}
         back={
           <Link
             href={`/app/organisations/${organisationId}/my-credentials`}
             className="text-primary underline underline-offset-4"
           >
-            My credentials
+            My Credentials
           </Link>
         }
         description={
-          <p className="text-sm">
+          <p className="break-words">
             {[
               credential.jurisdictionCode,
               credential.issuingAuthority,
@@ -74,58 +99,96 @@ export default async function MyCredentialPage({
               .join(" · ") || "—"}
           </p>
         }
-        meta={!isActive ? <StatusChip tone="neutral">Withdrawn</StatusChip> : undefined}
+        meta={
+          !isActive ? (
+            <RefChip tone="neutral" className="font-semibold">
+              Withdrawn
+            </RefChip>
+          ) : (
+            <RecordMeta>
+              {credential.versions.length === 1
+                ? "1 version"
+                : `${credential.versions.length} versions`}
+            </RecordMeta>
+          )
+        }
       />
 
       <Panel titleId="sharing-heading" title={<>Sharing with {organisation.name}</>}>
         {activeShare ? (
-          <div className="flex flex-wrap items-center gap-3 text-sm">
-            <StatusChip tone="info">Shared</StatusChip>
-            <InlineActionForm
-              action={revokeShareAction}
-              fields={{ ...base, shareId: activeShare.id }}
-              label="Stop sharing"
-              variant="ghost"
-            />
-          </div>
+          <RecordStatusBlock>
+            <WorkerIconTile icon="compliance" />
+            <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+              <RefChip tone="info" className="w-fit font-semibold">
+                Shared
+              </RefChip>
+              <span className={RECORD_ROW_META}>
+                {organisation.name} can see this credential and verify it.
+              </span>
+            </span>
+            <div className="w-full sm:w-auto">
+              <InlineActionForm
+                action={revokeShareAction}
+                fields={{ ...base, shareId: activeShare.id }}
+                label="Stop sharing"
+              />
+            </div>
+          </RecordStatusBlock>
         ) : isActive ? (
-          <div className="flex flex-wrap items-center gap-3 text-sm">
-            <StatusChip tone="neutral">Not shared</StatusChip>
-            <InlineActionForm
-              action={shareCredentialAction}
-              fields={base}
-              label={`Share with ${organisation.name}`}
-            />
-          </div>
-        ) : null}
+          <RecordStatusBlock>
+            <WorkerIconTile icon="compliance" />
+            <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+              <RefChip tone="neutral" className="w-fit font-semibold">
+                Not shared
+              </RefChip>
+              <span className={RECORD_ROW_META}>
+                {organisation.name} cannot see this credential until you share it.
+              </span>
+            </span>
+            <div className="w-full sm:w-auto">
+              <InlineActionForm
+                action={shareCredentialAction}
+                fields={base}
+                label={`Share with ${organisation.name}`}
+                variant="primary"
+              />
+            </div>
+          </RecordStatusBlock>
+        ) : (
+          <RecordNote>This credential was withdrawn and is not shared.</RecordNote>
+        )}
       </Panel>
 
       <Panel titleId="versions-heading" title={<>Versions</>}>
-        <ol className="flex flex-col gap-3">
+        <RecordList label="Credential versions">
           {credential.versions.map((version) => (
-            <li
-              key={version.id}
-              className="flex flex-col gap-3 rounded-md bg-surface-muted p-4 text-sm"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="font-medium">
-                  Version {version.number}
-                  {version.issueDate ? ` · issued ${version.issueDate}` : ""}
-                  {version.expiryDate ? ` · expires ${version.expiryDate}` : ""}
+            <li key={version.id} className={`${RECORD_ROW} flex-col items-stretch`}>
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <span className="flex min-w-0 flex-col">
+                  <span className={RECORD_ROW_TITLE}>Version {version.number}</span>
+                  <span className={RECORD_ROW_META}>
+                    {[
+                      version.issueDate ? `Issued ${formatCalendarDate(version.issueDate)}` : null,
+                      version.expiryDate
+                        ? `Expires ${formatCalendarDate(version.expiryDate)}`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || "No dates recorded"}
+                  </span>
                 </span>
-                <StatusChip tone={version.status === "submitted" ? "info" : "neutral"}>
-                  {version.status === "draft"
-                    ? "Draft"
-                    : version.status === "submitted"
-                      ? "Submitted"
-                      : "Withdrawn"}
-                </StatusChip>
+                <RefChip tone={VERSION_STATUS[version.status].tone} className="font-semibold">
+                  {VERSION_STATUS[version.status].label}
+                </RefChip>
               </div>
               {version.documents.length > 0 ? (
-                <ul className="flex flex-col gap-2">
+                <ul
+                  aria-label={`Documents for version ${version.number}`}
+                  className="flex flex-col gap-2"
+                >
                   {version.documents.map((document, index) => (
-                    <li key={document.id} className="flex flex-wrap items-center gap-2">
-                      <span>Document {index + 1}</span>
+                    <li key={document.id} className="flex flex-wrap items-center gap-2 text-sm">
+                      <span className="font-medium text-chelth-navy">Document {index + 1}</span>
                       <DocumentStatusBadge status={document.status} />
                       {document.status === "clean" || document.status === "scanning" ? (
                         <OpenDocumentButton
@@ -151,20 +214,17 @@ export default async function MyCredentialPage({
                       action={withdrawVersionAction}
                       fields={{ ...base, versionId: version.id }}
                       label="Discard draft"
-                      variant="ghost"
                     />
                   </div>
                 </div>
               ) : null}
             </li>
           ))}
-        </ol>
+        </RecordList>
         {isActive && !draft ? (
           <div className="flex flex-col gap-2">
-            <h3 className="font-medium">Renew</h3>
-            <p className="text-sm text-muted-foreground">
-              A renewal adds a new version. Earlier versions are kept.
-            </p>
+            <h3 className={RECORD_ROW_TITLE}>Renew</h3>
+            <RecordNote>A renewal adds a new version. Earlier versions are kept.</RecordNote>
             <NewVersionForm {...base} />
           </div>
         ) : null}
@@ -172,49 +232,50 @@ export default async function MyCredentialPage({
 
       <Panel titleId="verification-heading" title={<>Verification by agencies</>}>
         {credential.verifications.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No agency has reviewed this credential yet.
-          </p>
+          <RecordNote>No agency has reviewed this credential yet.</RecordNote>
         ) : (
-          <ul className="flex flex-col divide-y divide-border border-y border-border text-sm">
+          <RecordList label="Agency verification">
             {credential.verifications.map((verification) => (
-              <li
-                key={verification.id}
-                className="flex flex-wrap items-center justify-between gap-2 p-3"
-              >
-                <span>
-                  {agencyName.get(verification.agencyOrganisationId) ?? "An agency"} · version{" "}
-                  {credential.versions.find((version) => version.id === verification.versionId)
-                    ?.number ?? "?"}
-                  {verification.rejectionReason
-                    ? ` · ${REJECTION_REASON_LABELS[verification.rejectionReason]}`
-                    : ""}
+              <li key={verification.id} className={`${RECORD_ROW} justify-between`}>
+                <span className="flex min-w-0 flex-col">
+                  <span className={`${RECORD_ROW_TITLE} break-words`}>
+                    {agencyName.get(verification.agencyOrganisationId) ?? "An agency"}
+                  </span>
+                  <span className={RECORD_ROW_META}>
+                    Version{" "}
+                    {credential.versions.find((version) => version.id === verification.versionId)
+                      ?.number ?? "?"}
+                    {verification.rejectionReason
+                      ? ` · ${REJECTION_REASON_LABELS[verification.rejectionReason]}`
+                      : ""}
+                    {" · "}
+                    <time dateTime={verification.createdAt}>
+                      {dateTime.format(new Date(verification.createdAt))}
+                    </time>
+                  </span>
                 </span>
-                <span className="flex items-center gap-2">
-                  <VerificationBadge outcome={verification.outcome} />
-                  <time dateTime={verification.createdAt} className="text-muted-foreground">
-                    {dateTime.format(new Date(verification.createdAt))}
-                  </time>
-                </span>
+                <VerificationBadge outcome={verification.outcome} />
               </li>
             ))}
-          </ul>
+          </RecordList>
         )}
       </Panel>
 
       {isActive ? (
         <Panel titleId="withdraw-heading" title={<>Withdraw</>}>
-          <p className="text-sm text-muted-foreground">
+          <RecordNote>
             Withdrawing stops this credential counting anywhere. History is kept.
-          </p>
-          <InlineActionForm
-            action={withdrawCredentialAction}
-            fields={base}
-            label="Withdraw credential"
-            variant="danger"
-          />
+          </RecordNote>
+          <div className="w-fit">
+            <InlineActionForm
+              action={withdrawCredentialAction}
+              fields={base}
+              label="Withdraw credential"
+              variant="danger"
+            />
+          </div>
         </Panel>
       ) : null}
-    </>
+    </RecordPage>
   );
 }

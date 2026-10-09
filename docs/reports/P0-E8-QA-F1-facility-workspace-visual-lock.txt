@@ -1,0 +1,347 @@
+P0-E8-QA-F1 — FACILITY WORKSPACE VISUAL LOCK PASS
+=================================================
+
+Branch: p0-e8-visual-implementation (uncommitted)
+Base:   f8b7f77, plus the uncommitted W1 / A1–A1.4 work
+
+Scope: closes audit finding P1-1 (and P2-5) from
+P0-E8-QA1-final-visual-consistency-audit.txt.
+
+This is a visual translation of the facility workspace onto the locked
+Chelth system. It is presentation only:
+- no route, capability, permission, staffing-request, sign-off, auth, RLS,
+  schema or migration change;
+- no service role.
+
+Locked agency pages, Finance, Auth and Worker My Shifts are untouched.
+QA-F2 and QA-F3 were not started. No screenshots were saved to the
+repository.
+
+
+1. ROUTES CHANGED (presentation)
+--------------------------------
+- /app/organisations/<facility>: Facility Overview. Only the facility
+  workspace-staff branch changed. The agency Overview and the agency
+  non-staff branch render exactly as before (via a `display: contents`
+  wrapper).
+- /app/organisations/<facility>/staffing-requests: list, filters, KPI row
+  and the Request Details drawer.
+- /app/organisations/<facility>/staffing-requests/<shiftId>: request
+  record.
+- /app/organisations/<facility>/timesheets: the facility sign-off branch
+  only. The agency AgencyTimesheets and the worker's own list (QA-F2) are
+  unchanged.
+- Sidebar: the facility nav label (section 8).
+
+
+2. COMPONENTS / PRIMITIVES REUSED
+---------------------------------
+No parallel facility design system was created. Reused, unchanged:
+- PageHeader variant="reference";
+- `.chelth-locked`;
+- RecordPage;
+- RefKpiCard (lg on Overview; sm on the list pages, as Facilities);
+- RefPanel / RefPanelAction;
+- REF_TABLE / REF_TEXT;
+- RefChip, KpiNote / KpiAction, InitialsAvatar;
+- LockedFilterSelect, LockedEmpty, LockedNotice and HeaderAddAction (the
+  existing locked helpers in (finance)/_components/finance-locked.tsx);
+- DetailDrawer width="profile", DetailsTabs;
+- RecordList / RECORD_ROW*;
+- Panel, SectionTabs, KeyValueList;
+- the existing SHIFT_TONE / FILL_TONE chip semantics.
+
+New files, each a composition of the primitives above:
+- staffing-requests/_components/request-details-panel.tsx: Request
+  Details drawer content, using the Rate / Shift Details anatomy.
+- timesheets/_components/facility-entry-details-panel.tsx: Timesheet
+  Details for facility sign-off entries.
+- _components/facility-step-up-notice.tsx: LockedNotice with the existing
+  stepUpHref link.
+
+
+3. FACILITY OVERVIEW
+--------------------
+- Header:
+  - reference treatment (h1 Manrope 31.5 / 700);
+  - same title (the organisation name), back link and description;
+  - type and role chips as RefChip.
+- KPI row ("Facility summary"): 4 × RefKpiCard lg, using the same counts
+  as before:
+  - Awaiting Agency;
+  - Open Requests (with a "N not fully staffed" note);
+  - Workers Expected Today;
+  - Timesheets to Sign Off.
+  The links and capability gating are unchanged. No new metrics.
+- "Today and upcoming": RefPanel plus REF_TABLE, with RefChip status and
+  staffing chips and a "View requests →" panel action.
+- "Awaiting sign-off": RefPanel with avatar rows and a "Sign off →"
+  action.
+- Both panels use a LockedEmpty quiet empty state.
+- The two-column grid uses the locked Overview ratio (1.787 : 1) when both
+  panels are present.
+- Agency relationships / shared compliance (facility only):
+  - locked Panel plus RecordList rows;
+  - the same projection and the same readiness chips.
+- Step-up: the locked warning note (LockedNotice) replaces the flat amber
+  paragraph:
+  - same text and "Verify now" link;
+  - same /app/security/verify?next=… route (stepUpHref).
+  The AAL2 requirement is unchanged. The shared StepUpNotice used by agency
+  pages is untouched.
+
+
+4. STAFFING REQUESTS LIST
+-------------------------
+- Header: reference treatment. "New request" now uses the locked header
+  CTA (HeaderAddAction, as "Add Facility"). It anchors to the "Request
+  staff" panel; same visibility condition.
+- KPI row ("Upcoming requests"): 3 × RefKpiCard sm:
+  - Awaiting Agency;
+  - Open (warning tone while any request is not fully staffed);
+  - Workers Confirmed.
+  The quick-filter hrefs and aria-current are unchanged.
+- Filters ("Filter requests" form): two LockedFilterSelect controls (46 px
+  desktop, 44 px phone, leading icons), plus the locked "Apply filters"
+  button and "Clear filters". The query parameters (status, when) and
+  their defaults are unchanged.
+- "Requests and Shifts": RefPanel with a count, and REF_TABLE
+  ("Staffing requests table").
+  - Columns: Request, Agency and Location, Time, Status, Staffing, Source,
+    and the actions column.
+  - RefChip status, fill and source chips; 42 px rows.
+  - Selected row while its drawer is open: a teal 3 px inset with mint
+    fill.
+  - The work area contracts beside the drawer at 1536 px and wider.
+  - The canonical right-aligned "⋮" trigger (keeps "Details for …").
+- Pagination, the empty states and the "Request staff" form are
+  unchanged. The form now sits in a locked frosted panel (h2 20 / 600).
+- Not added: search, bulk selection, new states, messaging or worker
+  details.
+
+
+5. DRAWER IMPLEMENTATION (Request Details)
+------------------------------------------
+- DetailDrawer width="profile", titled "Request Details". The geometry is
+  identical to the other locked drawers: asserted 387 px wide on desktop
+  and a full-width sheet on phones.
+- Identity:
+  - an 84 px luminous request tile;
+  - role (Manrope 21 / 700);
+  - date · time;
+  - agency · location (with a location pin);
+  - the fill or status chip (28 px).
+- Tabs (real data only, all from the list row's facility projection):
+  - Overview: Request Details (agency, location, date, time, timezone,
+    source, reference, cancellation reason);
+  - Staffing: Staffing Status (status, fill, workers needed / confirmed)
+    and Agency Relationship.
+- Footer: one 48 px deep-teal "Open request" CTA to the record.
+- Who is coming and attendance stay on the record (audited reads), as
+  before.
+
+Facility sign-off entries also use a profile drawer, "Timesheet Details":
+- worker identity (84 px initials);
+- Overview tab (time facts);
+- Sign-off tab (state, discrepancy, revision).
+Decisions stay on the table's existing forms.
+
+
+6. REQUEST RECORD IMPLEMENTATION
+--------------------------------
+- RecordPage (`.chelth-locked`, 20 px rhythm).
+- Header:
+  - reference treatment;
+  - the same back context ("Staffing requests · <facility>");
+  - subtitle agency · location;
+  - status, fill and relationship chips.
+- SectionTabs "Request sections": Details, plus Who is coming (open
+  requests) and Attendance (once started). They scroll horizontally with
+  no scrollbar chrome (A1.2).
+- Details: locked Panel plus KeyValueList (unchanged fields). "Withdraw
+  request" appears under exactly the same condition.
+- Who is coming: RecordList rows (avatar, name, discipline, assignment and
+  readiness chips). The empty state uses LockedEmpty.
+- Attendance: REF_TABLE inside a locked Panel. The region is still
+  "Attendance for this request". Geofence results are shown as labels; no
+  coordinates.
+
+
+7. TIMESHEET SIGN-OFF CHANGES
+-----------------------------
+- `.chelth-locked` with a reference header (title, back link and
+  description unchanged).
+- KPI row ("Sign-off summary"): 3 × RefKpiCard sm:
+  - Awaiting Sign-off;
+  - Signed Off;
+  - Discrepancies Raised (danger tone only when greater than 0).
+  Same counts and state filters.
+- Filters ("Filter entries"): LockedFilterSelect "Sign-off", plus Apply /
+  Clear. The `state` parameter is unchanged.
+- "Entries for Sign-off": RefPanel plus REF_TABLE ("Facility timesheet
+  entries"):
+  - avatar and agency;
+  - date and location;
+  - scheduled; worked from–to;
+  - right-aligned breaks and worked;
+  - RefChip sign-off state and discrepancy reason;
+  - the unchanged FacilityDecisionForms ("Sign off <worker>", "Raise a
+    discrepancy");
+  - the "⋮" drawer.
+- The step-up branch uses the locked note (same route).
+- Facility truth only: no pay rate, bill rate, margin, payroll, invoice
+  data or coordinates. Asserted on the page and in the drawer.
+
+
+8. SIDEBAR LABEL DECISION
+-------------------------
+- "Timesheet sign-off" → "Sign-off". This is the brief's preferred
+  concise label: it fits the locked 214 px sidebar row without truncation
+  (asserted).
+- It is a string-only change in src/features/organisations/workspace-
+  navigation.ts. The capability predicate (timesheet.facility_signoff),
+  the route (/timesheets), the icon and aria-current behaviour are
+  unchanged. The sidebar was not widened.
+- The page title remains "Timesheets".
+
+
+9. RESPONSIVE RESULTS
+---------------------
+- 1512 / 1280 / 1024: locked layouts. The KPI rows are 4 cards (Overview)
+  or 3 cards (lists). The drawer docks without dimming at ≥ 1536 with the
+  work area contracted.
+- 768: stacked panels; tables scroll inside their labelled regions.
+- 430 / 412 / 390 / 375:
+  - KPI cards 2-up (tiles hidden below sm, as Facilities);
+  - filters wrap;
+  - the drawer is a full-height sheet;
+  - section tabs scroll;
+  - no page overflow (asserted at 375 and 412 on all four surfaces; the
+    final-sweep covers 375 / 412 / 768 / 1024 / 1280).
+- Visual QA compared 1280 / 412 / 375 captures with Agency Overview,
+  Facilities, agency Timesheets, the Facility record and the drawer family.
+  Temporary captures stayed in the scratchpad.
+
+
+10. ACCESSIBILITY RESULTS
+-------------------------
+- One h1 per page.
+- Regions keep their existing accessible names:
+  - Facility summary; Upcoming requests;
+  - Filter requests and Filter entries (labelled form controls);
+  - Staffing requests table; Facility timesheet entries;
+  - Who is coming; Attendance for this request;
+  - Today and upcoming; Awaiting sign-off.
+- Drawers:
+  - labelled dialogs with ARIA tabs;
+  - "Close details" focused on open;
+  - Escape closes and focus returns (asserted).
+- Statuses are text chips with glyphs, never colour-only.
+- Controls are 44 px on phones; the major CTAs are 48 px.
+- axe (wcag2a / 2aa / 22aa) is clean on every facility surface, desktop
+  and mobile.
+
+
+11. SECURITY / PRODUCT-TRUTH CONFIRMATION
+-----------------------------------------
+- Unchanged: capability gates, secure 404, tenant isolation, RLS,
+  staffing-request logic, sign-off logic, AAL2, assignment logic and
+  facility data visibility.
+- Every value shown comes from the same facility projections already
+  loaded before. No new reads, no service role, no client-only gating.
+- Facility users still 404 on agency-only routes (existing test, passing).
+- No supabase/, migration, src/lib/auth, proxy or middleware file is in the
+  diff.
+
+
+12. TESTS
+---------
+tests/e2e/facility-surfaces.spec.ts adds a new test, "P0-E8-QA-F1: the
+facility workspace is on the locked visual system" (desktop and mobile).
+It asserts:
+- locked h1 (700, 31.5 px from sm, inside `.chelth-locked`) on Overview,
+  list, record and sign-off;
+- Overview KPI and panel regions; the locked step-up note with the
+  unchanged verify href;
+- the "Sign-off" sidebar label is not truncated;
+- filter controls ≥ 44 px; the canonical "New request" CTA;
+- the Request Details profile drawer: Overview / Staffing tabs, "Open
+  request", no leaks, 387 px desktop / full-width phone, Escape and focus
+  return;
+- the table scrolls inside its region on phones;
+- record SectionTabs (Details, Who is coming) with hidden scrollbar
+  chrome;
+- sign-off panel and empty state;
+- no page overflow at 375 / 412; axe clean.
+
+Updated selectors (labels and titles only):
+- facility-surfaces: Title Case KPI names; dialog "Request Details";
+  nav "Sign-off";
+- timesheets.spec: the facility drawer is "Timesheet Details";
+- workspace-shell: the facility nav lists "Sign-off";
+- tests/unit/lib/workspace-navigation.test.ts: "Sign-off".
+
+No screenshot or pixel-diff assertions.
+
+
+13. VALIDATION RESULTS
+----------------------
+- npm run format:check: pass
+- npm run lint: pass (0 warnings)
+- npm run typecheck: pass
+- npm test: 347 passed
+- npm run build: pass
+- npm run check:bundle: OK (69 browser files, no secrets)
+- npx playwright test (full suite): 251 passed, 12 skipped, 2 failed
+  (20.0 min, about twice the usual duration under local load). Both
+  failures were environmental and outside the facility surfaces:
+  - identity.spec "MFA step-up → invite → invitee signs up…" (desktop):
+    createAgency did not reach the Operations Overview heading within 5 s.
+  - settings.spec "agency admin: consolidated Settings…" (desktop): failed
+    in setup with Supabase AuthRetryableFetchError ("Unexpected failure")
+    during the fixture's MFA challenge-and-verify, before any page loaded.
+  - Re-run of identity.spec plus settings.spec: 31 passed, 3 skipped
+    (desktop-only), 0 failed.
+- Focused facility run (facility-surfaces, timesheets, shifts-assignments,
+  attendance, pricing, workspace-shell, final-sweep,
+  assignment-operations): 99 passed, 1 skipped.
+
+
+14. FILES CHANGED (this phase)
+------------------------------
+- src/app/app/organisations/[organisationId]/(workspace)/page.tsx
+  (facility branch: locked scope, header, note, relationships list)
+- .../(workspace)/_components/facility-operations-overview.tsx
+- .../(workspace)/_components/facility-step-up-notice.tsx (new)
+- .../(workspace)/staffing-requests/page.tsx
+- .../(workspace)/staffing-requests/_components/request-details-panel.tsx
+  (new)
+- .../(workspace)/staffing-requests/[shiftId]/page.tsx
+- .../(workspace)/timesheets/page.tsx (facility branch only)
+- .../(workspace)/timesheets/_components/facility-entry-details-panel.tsx
+  (new)
+- src/features/organisations/workspace-navigation.ts (label string only)
+- tests/e2e/facility-surfaces.spec.ts
+- tests/e2e/timesheets.spec.ts
+- tests/e2e/workspace-shell.spec.ts
+- tests/unit/lib/workspace-navigation.test.ts
+- this report
+
+
+15. KNOWN GAPS
+--------------
+- The "Request staff" form (FacilityRequestForm) and the sign-off decision
+  forms keep their existing feature-form controls inside the locked
+  panels. This matches the Facilities "Add facility" form and Settings.
+  The forms were not restyled.
+- The list's "Older requests" pagination keeps the shared
+  DataTablePagination control.
+- The shared StepUpNotice (agency pages and Finance) still uses the flat
+  amber treatment. The facility pages use the locked note. Aligning the
+  shared component is a QA-F3 / shared-primitive decision.
+- The populated facility sign-off table was verified by tests
+  (timesheets.spec sign-off flow, pricing.spec) rather than a reviewed
+  capture. The captured runs had no pending entries for the facility
+  admin.
+
+STATUS: FACILITY WORKSPACE VISUAL LOCK PASS COMPLETE. AWAITING HUMAN REVIEW. NOT COMMITTED.

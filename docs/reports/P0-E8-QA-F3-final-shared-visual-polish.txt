@@ -1,0 +1,444 @@
+P0-E8-QA-F3 — FINAL SHARED VISUAL POLISH PASS
+=============================================
+CHELTH — Healthcare Workforce Operations
+
+Branch: p0-e8-visual-implementation (uncommitted)
+Scope:  the remaining shared P2 items from
+        P0-E8-QA1-final-visual-consistency-audit.txt, plus the shared
+        items deferred by QA-F1 (StepUpNotice) and QA-F2 (ReadinessPanel
+        dates, shared small-action height).
+Mode:   targeted presentation fixes only.
+        - No locked page was redesigned.
+        - No behaviour, query, capability or backend change.
+        - Nothing was committed or pushed.
+        - QA captures were kept in the session scratchpad only.
+
+Read first:
+- the QA1 audit, the QA-F1 and QA-F2 reports;
+- CHELTH-LOCKED-VISUAL-SYSTEM.md and CLAUDE-CHELTH-BRAND-RULES.md;
+- every consumer of the shared components touched below.
+
+
+1. FINDINGS ADDRESSED
+---------------------
+P2-1   Row-action glyph                   fixed (section 2)
+P2-2   Mobile small-action height         fixed (section 3)
+P2-3   Mobile filter-control height       fixed (section 4)
+P2-4   Recalculate ghost CTA              fixed (section 5)
+P2-6   1280 table overflow                fixed where safe; the rest is
+                                          documented (section 6)
+P2-7   Attendance evidence page           locked (section 7)
+P2-8   Sign-up success heading            fixed (section 8)
+P2-10  Chelth_Hero.zip                    ignored; nothing missing
+                                          (section 16)
+QA-F2  ReadinessPanel ISO dates           fixed, plus two sibling raw-date
+                                          renders (section 9)
+QA-F1  Shared StepUpNotice                aligned to the locked note
+                                          (section 10)
+P3-3   My Shifts metadata casing          fixed; the other P3 items are
+                                          deferred (section 11)
+P2-5   (facility label) and P2-9 (worker casing) were closed by QA-F1 and
+       QA-F2.
+
+
+2. GLYPH CHANGES
+----------------
+The canonical "⋮" replaces the interim "⋯" on every remaining row action:
+Attendance, agency Timesheets, Rates, Payroll and Invoices.
+
+- The trigger class moves from text-lg to text-xl, matching the canonical
+  definition (`text-xl font-bold text-chelth-navy`, unboxed, 44 px touch /
+  36 px from sm).
+- Unchanged: accessible names ("Details for …", "Rate details for …",
+  "Payroll batch details for …", "Invoice details for …"), drawer
+  behaviour and selected-row logic.
+- No "⋯" remains in src/ (unit-guarded).
+
+The locked visual doc's row-action note now records that every locked
+table uses "⋮".
+
+
+3. MOBILE ACTION-HEIGHT CHANGE
+------------------------------
+The shared primitive is `buttonSizes.sm` in src/components/ui/button.tsx.
+
+  sm: "h-9 px-3 text-sm"  →  "h-11 px-3 text-sm sm:h-9"
+
+- Every small action is 44 px below sm and keeps the compact 36 px from
+  sm. Desktop is unchanged, and so is the CTA hierarchy (variants are
+  untouched).
+- This covers InlineActionForm, SubmitButton size="sm" and Button
+  size="sm". That includes Mark completed, Re-check readiness, Remove
+  <worker>, Set inactive / suspended / terminated, Mark reviewed, Cancel
+  batch, Void draft, Assign, Suspend, Remove, Save payroll settings,
+  Require a second approver, Recalculate from attendance, Stop sharing and
+  Open document.
+- The Settings → Team role select (assign-role-form) was a hand-sized
+  `h-9`; it is now `h-11 sm:h-9`.
+- The QA-F2 page-local override on the worker credential record is now
+  redundant and was removed. The record still measures ≥44 px (the QA-F2
+  e2e assertion passes on the shared rule).
+
+
+4. MOBILE FILTER-HEIGHT CHANGE
+------------------------------
+Cause: the locked filter wrappers were `h-11` (44 px outer, border-box), so
+the select / input inside measured 42 px.
+
+Fix: every locked filter wrapper is `h-[46px]` at all widths, so the inner
+control is 44 px. Desktop is unchanged, because it was already
+`sm:h-[46px]`. The changed wrappers:
+
+- LockedFilterSelect (finance-locked: Rates, Pricing, Payroll, Invoices,
+  facility Staffing requests, facility Sign-off);
+- the filter selects and search on agency Timesheets, Workforce,
+  Compliance and Facilities;
+- the Shifts toolbar.
+
+Inputs inside these wrappers:
+- The text and date inputs (search on Timesheets, Workforce, Compliance
+  and Facilities; the period / date inputs on Timesheets, Shifts and the
+  Attendance window) were only about 24 px tall. Taps on the wrapper
+  padding missed them.
+- They now carry `h-full`, so the whole 44 px area is the target. They are
+  visually identical (transparent inputs).
+
+The Attendance window control (date range) is 46 px on phones and keeps
+its 44 px desktop height.
+
+Query and filter logic are untouched. The legacy FilterBar (worker record
+only; not a locked filter row) is unchanged.
+
+
+5. RECALCULATE CTA CHANGE
+-------------------------
+Timesheet record → Approval: "Recalculate from attendance" moves from
+variant="ghost" (it looked like plain text) to variant="outline". In
+`.chelth-locked` that is the canonical secondary:
+- rgba(0,90,96,0.35) border;
+- semibold navy label;
+- 44 px on phones, 36 px from sm.
+
+Unchanged: the gate (canApprove && !approved), rebuildTimesheetAction, the
+fields and the error state.
+
+
+6. TABLE OVERFLOW RESULTS
+-------------------------
+Method:
+- A temporary, env-gated hook in the e2e capture helper measured every
+  overflow-x region at 1280 and 1512 on every page the desktop suite
+  captures. That covered the Finance, Timesheets, Workforce, Facilities,
+  Overview, Attendance, records and worker pages with real data.
+- The hook was removed afterwards; support.ts keeps only the two
+  QA-capture lines in section 15.
+
+Before → after at 1280 (px of horizontal overflow):
+
+  Workers table             25 → 0  min-w 1040 → 1008 (table-fixed;
+                                    columns about 3% narrower)
+  Client facilities table   25 → 0  min-w 1040 → 1008 (same)
+  Staffing requests (Over-  20 → 0  min-w 40rem → 38.5rem. This only
+  view panel)                       applies below the panel's previous
+                                    minimum.
+  Priced lines              67 → 0  min-w 1040 → 960. The money columns
+                                    keep their natural width.
+  Agency timesheets,         0      already 0 in the current tree. The
+  Rate cards, Payroll               QA1 values of 6–7 px were not
+  batches, Invoice drafts,          reproduced, so no change was needed.
+  facility Staffing
+  requests
+
+Left scrollable, by design:
+- Scheduled workers table (Attendance): 203 px at 1280, 54 px at 1512.
+  The table genuinely needs about 820 px inside a 620–770 px region (it
+  shares the row with the attendance side column). The scrolling is real
+  and needed, so the scrollbar stays.
+- Timesheet entries: 320 px. Measured on the WORKER timesheet record,
+  where the entries table sits in the ≤576 px worker column. Its
+  per-shift columns (scheduled, worked from–to, breaks, worked,
+  sign-off) need the width, so scrolling inside the labelled region is
+  correct. The agency timesheet record has no overflow at 1280 / 1512.
+- Today's schedule table (Overview): 9 px. The table's min-width (36rem)
+  already fits; the overflow is intrinsic cell content on the canonical
+  Overview (B). It was not touched, to avoid disturbing the locked
+  Overview; this is a candidate for the verification audit.
+
+At 1024 / 768, scrolling inside labelled regions remains (intended). No
+scrollbar was hidden anywhere, and no page-level overflow exists at any
+width (suite assertion).
+
+
+7. ATTENDANCE EVIDENCE CHANGES
+-----------------------------
+/attendance/[id]/evidence is now on the locked record family:
+- RecordPage (`.chelth-locked`, 20 px rhythm) and PageHeader
+  variant="reference" (h1 31.5 / 700);
+- the "Attendance record" back link;
+- the worker · facility · date subtitle.
+
+Content:
+- "Legal hold active" is a RefChip.
+- The evidence disclaimer is the locked info note. It keeps role="note"
+  and the same wording (title plus explanation).
+- The evidence table sits in a Panel "Clock-action evidence". It keeps
+  aria-label "Location evidence table" and the locked DataTable treatment
+  (as on the Attendance record).
+- The empty state is LockedEmpty.
+- Retention and legal hold:
+  - Panel (h2 20 / 600) and RecordNote;
+  - the holds list is a RecordList with RefChips (Active / Released
+    hold);
+  - the place / release forms are unchanged.
+- The step-up branch is RecordPage plus the reference header plus the
+  shared StepUpNotice.
+
+Preserved:
+- the attendance.location.view gate at AAL2 (the requireCapability
+  check, the 404 for facilities, the step-up branch);
+- the database audit of each view;
+- the same evidence data.
+
+Coordinates are still shown only on this AAL2-gated page, exactly as
+before; no new location data is exposed.
+
+
+8. AUTH SUCCESS CHANGE
+----------------------
+Sign-up "Check your email":
+- the legacy `text-lg font-semibold` h2 becomes the locked section heading
+  (Manrope 20 / 600, −0.02em, heading ink);
+- the body matches the AuthPanel supporting text (14.5 / 22, slate-600).
+
+The h1 stays the AuthPanel's. Unchanged: sign-up behaviour, the email
+flow, redirects, role="status" and the copy.
+
+
+9. READINESSPANEL DATE CHANGE
+-----------------------------
+The shared ReadinessPanel (agency Worker record; facility checks there)
+now prints "expires Nov 11, 2027" / "— valid to Nov 11, 2027" through the
+shared formatCalendarDate. That formatter takes a calendar date in UTC, so
+the day never shifts. Nothing else in the panel changed.
+
+Two sibling raw-ISO renders of the same engine field were found and fixed
+the same way:
+- the agency Worker record's credential list ("expires …");
+- the facility Overview's shared-worker credential lines ("valid to …").
+
+Readiness logic, stored dates and timezone semantics are unchanged.
+
+
+10. STEPUPNOTICE DECISION
+-------------------------
+Aligned (shared presentation only).
+
+- LockedNotice (the locked status note used by Finance, the facility
+  pages and Timesheet Details) moved, unchanged, from the Finance route
+  folder to src/components/reference/locked-notice.tsx.
+  - finance-locked.tsx re-exports it, so every existing import still
+    works.
+  - Feature code can now use it without importing from a route folder.
+- StepUpNotice renders `<div role="note">` with LockedNotice tone
+  "warning". The same text (default or children) and the same "Verify
+  now" link go to stepUpHref(returnTo): the unchanged
+  /app/security/verify?next=… safe route.
+- FacilityStepUpNotice (QA-F1) produced identical markup. It now delegates
+  to StepUpNotice, so there is one notice component.
+
+Consumers verified (suite plus captures): Overview, Attendance record and
+evidence, Timesheets, Settings (Attendance, Security, Team, Payroll),
+Rates, Payroll, Invoices and their records and adjustments, Workforce and
+the Worker record, Compliance and the Credential record, Facilities and
+the Facility record, and the facility workspace.
+
+Every test using the "note" role or "Verify now" passes (identity,
+settings, financial, pricing, overview-fidelity, facility-surfaces,
+local-date-requirements, workspace-shell, timesheets). AAL2 behaviour is
+untouched.
+
+
+11. OPTIONAL P3 DECISIONS
+-------------------------
+- P3-3, part: My Shifts' browser-tab metadata title "My shifts" becomes
+  "My Shifts" (metadata only; no visual change).
+- Deferred, to avoid a locked-visual regression:
+  - P3-3, part: the My Shifts 19 px section headings. They are part of the
+    approved W1 lock; a 1 px change belongs with a W1 review.
+  - P3-1: the logo preload warning. Removing `priority` could change
+    mobile LCP; this needs a dedicated check.
+  - P3-2: the gateway h2 sizes (intentional secondary emphasis).
+  - P3-4: the 16 px row checkboxes and the 40 px List / Calendar toggle
+    (the locked Shifts / Attendance / Compliance tables).
+  - P3-6: the Workforce chip spacing at 1706.
+- Not addressed, as instructed: P3-8 (maker-checker Approve visibility
+  needs data-layer support).
+
+
+12. RESPONSIVE RESULTS
+----------------------
+Validated by the full suite (both projects) across the existing width
+sweeps: 375 / 390 / 412 / 430 / 768 / 1024 / 1280 / 1512, and to 3440 for
+the shell width tests. Results:
+- no page-level overflow anywhere;
+- phone action targets ≥44 px:
+  - the Timesheet record's Recalculate at 375 (44), and 36 at 1280;
+  - the worker credential record actions;
+  - the worker CTAs;
+- phone filter controls ≥44 px (agency Timesheets filter form at 375,
+  every select and input);
+- the evidence page at 1280 and 375 (axe and no overflow);
+- the sign-up success at every width the auth sweep covers.
+
+Scratchpad captures reviewed:
+- the StepUpNotice on Settings → Team at 1512;
+- the evidence page at 1280 / 412 / 375;
+- the sign-up success at 412 / 1280.
+Each is on the locked palette with correct hierarchy and no clipping.
+
+
+13. ACCESSIBILITY
+-----------------
+- axe (wcag2a / 2aa / 22aa) is clean wherever the suite checks, including
+  the new evidence (1280 / 375), Recalculate (375) and filter-form (375)
+  assertions.
+- One h1 per page; evidence page h1 › h2 panels.
+- All action names are preserved: row-action labels, "Recalculate from
+  attendance", "Verify now", "Open document n of version n" and the hold
+  forms.
+- Table regions keep their labels ("Location evidence table" and the
+  others).
+- Status is text plus glyph (RefChip / locked StatusChip). The notice
+  glyphs are aria-hidden.
+- The focus ring is unchanged: the global :focus-visible ring and
+  focus-within outlines on the filter wrappers. Nothing is clipped.
+
+
+14. SECURITY / PRODUCT-TRUTH CONFIRMATION
+-----------------------------------------
+Unchanged:
+- RLS, RPCs, migrations, capabilities, tenant isolation, secure 404;
+- AAL2 step-up (route and safe next), maker-checker, invite privacy,
+  password recovery;
+- middleware, proxy, src/lib/auth.
+
+- No service role; no client-only authorization.
+- `git status` shows no supabase/, migration, src/lib/auth, authz, proxy
+  or middleware path.
+- No Paid / Sent / Overdue / payment / accounting sync / worker pay /
+  timer / maps / messaging / availability / inbox / search / Reports
+  vocabulary was introduced (the suite's expectNoPaymentVocabulary checks
+  pass).
+- Coordinates remain only on the AAL2-gated evidence page, as before.
+
+
+15. VALIDATION RESULTS
+----------------------
+- npm run format:check: pass
+- npm run lint: pass (0 warnings)
+- npm run typecheck: pass
+- npm test: 355 passed (30 files; includes 8 new QA-F3 guards)
+- npm run build: pass
+- npm run check:bundle: OK (69 browser files, no secrets)
+- npx playwright test: 262 passed, 12 skipped, 0 failed (7.6 min). The
+  skips are existing desktop-only tests on the mobile project.
+  - One "[WebServer] destination stream closed early" log line is the
+    known aborted-RSC-prefetch noise (QA1 section 16).
+
+During development, the first desktop run caught one real gap: the
+Timesheets period input was 24 px. It was fixed (h-full) and re-verified.
+
+New and updated tests:
+- tests/unit/components/shared-visual-polish.test.tsx (new):
+  - no "⋯" in src;
+  - buttonSizes.sm is 44 px below sm and 36 px from sm;
+  - no h-11 locked filter wrapper remains;
+  - Recalculate is variant="outline";
+  - the evidence page uses RecordPage + reference + no legacy StatusChip;
+  - the sign-up success heading scale;
+  - ReadinessPanel renders "Nov 11, 2027" / "Jan 5, 2028" and no ISO;
+  - StepUpNotice: same text and href, locked anatomy.
+- tests/e2e/timesheets.spec.ts:
+  - Flow 2: Recalculate outlined (1 px border, 600), ≥44 px at 375 and
+    36 px at 1280; filter controls ≥44 px at 375; axe.
+  - Flow 6: the evidence page `.chelth-locked`, h1 700, h2 20 px; axe at
+    1280 and 375; captures.
+- tests/e2e/support.ts: the signUp helper asserts the success heading is
+  20 / 600 and takes an env-gated capture.
+
+
+16. GIT HYGIENE
+---------------
+- Chelth_Hero.zip (21.7 MB, with __MACOSX):
+  - all 8 non-resource-fork files inside it are already tracked,
+    byte-identical, under docs/ui-reference/p08-e8/canonical/Chelth_Hero/
+    (compared file by file);
+  - nothing is missing, so nothing was extracted or committed.
+- A narrowly scoped .gitignore rule ignores only that file path. It no
+  longer appears in `git status`, and __MACOSX was never added.
+- No QA screenshots in the tree. test-results/ and .next/ are ignored.
+- The temporary measurement hook was reverted. The scratch extraction was
+  deleted.
+- No database or migration changes.
+- No `git add` of any kind was run.
+
+
+17. FILES CHANGED (this pass)
+-----------------------------
+Shared primitives:
+- src/components/ui/button.tsx (sm size)
+- src/components/reference/locked-notice.tsx (new; LockedNotice moved
+  unchanged)
+- src/features/organisations/components/step-up-notice.tsx
+- src/features/organisations/components/assign-role-form.tsx (role select)
+- src/features/compliance/components/readiness-panel.tsx (dates)
+- src/features/identity/components/sign-up-form.tsx (success heading)
+
+Under src/app/app/organisations/[organisationId]/:
+- (workspace)/(finance)/_components/finance-locked.tsx (LockedNotice
+  re-export; filter height)
+- (workspace)/_components/facility-step-up-notice.tsx (delegates)
+- (workspace)/_components/agency-operations-overview.tsx (min-w)
+- (workspace)/attendance/page.tsx (glyph; window control)
+- (workspace)/attendance/[attendanceId]/evidence/page.tsx (locked record)
+- (workspace)/timesheets/_components/agency-timesheets.tsx (glyph;
+  filters; inputs)
+- (workspace)/timesheets/[timesheetId]/page.tsx (Recalculate)
+- (workspace)/(finance)/rates/page.tsx, payroll/page.tsx,
+  invoices/page.tsx (glyph)
+- (workspace)/(finance)/pricing/[pricedTimesheetId]/page.tsx (min-w)
+- (workspace)/workforce/page.tsx, facilities/page.tsx (filters, search,
+  min-w)
+- (workspace)/compliance/page.tsx (filters, search)
+- (workspace)/shifts/page.tsx (toolbar, date input)
+- (workspace)/page.tsx (facility Overview date)
+- (workspace)/workforce/[workerId]/page.tsx (credential date)
+- (self-service)/my-shifts/page.tsx (metadata title)
+- (self-service)/my-credentials/[credentialId]/page.tsx (page-local
+  override removed)
+
+Docs, config and tests:
+- docs/ui-reference/CHELTH-LOCKED-VISUAL-SYSTEM.md (row-action note)
+- .gitignore (Chelth_Hero.zip)
+- tests/unit/components/shared-visual-polish.test.tsx (new)
+- tests/e2e/timesheets.spec.ts
+- tests/e2e/support.ts
+- this report
+
+
+18. INTENTIONALLY DEFERRED
+--------------------------
+- Overview "Today's schedule" 9 px intrinsic overflow at 1280 (canonical
+  Overview; not touched).
+- The Attendance "Scheduled workers" and worker "Timesheet entries"
+  regions scroll by design (real content width; sections 6 and 12).
+- The legacy FilterBar on the agency Worker record: not a locked filter
+  row. Its date filter is already 44 px on phones.
+- P3-1, P3-2, P3-3 (19 px headings), P3-4 and P3-6 (section 11).
+- P3-8 maker-checker Approve visibility (data layer).
+- P3-7 supabase-js getSession warning (pre-E8 security backlog).
+- Classic-scrollbar platforms (Windows, macOS with a mouse) were not
+  checked on a real device. The fixed regions now have zero overflow at
+  1280, so they draw no bar; the intended-scroll regions will.
+
+STATUS: FINAL SHARED VISUAL POLISH COMPLETE. AWAITING VERIFICATION AUDIT. NOT COMMITTED.

@@ -230,6 +230,75 @@ test.describe.serial("worker mobile experience", () => {
     await page.context().close();
   });
 
+  test("W1: after clock-out the attendance hands off to the worker's own timesheet (P0-E8-W1)", async ({
+    browser,
+  }) => {
+    // Wes clocked in and out in the attendance test above (serial suite).
+    const page = await signedIn(browser, world.extra.wes?.email ?? "");
+    await page.goto(`/app/organisations/${world.agencyId}/my-shifts`);
+    const card = page.getByRole("list", { name: "My attendance" }).getByRole("listitem").first();
+    await expect(card).toContainText("Attendance captured");
+    await expect(card).toContainText("Clocked out");
+    // Worker-friendly outcome only: no coordinates, no pay values.
+    await expect(page.getByRole("main")).not.toContainText(/latitude|longitude|\$\d/i);
+    await expectNoA11yViolations(page);
+    await qaScreenshot(page, "w1-handoff");
+    await card.getByRole("link", { name: "View timesheet" }).click();
+    await expect(page).toHaveURL(/\/timesheets\/[0-9a-f-]{36}$/);
+    await expect(page.getByRole("heading", { level: 1, name: "My timesheet" })).toBeVisible();
+    await expect(
+      page.getByRole("navigation", { name: "Worker" }).getByRole("link", { name: "Timesheets" }),
+    ).toHaveAttribute("aria-current", "page");
+    await page.context().close();
+  });
+
+  test("W1: My Shifts at phone widths — one column, bottom navigation, no overflow (P0-E8-W1)", async ({
+    browser,
+  }) => {
+    const page = await signedIn(browser, world.wendy.email);
+    for (const width of [375, 390, 412, 430, 768]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`/app/organisations/${world.agencyId}/my-shifts`);
+      await expect(page.getByRole("heading", { level: 1, name: "My Shifts" })).toBeVisible();
+      const nav = page.getByRole("navigation", { name: "Worker" });
+      await expect(nav.getByRole("link", { name: "Shifts" })).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+      // Every bottom-navigation target is at least 44 px.
+      for (const box of await nav
+        .locator("a, button")
+        .evaluateAll((items) => items.map((item) => item.getBoundingClientRect().height))) {
+        expect(box).toBeGreaterThanOrEqual(44);
+      }
+      const details = page
+        .getByRole("list", { name: "My assignments" })
+        .getByRole("button", { name: /^Shift details: Mercy Rehab/ })
+        .first();
+      expect((await details.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+      await expectNoPageOverflow(page);
+      if (width === 375 || width === 412) await expectNoA11yViolations(page);
+      await qaScreenshot(page, "w1-my-shifts");
+    }
+    await page.context().close();
+  });
+
+  test("W1: staff and facility users never get the worker navigation (P0-E8-W1)", async ({
+    browser,
+  }) => {
+    for (const who of [world.scheduler, world.facilityAdmin]) {
+      const page = await signedIn(browser, who.email);
+      const own = who === world.facilityAdmin ? world.facilityOrgId : world.agencyId;
+      await page.goto(`/app/organisations/${own}`);
+      await expect(page.getByRole("navigation", { name: "Worker" })).toHaveCount(0);
+      expect((await page.goto(`/app/organisations/${world.agencyId}/my-shifts`))?.status()).toBe(
+        404,
+      );
+      await expect(page.getByRole("navigation", { name: "Worker" })).toHaveCount(0);
+      await page.context().close();
+    }
+  });
+
   test("timesheets and credentials stay worker-scoped; no finance or agency surfaces", async ({
     browser,
   }) => {
@@ -269,6 +338,153 @@ test.describe.serial("worker mobile experience", () => {
       expect((await page.goto(`${base}/${path}`))?.status(), path).toBe(404);
     }
     await page.context().close();
+  });
+
+  test("QA-F2: worker Timesheets on the locked worker system (P0-E8-QA-F2)", async ({
+    browser,
+  }) => {
+    // Wes has a real week from the attendance test above (serial suite).
+    const page = await signedIn(browser, world.extra.wes?.email ?? "");
+    const base = `/app/organisations/${world.agencyId}`;
+    const nav = page.getByRole("navigation", { name: "Worker" });
+    for (const width of [375, 390, 412, 430, 768, 1280]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`${base}/timesheets`);
+      const heading = page.getByRole("heading", { level: 1, name: "Timesheets" });
+      await expect(heading).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+      await expect(page.getByRole("main").locator(".chelth-locked")).toHaveCount(1);
+      await expect(heading).toHaveCSS("font-weight", "700");
+      if (width >= 640) await expect(heading).toHaveCSS("font-size", "31.5px");
+      await expect(nav.getByRole("link", { name: "Timesheets" })).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+      // Worker self-service: no agency back-link in the header.
+      await expect(
+        page.getByRole("main").locator("header").getByRole("link", { name: world.agencyName }),
+      ).toHaveCount(0);
+      const week = page.getByRole("list", { name: "My timesheets" }).getByRole("listitem").first();
+      await expect(week).toContainText("Weekly timesheet");
+      await expect(week).toContainText(/worked · \d+ shifts?/);
+      await expect(week).toContainText(/Open|Submitted|Returned|Approved|Locked/);
+      // Worked time only: never pay, bill or payroll values.
+      await expect(page.getByRole("main")).not.toContainText(/\$|£|€|pay rate|bill rate|payroll/i);
+      const open = week.getByRole("link", { name: /^(View timesheet|Review and submit), week / });
+      expect((await open.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+      await expectNoPageOverflow(page);
+      if (width === 375 || width === 1280) await expectNoA11yViolations(page);
+      await qaScreenshot(page, "qaf2-worker-timesheets");
+    }
+    await page.context().close();
+  });
+
+  test("QA-F2: My Credentials and its record on the locked worker system (P0-E8-QA-F2)", async ({
+    browser,
+  }) => {
+    const page = await signedIn(browser, world.extra.wes?.email ?? "");
+    const base = `/app/organisations/${world.agencyId}`;
+    const nav = page.getByRole("navigation", { name: "Worker" });
+    const iso = /\b\d{4}-\d{2}-\d{2}\b/;
+    const readable = /[A-Z][a-z]{2} \d{1,2}, \d{4}/;
+    for (const width of [375, 390, 412, 430, 768, 1280]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`${base}/my-credentials`);
+      const heading = page.getByRole("heading", { level: 1 });
+      await expect(heading).toHaveText("My Credentials");
+      await expect(heading).toHaveCSS("font-weight", "700");
+      if (width >= 640) await expect(heading).toHaveCSS("font-size", "31.5px");
+      await expect(page.getByRole("main").locator(".chelth-locked")).toHaveCount(1);
+      await expect(nav.getByRole("link", { name: "Credentials" })).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+      // Readiness: the engine's result in the locked worker card, readable dates.
+      const readiness = page.getByRole("region", { name: `Readiness at ${world.agencyName}` });
+      await expect(readiness.getByRole("heading", { level: 2 })).toHaveCSS("font-size", "20px");
+      await expect(readiness).toContainText(/Ready|Action required|Not eligible/);
+      await expect(readiness).toContainText(readable);
+      await expect(page.getByRole("main")).not.toContainText(iso);
+      await expect(page.getByRole("main")).not.toContainText("✓");
+      // Canonical chips (glyph chips), not legacy dot chips.
+      const cards = page.getByRole("list", { name: "My credentials" });
+      const shared = cards.getByText(`Shared with ${world.agencyName}`).first();
+      await expect(shared.locator("svg")).toHaveCount(1);
+      await expect(cards).toContainText(/Expires [A-Z][a-z]{2} \d{1,2}, \d{4}/);
+      const add = page.getByRole("link", { name: "Add a credential" });
+      await expect(add).toHaveAttribute("href", "#add-credential-heading");
+      expect((await add.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+      await expect(page.getByRole("heading", { name: "Add a credential", level: 2 })).toBeVisible();
+      await expectNoPageOverflow(page);
+      if (width === 375 || width === 1280) await expectNoA11yViolations(page);
+      await qaScreenshot(page, "qaf2-my-credentials");
+    }
+
+    // The record: locked hierarchy, readable dates, worker-visible data only.
+    await page.setViewportSize({ width: 375, height: 900 });
+    await page.goto(`${base}/my-credentials`);
+    await page
+      .getByRole("list", { name: "My credentials" })
+      .getByRole("link", { name: /Basic Life Support/ })
+      .click();
+    await expect(page).toHaveURL(/\/my-credentials\/[0-9a-f-]{36}$/);
+    const title = page.getByRole("heading", { level: 1 });
+    await expect(title).toContainText("Basic Life Support");
+    await expect(title).toHaveCSS("font-weight", "700");
+    await expect(
+      page.getByRole("main").getByRole("link", { name: "My Credentials" }),
+    ).toBeVisible();
+    await expect(nav.getByRole("link", { name: "Credentials" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    for (const name of [
+      `Sharing with ${world.agencyName}`,
+      "Versions",
+      "Verification by agencies",
+      "Withdraw",
+    ]) {
+      await expect(page.getByRole("heading", { level: 2, name })).toHaveCSS("font-size", "20px");
+    }
+    await expect(page.getByRole("list", { name: "Credential versions" })).toContainText(
+      /Expires [A-Z][a-z]{2} \d{1,2}, \d{4}/,
+    );
+    await expect(page.getByRole("main")).not.toContainText(iso);
+    await expect(page.getByRole("list", { name: "Agency verification" })).toContainText(
+      world.agencyName,
+    );
+    // Existing actions are preserved and touch-sized on phones.
+    for (const name of ["Stop sharing", "Withdraw credential"]) {
+      const button = page.getByRole("button", { name });
+      await expect(button).toBeVisible();
+      expect((await button.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+    }
+    for (const button of await page.getByRole("button", { name: /^Open document / }).all()) {
+      expect((await button.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+    }
+    // No agency-side review controls or internal compliance data.
+    await expect(page.getByRole("button", { name: "Record decision" })).toHaveCount(0);
+    await expect(page.getByRole("main")).not.toContainText(/reviewer|internal|storage|bucket/i);
+    await expectNoPageOverflow(page);
+    await expectNoA11yViolations(page);
+    await qaScreenshot(page, "qaf2-my-credential-record");
+    const recordPath = new URL(page.url()).pathname;
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(recordPath);
+    await expectNoPageOverflow(page);
+    await expectNoA11yViolations(page);
+    await page.context().close();
+
+    // Role isolation: staff and facility users never get the worker's self-service data.
+    for (const who of [world.scheduler, world.facilityAdmin]) {
+      const other = await signedIn(browser, who.email);
+      expect((await other.goto(`${base}/my-credentials`))?.status()).toBe(404);
+      expect((await other.goto(recordPath))?.status()).toBe(404);
+      await other.goto(`${base}/timesheets`);
+      await expect(other.getByRole("list", { name: "My timesheets" })).toHaveCount(0);
+      await expect(other.getByRole("navigation", { name: "Worker" })).toHaveCount(0);
+      await other.context().close();
+    }
   });
 
   test("responsive: a centred self-service column at 375 / 768 / desktop, never the sidebar", async ({

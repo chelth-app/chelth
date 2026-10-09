@@ -300,6 +300,27 @@ test.describe.serial("timesheets & attendance review", () => {
     await expect(history).toContainText("Clock-out");
     await expectNoA11yViolations(admin);
     await admin.goto(`/app/organisations/${world.agencyId}/timesheets/${tiaSheet}`);
+    // P0-E8-QA-F3: Recalculate is the outlined secondary (not plain text), 44 px on
+    // phones and the compact 36 px from sm; the shared filter controls are 44 px inside.
+    const recalc = admin.getByRole("button", { name: "Recalculate from attendance" });
+    await expect(recalc).toHaveCSS("border-top-width", "1px");
+    await expect(recalc).toHaveCSS("font-weight", "600");
+    const viewport = admin.viewportSize();
+    await admin.setViewportSize({ width: 375, height: 900 });
+    expect((await recalc.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+    await expectNoA11yViolations(admin);
+    await admin.goto(`/app/organisations/${world.agencyId}/timesheets`);
+    const filters = admin.getByRole("form", { name: "Filter timesheets" });
+    for (const height of await filters
+      .locator("select, input:not([type=hidden])")
+      .evaluateAll((items) => items.map((item) => item.getBoundingClientRect().height))) {
+      expect(height).toBeGreaterThanOrEqual(44);
+    }
+    await expectNoA11yViolations(admin);
+    await admin.setViewportSize({ width: 1280, height: 900 });
+    await admin.goto(`/app/organisations/${world.agencyId}/timesheets/${tiaSheet}`);
+    expect((await recalc.boundingBox())?.height ?? 0).toBe(36);
+    if (viewport) await admin.setViewportSize(viewport);
     await admin.getByRole("button", { name: "Approve timesheet" }).click();
     await expect(admin.locator("main header")).toContainText(
       "Approved, awaiting facility",
@@ -319,7 +340,7 @@ test.describe.serial("timesheets & attendance review", () => {
     // P0-E8-S4: the entry drawer shows only the facility projection.
     const details = table.getByRole("button", { name: /^Details for Tia Timesheet/ });
     await details.click();
-    const drawer = facility.getByRole("dialog", { name: "Tia Timesheet" });
+    const drawer = facility.getByRole("dialog", { name: "Timesheet Details" });
     await expect(drawer).toContainText("Awaiting sign-off");
     await expect(drawer).not.toContainText(/\$|latitude|longitude|40\.71/i);
     await facility.keyboard.press("Escape");
@@ -458,7 +479,20 @@ test.describe.serial("timesheets & attendance review", () => {
     const table = admin.getByRole("region", { name: "Location evidence table" });
     await expect(table).toContainText("40.71280, -74.00600");
     await expect(table).toContainText("Inside site area");
+    // P0-E8-QA-F3: the evidence page is on the locked record family.
+    await expect(admin.getByRole("main").locator(".chelth-locked")).toHaveCount(1);
+    await expect(admin.getByRole("heading", { level: 1, name: "Location evidence" })).toHaveCSS(
+      "font-weight",
+      "700",
+    );
+    await expect(
+      admin.getByRole("heading", { level: 2, name: "Retention and legal hold" }),
+    ).toHaveCSS("font-size", "20px");
     await expectNoA11yViolations(admin);
+    await qaScreenshot(admin, "qaf3-attendance-evidence");
+    await admin.setViewportSize({ width: 375, height: 900 });
+    await expectNoA11yViolations(admin);
+    await qaScreenshot(admin, "qaf3-attendance-evidence");
     await admin.context().close();
 
     const facility = await signedIn(browser, world.facilityAdmin.email);

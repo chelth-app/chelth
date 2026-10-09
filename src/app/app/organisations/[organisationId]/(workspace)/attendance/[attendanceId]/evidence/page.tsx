@@ -1,9 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { Panel } from "@/components/ui/panel";
 import { notFound } from "next/navigation";
 import { z } from "zod";
+
+import { RefChip } from "@/components/reference/locked-reference";
+import {
+  RECORD_ROW,
+  RECORD_ROW_META,
+  RECORD_ROW_TITLE,
+  RecordList,
+  RecordNote,
+  RecordPage,
+} from "@/components/reference/record-page";
 
 import {
   DataTable,
@@ -13,9 +22,8 @@ import {
   DataTableRegion,
   DataTableRow,
 } from "@/components/ui/data-table";
-import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
-import { StatusChip } from "@/components/ui/status-chip";
+import { Panel } from "@/components/ui/panel";
 import {
   getAttendanceRecord,
   listAgencyAttendance,
@@ -36,6 +44,8 @@ import {
   GEOFENCE_RESULT_LABELS,
 } from "@/lib/domain/attendance";
 import { formatShiftDate } from "@/lib/domain/shifts";
+
+import { LockedEmpty, LockedNotice } from "../../../(finance)/_components/finance-locked";
 
 export const metadata: Metadata = { title: "Location evidence" };
 
@@ -62,6 +72,7 @@ function metres(value: number | null): string {
  * Raw, device-reported location evidence for ONE attendance record.
  * attendance.location.view at AAL2 only; every view is audited by the
  * database. Never shown to facilities; never a live or continuous location.
+ * Locked record family (P0-E8-QA-F3): presentation only.
  */
 export default async function LocationEvidencePage({
   params,
@@ -78,8 +89,9 @@ export default async function LocationEvidencePage({
 
   if (can(CAPABILITIES.ATTENDANCE_LOCATION_VIEW) !== "granted") {
     return (
-      <>
+      <RecordPage>
         <PageHeader
+          variant="reference"
           title="Location evidence"
           back={
             <Link href={recordPath} className="text-primary underline underline-offset-4">
@@ -90,7 +102,7 @@ export default async function LocationEvidencePage({
         <StepUpNotice returnTo={returnTo}>
           Raw location evidence requires verification with your authenticator app.
         </StepUpNotice>
-      </>
+      </RecordPage>
     );
   }
 
@@ -107,8 +119,9 @@ export default async function LocationEvidencePage({
   const retentionDays = evidence[0]?.retentionDays;
 
   return (
-    <>
+    <RecordPage>
       <PageHeader
+        variant="reference"
         title="Location evidence"
         back={
           <Link href={recordPath} className="text-primary underline underline-offset-4">
@@ -116,90 +129,100 @@ export default async function LocationEvidencePage({
           </Link>
         }
         description={
-          <p className="text-sm">
+          <p>
             {row.workerName ?? "Worker"} · {row.facilityName} · {formatShiftDate(row)}
           </p>
         }
-        meta={activeHold ? <StatusChip tone="warning">Legal hold active</StatusChip> : undefined}
+        meta={
+          activeHold ? (
+            <RefChip tone="warning" className="font-semibold">
+              Legal hold active
+            </RefChip>
+          ) : undefined
+        }
       />
 
-      <p
-        role="note"
-        className="max-w-3xl rounded-md border border-border bg-surface-muted p-3 text-sm"
-      >
-        Device-reported location, captured once at each clock action where this site checks
-        location. It is evidence for review, not proof of presence: devices can report inaccurate or
-        altered locations. Chelth never tracks workers continuously. This view is recorded in the
-        audit log.
-      </p>
+      <div role="note" className="max-w-3xl">
+        <LockedNotice
+          tone="info"
+          title="Device-reported location, captured once at each clock action where this site checks location."
+        >
+          It is evidence for review, not proof of presence: devices can report inaccurate or altered
+          locations. Chelth never tracks workers continuously. This view is recorded in the audit
+          log.
+        </LockedNotice>
+      </div>
 
-      {evidence.length === 0 ? (
-        <EmptyState
-          title="No location evidence"
-          description="This site did not check location for this record."
-        />
-      ) : (
-        <DataTableRegion aria-label="Location evidence table">
-          <DataTable className="min-w-[860px]">
-            <DataTableHead>
-              <tr>
-                <DataTableHeaderCell>Clock action</DataTableHeaderCell>
-                <DataTableHeaderCell>Result</DataTableHeaderCell>
-                <DataTableHeaderCell>Recorded (server)</DataTableHeaderCell>
-                <DataTableHeaderCell>Captured (device)</DataTableHeaderCell>
-                <DataTableHeaderCell numeric>Accuracy</DataTableHeaderCell>
-                <DataTableHeaderCell numeric>Distance</DataTableHeaderCell>
-                <DataTableHeaderCell numeric>Radius</DataTableHeaderCell>
-                <DataTableHeaderCell>Coordinates</DataTableHeaderCell>
-              </tr>
-            </DataTableHead>
-            <tbody>
-              {evidence.map((item) => (
-                <DataTableRow key={`${item.eventType}-${item.recordedAt}`}>
-                  <DataTableCell className="font-medium">
-                    {ATTENDANCE_EVENT_LABELS[item.eventType]}
-                  </DataTableCell>
-                  <DataTableCell>{GEOFENCE_RESULT_LABELS[item.result]}</DataTableCell>
-                  <DataTableCell>{dateTime(item.recordedAt, row.timezone)}</DataTableCell>
-                  <DataTableCell>{dateTime(item.deviceCapturedAt, row.timezone)}</DataTableCell>
-                  <DataTableCell numeric>{metres(item.accuracyMeters)}</DataTableCell>
-                  <DataTableCell numeric>{metres(item.distanceMeters)}</DataTableCell>
-                  <DataTableCell numeric>{metres(item.radiusMeters)}</DataTableCell>
-                  <DataTableCell className="tabular-nums">
-                    {item.latitude !== null && item.longitude !== null
-                      ? `${item.latitude.toFixed(5)}, ${item.longitude.toFixed(5)}`
-                      : EVIDENCE_STATE_LABELS[item.state]}
-                  </DataTableCell>
-                </DataTableRow>
-              ))}
-            </tbody>
-          </DataTable>
-        </DataTableRegion>
-      )}
+      <Panel titleId="evidence-heading" title={<>Clock-action evidence</>}>
+        {evidence.length === 0 ? (
+          <LockedEmpty
+            icon="attendance"
+            title="No location evidence"
+            note="This site did not check location for this record."
+          />
+        ) : (
+          <DataTableRegion aria-label="Location evidence table">
+            <DataTable className="min-w-[860px]">
+              <DataTableHead>
+                <tr>
+                  <DataTableHeaderCell>Clock action</DataTableHeaderCell>
+                  <DataTableHeaderCell>Result</DataTableHeaderCell>
+                  <DataTableHeaderCell>Recorded (server)</DataTableHeaderCell>
+                  <DataTableHeaderCell>Captured (device)</DataTableHeaderCell>
+                  <DataTableHeaderCell numeric>Accuracy</DataTableHeaderCell>
+                  <DataTableHeaderCell numeric>Distance</DataTableHeaderCell>
+                  <DataTableHeaderCell numeric>Radius</DataTableHeaderCell>
+                  <DataTableHeaderCell>Coordinates</DataTableHeaderCell>
+                </tr>
+              </DataTableHead>
+              <tbody>
+                {evidence.map((item) => (
+                  <DataTableRow key={`${item.eventType}-${item.recordedAt}`}>
+                    <DataTableCell className="font-medium">
+                      {ATTENDANCE_EVENT_LABELS[item.eventType]}
+                    </DataTableCell>
+                    <DataTableCell>{GEOFENCE_RESULT_LABELS[item.result]}</DataTableCell>
+                    <DataTableCell>{dateTime(item.recordedAt, row.timezone)}</DataTableCell>
+                    <DataTableCell>{dateTime(item.deviceCapturedAt, row.timezone)}</DataTableCell>
+                    <DataTableCell numeric>{metres(item.accuracyMeters)}</DataTableCell>
+                    <DataTableCell numeric>{metres(item.distanceMeters)}</DataTableCell>
+                    <DataTableCell numeric>{metres(item.radiusMeters)}</DataTableCell>
+                    <DataTableCell className="tabular-nums">
+                      {item.latitude !== null && item.longitude !== null
+                        ? `${item.latitude.toFixed(5)}, ${item.longitude.toFixed(5)}`
+                        : EVIDENCE_STATE_LABELS[item.state]}
+                    </DataTableCell>
+                  </DataTableRow>
+                ))}
+              </tbody>
+            </DataTable>
+          </DataTableRegion>
+        )}
+      </Panel>
 
       <Panel titleId="retention-heading" title={<>Retention and legal hold</>}>
-        <p className="max-w-2xl text-sm text-muted-foreground">
+        <RecordNote className="max-w-2xl">
           {retentionDays
             ? `Coordinates are purged ${retentionDays} days after capture. The location result stays with the attendance record.`
             : "Coordinates are purged after the agency's retention period."}{" "}
           A legal hold keeps this record&apos;s evidence until the hold is released.
-        </p>
+        </RecordNote>
         {holds.length > 0 ? (
-          <ul aria-label="Legal holds" className="flex flex-col gap-2 text-sm">
+          <RecordList label="Legal holds">
             {holds.map((hold) => (
-              <li
-                key={hold.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-surface-muted p-3"
-              >
-                <span className="flex flex-col gap-1">
-                  <StatusChip tone={hold.releasedAt ? "neutral" : "warning"} className="w-fit">
+              <li key={hold.id} className={`${RECORD_ROW} justify-between`}>
+                <span className="flex min-w-0 flex-col gap-1">
+                  <RefChip
+                    tone={hold.releasedAt ? "neutral" : "warning"}
+                    className="w-fit font-semibold"
+                  >
                     {hold.releasedAt ? "Released" : "Active"} hold
-                  </StatusChip>
-                  <span>
+                  </RefChip>
+                  <span className={RECORD_ROW_TITLE}>
                     Placed {dateTime(hold.placedAt, row.timezone)} by{" "}
                     {hold.placedByName ?? "an administrator"}
                   </span>
-                  <span className="block text-muted-foreground">{hold.reason}</span>
+                  <span className={`${RECORD_ROW_META} break-words`}>{hold.reason}</span>
                 </span>
                 {hold.releasedAt ? null : (
                   <ReleaseHoldForm
@@ -210,12 +233,12 @@ export default async function LocationEvidencePage({
                 )}
               </li>
             ))}
-          </ul>
+          </RecordList>
         ) : null}
         {activeHold ? null : (
           <PlaceHoldForm organisationId={organisationId} attendanceId={record.attendanceId} />
         )}
       </Panel>
-    </>
+    </RecordPage>
   );
 }

@@ -6,6 +6,7 @@ import { FormAlert, fieldErrorsFor } from "@/components/forms/form-alert";
 import { SubmitButton } from "@/components/forms/submit-button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { PASSWORD_MIN_LENGTH } from "@/lib/validation/common";
 
 import { signUpAction } from "../actions";
@@ -16,8 +17,11 @@ export function SignUpForm() {
   if (state?.ok) {
     return (
       <div role="status" className="flex flex-col gap-2">
-        <h2 className="text-lg font-semibold">Check your email</h2>
-        <p className="text-sm text-muted-foreground">
+        {/* Locked section heading inside the AuthPanel (20 / 600, heading ink). */}
+        <h2 className="font-display text-[20px] leading-[26px] font-semibold tracking-[-0.02em] text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)]">
+          Check your email
+        </h2>
+        <p className="text-[14.5px] leading-[22px] text-slate-600">
           If this address can be registered, we have sent a confirmation link to{" "}
           <strong className="text-foreground">{state.data.email}</strong>. Follow it to activate
           your account.
@@ -47,7 +51,7 @@ export function SignUpForm() {
         required
         errors={fieldErrorsFor(state, "password")}
       >
-        <Input name="password" type="password" autoComplete="new-password" />
+        <PasswordInput name="password" autoComplete="new-password" />
       </FormField>
       <SubmitButton>Create account</SubmitButton>
     </form>

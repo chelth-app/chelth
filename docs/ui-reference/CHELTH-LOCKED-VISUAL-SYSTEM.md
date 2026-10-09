@@ -446,9 +446,10 @@ Row action (all locked tables):
   `text-xl font-bold text-chelth-navy`, no border, no underline, 44 px
   touch target (36 px from sm).
 - It keeps the global `:focus-visible` ring for keyboard users.
-- Workforce, Facilities and Compliance use it. Attendance and Timesheets
-  still show the horizontal "⋯" (same weight, also unboxed) and adopt "⋮"
-  at their next pass. Do not introduce outlined or boxed ellipsis buttons.
+- Every locked table uses it: Shifts, Attendance, Timesheets, Workforce,
+  Facilities, Compliance, Rates, Payroll, Invoices and the facility
+  workspace (P0-E8-QA-F3 retired the interim horizontal "⋯"). Do not
+  introduce outlined or boxed ellipsis buttons.
 
 Credential Details drawer (canonical C, with the Timesheet Details
 anatomy):

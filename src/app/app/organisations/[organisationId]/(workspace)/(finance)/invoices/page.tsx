@@ -409,8 +409,8 @@ export default async function InvoicesPage({
                         </td>
                         <td className="text-right">
                           <DetailDrawerTrigger
-                            triggerLabel="⋯"
-                            triggerClassName="justify-center px-2 text-lg font-bold text-chelth-navy no-underline sm:min-h-9"
+                            triggerLabel="⋮"
+                            triggerClassName="justify-center px-2 text-xl font-bold text-chelth-navy no-underline sm:min-h-9"
                             triggerAccessibleLabel={`Invoice details for ${draft.reference}`}
                             title="Invoice Details"
                             width="profile"

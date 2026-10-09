@@ -1,0 +1,388 @@
+P0-E8-A1 — AUTH + SYSTEM STATES VISUAL IMPLEMENTATION
+=====================================================
+
+Branch: p0-e8-visual-implementation (uncommitted)
+Base:   18ad514, plus the uncommitted F1–W1 work
+
+Scope: the auth surfaces and the system states only.
+
+Unchanged:
+- the agency, worker and Finance shells;
+- the backend and auth behaviour.
+
+No screenshots were saved to the repository; QA captures were kept in a
+local scratch folder.
+
+
+1. ROUTES CHANGED (presentation only; no route added or removed)
+----------------------------------------------------------------
+- /sign-in, /sign-up: inherit the new AuthCanvas / AuthPanel; page code
+  unchanged.
+- /forgot-password (mail tile).
+- /reset-password: key tile; locked "Reset link required" notice.
+- /invite: mail tile; locked actions and details panel, signed out and
+  signed in.
+- /auth/error: locked system state with primary and secondary actions.
+- /app/security/verify: MFA step-up, now the shared AuthPanel with a
+  shield tile.
+- /app (workspace chooser): the canonical empty tile when the user has no
+  organisation.
+- Error boundaries:
+  - src/app/error.tsx;
+  - src/app/global-error.tsx;
+  - (personal)/error.tsx;
+  - (workspace)/error.tsx;
+  - (self-service)/error.tsx.
+- Not-found pages (root, workspace, self-service) inherit the new
+  SystemState; their files are unchanged.
+
+
+2. CANONICAL REFERENCES USED
+----------------------------
+No dedicated Auth + System States reference family exists under
+docs/ui-reference/p08-e8/canonical/.
+
+DERIVATION-MAP §P9 defines these screens as derived:
+- auth = a centred white card on the brand canvas with the canonical
+  logo-primary;
+- system states = icon tile, title, one sentence, one action, inside the
+  owning frame.
+
+Visual truth was therefore taken from:
+- docs/ui-reference/CHELTH-LOCKED-VISUAL-SYSTEM.md:
+  - I Canvas Atmosphere;
+  - F Card / Panel Surface;
+  - D Typography;
+  - H Icon tiles;
+  - J CTA hierarchy;
+- docs/brand/CLAUDE-CHELTH-BRAND-RULES.md;
+- the approved F1–W1 drawers and records (luminous tiles, notices);
+- docs/reports/P0-E8-S7-auth-system-states.txt (previous functional
+  pass).
+
+
+3. AUTH SHELL IMPLEMENTATION
+----------------------------
+AuthCanvas (src/components/layout/auth-canvas.tsx):
+- The locked canvas: the off-white vertical wash #FAFCFE → #F6FAFC →
+  #F1F9FA, with a very faint mint radial in the lower right and a mint
+  mist in the upper left. This replaces the flat mint band.
+- No illustration, glow, imagery or marketing content.
+- The canonical logo-primary (48 px, unchanged asset), centred and linking
+  home, above one centred column.
+
+AuthPanel and AuthCard (src/features/identity/components/auth-card.tsx):
+- AuthPanel is new. It is the locked card surface (SYSTEM_CARD):
+  - 14 px radius, teal 10% hairline;
+  - white → cool-mint surface;
+  - the canonical two-layer navy shadow.
+- It also has:
+  - an optional luminous semantic tile;
+  - a Manrope 26 / 700 heading in heading ink;
+  - a 14.5 slate supporting line;
+  - .chelth-locked, so buttons use the locked gradient primary and
+    outline.
+- AuthCard is AuthCanvas plus AuthPanel plus the centred footer, with the
+  same API (adds optional `icon`). AuthPanel is also used inside the
+  personal frame for MFA step-up.
+
+
+4. SIGN IN
+----------
+Unchanged behaviour:
+- redirect if signed in;
+- safe `next`;
+- the MFA path;
+- labelled fields ("Email address", "Password");
+- 44 px targets.
+
+Visual:
+- locked panel;
+- gradient "Sign in";
+- the existing shared form alert for failures.
+
+The wording is unchanged ("The email address or password is incorrect.").
+No provider internals or codes are shown (asserted).
+
+Not added (not implemented): show/hide password, SSO, social login, magic
+link.
+
+
+5. PASSWORD RESET
+-----------------
+- Request (/forgot-password):
+  - mail tile, same form and the existing uniform success response;
+  - "Back to sign in" (44 px);
+  - no delivery guarantee is implied (copy unchanged).
+- Completion (/reset-password):
+  - key tile;
+  - with a recovery session, the existing ResetPasswordForm;
+  - without one, a locked "Reset link required" notice (ErrorState) with
+    an outlined "Request a new link".
+- The /auth/confirm token-hash route, recovery logic and callback are
+  unchanged.
+- Invalid or used link (/auth/error):
+  - "We couldn't verify that link" with the safe AUTH_LINK_INVALID message;
+  - primary "Sign in" and outlined "Request a new link".
+
+
+6. INVITE ACCEPTANCE
+--------------------
+- Signed out: identical for valid, invalid and missing tokens, as before
+  (no token disclosure).
+  - Mail tile; the three steps in a soft mint panel.
+  - Gradient "Sign in" and outlined "Create account".
+- Signed in with a valid invite:
+  - organisation, role, type and expiry on a soft mint details panel;
+  - the "Accepting adds this role…" note;
+  - the unchanged AcceptInviteForm (gradient primary).
+- Invalid, expired, used or revoked: the existing uniform "Invitation
+  unavailable" (INVITE_INVALID), now the locked notice, with "Continue to
+  CHELTH".
+
+Invite security, the cookie and token handling are unchanged. No
+wrong-account variant was added; the backend does not distinguish it in
+the UI.
+
+
+7. MFA / AAL2 TREATMENT
+-----------------------
+/app/security/verify:
+- the shared AuthPanel in the personal frame;
+- shield tile; "Verify it's you";
+- the reason ("…to continue with administration tasks");
+- the existing MfaChallengeForm with the safe `next`.
+
+Without a factor: "You have not set up an authenticator app yet." with a
+44 px "Set one up", keeping the safe `next` round trip.
+
+The workspace StepUpNotice banners are unchanged; they are part of the
+locked pages. No bypass and no fake completion. The step-up E2E flows pass
+with real TOTP.
+
+
+8. LOADING STATES
+-----------------
+Audit: there are no route-level loading.tsx files. Form pending states
+already exist: SubmitButton and Button have `loading`, a spinner and
+aria-busy.
+
+Deliberately not added: route-level loading boundaries. With streaming, a
+loading.tsx makes Next.js send a 200 status before the page runs. A later
+notFound() would then render the 404 UI with status 200, which would weaken
+the secure, tenant-safe 404 behaviour asserted throughout the suite.
+
+The LoadingState and StateIcon spinner now stop under
+prefers-reduced-motion.
+
+
+9. EMPTY STATES
+---------------
+Approved functional empty states (EmptyState, LockedEmpty, worker and
+finance tiles) are unchanged. StateIcon keeps its flat default, so they
+are untouched.
+
+The workspace chooser's empty case (/app) is now the canonical system
+empty tile: icon, the short heading "You are not a member of any
+organisation yet." and one line ("Ask an administrator to invite you, or
+create an agency below."). The real action, "Create an agency", is the form
+below.
+
+
+10. NOT FOUND / FORBIDDEN BEHAVIOUR
+-----------------------------------
+- 404 is kept everywhere it is used for authorisation. Status codes are
+  unchanged, and the not-found copy stays tenant-safe: "This page does not
+  exist, or it is not available to you."
+- Another tenant's organisation looks exactly like a nonexistent one
+  (existing test).
+- Inside the workspace and worker frames: the locked SystemState (search
+  tile) with "Back to your workspaces". Outside: the auth canvas with
+  "Return home".
+- No technical detail is shown (asserted on the canvas 404).
+- No "Access denied" page was introduced. The product's only visible
+  permission-style states are the existing step-up notices and verify page,
+  which are unchanged in behaviour.
+
+
+11. ERROR / RETRY STATES
+------------------------
+SystemState (src/components/ui/system-state.tsx):
+- locked card surface;
+- luminous tile (coral for errors);
+- page h1 (Manrope 24 / 700);
+- one sentence;
+- an optional support reference (digest);
+- primary and optional secondary actions, stacked full width on phones.
+- Exports: SYSTEM_CARD, stateActionClass (gradient primary) and
+  stateSecondaryActionClass (outlined).
+
+Boundaries:
+- Only the safe ERROR_CODES.INTERNAL message and the digest are shown.
+  Nothing implementation-related leaks (unit-tested).
+- "Try again" (reset) is kept, and each recoverable boundary now has a
+  safe fallback: "Back to your workspaces" (/app) inside the app, "Return
+  home" outside.
+- The global error uses the same state on the canvas wash.
+
+Titles were made calm and consistent:
+- "Something went wrong" → "This page could not be loaded" (in-app);
+- "We couldn't load this page" (root / global).
+
+ErrorState (src/components/ui/error-state.tsx), used inside auth cards:
+- a compact coral notice (hairline, tint, error tile, h2, the safe
+  message, optional reference and action);
+- default title "This could not be completed".
+
+
+12. SESSION / NETWORK STATES
+----------------------------
+- Session expiry: there is no client-side expiry UI. Protected routes
+  redirect to /sign-in with the existing safe `next`, and that page is the
+  restyled sign-in. No refresh behaviour was added.
+- Network or service unavailable: no such state exists beyond the existing
+  error boundaries (and ClockControl's offline notice from W1). Nothing
+  was added; there is no fake offline handling.
+
+
+13. UNSUPPORTED REFERENCE FEATURES OMITTED
+------------------------------------------
+- SSO, social login, magic links, show/hide password.
+- A wrong-account invite message.
+- A dedicated "Access denied" page; it would weaken the secure 404.
+- Route-level loading skeletons (section 8).
+- Session-expired and service-unavailable screens.
+- Auth imagery or illustrations; no approved artwork asset exists.
+
+
+14. RESPONSIVE RESULTS
+----------------------
+Asserted:
+- every auth surface (sign in, sign up, forgot, reset, invite, auth
+  error) at 375 / 390 / 412 / 430 / 768 / 1024 / 1280 / 1512: no overflow;
+- the canvas 404, the workspace and worker 404s, MFA verify and the
+  sign-in failure on desktop and mobile projects.
+
+Phones: the panel is full-width minus the 16 px gutter, actions stack full
+width, and nothing is clipped or left as large empty whitespace.
+
+
+15. ACCESSIBILITY RESULTS
+-------------------------
+- One h1 per auth page and system state (asserted).
+- Labelled fields with field-tied validation (existing FormField).
+- Failures are announced (role="alert") and not-found is not an alert;
+  the text carries the meaning, never colour alone.
+- Visible focus is kept; targets are ≥44 px (asserted on sign-in;
+  actions are min-h-11); tiles are decorative (aria-hidden).
+- The reduced-motion spinner stops.
+- axe (wcag2a / 2aa / 22aa) is clean on:
+  - sign in, sign up, forgot, reset, invite;
+  - auth error;
+  - the canvas 404;
+  - the workspace and worker 404s;
+  - MFA verify;
+  - the sign-in failure.
+
+
+16. SECURITY / AUTH CONFIRMATION
+--------------------------------
+Unchanged:
+- Supabase auth architecture;
+- token-hash and recovery flows; the auth callback;
+- invite security; MFA / AAL2; session behaviour;
+- capability checks; RLS; tenant isolation;
+- 404 semantics and status codes; redirect validation (getSafeRedirectPath
+  untouched).
+
+No supabase/, src/lib/auth, proxy or middleware file is in the diff. No
+secrets in client bundles (check:bundle OK). Only presentation components
+and page markup changed.
+
+
+17. TEST CHANGES
+----------------
+tests/e2e/system-states.spec.ts:
+- Auth surface widths extended to 375 / 390 / 412 / 430 / 768 / 1024 /
+  1280 / 1512.
+- Canvas 404: the safe "Return home" (href "/") and no technical detail.
+- New "sign in: validation and incorrect credentials are announced in
+  plain language":
+  - empty submit stays on the form;
+  - wrong credentials show the "incorrect" alert;
+  - no AuthApiError, supabase, status codes or "oops";
+  - axe clean.
+
+Unchanged and passing:
+- the system-states suite (logo, one h1, 44 px, owning-frame 404s,
+  tenant-safe 404, MFA verify, reference states);
+- identity.spec (sign up and verify, sign in, wrong password, password
+  reset end to end, hosted-style link, used link → /auth/error, no-session
+  reset state, MFA step-up → invite → accept, other tenants 404);
+- tests/unit/components/system-states.test.tsx (h1, not-found not an
+  alert, the three boundaries announce the safe message plus reference,
+  "Try again" calls reset, no leaks).
+
+
+18. VALIDATION RESULTS
+----------------------
+- npm run format:check: pass
+- npm run lint: pass (0 warnings)
+- npm run typecheck: pass
+- npm test: 347 passed
+- npm run build: pass
+- npm run check:bundle: OK (69 browser files, no secrets)
+- npx playwright test: 252 passed, 12 skipped, 0 failed (8.0 min). The
+  skips are existing desktop-only tests on the mobile project.
+
+
+19. FILES CHANGED (this phase)
+------------------------------
+Components:
+- src/components/layout/auth-canvas.tsx
+- src/components/ui/system-state.tsx
+- src/components/ui/state-icon.tsx (luminous variant; mail, key, shield,
+  check and refresh glyphs; reduced-motion spinner)
+- src/components/ui/error-state.tsx
+- src/features/identity/components/auth-card.tsx (AuthPanel + AuthCard)
+- src/features/identity/index.ts (exports AuthPanel)
+
+Pages:
+- src/app/(auth)/forgot-password/page.tsx
+- src/app/(auth)/reset-password/page.tsx
+- src/app/invite/page.tsx
+- src/app/auth/error/page.tsx
+- src/app/app/(personal)/security/verify/page.tsx
+- src/app/app/(personal)/page.tsx (empty chooser tile)
+
+Error boundaries:
+- src/app/error.tsx
+- src/app/global-error.tsx
+- src/app/app/(personal)/error.tsx
+- src/app/app/organisations/[organisationId]/(workspace)/error.tsx
+- src/app/app/organisations/[organisationId]/(self-service)/error.tsx
+
+Tests:
+- tests/e2e/system-states.spec.ts
+
+This report.
+
+
+20. KNOWN GAPS
+--------------
+- No dedicated canonical Auth reference exists, so this phase applies the
+  locked system per DERIVATION-MAP §P9. A future approved Auth mockup may
+  refine the composition.
+- The sign-in failure uses the shared form alert (FormAlert) styling,
+  which is also used by every form in the product. It was not restyled
+  here to avoid a product-wide change.
+- The personal frame (/app, /app/account, /app/security) keeps its
+  existing header and background; only the verify panel and the empty
+  chooser tile changed.
+- Route-level loading states are intentionally absent (section 8).
+- ERROR_CODES.INTERNAL keeps its existing wording ("Something went wrong
+  on our side. Please try again.") because it lives in the shared error
+  library used by every action. Changing it is out of scope for a visual
+  phase.
+
+STATUS: AUTH + SYSTEM STATES VISUAL IMPLEMENTATION COMPLETE. AWAITING HUMAN REVIEW. NOT COMMITTED.

@@ -357,7 +357,7 @@ export async function AgencyOperationsOverview({
                 aria-label="Staffing requests table"
                 className="mt-[9px] rounded-none border-0 bg-transparent"
               >
-                <table className={cn(REF_TABLE, "min-w-[40rem] table-fixed")}>
+                <table className={cn(REF_TABLE, "min-w-[38.5rem] table-fixed")}>
                   {/* Locked P2 column starts (13.6 / 21.8 / 14.2 / 13.8 / 16.4 / 20.3 %). */}
                   <colgroup>
                     <col className="w-[13.6%]" />

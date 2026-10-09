@@ -261,7 +261,7 @@ export default async function ShiftsPage({
                 name="from"
                 type="date"
                 defaultValue={filters.from ?? ""}
-                className="w-0 min-w-0 flex-1 bg-transparent text-base font-medium text-chelth-navy outline-none sm:w-auto sm:flex-none sm:text-[13.5px]"
+                className="h-full w-0 min-w-0 flex-1 bg-transparent text-base font-medium text-chelth-navy outline-none sm:w-auto sm:flex-none sm:text-[13.5px]"
               />
               <span aria-hidden="true" className="text-muted-foreground">
                 –
@@ -274,7 +274,7 @@ export default async function ShiftsPage({
                 name="to"
                 type="date"
                 defaultValue={filters.to ?? ""}
-                className="w-0 min-w-0 flex-1 bg-transparent text-base font-medium text-chelth-navy outline-none sm:w-auto sm:flex-none sm:text-[13.5px]"
+                className="h-full w-0 min-w-0 flex-1 bg-transparent text-base font-medium text-chelth-navy outline-none sm:w-auto sm:flex-none sm:text-[13.5px]"
               />
             </div>
           )}
@@ -671,7 +671,7 @@ export default async function ShiftsPage({
 
 /** Locked filter control (Facilities geometry): 46 px, hairline border, 13.5 px navy text. */
 const TOOLBAR =
-  "flex h-11 items-center rounded-md border border-chelth-border bg-white/90 text-[13.5px] text-chelth-navy focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring sm:h-[46px]";
+  "flex h-[46px] items-center rounded-md border border-chelth-border bg-white/90 text-[13.5px] text-chelth-navy focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring";
 const TOOLBAR_SELECT =
   "h-full w-full min-w-0 flex-1 bg-transparent pr-3 text-base font-medium text-chelth-navy outline-none sm:text-[13.5px]";
 

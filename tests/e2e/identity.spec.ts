@@ -50,13 +50,14 @@ test.describe("authentication", () => {
     // In the workspace shell, Sign out lives in the account and workspace menu.
     await page.getByRole("button", { name: /Account and workspace menu/ }).click();
     await page.getByRole("button", { name: "Sign out" }).click();
-    await expect(page).toHaveURL(/\/$/);
+    // Sign-out still returns to "/", which (P0-E8-A1.1) sends signed-out visitors to Sign in.
+    await expect(page).toHaveURL(/\/sign-in$/);
     await page.goto("/app");
     await expect(page).toHaveURL(/\/sign-in/);
 
     await signIn(page, email);
     await expect(page).toHaveURL(/\/app$/);
-    await expect(page.getByRole("button", { name: "Open Signup Agency" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Open workspace Signup Agency" })).toBeVisible();
   });
 
   test("wrong credentials get a uniform error", async ({ page }) => {
@@ -91,6 +92,19 @@ test.describe("authentication", () => {
     const newPassword = "Brand-New-Passw0rd-9";
     await page.getByRole("textbox", { name: "New password", exact: true }).fill(newPassword);
     await page.getByLabel("Confirm new password").fill(newPassword);
+    // P0-E8-A1.2: each password field has its own show / hide control (presentation only).
+    const newField = page.getByRole("textbox", { name: "New password", exact: true });
+    const confirmField = page.getByLabel("Confirm new password");
+    await expect(newField).toHaveAttribute("type", "password");
+    await page.getByRole("button", { name: "Show new password" }).click();
+    await expect(newField).toHaveAttribute("type", "text");
+    await expect(newField).toHaveValue(newPassword);
+    await expect(confirmField).toHaveAttribute("type", "password");
+    await expect(page.getByRole("button", { name: "Hide new password" })).toBeVisible();
+    await page.getByRole("button", { name: "Show confirm password" }).click();
+    await expect(confirmField).toHaveAttribute("type", "text");
+    await expect(newField).toHaveAttribute("autocomplete", "new-password");
+    await expect(confirmField).toHaveAttribute("autocomplete", "new-password");
     await page.getByRole("button", { name: "Update password" }).click();
     await expect(page.getByRole("status")).toContainText("Your password has been updated");
 

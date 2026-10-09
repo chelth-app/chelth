@@ -85,8 +85,8 @@ test.describe.serial("facility workspace surfaces", () => {
     // Overview (P2, facility scope).
     await admin.goto(base);
     const summary = admin.getByRole("region", { name: "Facility summary" });
-    await expect(summary.getByRole("link", { name: /Open requests/ })).toContainText(/[1-9]/);
-    await expect(summary.getByRole("link", { name: /Timesheets to sign off/ })).toBeVisible();
+    await expect(summary.getByRole("link", { name: /Open Requests/ })).toContainText(/[1-9]/);
+    await expect(summary.getByRole("link", { name: /Timesheets to Sign Off/ })).toBeVisible();
     await expect(
       admin.getByRole("region", { name: "Today and upcoming" }).getByRole("link", {
         name: /Certified Nursing Assistant/,
@@ -125,7 +125,7 @@ test.describe.serial("facility workspace surfaces", () => {
 
     const trigger = row.getByRole("button", { name: /^Details for / });
     await trigger.click();
-    const drawer = admin.getByRole("dialog", { name: /Certified Nursing Assistant/ });
+    const drawer = admin.getByRole("dialog", { name: "Request Details" });
     await expect(drawer).toBeVisible();
     await expect(drawer.getByRole("button", { name: "Close details" })).toBeFocused();
     expect(await drawer.evaluate((node) => node.matches(":modal"))).toBe(true);
@@ -160,6 +160,144 @@ test.describe.serial("facility workspace surfaces", () => {
     await admin.context().close();
   });
 
+  test("P0-E8-QA-F1: the facility workspace is on the locked visual system", async ({
+    browser,
+  }, testInfo) => {
+    const mobile = testInfo.project.name.startsWith("mobile");
+    const admin = await signedIn(browser, world.facilityAdmin.email);
+    const base = `/app/organisations/${world.facilityOrgId}`;
+
+    /** Locked reference header: one h1, Manrope 700 (31.5 px from sm), inside `.chelth-locked`. */
+    async function expectLockedHeader() {
+      const h1 = admin.getByRole("heading", { level: 1 });
+      await expect(h1).toHaveCount(1);
+      const style = await h1.evaluate((node) => {
+        const computed = getComputedStyle(node);
+        return {
+          weight: computed.fontWeight,
+          size: computed.fontSize,
+          locked: Boolean(node.closest(".chelth-locked")),
+        };
+      });
+      expect(style.weight).toBe("700");
+      expect(style.locked).toBe(true);
+      if (!mobile) expect(style.size).toBe("31.5px");
+    }
+
+    async function expectNoOverflowAt(widths: number[]) {
+      const original = admin.viewportSize();
+      for (const width of widths) {
+        await admin.setViewportSize({ width, height: 860 });
+        await expectNoPageOverflow(admin);
+      }
+      if (original) await admin.setViewportSize(original);
+    }
+
+    // Overview: locked header, KPI + panel family, the locked step-up note (same verify route).
+    await admin.goto(base);
+    await expectLockedHeader();
+    await expect(admin.getByRole("region", { name: "Facility summary" })).toBeVisible();
+    await expect(admin.getByRole("region", { name: "Today and upcoming" })).toBeVisible();
+    await expect(admin.getByRole("region", { name: "Awaiting sign-off" })).toBeVisible();
+    await expect(admin.getByRole("note").getByRole("link", { name: "Verify now" })).toHaveAttribute(
+      "href",
+      `/app/security/verify?next=${encodeURIComponent(base)}`,
+    );
+    await expect(admin.getByRole("main")).not.toContainText(NO_LEAKS);
+    await expectNoOverflowAt([375, 412]);
+    await expectNoA11yViolations(admin);
+
+    // Sidebar: the concise "Sign-off" label is current on its page and never truncated.
+    if (!mobile) {
+      const signoff = admin
+        .getByRole("navigation", { name: "Workspace" })
+        .getByRole("link", { name: "Sign-off" });
+      await expect(signoff).toBeVisible();
+      const clipped = await signoff.evaluate((link) =>
+        [link, ...link.querySelectorAll("*")].some(
+          (node) => node.textContent?.trim() === "Sign-off" && node.scrollWidth > node.clientWidth,
+        ),
+      );
+      expect(clipped).toBe(false);
+    }
+
+    // Staffing requests: locked filters, canonical CTA, REF table, profile drawer.
+    await admin.goto(`${base}/staffing-requests`);
+    await expectLockedHeader();
+    const filters = admin.getByRole("form", { name: "Filter requests" });
+    for (const name of ["Status", "When"]) {
+      const box = await filters.getByRole("combobox", { name }).evaluate((node) => {
+        const control = node.parentElement?.getBoundingClientRect();
+        return control ? Math.round(control.height) : 0;
+      });
+      expect(box).toBeGreaterThanOrEqual(44);
+    }
+    await expect(admin.getByRole("link", { name: "New request" })).toHaveAttribute(
+      "href",
+      "#request-staff",
+    );
+    const table = admin.getByRole("region", { name: "Staffing requests table" });
+    await expect(admin.getByRole("region", { name: "Requests and Shifts" })).toContainText(
+      "Certified Nursing Assistant",
+    );
+    const trigger = table.getByRole("button", { name: /^Details for / }).first();
+    await expect(trigger).toHaveText("⋮");
+    await trigger.click();
+    const drawer = admin.getByRole("dialog", { name: "Request Details" });
+    await expect(drawer).toBeVisible();
+    await expect(drawer.getByRole("tab", { name: "Overview" })).toBeVisible();
+    await expect(drawer.getByRole("tab", { name: "Staffing" })).toBeVisible();
+    await expect(drawer.getByRole("link", { name: "Open request" })).toBeVisible();
+    await expect(drawer).not.toContainText(NO_LEAKS);
+    const panel = await drawer.evaluate((node) => {
+      const box = (node.firstElementChild ?? node).getBoundingClientRect();
+      return { width: Math.round(box.width), height: Math.round(box.height) };
+    });
+    const viewport = admin.viewportSize();
+    if (mobile) {
+      expect(panel.width).toBe(viewport?.width);
+    } else {
+      expect(panel.width).toBe(387);
+    }
+    await admin.keyboard.press("Escape");
+    await expect(drawer).toBeHidden();
+    await expect(trigger).toBeFocused();
+    if (mobile) {
+      // Wide tables scroll inside their labelled region, never the page.
+      const scrolls = await table.evaluate((node) => node.scrollWidth > node.clientWidth);
+      expect(scrolls).toBe(true);
+    }
+    await expectNoOverflowAt([375, 412]);
+    await expectNoA11yViolations(admin);
+
+    // Request record: canonical record arrangement with section tabs (no scrollbar chrome).
+    await admin.goto(`${base}/staffing-requests/${shiftId}`);
+    await expectLockedHeader();
+    const sections = admin.getByRole("navigation", { name: "Request sections" });
+    await expect(sections.getByRole("link")).toHaveText(["Details", "Who is coming"]);
+    const chrome = await sections.evaluate((node) => {
+      const computed = getComputedStyle(node);
+      return { overflowY: computed.overflowY, scrollbar: computed.scrollbarWidth };
+    });
+    expect(chrome).toEqual({ overflowY: "hidden", scrollbar: "none" });
+    await expect(admin.getByRole("region", { name: "Who is coming" })).toContainText(
+      "No workers assigned yet.",
+    );
+    await expectNoOverflowAt([375, 412]);
+    await expectNoA11yViolations(admin);
+
+    // Timesheet sign-off: locked family, facility projection only.
+    await admin.goto(`${base}/timesheets`);
+    await expectLockedHeader();
+    await expect(admin.getByRole("region", { name: "Entries for Sign-off" })).toContainText(
+      "No entries awaiting sign-off.",
+    );
+    await expect(admin.getByRole("main")).not.toContainText(NO_LEAKS);
+    await expectNoOverflowAt([375, 412]);
+    await expectNoA11yViolations(admin);
+    await admin.context().close();
+  });
+
   test("Facility Scheduler: requests only — no sign-off, no member administration", async ({
     browser,
   }) => {
@@ -167,8 +305,8 @@ test.describe.serial("facility workspace surfaces", () => {
     const base = `/app/organisations/${world.facilityOrgId}`;
     await page.goto(base);
     const summary = page.getByRole("region", { name: "Facility summary" });
-    await expect(summary.getByRole("link", { name: /Open requests/ })).toBeVisible();
-    await expect(summary.getByRole("link", { name: /Timesheets to sign off/ })).toHaveCount(0);
+    await expect(summary.getByRole("link", { name: /Open Requests/ })).toBeVisible();
+    await expect(summary.getByRole("link", { name: /Timesheets to Sign Off/ })).toHaveCount(0);
     await expect(page.getByRole("region", { name: "Awaiting sign-off" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Create invitation" })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Invitations" })).toHaveCount(0);
@@ -187,7 +325,7 @@ test.describe.serial("facility workspace surfaces", () => {
     const base = `/app/organisations/${world.facilityOrgId}`;
     await page.goto(base);
     const summary = page.getByRole("region", { name: "Facility summary" });
-    await expect(summary.getByRole("link", { name: /Timesheets to sign off/ })).toBeVisible();
+    await expect(summary.getByRole("link", { name: /Timesheets to Sign Off/ })).toBeVisible();
     await expect(page.getByRole("button", { name: "Create invitation" })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Invitations" })).toHaveCount(0);
     await expect(page.getByRole("main")).not.toContainText(NO_LEAKS);
@@ -227,7 +365,7 @@ test.describe.serial("facility workspace surfaces", () => {
       await expect(nav.getByRole("link")).toHaveText([
         "Overview",
         "Staffing requests",
-        "Timesheet sign-off",
+        "Sign-off",
         "Settings",
       ]);
     }

@@ -378,7 +378,7 @@ export default async function WorkforcePage({
                 <option value="ready">Credential ready</option>
               </FilterSelect>
             ) : null}
-            <span className="flex h-11 min-w-48 flex-1 items-center gap-2.5 rounded-md border border-chelth-border bg-white/90 px-3 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring sm:h-[46px] xl:max-w-[260px]">
+            <span className="flex h-[46px] min-w-48 flex-1 items-center gap-2.5 rounded-md border border-chelth-border bg-white/90 px-3 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring xl:max-w-[260px]">
               <svg
                 viewBox="0 0 24 24"
                 aria-hidden="true"
@@ -401,7 +401,7 @@ export default async function WorkforcePage({
                 type="search"
                 defaultValue={search}
                 placeholder="Search workforce…"
-                className="min-w-0 flex-1 bg-transparent text-base text-chelth-navy outline-none placeholder:text-muted-foreground sm:text-[13.5px]"
+                className="h-full min-w-0 flex-1 bg-transparent text-base text-chelth-navy outline-none placeholder:text-muted-foreground sm:text-[13.5px]"
               />
             </span>
             <button
@@ -454,7 +454,7 @@ export default async function WorkforcePage({
                 aria-label="Workers table"
                 className="rounded-none border-0 bg-transparent"
               >
-                <table className="w-full min-w-[1040px] table-fixed border-separate border-spacing-0 text-left">
+                <table className="w-full min-w-[1008px] table-fixed border-separate border-spacing-0 text-left">
                   <colgroup>
                     <col className="w-[17%]" />
                     <col className="w-[12%]" />
@@ -669,7 +669,7 @@ function FilterSelect({
   return (
     <span
       className={cn(
-        "flex h-11 min-w-36 items-center gap-2 rounded-md border border-chelth-border bg-white/90 pl-3 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring sm:h-[46px]",
+        "flex h-[46px] min-w-36 items-center gap-2 rounded-md border border-chelth-border bg-white/90 pl-3 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus-ring",
         className,
       )}
     >

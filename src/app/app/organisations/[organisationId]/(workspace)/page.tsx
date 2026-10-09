@@ -2,9 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { Panel } from "@/components/ui/panel";
-
+import { RefChip } from "@/components/reference/locked-reference";
+import {
+  RECORD_ROW,
+  RECORD_ROW_META,
+  RECORD_ROW_TITLE,
+  RecordList,
+} from "@/components/reference/record-page";
 import { Badge } from "@/components/ui/badge";
+import { Panel } from "@/components/ui/panel";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusChip } from "@/components/ui/status-chip";
 import {
@@ -17,13 +23,15 @@ import {
 import { RelationshipStatusBadge, listPartnerRelationships } from "@/features/facilities";
 import { listSharedWorkerCompliance, ReadinessBadge } from "@/features/compliance";
 import { isWorkspaceStaff, OrganisationSections, StepUpNotice } from "@/features/organisations";
-import { COMPLIANCE_REASON_LABELS } from "@/lib/domain/credentials";
+import { COMPLIANCE_REASON_LABELS, formatCalendarDate } from "@/lib/domain/credentials";
 import { getMyWorkerRecord, WorkerStatusBadge } from "@/features/workforce";
 import { requireAuthIdentity } from "@/lib/auth/session";
 import { CAPABILITIES, capabilityState, type CapabilityGrant } from "@/lib/authz";
+import { cn } from "@/lib/utils/cn";
 
 import { AgencyOperationsOverview } from "./_components/agency-operations-overview";
 import { FacilityOperationsOverview } from "./_components/facility-operations-overview";
+import { FacilityStepUpNotice } from "./_components/facility-step-up-notice";
 
 export const metadata: Metadata = { title: "Overview" };
 
@@ -48,6 +56,8 @@ export default async function OrganisationPage({
   const needsStepUp = grants.some((grant) => !grant.isSatisfied);
   const workspaceStaff = isWorkspaceStaff(grants.map((grant) => grant.capabilityKey));
   const agencyOverview = organisation.type === "agency" && workspaceStaff;
+  // Facility workspace (P0-E8-QA-F1): the locked Overview family; other audiences unchanged.
+  const facilityOverview = organisation.type === "facility" && workspaceStaff;
   // Administration (members, invitations, audit) lives in Settings (P0-E8-S9H).
 
   // The caller's own roles (header), from their membership — no member administration needed.
@@ -77,7 +87,7 @@ export default async function OrganisationPage({
       : [];
 
   return (
-    <>
+    <div className={facilityOverview ? "chelth-locked flex flex-col gap-[13px]" : "contents"}>
       {agencyOverview ? (
         // Locked P2 header: title + one line of copy; workspace and role are in the top bar.
         <PageHeader
@@ -89,6 +99,33 @@ export default async function OrganisationPage({
             organisation.status !== "active" ? (
               <StatusChip tone="warning">Organisation suspended</StatusChip>
             ) : undefined
+          }
+        />
+      ) : facilityOverview ? (
+        <PageHeader
+          variant="reference"
+          className="xl:mb-1"
+          title={organisation.name}
+          description={
+            <p>Your staffing requests, who is expected and the timesheets waiting for sign-off.</p>
+          }
+          back={
+            <Link href="/app" className="text-primary underline underline-offset-4">
+              All organisations
+            </Link>
+          }
+          meta={
+            <>
+              <RefChip tone="info">Facility</RefChip>
+              {organisation.status !== "active" ? (
+                <RefChip tone="warning">Organisation suspended</RefChip>
+              ) : null}
+              {me?.roleKeys.map((key) => (
+                <RefChip key={key} tone="neutral">
+                  {roleName.get(key) ?? key}
+                </RefChip>
+              ))}
+            </>
           }
         />
       ) : (
@@ -124,12 +161,18 @@ export default async function OrganisationPage({
         />
       )}
 
-      {needsStepUp ? <StepUpNotice returnTo={`/app/organisations/${organisationId}`} /> : null}
+      {needsStepUp ? (
+        facilityOverview ? (
+          <FacilityStepUpNotice returnTo={`/app/organisations/${organisationId}`} />
+        ) : (
+          <StepUpNotice returnTo={`/app/organisations/${organisationId}`} />
+        )
+      ) : null}
 
       {agencyOverview ? (
         <AgencyOperationsOverview organisationId={organisationId} can={can} />
       ) : null}
-      {organisation.type === "facility" && workspaceStaff ? (
+      {facilityOverview ? (
         <FacilityOperationsOverview organisationId={organisationId} can={can} />
       ) : null}
 
@@ -190,48 +233,49 @@ export default async function OrganisationPage({
 
       {partnerRelationships.length > 0 ? (
         <Panel titleId="partners-heading" title={<>Agency relationships</>}>
-          <ul className="flex flex-col divide-y divide-border border-y border-border text-sm">
+          <RecordList label="Agency relationships">
             {partnerRelationships.map((relationship) => (
-              <li
-                key={relationship.relationshipId}
-                className="flex flex-wrap items-center justify-between gap-2 p-3"
-              >
-                <span className="font-medium">{relationship.agencyName}</span>
+              <li key={relationship.relationshipId} className={RECORD_ROW}>
+                <span className={cn("min-w-0 flex-1", RECORD_ROW_TITLE)}>
+                  {relationship.agencyName}
+                </span>
                 <RelationshipStatusBadge status={relationship.status} />
               </li>
             ))}
-          </ul>
+          </RecordList>
           {sharedCompliance.map(({ relationship, workers }) => (
             <div key={relationship.relationshipId} className="flex flex-col gap-2">
-              <h3 className="font-medium">Workers shared by {relationship.agencyName}</h3>
+              <h3 className={RECORD_ROW_TITLE}>Workers shared by {relationship.agencyName}</h3>
               {workers.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No workers shared yet.</p>
+                <p className={RECORD_ROW_META}>No workers shared yet.</p>
               ) : (
-                <ul className="flex flex-col divide-y divide-border border-y border-border text-sm">
+                <RecordList>
                   {workers.map((sharedWorker) => (
-                    <li key={sharedWorker.workerId} className="flex flex-col gap-2 p-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="font-medium">{sharedWorker.workerName ?? "Worker"}</span>
-                        <ReadinessBadge status={sharedWorker.readiness} />
-                      </div>
-                      <ul className="flex flex-col gap-1 text-muted-foreground">
-                        {sharedWorker.items.map((item, index) => (
-                          <li key={`${item.credentialTypeName}-${index}`}>
-                            {item.credentialTypeName}: {COMPLIANCE_REASON_LABELS[item.reason]}
-                            {item.effectiveExpiryDate
-                              ? ` (valid to ${item.effectiveExpiryDate})`
-                              : ""}
-                          </li>
-                        ))}
-                      </ul>
+                    <li key={sharedWorker.workerId} className={cn(RECORD_ROW, "items-start")}>
+                      <span className="flex min-w-0 flex-1 flex-col gap-1">
+                        <span className={RECORD_ROW_TITLE}>
+                          {sharedWorker.workerName ?? "Worker"}
+                        </span>
+                        <ul className={cn("flex flex-col gap-0.5", RECORD_ROW_META)}>
+                          {sharedWorker.items.map((item, index) => (
+                            <li key={`${item.credentialTypeName}-${index}`}>
+                              {item.credentialTypeName}: {COMPLIANCE_REASON_LABELS[item.reason]}
+                              {item.effectiveExpiryDate
+                                ? ` (valid to ${formatCalendarDate(item.effectiveExpiryDate)})`
+                                : ""}
+                            </li>
+                          ))}
+                        </ul>
+                      </span>
+                      <ReadinessBadge status={sharedWorker.readiness} />
                     </li>
                   ))}
-                </ul>
+                </RecordList>
               )}
             </div>
           ))}
         </Panel>
       ) : null}
-    </>
+    </div>
   );
 }

@@ -13,8 +13,13 @@ function collectPageProblems(page: Page): string[] {
 test.describe("foundation smoke", () => {
   test("home page loads without runtime errors or CSP violations", async ({ page }) => {
     const problems = collectPageProblems(page);
+    // P0-E8-A1.1: the app domain is the product — signed-out visitors land on Sign in.
     const response = await page.goto("/");
     expect(response?.status()).toBe(200);
+    await expect(page).toHaveURL(/\/sign-in$/);
+    await expect(page.getByRole("main")).not.toContainText(
+      /being established|Reliable workforce operations|upcoming releases/,
+    );
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await expect(
       page.getByRole("img", { name: "Chelth — Healthcare Workforce Operations" }),

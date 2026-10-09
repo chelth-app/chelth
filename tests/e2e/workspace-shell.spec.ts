@@ -302,12 +302,7 @@ test.describe.serial("workspace shell", () => {
     await page.goto(`/app/organisations/${world.facilityOrgId}`);
 
     const nav = await openWorkspaceNav(page, testInfo);
-    expect(await navLabels(nav)).toEqual([
-      "Overview",
-      "Staffing requests",
-      "Timesheet sign-off",
-      "Settings",
-    ]);
+    expect(await navLabels(nav)).toEqual(["Overview", "Staffing requests", "Sign-off", "Settings"]);
     await screenshot(page, testInfo, "facility-admin-overview");
     await closeWorkspaceNav(page, testInfo);
     // Single-workspace user: no switcher choices.
@@ -326,12 +321,7 @@ test.describe.serial("workspace shell", () => {
     await page.goto(`/app/organisations/${world.facilityOrgId}`);
 
     const nav = await openWorkspaceNav(page, testInfo);
-    expect(await navLabels(nav)).toEqual([
-      "Overview",
-      "Staffing requests",
-      "Timesheet sign-off",
-      "Settings",
-    ]);
+    expect(await navLabels(nav)).toEqual(["Overview", "Staffing requests", "Sign-off", "Settings"]);
     await closeWorkspaceNav(page, testInfo);
     await expect(page.getByRole("button", { name: "Create invitation" })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Invitations" })).toHaveCount(0);
@@ -439,6 +429,125 @@ test.describe.serial("workspace shell", () => {
     await closeWorkspaceNav(scheduler, testInfo);
     expect((await scheduler.goto(`${base}/rates`))?.status()).toBe(404);
     await scheduler.context().close();
+  });
+
+  test("app entry: workspace chooser with real cards; personal frame navigation (P0-E8-A1.1)", async ({
+    browser,
+  }, testInfo) => {
+    // Fran belongs to the agency (Finance) and the facility (Scheduler).
+    const page = await signedIn(browser, finance.email);
+    // Signed in, "/" goes to the existing app entry.
+    await page.goto("/");
+    await expect(page).toHaveURL(/\/app$/);
+    await expect(page.getByRole("heading", { level: 1, name: /^Welcome/ })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+    const list = page.getByRole("list", { name: "Your organisations" });
+    const agency = list.getByRole("article", { name: world.agencyName });
+    const facility = list.getByRole("article", { name: world.facilityOrgName });
+    await expect(agency).toContainText("Agency");
+    await expect(agency).toContainText("Finance");
+    await expect(facility).toContainText("Facility");
+    await expect(facility).toContainText("Scheduler");
+    await expect(page.getByRole("main")).not.toContainText(/role\(s\)/);
+    await expect(
+      list.getByRole("button", { name: new RegExp(`^Open workspace ${world.agencyName}$`) }),
+    ).toBeVisible();
+    expect(await page.getByText("Last used").count()).toBeLessThanOrEqual(1);
+    await expect(page.getByRole("region", { name: "Create a new agency" })).toBeVisible();
+    // P0-E8-A1.3 / A1.4: from lg the gateway puts workspaces (primary, ~64%) beside the create
+    // panel with a 24 px gap, tops aligned; below lg it stacks organisations above Create.
+    const orgsBox = await page.getByRole("region", { name: "Your organisations" }).boundingBox();
+    const createBox = await page.getByRole("region", { name: "Create a new agency" }).boundingBox();
+    const agencyBox = await agency.boundingBox();
+    const facilityBox = await facility.boundingBox();
+    if (!orgsBox || !createBox || !agencyBox || !facilityBox) throw new Error("gateway missing");
+    if (isMobile(testInfo)) {
+      expect(createBox.y).toBeGreaterThanOrEqual(orgsBox.y + orgsBox.height);
+    } else {
+      const gap = createBox.x - (orgsBox.x + orgsBox.width);
+      expect(gap).toBeGreaterThanOrEqual(0);
+      expect(gap).toBeLessThanOrEqual(25);
+      expect(orgsBox.width).toBeGreaterThan(createBox.width * 1.4);
+      const share = orgsBox.width / (orgsBox.width + createBox.width);
+      expect(share).toBeGreaterThan(0.6);
+      expect(share).toBeLessThan(0.68);
+      expect(Math.abs(createBox.y - orgsBox.y)).toBeLessThan(8);
+      // The two-organisation fixture stays 2-up in the left column.
+      expect(Math.abs(agencyBox.y - facilityBox.y)).toBeLessThan(2);
+      const [left, right] =
+        agencyBox.x < facilityBox.x ? [agencyBox, facilityBox] : [facilityBox, agencyBox];
+      expect(right.x).toBeGreaterThan(left.x + left.width);
+    }
+    await expectNoPageOverflow(page);
+
+    // Personal frame: compact account navigation with the current destination marked.
+    const nav = page.getByRole("navigation", { name: "Account" });
+    await expect(nav.getByRole("link", { name: "Organisations" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await expect(nav.getByRole("button", { name: "Sign out" })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Workspace" })).toHaveCount(0);
+    await expect(page.getByRole("navigation", { name: "Worker" })).toHaveCount(0);
+    await expectNoA11yViolations(page);
+    await screenshot(page, testInfo, "a11-app-chooser");
+    if (isMobile(testInfo)) {
+      for (const width of [375, 412]) {
+        await page.setViewportSize({ width, height: 900 });
+        await expectNoPageOverflow(page);
+      }
+    }
+    for (const [path, label, panel] of [
+      ["/app/account", "Account", "Profile details"],
+      ["/app/security", "Security", "Authenticator app"],
+    ] as const) {
+      await page.goto(path);
+      await expect(nav.getByRole("link", { name: label })).toHaveAttribute("aria-current", "page");
+      await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
+      // P0-E8-A1.3: content sits in a locked panel inside a purposeful column (≤ 760 px).
+      const region = page.getByRole("region", { name: panel });
+      await expect(region).toBeVisible();
+      expect((await region.boundingBox())?.width ?? 0).toBeLessThanOrEqual(761);
+      await screenshot(page, testInfo, `a13-${label.toLowerCase()}`);
+      await expectNoPageOverflow(page);
+      await expectNoA11yViolations(page);
+    }
+    await page.goto("/app/account");
+    const profile = page.getByRole("region", { name: "Profile details" });
+    await expect(profile.getByLabel("Full name")).toBeVisible();
+    await expect(profile.getByRole("button", { name: "Save" })).toBeVisible();
+    // Opening a workspace still goes through the existing selection action.
+    await page.goto("/app");
+    await list
+      .getByRole("button", { name: new RegExp(`^Open workspace ${world.agencyName}$`) })
+      .click();
+    await expect(page).toHaveURL(new RegExp(`/app/organisations/${world.agencyId}$`));
+    await page.context().close();
+
+    // P0-E8-A1.4: a single workspace (Sue belongs only to the facility) gets one comfortable
+    // card on desktop rather than half the column; below lg it keeps the stacked full width.
+    const single = await signedIn(browser, supervisor.email);
+    await single.goto("/app");
+    const singleList = single.getByRole("list", { name: "Your organisations" });
+    await expect(singleList.getByRole("article")).toHaveCount(1);
+    const card = await singleList
+      .getByRole("article", { name: world.facilityOrgName })
+      .boundingBox();
+    const column = await single.getByRole("region", { name: "Your organisations" }).boundingBox();
+    const create = await single.getByRole("region", { name: "Create a new agency" }).boundingBox();
+    if (!card || !column || !create) throw new Error("single-organisation gateway missing");
+    if (isMobile(testInfo)) {
+      expect(create.y).toBeGreaterThanOrEqual(column.y + column.height);
+      expect(Math.abs(card.width - column.width)).toBeLessThan(2);
+    } else {
+      expect(card.width).toBeGreaterThan((column.width - 16) / 2 + 60);
+      expect(card.width).toBeLessThanOrEqual(561);
+      expect(create.x).toBeGreaterThanOrEqual(column.x + column.width);
+      expect(Math.abs(create.y - column.y)).toBeLessThan(8);
+    }
+    await expectNoPageOverflow(single);
+    await screenshot(single, testInfo, "a14-single-organisation");
+    await single.context().close();
   });
 
   test("narrow viewport: the sidebar becomes an accessible overlay", async ({

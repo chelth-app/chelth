@@ -139,7 +139,7 @@ export function OrganisationSections({
       ) : null}
       {showMyShifts ? (
         <Link href={`/app/organisations/${organisationId}/my-shifts`} className={LINK_CLASS}>
-          My shifts
+          My Shifts
         </Link>
       ) : null}
       {showWorkforce ? (
@@ -159,7 +159,7 @@ export function OrganisationSections({
       ) : null}
       {showMyCredentials ? (
         <Link href={`/app/organisations/${organisationId}/my-credentials`} className={LINK_CLASS}>
-          My credentials
+          My Credentials
         </Link>
       ) : null}
     </nav>

@@ -3,21 +3,17 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { WorkspaceNavIcon } from "@/components/layout/workspace-nav-icon";
-import { Badge } from "@/components/ui/badge";
 import {
-  DataTable,
-  DataTableCell,
-  DataTableHead,
-  DataTableHeaderCell,
-  DataTablePagination,
-  DataTableRegion,
-  DataTableRow,
-} from "@/components/ui/data-table";
+  REF_CARD_FROSTED,
+  REF_TABLE,
+  REF_TEXT,
+  RefChip,
+  RefKpiCard,
+  RefPanel,
+} from "@/components/reference/locked-reference";
+import { DataTablePagination, DataTableRegion } from "@/components/ui/data-table";
 import { DetailDrawerTrigger } from "@/components/ui/detail-drawer";
 import { EmptyState } from "@/components/ui/empty-state";
-import { FilterBar, FilterSelect } from "@/components/ui/filter-bar";
-import { KeyValueList } from "@/components/ui/key-value-list";
-import { KpiFilterCard, KpiFilterGroup } from "@/components/ui/kpi-filter-card";
 import { PageHeader } from "@/components/ui/page-header";
 import { listDisciplines } from "@/features/credentials";
 import { listPartnerRelationships } from "@/features/facilities";
@@ -25,24 +21,27 @@ import { loadOrganisationPage, requireCapabilityOrNotFound } from "@/features/or
 import {
   decodeCursor,
   FacilityRequestForm,
-  FillBadge,
+  FILL_TONE,
   listFacilityShifts,
   listFacilityShiftsPage,
   listRequestLocations,
-  ShiftStatusBadge,
+  SHIFT_TONE,
 } from "@/features/shifts";
 import { CAPABILITIES } from "@/lib/authz";
 import {
+  FILL_STATE_LABELS,
   formatShiftDate,
   formatShiftTimeRange,
   hasEnded,
-  SHIFT_CANCELLATION_REASON_LABELS,
   SHIFT_SOURCE_LABELS,
   SHIFT_STATUS_LABELS,
   SHIFT_STATUSES,
   todayIsoDate,
 } from "@/lib/domain/shifts";
-import { RELATIONSHIP_STATUS_LABELS } from "@/lib/domain/vocabulary";
+import { cn } from "@/lib/utils/cn";
+
+import { HeaderAddAction, LockedFilterSelect } from "../(finance)/_components/finance-locked";
+import { RequestDetailsPanel } from "./_components/request-details-panel";
 
 export const metadata: Metadata = { title: "Staffing requests" };
 
@@ -110,8 +109,11 @@ export default async function StaffingRequestsPage({
   const quickHref = (status: string) => `${base}?status=${status}&when=upcoming` as Route;
 
   return (
-    <>
+    // Locked facility list (P0-E8-QA-F1): the Facilities / Timesheets page family.
+    <div className="chelth-locked flex flex-col gap-[13px]">
       <PageHeader
+        variant="reference"
+        className="xl:mb-1"
         title="Staffing requests"
         back={
           <Link
@@ -128,55 +130,64 @@ export default async function StaffingRequestsPage({
         }
         primaryAction={
           canRequest && options.length > 0 ? (
-            <a
-              href="#new-request-heading"
-              className="inline-flex min-h-11 items-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary-hover"
-            >
-              New request
-            </a>
+            <HeaderAddAction href="#request-staff">New request</HeaderAddAction>
           ) : undefined
         }
       />
 
-      <KpiFilterGroup label="Upcoming requests">
-        <KpiFilterCard
-          label="Awaiting agency"
-          value={awaitingAgency}
-          supporting="Requested, not yet opened"
-          icon={<WorkspaceNavIcon name="requests" />}
-          href={quickHref("submitted")}
-          active={statusFilter === "submitted" && upcomingOnly}
-        />
-        <KpiFilterCard
-          label="Open"
-          value={openUpcoming.length}
-          supporting={`${notFullyStaffed} not fully staffed`}
-          icon={<WorkspaceNavIcon name="shifts" />}
-          href={quickHref("open")}
-          active={statusFilter === "open" && upcomingOnly}
-        />
-        <KpiFilterCard
-          label="Workers confirmed"
-          value={confirmedWorkers}
-          supporting="Accepted on upcoming open shifts"
-          icon={<WorkspaceNavIcon name="workforce" />}
-        />
-      </KpiFilterGroup>
-
-      <section aria-labelledby="requests-heading" className="flex flex-col gap-3">
-        <h2 id="requests-heading" className="text-lg font-semibold">
-          Requests and shifts
-        </h2>
-        <FilterBar
-          key={`${statusFilter ?? ""}_${upcomingOnly}`}
-          label="Filter requests"
-          resetHref={filtered ? (base as Route) : undefined}
+      {/* Locked: with Request Details open on wide screens the work area contracts beside it. */}
+      <div className="flex flex-col gap-[13px] min-[1536px]:has-[dialog[open]]:pr-[407px]">
+        <section
+          aria-label="Upcoming requests"
+          className="grid grid-cols-2 gap-3 xl:grid-cols-3 xl:gap-[13px]"
         >
-          <FilterSelect
-            label="Status"
+          <RefKpiCard
+            size="sm"
+            label="Awaiting Agency"
+            value={awaitingAgency}
+            supporting="Requested, not yet opened"
+            glyph="document"
+            icon={<WorkspaceNavIcon name="requests" strokeWidth={2.4} duotone />}
+            tone="info"
+            href={quickHref("submitted")}
+            active={statusFilter === "submitted" && upcomingOnly}
+          />
+          <RefKpiCard
+            size="sm"
+            label="Open"
+            value={openUpcoming.length}
+            supporting={`${notFullyStaffed} not fully staffed`}
+            glyph="calendar"
+            icon={<WorkspaceNavIcon name="shifts" strokeWidth={2.4} duotone />}
+            tone={notFullyStaffed > 0 ? "warning" : "teal"}
+            href={quickHref("open")}
+            active={statusFilter === "open" && upcomingOnly}
+          />
+          <RefKpiCard
+            size="sm"
+            label="Workers Confirmed"
+            value={confirmedWorkers}
+            supporting="Accepted on upcoming open shifts"
+            glyph="people"
+            icon={<WorkspaceNavIcon name="workforce" strokeWidth={2.4} duotone />}
+            tone="teal"
+          />
+        </section>
+
+        {/* Locked filter row: the same URL-backed display filters as before. */}
+        <form
+          key={`${statusFilter ?? ""}_${upcomingOnly}`}
+          aria-label="Filter requests"
+          method="get"
+          className="flex flex-wrap items-center gap-[9px]"
+        >
+          <LockedFilterSelect
             id="request-status"
             name="status"
-            defaultValue={statusFilter ?? ""}
+            label="Status"
+            value={statusFilter ?? ""}
+            className="xl:w-[196px]"
+            icon={<WorkspaceNavIcon name="requests" />}
           >
             <option value="">All statuses</option>
             {SHIFT_STATUSES.map((status) => (
@@ -184,140 +195,153 @@ export default async function StaffingRequestsPage({
                 {SHIFT_STATUS_LABELS[status]}
               </option>
             ))}
-          </FilterSelect>
-          <FilterSelect
-            label="When"
+          </LockedFilterSelect>
+          <LockedFilterSelect
             id="request-when"
             name="when"
-            defaultValue={upcomingOnly ? "upcoming" : ""}
+            label="When"
+            value={upcomingOnly ? "upcoming" : ""}
+            className="xl:w-[176px]"
+            icon={<WorkspaceNavIcon name="shifts" />}
           >
             <option value="">Any time</option>
             <option value="upcoming">Upcoming</option>
-          </FilterSelect>
-        </FilterBar>
-        {shifts.length === 0 ? (
-          <EmptyState
-            headingLevel={3}
-            title={filtered ? "No requests match." : "No requests yet."}
-            description={
-              canRequest
-                ? "Requests you submit, and shifts your agencies schedule here, appear in this list."
-                : "Shifts your agencies schedule at this facility appear in this list."
-            }
-          />
-        ) : (
-          <DataTableRegion aria-label="Staffing requests table">
-            <DataTable className="min-w-[820px]">
-              <DataTableHead>
-                <tr>
-                  <DataTableHeaderCell>Request</DataTableHeaderCell>
-                  <DataTableHeaderCell>Location and time</DataTableHeaderCell>
-                  <DataTableHeaderCell>Status</DataTableHeaderCell>
-                  <DataTableHeaderCell>Staffing</DataTableHeaderCell>
-                  <DataTableHeaderCell>Source</DataTableHeaderCell>
-                  <DataTableHeaderCell>
-                    <span className="sr-only">Details</span>
-                  </DataTableHeaderCell>
-                </tr>
-              </DataTableHead>
-              <tbody>
-                {shifts.map((shift) => {
-                  const href = `${base}/${shift.id}` as Route;
-                  const title = `${shift.agencyName} · ${shift.disciplineName} · ${formatShiftDate(shift)}`;
-                  const staffing =
-                    shift.status === "open" ? (
-                      <FillBadge
-                        fillState={shift.fillState}
-                        activeCount={shift.activeCount}
-                        requestedHeadcount={shift.requestedHeadcount}
-                      />
-                    ) : (
-                      <span className="text-muted-foreground">
-                        {shift.requestedHeadcount} needed
-                      </span>
-                    );
-                  return (
-                    <DataTableRow key={shift.id}>
-                      <DataTableCell>
-                        <Link
-                          href={href}
-                          className="font-medium text-primary underline underline-offset-4"
-                        >
-                          {title}
-                        </Link>
-                      </DataTableCell>
-                      <DataTableCell>
-                        {shift.locationName}
-                        <div className="text-muted-foreground">{formatShiftTimeRange(shift)}</div>
-                      </DataTableCell>
-                      <DataTableCell>
-                        <ShiftStatusBadge status={shift.status} />
-                      </DataTableCell>
-                      <DataTableCell>{staffing}</DataTableCell>
-                      <DataTableCell>
-                        <Badge tone="neutral">{SHIFT_SOURCE_LABELS[shift.source]}</Badge>
-                      </DataTableCell>
-                      <DataTableCell>
-                        <DetailDrawerTrigger
-                          triggerLabel="Details"
-                          triggerAccessibleLabel={`Details for ${title}`}
-                          title={`${shift.disciplineName} · ${formatShiftDate(shift)}`}
-                          description={`${shift.agencyName} · ${shift.locationName}`}
-                          footer={
+          </LockedFilterSelect>
+          <button
+            type="submit"
+            className="inline-flex h-11 items-center rounded-md border border-chelth-border bg-white/90 px-4 text-[13.5px] font-medium text-chelth-navy hover:bg-surface-muted sm:h-[46px]"
+          >
+            Apply filters
+          </button>
+          {filtered ? (
+            <Link
+              href={base as Route}
+              className="inline-flex min-h-11 items-center px-1 text-[13px] font-medium text-primary underline underline-offset-4"
+            >
+              Clear filters
+            </Link>
+          ) : null}
+        </form>
+
+        <RefPanel
+          title="Requests and Shifts"
+          titleId="requests-heading"
+          action={
+            <span className="text-[13.5px] text-muted-foreground">
+              {shifts.length === 1 ? "1 request" : `${shifts.length} requests`}
+            </span>
+          }
+        >
+          {shifts.length === 0 ? (
+            <div className="mt-[9px]">
+              <EmptyState
+                headingLevel={3}
+                title={filtered ? "No requests match." : "No requests yet."}
+                description={
+                  canRequest
+                    ? "Requests you submit, and shifts your agencies schedule here, appear in this list."
+                    : "Shifts your agencies schedule at this facility appear in this list."
+                }
+              />
+            </div>
+          ) : (
+            <DataTableRegion
+              aria-label="Staffing requests table"
+              className="mt-[9px] rounded-none border-0 bg-transparent"
+            >
+              <table className={cn(REF_TABLE, "min-w-[860px] table-fixed")}>
+                <colgroup>
+                  <col className="w-[25%]" />
+                  <col className="w-[20%]" />
+                  <col className="w-[17%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[13%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[5%]" />
+                </colgroup>
+                <thead className={REF_TEXT.tableHead}>
+                  <tr>
+                    <th scope="col">Request</th>
+                    <th scope="col">Agency and Location</th>
+                    <th scope="col">Time</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Staffing</th>
+                    <th scope="col">Source</th>
+                    <th scope="col">
+                      <span className="sr-only">Details</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className={REF_TEXT.tableBody}>
+                  {shifts.map((shift) => {
+                    const href = `${base}/${shift.id}` as Route;
+                    const title = `${shift.agencyName} · ${shift.disciplineName} · ${formatShiftDate(shift)}`;
+                    return (
+                      <tr
+                        key={shift.id}
+                        className="h-[42px] transition-colors hover:bg-surface-muted/50 has-[dialog[open]]:bg-chelth-mint-mist/70 [&:has(dialog[open])>*:first-child]:shadow-[inset_3px_0_0_var(--chelth-teal)]"
+                      >
+                        <td>
+                          <span className="flex flex-col py-2">
                             <Link
                               href={href}
-                              className="inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary-hover"
+                              className="font-medium text-chelth-navy hover:text-primary hover:underline hover:underline-offset-4"
                             >
-                              Open request
+                              {shift.disciplineName}
                             </Link>
-                          }
-                        >
-                          <KeyValueList
-                            items={[
-                              {
-                                label: "Status",
-                                value: <ShiftStatusBadge status={shift.status} />,
-                              },
-                              { label: "Staffing", value: staffing },
-                              {
-                                label: "Workers needed",
-                                value: `${shift.requestedHeadcount} (${shift.acceptedCount} confirmed)`,
-                              },
-                              { label: "Agency", value: shift.agencyName },
-                              { label: "Location", value: shift.locationName },
-                              { label: "Time", value: formatShiftTimeRange(shift) },
-                              { label: "Timezone", value: shift.timezone },
-                              { label: "Source", value: SHIFT_SOURCE_LABELS[shift.source] },
-                              {
-                                label: "Agency relationship",
-                                value: RELATIONSHIP_STATUS_LABELS[shift.relationshipStatus],
-                              },
-                              ...(shift.externalReference
-                                ? [{ label: "Reference", value: shift.externalReference }]
-                                : []),
-                              ...(shift.cancellationReason
-                                ? [
-                                    {
-                                      label: "Cancelled",
-                                      value:
-                                        SHIFT_CANCELLATION_REASON_LABELS[shift.cancellationReason],
-                                    },
-                                  ]
-                                : []),
-                            ]}
-                          />
-                          <p className="text-sm text-muted-foreground">
-                            Who is coming and attendance are on the request page.
-                          </p>
-                        </DetailDrawerTrigger>
-                      </DataTableCell>
-                    </DataTableRow>
-                  );
-                })}
-              </tbody>
-            </DataTable>
-          </DataTableRegion>
-        )}
+                            <span className="text-muted-foreground">{formatShiftDate(shift)}</span>
+                          </span>
+                        </td>
+                        <td>
+                          <span className="flex flex-col py-2">
+                            <span className="truncate">{shift.agencyName}</span>
+                            <span className="truncate text-muted-foreground">
+                              {shift.locationName}
+                            </span>
+                          </span>
+                        </td>
+                        <td>{formatShiftTimeRange(shift)}</td>
+                        <td>
+                          <RefChip tone={SHIFT_TONE[shift.status]} className="font-normal">
+                            {SHIFT_STATUS_LABELS[shift.status]}
+                          </RefChip>
+                        </td>
+                        <td>
+                          {shift.status === "open" ? (
+                            <RefChip tone={FILL_TONE[shift.fillState]} className="font-normal">
+                              {FILL_STATE_LABELS[shift.fillState]} · {shift.activeCount} of{" "}
+                              {shift.requestedHeadcount}
+                            </RefChip>
+                          ) : (
+                            <span className="text-muted-foreground">
+                              {shift.requestedHeadcount} needed
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          <RefChip tone="neutral" className="font-normal">
+                            {SHIFT_SOURCE_LABELS[shift.source]}
+                          </RefChip>
+                        </td>
+                        <td className="text-right">
+                          <DetailDrawerTrigger
+                            triggerLabel="⋮"
+                            triggerClassName="justify-center px-2 text-xl font-bold text-chelth-navy no-underline sm:min-h-9"
+                            triggerAccessibleLabel={`Details for ${title}`}
+                            title="Request Details"
+                            width="profile"
+                          >
+                            <RequestDetailsPanel shift={shift} href={href} />
+                          </DetailDrawerTrigger>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </DataTableRegion>
+          )}
+        </RefPanel>
         <DataTablePagination
           label="Request list pages"
           nextHref={
@@ -325,29 +349,33 @@ export default async function StaffingRequestsPage({
           }
           nextLabel="Older requests"
         />
-      </section>
 
-      {canRequest ? (
-        <section aria-labelledby="new-request-heading" className="flex flex-col gap-3">
-          <h2 id="new-request-heading" className="scroll-mt-24 text-lg font-semibold">
-            Request staff
-          </h2>
-          {options.length === 0 ? (
-            <EmptyState
-              headingLevel={3}
-              title="Requests are not available yet."
-              description="You need an active relationship with an agency, and the agency must have set up your locations, before you can request staff."
-            />
-          ) : (
-            <FacilityRequestForm
-              organisationId={organisationId}
-              options={options}
-              disciplines={disciplines}
-              minDate={todayIsoDate()}
-            />
-          )}
-        </section>
-      ) : null}
-    </>
+        {canRequest ? (
+          <section
+            id="request-staff"
+            aria-labelledby="new-request-heading"
+            className={cn(REF_CARD_FROSTED, "flex scroll-mt-24 flex-col gap-4 p-4 sm:p-5")}
+          >
+            <h2 id="new-request-heading" className={REF_TEXT.panelTitle}>
+              Request staff
+            </h2>
+            {options.length === 0 ? (
+              <EmptyState
+                headingLevel={3}
+                title="Requests are not available yet."
+                description="You need an active relationship with an agency, and the agency must have set up your locations, before you can request staff."
+              />
+            ) : (
+              <FacilityRequestForm
+                organisationId={organisationId}
+                options={options}
+                disciplines={disciplines}
+                minDate={todayIsoDate()}
+              />
+            )}
+          </section>
+        ) : null}
+      </div>
+    </div>
   );
 }
