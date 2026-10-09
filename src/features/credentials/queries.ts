@@ -125,6 +125,8 @@ export type CredentialDocument = {
   id: string;
   mimeType: string;
   status: DocumentStatus;
+  /** The security check could not be finished (still untrusted; operator retry pending). */
+  scanFailed: boolean;
   createdAt: string;
 };
 
@@ -180,7 +182,7 @@ export async function getCredential(credentialId: string): Promise<CredentialDet
   const { data, error } = await supabase
     .from("credentials")
     .select(
-      "id, profile_id, credential_type_key, jurisdiction_code, issuing_authority, status, type:credential_types(name, scope, requires_document, requires_issue_date, requires_expiry_date), versions:credential_versions(id, version_number, status, issue_date, expiry_date, submitted_at, documents:credential_documents(id, mime_type, status, created_at)), shares:credential_shares(id, agency_organisation_id, status, shared_at)",
+      "id, profile_id, credential_type_key, jurisdiction_code, issuing_authority, status, type:credential_types(name, scope, requires_document, requires_issue_date, requires_expiry_date), versions:credential_versions(id, version_number, status, issue_date, expiry_date, submitted_at, documents:credential_documents(id, mime_type, status, status_reason, created_at)), shares:credential_shares(id, agency_organisation_id, status, shared_at)",
     )
     .eq("id", credentialId)
     .maybeSingle();
@@ -232,6 +234,7 @@ export async function getCredential(credentialId: string): Promise<CredentialDet
           id: document.id,
           mimeType: document.mime_type,
           status: document.status,
+          scanFailed: document.status === "scanning" && document.status_reason === "scan_failed",
           createdAt: document.created_at,
         })),
       })),

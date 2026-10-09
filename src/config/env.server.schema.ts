@@ -19,6 +19,13 @@ export type LogLevel = (typeof LOG_LEVELS)[number];
  * (see docs/security/SECURITY_INVARIANTS.md, invariant 2).
  */
 export const EMAIL_PROVIDERS = ["disabled", "resend"] as const;
+/**
+ * Credential-document malware scanning (docs/security/CREDENTIAL_DOCUMENT_SECURITY.md).
+ * `disabled` (default) scans nothing: documents stay `scanning` (fail-closed).
+ * `local_test` is a deterministic EICAR-signature stub, refused in production.
+ */
+export const MALWARE_SCAN_PROVIDERS = ["disabled", "cloudmersive", "local_test"] as const;
+export type MalwareScanProviderName = (typeof MALWARE_SCAN_PROVIDERS)[number];
 export type EmailProviderName = (typeof EMAIL_PROVIDERS)[number];
 
 /** "Name <address@domain>" or a bare address. */
@@ -58,6 +65,27 @@ export const serverEnvSchema = z
       .trim()
       .regex(/^postgres(ql)?:\/\//, "NOTIFICATION_WORKER_DATABASE_URL must be a postgres:// URL")
       .optional(),
+    // Document scanning. All optional: without them the scan route reports
+    // "not configured" and documents stay untrusted.
+    MALWARE_SCAN_PROVIDER: z.enum(MALWARE_SCAN_PROVIDERS).default("disabled"),
+    /** Provider API key (server-only; never logged). */
+    MALWARE_SCAN_API_KEY: z
+      .string()
+      .trim()
+      .min(16, "MALWARE_SCAN_API_KEY looks truncated")
+      .optional(),
+    /** Bearer secret the scheduler presents to the scan route. */
+    DOCUMENT_SCAN_DISPATCH_SECRET: z
+      .string()
+      .trim()
+      .min(32, "DOCUMENT_SCAN_DISPATCH_SECRET must be at least 32 characters")
+      .optional(),
+    /** Registered scanner principal (internal.register_document_scanner); no application access. */
+    DOCUMENT_SCANNER_EMAIL: z.email().optional(),
+    DOCUMENT_SCANNER_PASSWORD: z
+      .string()
+      .min(24, "DOCUMENT_SCANNER_PASSWORD must be at least 24 characters")
+      .optional(),
   })
   .superRefine((env, ctx) => {
     if (env.APP_BASE_URL && env.NOTIFICATION_WORKER_DATABASE_URL) {
@@ -70,6 +98,20 @@ export const serverEnvSchema = z
           message: "APP_BASE_URL must use https outside local development.",
         });
       }
+    }
+    if (env.MALWARE_SCAN_PROVIDER === "cloudmersive" && !env.MALWARE_SCAN_API_KEY) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["MALWARE_SCAN_API_KEY"],
+        message: "Required when MALWARE_SCAN_PROVIDER=cloudmersive.",
+      });
+    }
+    if (Boolean(env.DOCUMENT_SCANNER_EMAIL) !== Boolean(env.DOCUMENT_SCANNER_PASSWORD)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["DOCUMENT_SCANNER_PASSWORD"],
+        message: "DOCUMENT_SCANNER_EMAIL and DOCUMENT_SCANNER_PASSWORD are set together.",
+      });
     }
     if (env.EMAIL_PROVIDER !== "resend") return;
     if (!env.RESEND_API_KEY) {

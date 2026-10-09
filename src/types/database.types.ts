@@ -6458,6 +6458,18 @@ export type Database = {
         Returns: undefined
       }
       cancel_shift_offer: { Args: { p_offer_id: string }; Returns: undefined }
+      claim_document_scans: {
+        Args: { p_lease_seconds?: number; p_limit?: number }
+        Returns: {
+          attempt: number
+          claim_token: string
+          document_id: string
+          mime_type: string
+          object_path: string
+          sha256: string
+          size_bytes: number
+        }[]
+      }
       clock_in_assignment: {
         Args: {
           p_accuracy_meters?: number
@@ -6500,6 +6512,17 @@ export type Database = {
           p_sha256: string
         }
         Returns: Database["public"]["Enums"]["document_status"]
+      }
+      complete_document_scan: {
+        Args: {
+          p_claim_token: string
+          p_document_id: string
+          p_engine?: string
+          p_error_code?: string
+          p_observed_sha256?: string
+          p_outcome: string
+        }
+        Returns: string
       }
       complete_shift: { Args: { p_shift_id: string }; Returns: undefined }
       create_agency_facility: {
@@ -6689,6 +6712,17 @@ export type Database = {
       discard_rate_version: {
         Args: { p_version_id: string }
         Returns: undefined
+      }
+      document_scan_health: {
+        Args: never
+        Returns: {
+          failed: number
+          oldest_scanning_at: string
+          pending_due: number
+          processing: number
+          retrying: number
+          stuck: number
+        }[]
       }
       download_financial_export: {
         Args: { p_export_id: string }

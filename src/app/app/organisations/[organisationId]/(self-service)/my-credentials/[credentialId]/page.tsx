@@ -196,6 +196,12 @@ export default async function MyCredentialPage({
                           label={`Open document ${index + 1} of version ${version.number}`}
                         />
                       ) : null}
+                      {document.scanFailed ? (
+                        <span className={`${RECORD_ROW_META} basis-full`}>
+                          We couldn&apos;t finish checking this document. Try again later or upload
+                          a new copy.
+                        </span>
+                      ) : null}
                     </li>
                   ))}
                 </ul>

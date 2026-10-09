@@ -39,6 +39,11 @@ export default function nextConfig(phase: string): NextConfig {
       EMAIL_PROVIDER: process.env.EMAIL_PROVIDER,
       RESEND_API_KEY: process.env.RESEND_API_KEY,
       EMAIL_FROM: process.env.EMAIL_FROM,
+      MALWARE_SCAN_PROVIDER: process.env.MALWARE_SCAN_PROVIDER,
+      MALWARE_SCAN_API_KEY: process.env.MALWARE_SCAN_API_KEY,
+      DOCUMENT_SCAN_DISPATCH_SECRET: process.env.DOCUMENT_SCAN_DISPATCH_SECRET,
+      DOCUMENT_SCANNER_EMAIL: process.env.DOCUMENT_SCANNER_EMAIL,
+      DOCUMENT_SCANNER_PASSWORD: process.env.DOCUMENT_SCANNER_PASSWORD,
     });
   }
 

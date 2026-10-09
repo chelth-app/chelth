@@ -1,12 +1,16 @@
 # Supabase clients
 
-| Module       | Where it may be used                              | Credentials     | Guard         |
-| ------------ | ------------------------------------------------- | --------------- | ------------- |
-| `browser.ts` | Client Components                                 | anon key + user | `client-only` |
-| `server.ts`  | Server Components, Server Actions, Route Handlers | anon key + user | `server-only` |
-| `proxy.ts`   | `src/proxy.ts` only (session refresh)             | anon key + user | —             |
+| Module       | Where it may be used                              | Credentials                  | Guard         |
+| ------------ | ------------------------------------------------- | ---------------------------- | ------------- |
+| `browser.ts` | Client Components                                 | anon key + user              | `client-only` |
+| `server.ts`  | Server Components, Server Actions, Route Handlers | anon key + user              | `server-only` |
+| `proxy.ts`   | `src/proxy.ts` only (session refresh)             | anon key + user              | —             |
+| `scanner.ts` | the document scan worker route only               | anon key + scanner principal | `server-only` |
 
-All three act **as the signed-in user**, so Row Level Security always applies.
+All four act **as an authenticated identity**, so Row Level Security always
+applies. `scanner.ts` signs in as the registered scanner principal, whose
+application profile is suspended: it can only claim / complete document scans
+and read objects it holds a claim on (docs/security/CREDENTIAL_DOCUMENT_SECURITY.md).
 
 ## There is intentionally no service-role client
 
