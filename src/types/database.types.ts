@@ -6628,6 +6628,7 @@ export type Database = {
         Returns: {
           invite_expires_at: string
           invite_id: string
+          invite_reissued: boolean
           invite_token: string
         }[]
       }

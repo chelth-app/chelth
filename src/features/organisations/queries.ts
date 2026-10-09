@@ -154,6 +154,8 @@ export type OrganisationInvite = {
   expiresAt: string;
   sendCount: number;
   invitedAt: string;
+  /** Real post-commit delivery outcome (reset on every token rotation). */
+  deliveryStatus: "not_attempted" | "sent" | "failed" | "skipped";
 };
 
 export async function listInvites(organisationId: string): Promise<OrganisationInvite[]> {
@@ -170,6 +172,7 @@ export async function listInvites(organisationId: string): Promise<OrganisationI
     expiresAt: row.invite_expires_at,
     sendCount: row.invite_send_count,
     invitedAt: row.invited_at,
+    deliveryStatus: row.invite_delivery_status,
   }));
 }
 

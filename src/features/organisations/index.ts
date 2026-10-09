@@ -13,9 +13,12 @@ export { CreateOrganisationForm } from "./components/create-organisation-form";
 export { InviteMemberForm } from "./components/invite-member-form";
 export { OrganisationSections } from "./components/organisation-sections";
 export { StepUpNotice, stepUpHref } from "./components/step-up-notice";
+export { CancelInviteForm } from "./components/cancel-invite-form";
+export { InviteNoticeProvider } from "./components/invite-notice";
 export { ResendInviteForm } from "./components/resend-invite-form";
 export {
   attachPendingInviteToken,
+  pendingInviteTokenFrom,
   readActiveOrganisationPreference,
   readPendingInviteToken,
 } from "./context";

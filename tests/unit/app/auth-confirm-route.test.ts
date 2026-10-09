@@ -91,3 +91,43 @@ describe("/auth/confirm — other email link types", () => {
     expect(result.location).toBe(`${HOSTED}/auth/error`);
   });
 });
+
+describe("/auth/confirm — invitation context (P0-E9-3A)", () => {
+  const TOKEN = "A".repeat(43);
+
+  beforeEach(() => {
+    verifyOtp.mockReset();
+    verifyOtp.mockResolvedValue({ error: null });
+  });
+
+  async function followWithInvite(query: string, token = TOKEN) {
+    const request = new NextRequest(`${HOSTED}/auth/confirm?${query}`, {
+      headers: { cookie: `chelth_invite=${token}` },
+    });
+    const response = await GET(request);
+    return response.headers.get("location");
+  }
+
+  it("returns a newly confirmed invitee to the invitation review", async () => {
+    expect(await followWithInvite("token_hash=abc&type=email&next=/app")).toBe(`${HOSTED}/invite`);
+    expect(await followWithInvite("token_hash=abc&type=signup")).toBe(`${HOSTED}/invite`);
+  });
+
+  it("keeps an explicit destination and never diverts password recovery", async () => {
+    expect(await followWithInvite("token_hash=abc&type=email&next=/app/account")).toBe(
+      `${HOSTED}/app/account`,
+    );
+    expect(await followWithInvite("token_hash=abc&type=recovery")).toBe(`${HOSTED}/reset-password`);
+  });
+
+  it("ignores a malformed invitation cookie", async () => {
+    expect(await followWithInvite("token_hash=abc&type=email", "not-a-token")).toBe(
+      `${HOSTED}/app`,
+    );
+  });
+
+  it("does not resume when verification fails", async () => {
+    verifyOtp.mockResolvedValue({ error: { code: "otp_expired" } });
+    expect(await followWithInvite("token_hash=abc&type=email")).toBe(`${HOSTED}/auth/error`);
+  });
+});

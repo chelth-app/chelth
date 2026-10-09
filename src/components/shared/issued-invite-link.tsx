@@ -4,6 +4,8 @@ export type IssuedInviteView = {
   expiresAt: string;
   delivery: "sent" | "skipped" | "failed";
   inviteUrl: string | null;
+  /** An existing pending invitation was re-issued (new link; the old one no longer works). */
+  reissued?: boolean;
 };
 
 const NOT_SENT_REASON: Record<Exclude<IssuedInviteView["delivery"], "sent">, string> = {
@@ -23,7 +25,9 @@ export function IssuedInviteLink({ invite }: { invite: IssuedInviteView }) {
         role="status"
         className="rounded-md bg-success-soft p-3 text-sm text-success-soft-foreground"
       >
-        Invitation emailed to <strong>{invite.email}</strong>.
+        {invite.reissued ? "Invitation resent to" : "Invitation emailed to"}{" "}
+        <strong>{invite.email}</strong>.
+        {invite.reissued ? " The previous invitation link no longer works." : null}
       </p>
     );
   }
@@ -33,9 +37,11 @@ export function IssuedInviteLink({ invite }: { invite: IssuedInviteView }) {
       className="flex flex-col gap-2 rounded-md bg-success-soft p-3 text-sm text-success-soft-foreground"
     >
       <p>
-        Invitation ready for <strong>{invite.email}</strong>. {NOT_SENT_REASON[invite.delivery]}, so
-        share this link with them. It is shown only once and expires on{" "}
-        {new Date(invite.expiresAt).toLocaleDateString("en-GB")}.
+        {invite.reissued ? "Invitation re-issued for" : "Invitation ready for"}{" "}
+        <strong>{invite.email}</strong>.{" "}
+        {invite.reissued ? "The previous invitation link no longer works. " : null}
+        {NOT_SENT_REASON[invite.delivery]}, so share this link with them. It is shown only once and
+        expires on {new Date(invite.expiresAt).toLocaleDateString("en-GB")}.
       </p>
       <label className="flex flex-col gap-1">
         <span className="font-medium">Invitation link</span>

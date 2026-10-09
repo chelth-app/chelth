@@ -41,6 +41,21 @@ export async function signUpAndConfirm(page: Page, name: string, email: string):
   await expect(page).toHaveURL(/\/app$/);
 }
 
+/**
+ * Sign-up from an invitation link: after confirming the email the invitee is
+ * returned to the authenticated invitation review (P0-E9-3A), not the gateway.
+ */
+export async function signUpAndConfirmInvitee(
+  page: Page,
+  name: string,
+  email: string,
+): Promise<void> {
+  await signUp(page, name, email);
+  await followEmailLink(page, email, "Confirm your CHELTH account");
+  await expect(page).toHaveURL(/\/invite$/);
+  await expect(page.getByRole("button", { name: "Accept invitation" })).toBeVisible();
+}
+
 export async function signIn(page: Page, email: string, password = PASSWORD): Promise<void> {
   await page.goto("/sign-in");
   await page.getByLabel("Email address").fill(email);

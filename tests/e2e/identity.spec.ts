@@ -10,6 +10,7 @@ import {
   signIn,
   signUp,
   signUpAndConfirm,
+  signUpAndConfirmInvitee,
   uniqueEmail,
 } from "./support";
 import { waitForEmailLink } from "../support/mailpit";
@@ -216,12 +217,11 @@ test.describe("organisation access", () => {
     await invitee.goto(inviteUrl.pathname);
     await expect(invitee).toHaveURL(/\/invite$/);
     await expect(
-      invitee.getByRole("heading", { name: "You have been invited to CHELTH" }),
+      invitee.getByRole("heading", { name: "You've been invited to join Chelth" }),
     ).toBeVisible();
 
-    await signUpAndConfirm(invitee, "Ivy Invitee", inviteeEmail);
-    await invitee.getByRole("link", { name: "Review invitation" }).click();
-    await expect(invitee.getByText("Invite Flow Agency")).toBeVisible();
+    await signUpAndConfirmInvitee(invitee, "Ivy Invitee", inviteeEmail);
+    await expect(invitee.getByText("Invite Flow Agency").first()).toBeVisible();
     await qaScreenshot(invitee, "s7-invite-preview");
     await invitee.getByRole("button", { name: "Accept invitation" }).click();
     await expect(

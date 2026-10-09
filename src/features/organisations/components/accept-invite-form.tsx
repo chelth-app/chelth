@@ -12,7 +12,7 @@ export function AcceptInviteForm() {
   return (
     <form action={formAction} className="flex flex-col gap-3">
       <FormAlert state={state} />
-      <SubmitButton className="w-fit">Accept invitation</SubmitButton>
+      <SubmitButton className="w-full">Accept invitation</SubmitButton>
     </form>
   );
 }

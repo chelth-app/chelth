@@ -88,6 +88,22 @@ export const ERROR_CODES = {
     status: 409,
     message: "This action is not allowed in the item's current state.",
   },
+  INVITE_PENDING_OTHER_ROLE: {
+    kind: "conflict",
+    status: 409,
+    message:
+      "This email already has a pending invitation with a different role. Revoke that invitation first, then invite again.",
+  },
+  ALREADY_IN_WORKFORCE: {
+    kind: "conflict",
+    status: 409,
+    message: "This person is already part of your workforce.",
+  },
+  ALREADY_A_MEMBER: {
+    kind: "conflict",
+    status: 409,
+    message: "This person is already a member of this organisation.",
+  },
   INVITE_INVALID: {
     kind: "not_found",
     status: 404,

@@ -17,13 +17,14 @@ import type { StatusTone } from "@/components/ui/status-chip";
 import { getReadiness, listWorkerDisciplines, type Readiness } from "@/features/compliance";
 import { listDisciplines } from "@/features/credentials";
 import {
+  listInvites,
   loadOrganisationPage,
   requireCapabilityOrNotFound,
   StepUpNotice,
 } from "@/features/organisations";
 import { type AgencyShiftSummary, listAgencyShifts, listShiftAssignments } from "@/features/shifts";
 import { InviteWorkerForm, listWorkers } from "@/features/workforce";
-import { CAPABILITIES } from "@/lib/authz";
+import { CAPABILITIES, ROLES } from "@/lib/authz";
 import { READINESS_LABELS, type ReadinessStatus } from "@/lib/domain/credentials";
 import {
   daysUntilDate,
@@ -37,6 +38,7 @@ import {
 import { WORKER_STATUS_LABELS, WORKER_STATUSES } from "@/lib/domain/vocabulary";
 import { cn } from "@/lib/utils/cn";
 
+import { PendingInvitations } from "./_components/pending-invitations";
 import { WorkerDetailsPanel } from "./_components/worker-details-panel";
 import { WORKER_STATUS_TONE } from "./_components/worker-tones";
 
@@ -106,13 +108,19 @@ export default async function WorkforcePage({
   const today = todayIsoDate();
   const day = (offset: number) =>
     new Date(Date.parse(`${today}T12:00:00Z`) + offset * 86_400_000).toISOString().slice(0, 10);
-  const [workers, disciplines, lookahead] = await Promise.all([
+  const [workers, disciplines, lookahead, invites] = await Promise.all([
     canViewWorkers ? listWorkers(organisationId) : Promise.resolve([]),
     listDisciplines(),
     canShifts && canAssignments
       ? listAgencyShifts(organisationId, { from: day(-1), to: day(LOOKAHEAD_DAYS) })
       : Promise.resolve([]),
+    // Same authority as the invite form (membership.invite at AAL2).
+    inviteState === "granted" ? listInvites(organisationId) : Promise.resolve([]),
   ]);
+  // Pending Healthcare Worker invitations only (accepted / cancelled ones leave the list).
+  const pendingWorkerInvites = invites.filter(
+    (invite) => invite.status === "pending" && invite.roleKey === ROLES.AGENCY_HEALTHCARE_WORKER,
+  );
 
   // Readiness and disciplines: the worker record's own loaders and gates.
   const current = workers.filter((worker) => worker.status !== "terminated");
@@ -643,6 +651,10 @@ export default async function WorkforcePage({
             </nav>
           ) : null}
         </section>
+
+        {inviteState === "granted" ? (
+          <PendingInvitations organisationId={organisationId} invites={pendingWorkerInvites} />
+        ) : null}
       </div>
     </div>
   );

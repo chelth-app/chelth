@@ -8,6 +8,7 @@ import {
   openWorkspaceSection,
   qaScreenshot,
   signUpAndConfirm,
+  signUpAndConfirmInvitee,
   uniqueEmail,
 } from "./support";
 
@@ -81,9 +82,11 @@ test.describe("credentials and compliance", () => {
     const workerContext = await browser.newContext();
     const worker = await workerContext.newPage();
     await worker.goto(inviteUrl.pathname);
-    await signUpAndConfirm(worker, "Jane Williams", workerEmail);
-    await worker.getByRole("link", { name: "Review invitation" }).click();
+    await signUpAndConfirmInvitee(worker, "Jane Williams", workerEmail);
     await worker.getByRole("button", { name: "Accept invitation" }).click();
+    // A new healthcare worker lands in the worker app (P0-E9-3A).
+    await expect(worker.getByRole("heading", { level: 1, name: "My Shifts" })).toBeVisible();
+    await worker.goto(organisationPath);
     await expect(
       worker.getByRole("heading", { level: 1, name: "Compliance Agency" }),
     ).toBeVisible();

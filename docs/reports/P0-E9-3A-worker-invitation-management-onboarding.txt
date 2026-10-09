@@ -1,0 +1,363 @@
+P0-E9-3A — WORKER INVITATION MANAGEMENT + INVITE-TO-ACCOUNT ONBOARDING
+=====================================================================
+CHELTH — Healthcare Workforce Operations
+
+Branch: p0-e8-visual-implementation
+HEAD:   217f491 (this work is uncommitted)
+Production: not deployed; no db push.
+
+Operator decision applied (mid-phase): KEEP ORACLE-FREE.
+- There is no anonymous invitation lookup. Threat model #11 is unchanged.
+- Signed out, nothing derived from the invitation row is shown: agency,
+  invited email, role and validity all stay hidden. There is no email
+  prefill.
+- Agency, role and invited email appear only on the authenticated review.
+- Sections 10–12 of the brief were relaxed accordingly.
+
+
+1. EXACT ROOT CAUSE OF THE DUPLICATE-INVITE CONFLICT
+---------------------------------------------------
+public.create_organisation_invite always INSERTed a new row.
+- The partial unique index organisation_invites_one_pending
+  (organisation_id, email) WHERE status = 'pending' rejected a second
+  pending invitation with SQLSTATE 23505.
+- The app mapped 23505 to the generic CONFLICT ("This change conflicts
+  with the current state. Please refresh and try again.").
+- Expiry is computed (status stays 'pending' after expires_at), so an
+  expired, never-accepted invitation blocked re-inviting in the same way.
+- The "already a member" case was also generic (CH409 → "not allowed in
+  the item's current state").
+
+Classification:
+- RPC logic: primary.
+- Constraint behaviour: the trigger.
+- Error mapping: hid the specific state.
+- UI logic: not the cause.
+
+Fix: migration 20261009110000_invite_reissue_pending (section 12):
+- Same email + same role while pending: the existing invitation is
+  re-issued through the rotation semantics (token rotated, old hash
+  overwritten, fresh 7-day expiry, 5-send cap, `invite.resent` audit). No
+  second row.
+- Different role pending: CHI09 → "This email already has a pending
+  invitation with a different role. Revoke that invitation first, then
+  invite again."
+- Already a member: CHI10 → "This person is already a member of this
+  organisation." In Workforce: "This person is already part of your
+  workforce."
+- Concurrent issues for the same person are serialised with a
+  transaction-scoped advisory lock.
+- Truly unexpected 23505 / CH409 keep the generic fallback.
+
+
+2. ADMIN PENDING INVITATIONS IMPLEMENTATION
+-------------------------------------------
+- Workforce gains a distinct "Pending Invitations" RefPanel
+  (workforce/_components/pending-invitations.tsx) after the worker list.
+- Pending invitations are never rendered as worker rows.
+- Data: the existing list_organisation_invites RPC (membership.invite at
+  AAL2; tenant-scoped; returns no token or hash), filtered to
+  agency.healthcare_worker invitations with status `pending`.
+- Row:
+  - email (wraps);
+  - "Healthcare Worker · Invited <date> · Expires/Expired <date>";
+  - chips: Pending (info) or Expired (warning, computed from the
+    invitation's own expires_at);
+  - the real delivery status: Emailed / Not emailed / Email failed / Not
+    sent yet;
+  - actions: Resend and Cancel invite.
+- Count: "N pending invitations" in the panel header.
+- Empty: LockedEmpty "No pending invitations."
+- Shown only when the caller holds membership.invite at AAL2 (the invite
+  form's own gate). Otherwise the existing step-up notice applies.
+- Locked visual family reused: RefPanel, RecordList / RECORD_ROW, RefChip,
+  LockedEmpty, outlined secondary actions (44 px on phones).
+- No Workforce redesign.
+
+
+3. RESEND BEHAVIOUR
+-------------------
+Uses the existing resendInviteAction → resend_organisation_invite:
+- token rotated; old hash overwritten (old link dead);
+- expiry reset to 7 days (also renews an expired pending invite);
+- send_count + 1 (cap 5 → CH429);
+- `invite.resent` audited; delivery state reset by the existing trigger;
+- the email is sent post-commit through the configured provider;
+- the outcome is recorded.
+
+Success copy:
+- "Invitation resent to <email>. The previous invitation link no longer
+  works."
+- If not emailed: "Invitation re-issued for …" plus the one-time link.
+
+Re-submitting "Invite worker" for a pending email takes the same path
+(section 1).
+
+
+4. CANCEL BEHAVIOUR
+-------------------
+"Cancel invite" uses the existing revokeInviteAction →
+revoke_organisation_invite:
+- the token is unusable immediately;
+- the row is kept (status revoked; never deleted);
+- `invite.revoked` is audited;
+- the invitation leaves the Pending list.
+
+The confirmation "Invitation cancelled. <email> can no longer use the
+invitation link." is shown by a panel-level notice (InviteNoticeProvider).
+The cancelled row disappears on re-render, so a per-row message would never
+be seen; E2E caught this. Settings → Team keeps its existing "Revoke"
+control. No invitation history product was built.
+
+
+5. ACCEPTED TRANSITION
+----------------------
+- The accepted invitation leaves Pending (status accepted).
+- The existing acceptance creates the membership with the fixed role, and
+  the existing trigger creates exactly one agency_workers record (pgTAP
+  plus integration).
+- The worker appears in the Workforce list in the existing onboarding
+  status. Nothing is auto-activated.
+
+
+6. WORKER INVITE LANDING (signed out; oracle-free)
+--------------------------------------------------
+/invite is identical for valid, invalid and missing tokens:
+- "You've been invited to join Chelth";
+- "Create or sign in to your account to review and accept your workforce
+  invitation.";
+- three steps;
+- primary "Create account";
+- "Already have a Chelth account? Sign in" (→ /sign-in?next=/invite).
+No agency, email, role or validity is shown (asserted in E2E). AuthCard /
+AuthPanel locked family.
+
+
+7. NEW-ACCOUNT FLOW
+-------------------
+invite link (token → httpOnly cookie, 303 to /invite) → Create account →
+sign up → confirmation email → /auth/confirm verifies.
+
+New: if an invite cookie is present and no explicit destination was given,
+/auth/confirm redirects to /invite instead of the /app gateway. Password
+recovery is never diverted, and a failed verification never resumes.
+
+The authenticated review follows:
+- "Join as a healthcare worker";
+- "<Agency> has invited you to join their workforce.";
+- Agency, Role, Invited email, Expires;
+- Accept invitation (primary, full width) and "Not now".
+
+Accept → the existing accept_organisation_invite (token from the cookie
+only; role and organisation from the row; verified email must match).
+
+New post-accept destination: a self-service-only member with a worker
+record (the worker frame's own rule) lands on
+/app/organisations/<agency>/my-shifts in the WorkerShell. Staff land on the
+organisation as before.
+
+
+8. EXISTING-ACCOUNT FLOW
+------------------------
+invite → "Sign in" → /sign-in?next=/invite → review → accept → My Shifts
+(E2E).
+
+Wrong account (signed in as B, invite for A): the database resolves no
+invitation for B. B sees the uniform "Invitation unavailable" message
+(which includes "…or was sent to a different email address"), with no
+agency name and no Accept button (E2E). The message stays uniform,
+following the threat model's uniform-response rule.
+
+
+9. INVITE-CONTEXT PERSISTENCE
+-----------------------------
+- The existing httpOnly, SameSite=Lax invite cookie is reused. Its
+  lifetime was raised from 1 h to 24 h so it survives sign-up and email
+  confirmation.
+- The token itself stays single-use, email-bound, and expires in 7 days.
+- The token is never in localStorage, sessionStorage, query strings or
+  client state.
+- /auth/confirm reads the cookie from the request (pendingInviteTokenFrom),
+  not from client input.
+- Cross-device (confirming on another device or browser) cannot resume
+  automatically without an oracle. The /app pending banner and re-opening
+  the emailed link still work (known gap).
+
+
+10. MULTI-AGENCY HANDLING
+-------------------------
+- A worker of Agency A accepts Agency B's invitation: one profile, two
+  memberships, two agency_workers rows (integration).
+- Being a worker elsewhere is not "already part of your workforce": the
+  member check is per organisation.
+- Post-accept routing targets the accepting agency only; other
+  memberships are untouched.
+
+
+11. EMAIL BEHAVIOUR
+-------------------
+The existing transactional invite email is unchanged. It already reads
+"You have been invited to join <Agency> on CHELTH as <Role>" with "Accept
+invitation" → <origin>/invite/<token>.
+
+The direct post-commit delivery path (not the notification outbox) is
+preserved, along with:
+- the recorded delivery_status;
+- the one-time fallback link when delivery is skipped or failed (never
+  shown after a successful send; unit-tested);
+- no logging of the recipient, token or URL.
+
+
+12. DATABASE CHANGES
+--------------------
+- One forward-only migration: 20261009110000_invite_reissue_pending.sql
+  (section 1). It drops and recreates public.create_organisation_invite
+  with the same arguments, adds an invite_reissued return column, and
+  restores the original grants (revoke public / anon; grant
+  authenticated).
+- No other schema change. The Pending list, resend and cancel use the
+  existing RPCs; delivery status was already returned.
+
+
+13. SECURITY REVIEW
+-------------------
+Preserved:
+- token hashed at rest; shown only when not emailed (once);
+- single use; expiry; email binding to the verified email;
+- role and organisation from the row only;
+- resend rotates; old, revoked and accepted tokens refused;
+- issuer authority (membership.invite + ceiling at issue and
+  redemption);
+- issue and redemption rate limits plus the resend cap;
+- no anonymous oracle (decision above);
+- no service role; no client-side authorization;
+- append-only audit (invite.created / resent / revoked / accepted).
+
+New code is presentation, routing and one RPC change.
+
+Verified:
+- the list returns no token or hash column;
+- another agency, a healthcare worker and a facility user cannot list;
+- a worker cannot resend; another agency cannot cancel;
+- tenant isolation of same-email invitations across agencies.
+
+
+14. ACCESSIBILITY / RESPONSIVE
+------------------------------
+- axe (wcag2a / 2aa / 22aa) clean on:
+  - Workforce with the pending list;
+  - the signed-out landing (desktop and 375);
+  - the authenticated review (desktop and 375).
+- The Pending panel at 1512 / 1280 / 1024 / 768 / 430 / 412 / 390 / 375:
+  no page overflow; Resend and Cancel ≥ 44 px at ≤ 430 (asserted).
+- Long emails wrap (captures reviewed at 1280 and 375).
+- Phone onboarding at 375: no overflow; "Create account" ≥ 44 px;
+  landing → My Shifts with the Worker navigation.
+- One h1 per page; named landmarks; status uses text plus glyph chips;
+  actions have specific accessible names ("Resend invitation to …",
+  "Cancel invite to …").
+
+
+15. TEST TOTALS
+---------------
+- npm test: 377 passed. New:
+  - issued-invite-link (resend copy, one-time link only when not
+    emailed);
+  - error mapping CHI09 / CHI10;
+  - /auth/confirm resume (4 cases).
+- supabase test db: PASS, 28 files, 1,408 tests. 040_invitations now has
+  60 assertions:
+  - re-issue / rotation / old token dead / new token works;
+  - accepted → member; expired re-issue; revoked → new invite;
+  - resend cap; tenant isolation;
+  - list projection / authority; resend / cancel authority;
+  - worker record exactly once.
+  Two assertions intentionally changed: 23505 → CHI09 and CH409 → CHI10.
+- npm run test:integration: 120 passed. New worker-invitations.test.ts:
+  rotation and replay, cancel, multi-agency.
+- npx playwright test (2 workers, caffeinate): 266 passed, 12 skipped,
+  0 failed (11.3 min).
+  - New: the workforce lifecycle (pending, re-issue, responsive, landing,
+    sign-up, review, accept → My Shifts, worker in list, cancel), the
+    existing-account and wrong-account flows, and phone onboarding.
+  - After the final copy and width tweak, the affected specs were re-run:
+    64 / 64.
+- format, lint, typecheck, build, check:bundle, check:migrations (62),
+  db reset, db lint, db:types (no drift): all pass.
+
+
+16. FILES CHANGED
+-----------------
+New:
+- supabase/migrations/20261009110000_invite_reissue_pending.sql
+- src/app/app/organisations/[organisationId]/(workspace)/workforce/_components/pending-invitations.tsx
+- src/features/organisations/components/cancel-invite-form.tsx
+- src/features/organisations/components/invite-notice.tsx
+- tests/integration/worker-invitations.test.ts
+- tests/unit/components/issued-invite-link.test.tsx
+- this report
+
+Modified:
+- src/app/invite/page.tsx (opaque landing; authenticated review)
+- src/app/auth/confirm/route.ts (resume the invitation)
+- src/features/organisations/actions.ts (re-issue flag, post-accept
+  destination, subtree revalidation)
+- src/features/organisations/context.ts (24 h cookie; request reader)
+- src/features/organisations/index.ts, queries.ts (delivery status),
+  components/accept-invite-form.tsx (full width)
+- src/features/workforce/actions.ts (workforce copy)
+- src/components/shared/issued-invite-link.tsx (resent / re-issued copy)
+- src/lib/errors/error-codes.ts, normalize-error.ts (CHI09 / CHI10 /
+  ALREADY_IN_WORKFORCE)
+- src/types/database.types.ts (generated)
+- src/app/app/organisations/[organisationId]/(workspace)/workforce/page.tsx
+  (panel wiring)
+- supabase/tests/security/040_invitations.test.sql
+- tests/e2e/{support, identity, credentials-compliance, system-states,
+  workforce-facilities}.ts
+- tests/unit/{app/auth-confirm-route, lib/errors}.test.ts
+
+
+17. MIGRATION ADDED
+-------------------
+20261009110000_invite_reissue_pending.sql
+
+Production is at 60 applied, with 20261009100000_document_malware_scanning
+(E9-2) also pending there. Dry-run expectation:
+  Would push these migrations:
+   • 20261009100000_document_malware_scanning.sql
+   • 20261009110000_invite_reissue_pending.sql
+
+
+18. PRODUCTION DEPLOYMENT STEPS (operator; not performed)
+---------------------------------------------------------
+1. Review, commit and merge to main through a PR (CI runs all gates).
+2. Backup point (the verified manual dump procedure, as in E9-1B / E9-2).
+3. npx supabase migration list --linked (expect 60 applied, 2 pending).
+4. npx supabase db push --dry-run --linked (exactly the two files above).
+5. npx supabase db push --linked, then migration list (62 / 62).
+   Order note: deploying the app before the migration is safe for
+   everything except the invite re-issue path (the old RPC still raises
+   23505 until migrated). Apply the migration, then let Vercel deploy main.
+6. Smoke test on app.chelth.com with a controlled test agency and mailbox:
+   - invite a worker; re-invite (resent); cancel another; accept via a new
+     account → My Shifts; check Pending clears.
+
+
+19. KNOWN GAPS
+--------------
+- Cross-device confirmation cannot auto-resume (no oracle by decision).
+  Re-opening the email link or the /app banner recovers.
+- Sign-up email is not prefilled (by decision). The server-side email
+  binding still prevents a mismatched acceptance.
+- "Not now" only clears the local invite cookie. There is no worker-side
+  decline RPC, and the invitation stays pending until it expires or the
+  agency cancels it.
+- Wrong-account and expired messages remain the uniform "invitation
+  unavailable" text (threat-model uniform responses). Expiry is visible
+  to admins in Pending.
+- Revoked or accepted invitations are not shown in Workforce. Settings →
+  Team still lists recent ones (no new history product).
+- The invitation email copy is unchanged (already adequate).
+
+STATUS: WORKER INVITATION MANAGEMENT + ONBOARDING COMPLETE. AWAITING PRODUCTION DEPLOYMENT.
