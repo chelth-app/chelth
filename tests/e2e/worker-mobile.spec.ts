@@ -7,7 +7,7 @@ import {
   isoDay,
   type StaffingWorld,
 } from "./staffing-fixture";
-import { expectNoPageOverflow, qaScreenshot, signIn } from "./support";
+import { expectNoPageOverflow, qaScreenshot, signIn, SIGNED_IN_LANDING } from "./support";
 
 /*
  * P0-E8-S6 Worker Mobile (P7): the worker self-service shell, bottom
@@ -29,7 +29,7 @@ async function expectNoA11yViolations(page: Page) {
 async function signedIn(browser: Browser, email: string): Promise<Page> {
   const page = await (await browser.newContext()).newPage();
   await signIn(page, email);
-  await expect(page).toHaveURL(/\/app$/, AFTER_ACTION);
+  await expect(page).toHaveURL(SIGNED_IN_LANDING, AFTER_ACTION);
   return page;
 }
 
@@ -321,7 +321,10 @@ test.describe.serial("worker mobile experience", () => {
       "aria-current",
       "page",
     );
-    await expect(page.getByRole("heading", { name: "Add a credential", level: 2 })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Add credential" })).toHaveAttribute(
+      "href",
+      `${base}/my-credentials/new`,
+    );
     await qaScreenshot(page, "s6-credentials");
     await expectNoA11yViolations(page);
 
@@ -411,10 +414,11 @@ test.describe.serial("worker mobile experience", () => {
       const shared = cards.getByText(`Shared with ${world.agencyName}`).first();
       await expect(shared.locator("svg")).toHaveCount(1);
       await expect(cards).toContainText(/Expires [A-Z][a-z]{2} \d{1,2}, \d{4}/);
-      const add = page.getByRole("link", { name: "Add a credential" });
-      await expect(add).toHaveAttribute("href", "#add-credential-heading");
+      // P0-E9-3C: one state chip per credential, from real version and review data.
+      await expect(cards).toContainText(/Verified|Submitted|Draft/);
+      const add = page.getByRole("link", { name: "Add credential" });
+      await expect(add).toHaveAttribute("href", `${base}/my-credentials/new`);
       expect((await add.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
-      await expect(page.getByRole("heading", { name: "Add a credential", level: 2 })).toBeVisible();
       await expectNoPageOverflow(page);
       if (width === 375 || width === 1280) await expectNoA11yViolations(page);
       await qaScreenshot(page, "qaf2-my-credentials");
@@ -438,23 +442,32 @@ test.describe.serial("worker mobile experience", () => {
       "aria-current",
       "page",
     );
+    // P0-E9-3C worker-mobile record: state and expiry first, then the worker's sections.
+    await expect(page.getByRole("main").locator("header")).toContainText("Verified");
+    await expect(page.getByRole("main").locator("header")).toContainText(
+      /Expires [A-Z][a-z]{2} \d{1,2}, \d{4}/,
+    );
     for (const name of [
+      "Evidence",
       `Sharing with ${world.agencyName}`,
-      "Versions",
-      "Verification by agencies",
+      `Review by ${world.agencyName}`,
+      "Renew",
       "Withdraw",
     ]) {
       await expect(page.getByRole("heading", { level: 2, name })).toHaveCSS("font-size", "20px");
     }
-    await expect(page.getByRole("list", { name: "Credential versions" })).toContainText(
-      /Expires [A-Z][a-z]{2} \d{1,2}, \d{4}/,
+    await expect(page.getByRole("region", { name: "Evidence" })).toContainText("Document ready");
+    await expect(page.getByRole("region", { name: `Review by ${world.agencyName}` })).toContainText(
+      "Verified",
     );
+    // History stays available but secondary (collapsed).
+    const versions = page.getByRole("list", { name: "Credential versions" });
+    await expect(versions).toBeHidden();
+    await page.getByText("History", { exact: false }).first().click();
+    await expect(versions).toContainText(/Expires [A-Z][a-z]{2} \d{1,2}, \d{4}/);
     await expect(page.getByRole("main")).not.toContainText(iso);
-    await expect(page.getByRole("list", { name: "Agency verification" })).toContainText(
-      world.agencyName,
-    );
     // Existing actions are preserved and touch-sized on phones.
-    for (const name of ["Stop sharing", "Withdraw credential"]) {
+    for (const name of ["Stop sharing", "Withdraw credential", "Open document for version 1"]) {
       const button = page.getByRole("button", { name });
       await expect(button).toBeVisible();
       expect((await button.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);

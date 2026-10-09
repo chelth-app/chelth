@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { createStaffingWorld, type StaffingWorld } from "./staffing-fixture";
-import { expectNoPageOverflow, qaScreenshot, signIn } from "./support";
+import { expectNoPageOverflow, qaScreenshot, signIn, SIGNED_IN_LANDING } from "./support";
 
 /*
  * Fluid operational workspace (P0-E8 width fix). The sidebar is fixed at
@@ -30,7 +30,7 @@ test.describe.serial("fluid operational workspace", () => {
     test.skip(testInfo.project.name.startsWith("mobile"), "desktop widths only");
     const page = await (await browser.newContext()).newPage();
     await signIn(page, world.admin.email);
-    await expect(page).toHaveURL(/\/app$/, { timeout: 20_000 });
+    await expect(page).toHaveURL(SIGNED_IN_LANDING, { timeout: 20_000 });
     for (const [width, height] of [
       [1440, 900],
       [1920, 1080],

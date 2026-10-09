@@ -15,7 +15,7 @@ import {
   type Person,
   type StaffingWorld,
 } from "./staffing-fixture";
-import { expectNoPageOverflow, qaScreenshot, signIn } from "./support";
+import { expectNoPageOverflow, qaScreenshot, signIn, SIGNED_IN_LANDING } from "./support";
 
 /*
  * P0-E8-S1 shared Agency / Facility workspace shell: capability-driven
@@ -37,7 +37,7 @@ async function signedIn(browser: Browser, email: string): Promise<Page> {
   const context = await browser.newContext();
   const page = await context.newPage();
   await signIn(page, email);
-  await expect(page).toHaveURL(/\/app$/);
+  await expect(page).toHaveURL(SIGNED_IN_LANDING);
   return page;
 }
 
@@ -344,14 +344,8 @@ test.describe.serial("workspace shell", () => {
       await expect(page.getByRole("navigation", { name: "Worker" })).toBeVisible();
       await expect(page.getByRole("navigation", { name: "Workspace" })).toHaveCount(0);
       await expect(page.getByRole("complementary", { name: "Workspace sidebar" })).toHaveCount(0);
-      if (path.endsWith(world.agencyId)) {
-        // Self-service members keep their section links (no sidebar on the personal frame).
-        await expect(
-          page
-            .getByRole("navigation", { name: "Organisation sections" })
-            .getByRole("link", { name: "My shifts" }),
-        ).toBeVisible();
-      }
+      // P0-E9-3C: the agency root is not a worker home; it opens My Shifts.
+      await expect(page).toHaveURL(new RegExp(`/app/organisations/${world.agencyId}/my-shifts$`));
       await expect(page.getByRole("button", { name: "Open navigation" })).toHaveCount(0);
     }
   });

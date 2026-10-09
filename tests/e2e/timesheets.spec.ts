@@ -16,7 +16,7 @@ import {
   createStaffingWorld,
   type StaffingWorld,
 } from "./staffing-fixture";
-import { expectNoPageOverflow, qaScreenshot, signIn } from "./support";
+import { expectNoPageOverflow, qaScreenshot, signIn, SIGNED_IN_LANDING } from "./support";
 
 const A11Y_TAGS = ["wcag2a", "wcag2aa", "wcag22aa"];
 const AFTER_ACTION = { timeout: 20_000 };
@@ -80,7 +80,7 @@ async function signedIn(
 ): Promise<Page> {
   const page = await (await browser.newContext(options)).newPage();
   await signIn(page, email);
-  await expect(page).toHaveURL(/\/app$/, AFTER_ACTION);
+  await expect(page).toHaveURL(SIGNED_IN_LANDING, AFTER_ACTION);
   return page;
 }
 

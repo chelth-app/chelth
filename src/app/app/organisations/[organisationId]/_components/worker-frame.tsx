@@ -8,10 +8,12 @@ import {
   listMyMemberships,
   organisationIdSchema,
   selectOrganisationAction,
+  workerOnlyAgencies,
 } from "@/features/organisations";
 import { getMyWorkerRecord } from "@/features/workforce";
 import { requireAuthIdentity } from "@/lib/auth/session";
 import { CAPABILITIES, capabilityState } from "@/lib/authz";
+import { WORKER_STATUS_LABELS } from "@/lib/domain/vocabulary";
 
 import { PersonalFrame } from "../../../_components/personal-frame";
 
@@ -72,14 +74,26 @@ export async function WorkerFrame({
       ? [{ id: other.id, name: other.name, typeLabel: TYPE_LABEL[other.type] }]
       : [],
   );
+  // P0-E9-3C: worker-only accounts see agencies, and a single agency has no chooser.
+  const workerAgencies = workerOnlyAgencies(
+    memberships.filter((membership) => membership.organisation !== null),
+  );
+  const chooserLabel = workerAgencies
+    ? workerAgencies.length > 1
+      ? "All agencies"
+      : null
+    : "All workspaces";
 
   return (
     <WorkerShell
       workspaceName={organisation.name}
       user={{ displayName: profile.displayName, email: identity.email }}
       items={items}
-      homeHref={base}
+      homeHref={`${base}/my-shifts`}
       otherWorkspaces={otherWorkspaces}
+      chooserLabel={chooserLabel}
+      switchLabel={workerAgencies ? "Switch agency" : "Switch workspace"}
+      workerStatusLabel={WORKER_STATUS_LABELS[worker.status]}
       selectWorkspaceAction={selectOrganisationAction}
       signOutAction={signOutAction}
     >

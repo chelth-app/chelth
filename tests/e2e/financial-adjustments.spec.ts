@@ -14,7 +14,13 @@ import {
   type Person,
   type StaffingWorld,
 } from "./staffing-fixture";
-import { expectNoPageOverflow, expectNoPaymentVocabulary, qaScreenshot, signIn } from "./support";
+import {
+  expectNoPageOverflow,
+  expectNoPaymentVocabulary,
+  qaScreenshot,
+  signIn,
+  SIGNED_IN_LANDING,
+} from "./support";
 
 const A11Y_TAGS = ["wcag2a", "wcag2aa", "wcag22aa"];
 const AFTER_ACTION = { timeout: 20_000 };
@@ -61,7 +67,7 @@ function closedPeriodStart(): string {
 async function signedIn(browser: Browser, email: string): Promise<Page> {
   const page = await (await browser.newContext({ acceptDownloads: true })).newPage();
   await signIn(page, email);
-  await expect(page).toHaveURL(/\/app$/, AFTER_ACTION);
+  await expect(page).toHaveURL(SIGNED_IN_LANDING, AFTER_ACTION);
   return page;
 }
 

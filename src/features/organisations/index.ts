@@ -34,4 +34,5 @@ export {
   type FinanceArea,
   financeAreas,
   isWorkspaceStaff,
+  workerOnlyAgencies,
 } from "./workspace-navigation";

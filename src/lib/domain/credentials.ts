@@ -128,6 +128,58 @@ export function extensionMatchesMimeType(fileName: string, mimeType: DocumentMim
   return (DOCUMENT_TYPES[mimeType].extensions as readonly string[]).includes(extension);
 }
 
+export type DocumentFileCheck =
+  | { ok: true; mimeType: DocumentMimeType; uploadName: string }
+  | { ok: false; reason: "type" | "size" | "empty" };
+
+/** Spellings some mobile document providers report for the allowed types. */
+const MIME_ALIASES: Record<string, DocumentMimeType> = {
+  "application/pdf": "application/pdf",
+  "image/jpeg": "image/jpeg",
+  "image/jpg": "image/jpeg",
+  "image/pjpeg": "image/jpeg",
+  "image/png": "image/png",
+};
+
+/**
+ * Client pre-check of a picked file (fast feedback only: the server re-checks the
+ * declared type, and the stored bytes are verified by signature, size and hash).
+ *
+ * Mobile pickers (Android Chrome document providers, Photos) can report an empty
+ * or generic MIME type, or a display name without an extension. The missing half
+ * is then taken from the half that is present; nothing is guessed from neither,
+ * and an extension that contradicts the type is still refused.
+ */
+export function checkDocumentFile(file: {
+  name: string;
+  type: string;
+  size: number;
+}): DocumentFileCheck {
+  const dot = file.name.lastIndexOf(".");
+  const extension = dot > 0 ? file.name.slice(dot + 1).toLowerCase() : "";
+  const fromExtension = ALLOWED_DOCUMENT_MIME_TYPES.find((type) =>
+    (DOCUMENT_TYPES[type].extensions as readonly string[]).includes(extension),
+  );
+  const declared = MIME_ALIASES[file.type.trim().toLowerCase()];
+  const generic = file.type === "" || file.type === "application/octet-stream";
+
+  let mimeType: DocumentMimeType;
+  if (declared) {
+    if (extension && fromExtension !== declared) return { ok: false, reason: "type" };
+    mimeType = declared;
+  } else if (generic && fromExtension) {
+    mimeType = fromExtension;
+  } else {
+    return { ok: false, reason: "type" };
+  }
+  if (file.size <= 0) return { ok: false, reason: "empty" };
+  if (file.size > MAX_DOCUMENT_BYTES) return { ok: false, reason: "size" };
+  const uploadName = extension
+    ? file.name
+    : `${file.name || "document"}.${DOCUMENT_TYPES[mimeType].extensions[0]}`;
+  return { ok: true, mimeType, uploadName };
+}
+
 /** Magic-byte signature check of the stored content (server-side). */
 export function contentMatchesMimeType(bytes: Uint8Array, mimeType: DocumentMimeType): boolean {
   const startsWith = (signature: number[]) =>

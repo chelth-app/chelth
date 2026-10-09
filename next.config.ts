@@ -67,7 +67,14 @@ export default function nextConfig(phase: string): NextConfig {
       return [{ source: "/favicon.ico", destination: "/brand/chelth/favicon.ico" }];
     },
     async headers() {
-      return [{ source: "/:path*", headers: buildSecurityHeaders({ isDevelopment }) }];
+      return [
+        { source: "/:path*", headers: buildSecurityHeaders({ isDevelopment }) },
+        // The service worker must never be served stale: updates reach devices promptly.
+        {
+          source: "/sw.js",
+          headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }],
+        },
+      ];
     },
   };
 }

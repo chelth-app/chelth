@@ -1,6 +1,6 @@
-import type { Metadata } from "next";
+import type { Metadata, Route } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { RefChip } from "@/components/reference/locked-reference";
 import {
@@ -59,6 +59,14 @@ export default async function OrganisationPage({
   // Facility workspace (P0-E8-QA-F1): the locked Overview family; other audiences unchanged.
   const facilityOverview = organisation.type === "facility" && workspaceStaff;
   // Administration (members, invitations, audit) lives in Settings (P0-E8-S9H).
+
+  // P0-E9-3C: for a member who is only a healthcare worker here, the agency root
+  // is not a home page — their work starts at My Shifts. Staff are unaffected.
+  if (organisation.type === "agency" && !workspaceStaff) {
+    if (await getMyWorkerRecord(organisationId)) {
+      redirect(`/app/organisations/${organisationId}/my-shifts` as Route);
+    }
+  }
 
   // The caller's own roles (header), from their membership — no member administration needed.
   const [roles, memberships] = await Promise.all([

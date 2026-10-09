@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { type Browser, expect, type Page, test } from "@playwright/test";
 
 import { createStaffingWorld, isoDay, type StaffingWorld } from "./staffing-fixture";
-import { expectNoPageOverflow, openWorkspaceSection, signIn } from "./support";
+import { expectNoPageOverflow, openWorkspaceSection, signIn, SIGNED_IN_LANDING } from "./support";
 
 const A11Y_TAGS = ["wcag2a", "wcag2aa", "wcag22aa"];
 /** Server Actions re-render the page; allow for a loaded local stack. */
@@ -19,7 +19,7 @@ async function signedIn(browser: Browser, email: string): Promise<Page> {
   const context = await browser.newContext();
   const page = await context.newPage();
   await signIn(page, email);
-  await expect(page).toHaveURL(/\/app$/);
+  await expect(page).toHaveURL(SIGNED_IN_LANDING);
   return page;
 }
 
@@ -99,8 +99,9 @@ test.describe.serial("shift requests & assignments", () => {
 
   test("Flow 2: the worker sees and accepts only their own assignment", async ({ browser }) => {
     const wendy = await signedIn(browser, world.wendy.email);
+    // The agency root opens the worker's My Shifts (P0-E9-3C).
     await wendy.goto(`/app/organisations/${world.agencyId}`);
-    await wendy.getByRole("link", { name: "My shifts" }).click();
+    await expect(wendy).toHaveURL(new RegExp(`/app/organisations/${world.agencyId}/my-shifts$`));
     await expect(wendy.getByRole("heading", { level: 1, name: "My shifts" })).toBeVisible();
     const items = wendy.getByRole("listitem").filter({ hasText: "Mercy Rehab" });
     await expect(items).toHaveCount(1);

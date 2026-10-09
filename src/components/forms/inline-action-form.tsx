@@ -17,6 +17,8 @@ type InlineActionFormProps = {
   /** Accessible name when the visible label is ambiguous (e.g. "Suspend" in a table row). */
   accessibleLabel?: string;
   variant?: ButtonProps["variant"];
+  /** Extra button classes (e.g. the worker 48 px full-width treatment). */
+  buttonClassName?: string;
 };
 
 /** A single-button form posting fixed hidden fields to a Server Action. */
@@ -26,6 +28,7 @@ export function InlineActionForm({
   label,
   accessibleLabel,
   variant = "outline",
+  buttonClassName,
 }: InlineActionFormProps) {
   const [state, formAction] = useActionState(action, null);
   return (
@@ -33,7 +36,12 @@ export function InlineActionForm({
       {Object.entries(fields).map(([name, value]) => (
         <input key={name} type="hidden" name={name} value={value} />
       ))}
-      <SubmitButton variant={variant} size="sm" aria-label={accessibleLabel}>
+      <SubmitButton
+        variant={variant}
+        size="sm"
+        aria-label={accessibleLabel}
+        className={buttonClassName}
+      >
         {label}
       </SubmitButton>
       {state && !state.ok ? <FormAlert state={state} className="p-2 text-xs" /> : null}
