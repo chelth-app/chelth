@@ -86,10 +86,9 @@ test.describe("credentials and compliance", () => {
     await worker.getByRole("button", { name: "Accept invitation" }).click();
     // A new healthcare worker lands in the worker app (P0-E9-3A).
     await expect(worker.getByRole("heading", { level: 1, name: "My Shifts" })).toBeVisible();
+    // The agency root is not a worker home (P0-E9-3C): it opens My Shifts.
     await worker.goto(organisationPath);
-    await expect(
-      worker.getByRole("heading", { level: 1, name: "Compliance Agency" }),
-    ).toBeVisible();
+    await expect(worker).toHaveURL(new RegExp(`${organisationPath}/my-shifts$`));
 
     await page.reload();
     await page.getByRole("link", { name: "Jane Williams" }).click();
@@ -100,27 +99,35 @@ test.describe("credentials and compliance", () => {
       "Missing",
     );
 
-    // Worker adds BLS, uploads evidence, and submits it.
-    await worker.getByRole("link", { name: "My credentials" }).click();
+    // Worker adds BLS, uploads evidence, and submits it (P0-E9-3C worker flow).
+    await worker
+      .getByRole("navigation", { name: "Worker" })
+      .getByRole("link", { name: "Credentials" })
+      .click();
     await expect(worker.getByText("Not eligible")).toBeVisible();
     await expectNoA11yViolations(worker);
+    await worker.getByRole("link", { name: "Add credential" }).click();
+    await expect(worker.getByRole("heading", { level: 1, name: "Add credential" })).toBeVisible();
     await worker
-      .getByRole("combobox", { name: "Credential" })
+      .getByRole("combobox", { name: "Credential type" })
       .selectOption({ label: "Basic Life Support (BLS)" });
     await worker.getByLabel("Issue date").fill(isoDate(-30));
     await worker.getByLabel("Expiry date").fill(isoDate(700));
-    await worker.getByRole("button", { name: "Add credential" }).click();
+    await worker.getByRole("button", { name: "Save and continue" }).click();
     await expect(
       worker.getByRole("heading", { level: 1, name: "Basic Life Support (BLS)" }),
     ).toBeVisible();
     await expect(worker.getByText("Shared", { exact: true })).toBeVisible();
+    // No evidence yet: submitting is not offered.
+    await expect(worker.getByText("Add evidence to continue.")).toBeVisible();
+    await expect(worker.getByRole("button", { name: "Submit for review" })).toHaveCount(0);
 
     await worker
       .getByTestId("credential-file")
       .setInputFiles({ name: "bls.pdf", mimeType: "application/pdf", buffer: PDF });
-    await worker.getByRole("button", { name: "Upload", exact: true }).click();
-    await expect(worker.getByText("will be usable once its security scan clears")).toBeVisible();
-    await expect(worker.getByText("Awaiting security scan")).toBeVisible();
+    await worker.getByRole("button", { name: "Upload evidence" }).click();
+    const evidence = worker.getByRole("region", { name: "Evidence" });
+    await expect(evidence).toContainText("Checking document…");
     await qaScreenshot(worker, "s6-credential-upload");
 
     // Wrong content is refused server-side even with a PDF name and type.
@@ -129,12 +136,16 @@ test.describe("credentials and compliance", () => {
       mimeType: "application/pdf",
       buffer: Buffer.from("<html><script>alert(1)</script></html>"),
     });
-    await worker.getByRole("button", { name: "Upload", exact: true }).click();
-    await expect(worker.getByRole("alert").filter({ hasText: "does not match" })).toBeVisible();
+    await worker.getByRole("button", { name: "Upload evidence" }).click();
+    await expect(
+      worker.getByRole("alert").filter({ hasText: "This document cannot be used" }),
+    ).toBeVisible();
 
     expect(await markUploadsClean(workerEmail)).toBe(1);
+    await worker.reload();
+    await expect(evidence).toContainText("Document ready");
     await worker.getByRole("button", { name: "Submit for review" }).click();
-    await expect(worker.getByText("Submitted")).toBeVisible();
+    await expect(worker.getByRole("main").locator("header")).toContainText("Submitted");
 
     // Agency sees awaiting verification, reviews the document, verifies.
     await page.goto(workerPath);
@@ -158,7 +169,7 @@ test.describe("credentials and compliance", () => {
 
     // Worker sees the verified state.
     await worker.reload();
-    await expect(worker.getByRole("list").filter({ hasText: "Compliance Agency" })).toContainText(
+    await expect(worker.getByRole("region", { name: "Review by Compliance Agency" })).toContainText(
       "Verified",
     );
 

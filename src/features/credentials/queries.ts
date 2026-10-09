@@ -85,6 +85,8 @@ export type MyCredentialSummary = {
     number: number;
     status: CredentialVersionStatus;
     expiryDate: string | null;
+    /** This agency's most recent decision on the latest version (owner-visible). */
+    agencyOutcome: VerificationOutcome | null;
   } | null;
   sharedWithAgency: boolean;
 };
@@ -97,7 +99,7 @@ export async function listMyCredentials(
   const { data, error } = await supabase
     .from("credentials")
     .select(
-      "id, credential_type_key, jurisdiction_code, status, created_at, type:credential_types(name, sort_order), versions:credential_versions(version_number, status, expiry_date), shares:credential_shares(agency_organisation_id, status)",
+      "id, credential_type_key, jurisdiction_code, status, created_at, type:credential_types(name, sort_order), versions:credential_versions(version_number, status, expiry_date, verifications:credential_verifications(agency_organisation_id, outcome, sequence)), shares:credential_shares(agency_organisation_id, status)",
     )
     .eq("profile_id", identity.userId)
     .order("created_at", { ascending: true });
@@ -111,7 +113,17 @@ export async function listMyCredentials(
       jurisdictionCode: row.jurisdiction_code,
       status: row.status,
       latestVersion: latest
-        ? { number: latest.version_number, status: latest.status, expiryDate: latest.expiry_date }
+        ? {
+            number: latest.version_number,
+            status: latest.status,
+            expiryDate: latest.expiry_date,
+            agencyOutcome:
+              latest.verifications
+                .filter(
+                  (verification) => verification.agency_organisation_id === agencyOrganisationId,
+                )
+                .sort((a, b) => b.sequence - a.sequence)[0]?.outcome ?? null,
+          }
         : null,
       sharedWithAgency: row.shares.some(
         (share) =>

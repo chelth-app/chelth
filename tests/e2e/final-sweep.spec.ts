@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { type Browser, expect, type Page, test } from "@playwright/test";
 
 import { createStaffingWorld, isoDay, type StaffingWorld } from "./staffing-fixture";
-import { expectNoPageOverflow, qaScreenshot, signIn } from "./support";
+import { expectNoPageOverflow, qaScreenshot, signIn, SIGNED_IN_LANDING } from "./support";
 
 /*
  * P0-E8-S8 final responsive / accessibility / brand sweep. Representative
@@ -17,7 +17,7 @@ const WIDTHS = [375, 412, 768, 1024, 1280];
 async function signedIn(browser: Browser, email: string): Promise<Page> {
   const page = await (await browser.newContext()).newPage();
   await signIn(page, email);
-  await expect(page).toHaveURL(/\/app$/, { timeout: 20_000 });
+  await expect(page).toHaveURL(SIGNED_IN_LANDING, { timeout: 20_000 });
   return page;
 }
 
@@ -169,19 +169,21 @@ test.describe.serial("final responsive, accessibility and brand sweep", () => {
     const page = await signedIn(browser, world.wendy.email);
     const base = `/app/organisations/${world.agencyId}`;
     for (const [path, name] of [
+      // The agency root opens My Shifts for a worker (P0-E9-3C).
       [base, "worker-home"],
       [`${base}/my-shifts`, "worker-my-shifts"],
       [`${base}/timesheets`, "worker-timesheets"],
       [`${base}/my-credentials`, "worker-credentials"],
+      [`${base}/my-credentials/new`, "worker-add-credential"],
     ] as const) {
       await sweep(page, path, name);
     }
     // The bottom navigation never covers the last control on the page.
     await page.setViewportSize({ width: 375, height: 700 });
-    await page.goto(`${base}/my-credentials`);
+    await page.goto(`${base}/my-credentials/new`);
     await page.keyboard.press("End");
     const nav = await page.getByRole("navigation", { name: "Worker" }).boundingBox();
-    const lastButton = page.getByRole("main").getByRole("button").last();
+    const lastButton = page.getByRole("main").getByRole("button", { name: "Save and continue" });
     await lastButton.scrollIntoViewIfNeeded();
     const box = await lastButton.boundingBox();
     expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(nav?.y ?? Infinity);

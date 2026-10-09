@@ -3,7 +3,7 @@ import { type Browser, expect, type Page, test } from "@playwright/test";
 
 import { generateTotp } from "../support/totp";
 import { createStaffingWorld, isoDay, type StaffingWorld } from "./staffing-fixture";
-import { expectNoPageOverflow, qaScreenshot, signIn } from "./support";
+import { expectNoPageOverflow, qaScreenshot, signIn, SIGNED_IN_LANDING } from "./support";
 
 /*
  * Operations Overview visual QA (P0-E8-S9A4 follow-up). Builds a world with
@@ -74,7 +74,7 @@ async function must<T>(promise: PromiseLike<{ data: T; error: unknown }>): Promi
 async function signedIn(browser: Browser, email: string): Promise<Page> {
   const page = await (await browser.newContext()).newPage();
   await signIn(page, email);
-  await expect(page).toHaveURL(/\/app$/, { timeout: 20_000 });
+  await expect(page).toHaveURL(SIGNED_IN_LANDING, { timeout: 20_000 });
   return page;
 }
 

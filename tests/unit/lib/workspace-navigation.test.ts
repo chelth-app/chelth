@@ -5,6 +5,7 @@ import {
   buildWorkspaceNavigation,
   financeAreas,
   isWorkspaceStaff,
+  workerOnlyAgencies,
 } from "@/features/organisations/workspace-navigation";
 import {
   CAPABILITIES,
@@ -367,5 +368,66 @@ describe("isNavItemActive", () => {
     expect(isNavItemActive(finance, `${base}/settings/payroll`)).toBe(false);
     expect(isNavItemActive(finance, `${base}/payroll-archive`)).toBe(false);
     expect(isNavItemActive(finance, `${base}/timesheets`)).toBe(false);
+  });
+});
+
+describe("workerOnlyAgencies (P0-E9-3B app entry)", () => {
+  const agency = (id: string) => ({ id, name: `Agency ${id}`, type: "agency" as const });
+  const facility = { id: "f", name: "Facility f", type: "facility" as const };
+  const WORKER = "agency.healthcare_worker";
+
+  it("returns the one agency of a worker-only account", () => {
+    expect(workerOnlyAgencies([{ organisation: agency("a"), roleKeys: [WORKER] }])).toEqual([
+      { id: "a", name: "Agency a" },
+    ]);
+  });
+
+  it("returns every agency, in order, for a worker of several agencies", () => {
+    expect(
+      workerOnlyAgencies([
+        { organisation: agency("a"), roleKeys: [WORKER] },
+        { organisation: agency("b"), roleKeys: [WORKER] },
+      ]),
+    ).toEqual([
+      { id: "a", name: "Agency a" },
+      { id: "b", name: "Agency b" },
+    ]);
+  });
+
+  it("ignores memberships whose organisation is not visible", () => {
+    expect(
+      workerOnlyAgencies([
+        { organisation: null, roleKeys: ["agency.admin"] },
+        { organisation: agency("a"), roleKeys: [WORKER] },
+      ]),
+    ).toEqual([{ id: "a", name: "Agency a" }]);
+  });
+
+  it.each([
+    ["an agency admin", [{ organisation: agency("a"), roleKeys: ["agency.admin"] }]],
+    [
+      "a worker who is also staff of the same agency",
+      [{ organisation: agency("a"), roleKeys: [WORKER, "agency.scheduler"] }],
+    ],
+    [
+      "a worker who is staff of another agency",
+      [
+        { organisation: agency("a"), roleKeys: [WORKER] },
+        { organisation: agency("b"), roleKeys: ["agency.finance"] },
+      ],
+    ],
+    [
+      "a worker who is also a facility member",
+      [
+        { organisation: agency("a"), roleKeys: [WORKER] },
+        { organisation: facility, roleKeys: ["facility.supervisor"] },
+      ],
+    ],
+    ["a facility member", [{ organisation: facility, roleKeys: ["facility.admin"] }]],
+    ["a membership without roles", [{ organisation: agency("a"), roleKeys: [] }]],
+    ["no memberships", []],
+    ["only hidden memberships", [{ organisation: null, roleKeys: [WORKER] }]],
+  ])("keeps the general gateway for %s", (_label, memberships) => {
+    expect(workerOnlyAgencies(memberships)).toBeNull();
   });
 });

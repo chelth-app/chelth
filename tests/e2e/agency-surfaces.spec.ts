@@ -8,7 +8,7 @@ import {
   type Person,
   type StaffingWorld,
 } from "./staffing-fixture";
-import { expectNoPageOverflow, qaScreenshot, signIn } from "./support";
+import { expectNoPageOverflow, qaScreenshot, signIn, SIGNED_IN_LANDING } from "./support";
 
 /*
  * P0-E8-S3 agency operational surfaces: Operations Overview (P2), Shifts,
@@ -30,7 +30,7 @@ async function signedIn(browser: Browser, email: string): Promise<Page> {
   const context = await browser.newContext();
   const page = await context.newPage();
   await signIn(page, email);
-  await expect(page).toHaveURL(/\/app$/);
+  await expect(page).toHaveURL(SIGNED_IN_LANDING);
   return page;
 }
 

@@ -1,0 +1,731 @@
+P0-E9-3B/3C — WORKER-FIRST ENTRY + WORKER MOBILE RECOVERY + CREDENTIAL UPLOAD FIX + PWA ACTIVATION
+==================================================================================================
+CHELTH — Healthcare Workforce Operations
+
+Branch: p0-e8-visual-implementation
+HEAD:   d6e11d5 (E9-3B and E9-3C are uncommitted in the working tree)
+Production: not deployed; nothing pushed; no migration created or pushed.
+
+
+1. E9-3B BASELINE PRESERVED
+---------------------------
+E9-3B (docs/reports/P0-E9-3B-worker-first-app-entry.txt) is kept unchanged:
+- /app → My Shifts for a worker of one agency.
+- /app → the worker "Choose an agency" chooser for a worker of several
+  agencies.
+- Worker-only accounts never see Create a new agency.
+- Staff, facility and mixed accounts keep the gateway.
+
+Its tests (tests/e2e/worker-app-entry.spec.ts, 14) still pass and are
+extended below. No defect was found in the E9-3B rules.
+
+
+2. PRODUCTION ISSUES REPRODUCED
+-------------------------------
+Visual drift and the desktop feel of My Credentials, the credential record
+and Add credential:
+- Reproduced locally at 360–430 px in Pixel 7 emulation.
+- Specific problems:
+  - the stacked generic form at the bottom of the list page;
+  - the raw "Choose file / No file chosen" input with a separate small
+    "Upload" button;
+  - the record led by a Versions table;
+  - "Submit for review" offered next to the uploader before any evidence
+    existed;
+  - scanner vocabulary ("Awaiting security scan", "Quarantined").
+
+Upload failure, from production read-only evidence: aggregate counts only,
+no file names, contents or personal data (section 12).
+
+Organisation root as a worker home: reproduced. The worker shell's logo and
+"<agency> home" both pointed to /app/organisations/<id>, which showed "All
+organisations", role chips and "My worker record".
+
+"All workspaces" for a single-agency worker: reproduced (it bounced back
+to My Shifts).
+
+
+3. CANONICAL REFERENCES USED
+----------------------------
+docs/ui-reference/p08-e8/canonical/Chelth_Worker mobile Flow/:
+- assets/chelth-worker-mobile-flow-locked.png
+- LOCKED-DESIGN-SPEC.md
+- WORKER-MOBILE-INTERACTIONS.md
+- ATTENDANCE-GEOFENCE-FLOW.md
+- CLAUDE-IMPLEMENTATION.md
+- README.md
+
+Also:
+- docs/ui-reference/CHELTH-LOCKED-VISUAL-SYSTEM.md
+- docs/brand/CLAUDE-CHELTH-BRAND-RULES.md
+- the W1, QA-F2, E8 closure and E9-3B reports
+
+
+4. ROUTE → REFERENCE MAP
+------------------------
+The canonical worker flow draws four screens: My Shifts, Shift Details,
+Check-In / Check-Out and Timesheet Handoff. Credentials are not drawn.
+They inherit the same shell, card, chip, CTA and rhythm language, through
+the W1 / QA-F2 worker primitives.
+
+  /app (worker, 1 agency)          → redirect → My Shifts (E9-3B)
+  /app (worker, several agencies)  → worker agency chooser (E9-3B; W1 cards)
+  /app/organisations/<id> (worker) → redirect → My Shifts (new, section 6)
+  .../my-shifts                    → canonical screen 1; Shift Details
+                                     sheet = screen 2; in-card check-in /
+                                     out = screen 3; handoff = screen 4.
+                                     Locked in W1; unchanged here.
+  .../timesheets (worker)          → screen 4 family (QA-F2 lock; unchanged)
+  .../my-credentials               → worker card family (readiness card,
+                                     credential cards, primary CTA)
+  .../my-credentials/new           → Add credential, step 1 (new route)
+  .../my-credentials/<id>          → worker record: evidence and review
+                                     steps, then sharing, review, history,
+                                     danger zone
+  WorkerShell                      → canonical header, canvas, bottom nav
+  /offline.html                    → static offline page in the same card
+                                     language
+
+
+5. WORKER ENTRY POLISH
+----------------------
+WorkerShell More sheet (src/components/layout/worker-shell.tsx and
+worker-frame.tsx). The decision comes from the existing workerOnlyAgencies()
+over the caller's memberships:
+
+- Worker of one agency:
+  - "All workspaces" is hidden (it only led back to My Shifts).
+  - Account, Security and Sign out stay.
+- Worker of several agencies:
+  - "All agencies" → /app (the worker chooser);
+  - the switch list is titled "Switch agency". Switching goes through the
+    unchanged selectOrganisationAction and lands on that agency's My Shifts.
+- Mixed and staff accounts: unchanged wording ("All workspaces", "Switch
+  workspace").
+
+Other changes:
+- The "<agency> home" row was removed.
+- The header mark now opens My Shifts.
+- The sheet shows the worker's context line: "<agency> · Healthcare Worker
+  · <worker status>". This was the only useful content of the old root
+  page.
+
+
+6. ORGANISATION-ROOT BEHAVIOUR
+------------------------------
+src/app/app/organisations/[organisationId]/(workspace)/page.tsx:
+- For an agency where the caller is not workspace staff (the existing
+  isWorkspaceStaff over their grants) and has a worker record, the root
+  redirects to My Shifts.
+- Staff (admin / scheduler / finance), facility users, and members without
+  a worker record see the existing pages unchanged.
+
+"My worker record" (status) moved to the More sheet (section 5). This is a
+routing decision only; every page still applies its own capability checks
+and RLS.
+
+
+7. WORKERSHELL FIDELITY
+-----------------------
+Checked against the canonical screen 1:
+- Header: sticky, 64 px. The Chelth mark (canonical asset), the current
+  agency, "Worker · <name>" and an initials avatar.
+- Canvas: the off-white wash in a centred phone-width column (max 576 px)
+  at every width. Asserted at 360, 375, 390, 412, 430, 768 and 1280.
+- Bottom nav: Shifts, Timesheets, Credentials, More.
+  - The current item is teal-dark with a top rule and aria-current.
+  - It is safe-area padded.
+- No notification bell: no in-app notification feature exists.
+
+The canonical "Home" item is still not added: My Shifts is the home.
+
+
+8. MY SHIFTS
+------------
+Not changed: the logic and the W1 visual lock. Offers, assignments, Shift
+Details, check-in, the geofence result, breaks, check-out and the timesheet
+handoff are as before.
+
+The visual comparison found no new drift beyond the W1-documented omissions:
+- no facility photos, unit, contact or map;
+- no "Today" tab;
+- no supervisor override.
+These features are unsupported, so they stay omitted.
+
+Offline check-in / out already says "Not recorded: Chelth could not be
+reached …" and never fakes success (verified in clock-control.tsx).
+
+
+9. TIMESHEETS
+-------------
+Unchanged: QA-F2 worker branch, same WorkerShell. No pay, bill, payroll or
+finance data and no other workers (asserted in worker-mobile.spec.ts).
+
+
+10. CREDENTIALS LIST
+--------------------
+(self-service)/my-credentials/page.tsx:
+- PageHeader "My Credentials" with a one-line description.
+- Primary CTA "+ Add credential" (48 px) → /my-credentials/new.
+- Readiness card: QA-F2, engine data unchanged.
+- One W1 card per credential:
+  - tile and name;
+  - one state chip from real data: Draft / Submitted / Verified / Rejected
+    / Withdrawn;
+  - a sharing chip: "Shared with <agency>" / "Not shared";
+  - the expiry row.
+
+The verified / rejected state comes from this agency's latest decision on
+the latest version. The owner can already read this under the existing
+RLS; it was added to listMyCredentials as an embedded read, with no new
+query surface. The Add form no longer sits at the bottom of the list.
+
+
+11. ADD CREDENTIAL REBUILD
+--------------------------
+One route plus progressive sections. A three-step indicator (Details →
+Evidence → Review, aria-current="step") appears on the Add page and on the
+record while a draft is open.
+
+STEP 1 — /my-credentials/new, "Credential details", one column, 48 px
+controls:
+- Credential type, plus issuing state or country and the licence number
+  when that type requires them;
+- Issuing body, Issue date, Expiry date;
+- the "Share with <agency>" consent card (ticked by default, as before);
+- "Save and continue". This calls the existing createCredentialAction, which
+  creates the draft and the share and opens the record.
+
+STEP 2 — Evidence card on the record: the branded upload control
+(section 13).
+
+STEP 3 — "Review and submit" card on the record:
+- a summary of credential, issuing body, issued, expires, evidence state
+  and sharing;
+- "Submit for review" (primary), offered only when the server rule would
+  accept it (a document is checking or ready, or the type needs none).
+  Otherwise: "Add evidence to continue."
+- "Discard draft" (secondary).
+
+
+12. EXACT UPLOAD ROOT CAUSE
+---------------------------
+Production evidence, read-only aggregate SQL via the Supabase CLI, no
+personal data:
+- credential_documents in production: 0 rows. Documents are never deleted.
+- One credential was created at 19:11:37 UTC and shared one second later.
+  It was withdrawn at 19:12:45 UTC (68 s later), with its draft version
+  still open.
+- internal.rate_limit_counters has no "credential.upload" bucket.
+  begin_credential_document_upload consumes that limit in the same
+  transaction that inserts the document row. So no begin-upload call ever
+  committed, and none failed after consuming the limit either.
+- The last deploy (merge of PR #29) was at 18:35 UTC, before the attempt.
+  A stale server-action ID is therefore ruled out.
+- The scanner migration's trigger fires only on status updates, so it
+  cannot block the insert. The scanner principal is registered (1), and the
+  production scan queue is empty.
+
+Conclusion (proven): the Android upload never reached the database. It
+stopped in the browser or in startUploadAction before its RPC.
+
+Defects found on that path (all reproduced and fixed):
+
+a) Errors were swallowed. The old DocumentUploader used try / finally with
+   no catch. Any thrown error — a network drop on mobile data, a server
+   action that cannot be reached, an interrupted request — reset the
+   spinner and showed nothing. The worker saw "nothing happened".
+
+b) Over-strict client type check for mobile pickers. The upload required
+   the browser's File.type to be exactly application/pdf, image/jpeg or
+   image/png, and the name's extension to match. Android document
+   providers can report:
+   - an empty or generic type (application/octet-stream);
+   - "image/jpg";
+   - a display name without an extension (e.g. "1000012345").
+   Each of these was refused before any network call.
+
+c) A submitter trap. "Submit for review" (primary, prominent) sat beside a
+   small outline "Upload" and the raw file input. Picking a file and
+   tapping the strong button submitted without uploading. The database
+   refused with CH409, shown as the generic "not allowed in the item's
+   current state". The selected file was never sent.
+
+d) The accept attribute listed MIME types only. Some Android providers grey
+   out files they cannot map to a MIME type.
+
+Not determinable without the device or browser logs: which of (a), (b) or
+(c) the tester hit. The server logs no client-side refusal, and runtime
+logs (Vercel) were not available to this session. The data proves the
+failure was client-side, before the RPC, and all three causes are removed.
+The Android real-device check (section 22) will confirm.
+
+
+13. UPLOAD FIX
+--------------
+src/features/credentials/components/evidence-uploader.tsx (replaces
+document-uploader.tsx):
+
+Control:
+- The native input stays in the DOM (sr-only, focusable, labelled), so
+  Files, Photos and Camera are offered where the device supports them.
+  Camera is not forced.
+- The visible control is a branded label button: "Choose document" /
+  "Replace" / "Upload a different file".
+- accept = the three MIME types plus .pdf, .jpg, .jpeg and .png.
+
+States and messages:
+- Idle: "Upload evidence" / "PDF, JPG or PNG · up to 10 MB".
+- Selected: the file name, the size and "Ready to upload". Primary "Upload
+  evidence"; secondary "Replace".
+- Uploading: "Uploading document…", with the button disabled and
+  aria-busy.
+
+Checks and safeguards:
+- Pre-check checkDocumentFile() in src/lib/domain/credentials.ts (unit
+  tested). It takes the type from the extension when the picker reports
+  none, and names an extension-less file from its declared type.
+- A contradicting extension, an unknown type, an empty file or one over
+  10 MB is refused at selection, with a specific message. Nothing is sent.
+- Every failure path is caught and shown: network, ticket, storage and
+  completion.
+  - Offline: "You're offline. Connect to the internet, then upload again."
+    Nothing is queued.
+  - Server content refusal: "This document cannot be used. Upload a
+    different file."
+- A double tap is guarded by an in-flight ref; the test proves one document
+  row.
+- The File object is held in state; the input is cleared only after it is
+  read.
+- Success is never client-only. "Document uploaded. Checking document…"
+  shows only while the server still reports that document as checking.
+
+The server and security path are unchanged:
+- one-time signed upload ticket, private bucket;
+- server size, magic-byte signature and SHA-256 verification;
+- the scanner gate.
+
+The server's extension check still runs, on the normalised name. The
+stored bytes remain the authority.
+
+
+14. CREDENTIAL RECORD RECOMPOSITION
+-----------------------------------
+In order:
+- Header: name, back to My Credentials, state chip and "Expires …"
+  (jurisdiction · issuing body · number as the subtitle).
+- While a draft is open: the step indicator, the Evidence card (state plus
+  uploader) and the Review and submit card.
+- After submission: the Evidence card with the latest document state and
+  "Open" (the existing audited gate).
+- Sharing with <agency>: Shared / Not shared, then "Stop sharing" or
+  "Share with <agency>".
+- Review by <agency>: this agency's decision (badge, reason, time) or
+  "Waiting for <agency> to review it." / "Not submitted for review yet."
+  Other agencies' decisions are listed compactly.
+- Renew (only when there is no draft): the existing NewVersionForm.
+- History: a collapsed <details> with "History · n versions". It contains
+  the version rows and their documents in worker language ("Checking",
+  "Ready", "Cannot be used", "Upload didn't finish") and "Open document n
+  of version n".
+- Danger zone: "Withdraw credential" (danger), alone at the end.
+
+CTA hierarchy:
+- One primary per card: Upload evidence / Submit for review / Share.
+- Secondary (outlined, 48 px full-width): Replace, Stop sharing, Discard
+  draft, Open.
+- Danger: Withdraw.
+
+
+15. SCANNER HANDOFF
+-------------------
+Documents are untrusted until the scanner decides (E9-2, unchanged).
+Worker states:
+- no document          → "Upload evidence" (and "Add evidence to
+                          continue." in Review)
+- upload_pending       → "Upload didn't finish" · "Upload the document
+                          again."
+- scanning             → "Checking document…"
+- scanning, scan_failed → "We couldn't finish checking this document yet.
+                          We'll keep trying."
+- clean                → "Document ready"
+- rejected / quarantined → "This document cannot be used. Upload a
+                          different file."
+
+While a document is checking, the record re-reads server state every 5 s
+(bounded to about 3 min, paused when hidden or offline). So the outcome
+appears without a reload.
+
+RLS limitation, unchanged: the owner cannot read rejected or quarantined
+documents. A quarantined file therefore leaves the page. When one that was
+being checked disappears while the page is open, the worker sees "This
+document cannot be used. Upload a different file." After a later reload,
+the evidence simply shows "Upload evidence" again.
+
+No provider, signature, internal code, storage path or signed URL is shown
+(asserted).
+
+
+16. PREVIOUS PWA STATE
+----------------------
+Already in place:
+- src/app/manifest.ts (name "Chelth — Healthcare Workforce Operations",
+  start_url /app, scope /, standalone, theme #126B67, background #FAFBFA);
+- the canonical 192 / 512 / maskable icons;
+- apple-touch-icon;
+- the theme-color meta;
+- CSP worker-src / manifest-src 'self'.
+
+Missing:
+- a service worker and its registration;
+- an offline page;
+- an install entry point;
+- appleWebApp metadata.
+
+
+17. MANIFEST
+------------
+/manifest.webmanifest:
+- id "/app"; name "Chelth"; short_name "Chelth"; description unchanged;
+- start_url "/app"; scope "/"; display "standalone";
+- theme_color "#126B67" (Deep Teal token); background_color "#FAFBFA"
+  (Off White token);
+- icons: 192 any, 512 any, 192 maskable, 512 maskable — the canonical files,
+  unmodified.
+
+The maskable mark sits inside the safe zone (inspected). apple-touch-icon
+is 180×180.
+
+appleWebApp metadata: capable, title "Chelth", default status bar.
+
+start_url /app resolves through the existing entry rules (section 21).
+Production origin: https://app.chelth.com. All manifest URLs are relative.
+
+
+18. SERVICE WORKER
+------------------
+public/sw.js, registered by src/components/pwa/service-worker-registration
+.tsx:
+- registered in production builds only;
+- secure contexts only;
+- scope "/";
+- updateViaCache "none".
+
+Behaviour:
+- install: precaches only /offline.html, /offline.css and the logo SVG;
+  then skipWaiting.
+- activate: deletes older chelth-* caches, enables navigation preload and
+  claims clients.
+- fetch:
+  - non-GET → untouched (server actions, mutations);
+  - cross-origin → untouched (Supabase auth, storage, signed URLs);
+  - navigations → network (with preload); on network failure, the static
+    offline page. A page is never served from cache;
+  - /_next/static/* (content-hashed) and /brand/chelth/* → cache-first;
+    only complete same-origin 200 responses are stored, capped at 300
+    entries;
+  - everything else (RSC payloads, /api, /auth, data) → network, untouched.
+- /sw.js is served with "Cache-Control: no-cache, no-store,
+  must-revalidate" (next.config.ts).
+
+
+19. CACHING POLICY
+------------------
+Cached: hashed JS / CSS / fonts under /_next/static, the canonical brand
+files, and the offline page and stylesheet.
+
+Never cached or stored:
+- pages;
+- credential documents and signed URLs;
+- worker, attendance and timesheet data;
+- auth responses and server-action / mutation responses;
+- geolocation;
+- agency, private or finance data;
+- invite tokens.
+
+Asserted in E2E:
+- after using My Shifts, Timesheets, My Credentials and a record, every
+  cached URL is same-origin and under /_next/static/, /brand/chelth/ or
+  /offline.*, with no token or _rsc query;
+- localStorage and sessionStorage hold no token, invite, signed-URL or
+  credential keys.
+
+Update behaviour: pages are always network-fetched, so a new deployment is
+visible on the next navigation. Old hashed chunks are never stale (the hash
+changes) and are pruned by the cap. The new worker activates without
+reloading open pages, so there is no forced reload mid-mutation. An "Update
+available" prompt is therefore unnecessary and was not built.
+
+
+20. STANDALONE BEHAVIOUR
+------------------------
+- viewport-fit stays "auto", so iOS and Android standalone keep content
+  inside the safe area without page-wide insets.
+- Existing env(safe-area-inset-bottom) padding on the bottom nav and the
+  More sheet stays, and is harmless.
+- The bottom nav is fixed above the home indicator.
+- Content has 112 px bottom padding. Asserted: the last action on every
+  worker page, scrolled to the end, sits above the nav at 360–1280.
+- Dialogs: the More sheet and the Shift Details sheet are unchanged native
+  dialogs.
+- Forms: date and select controls are native, 16 px text, so iOS does not
+  zoom. Actions follow their fields in flow, so the keyboard never pins
+  over an action.
+
+Offline:
+- navigations show "You're offline" (static page, "Try again");
+- uploads, check-in / out and submissions report failure and never queue;
+- the worker error boundary says "You're offline / Nothing was saved."
+
+Standalone display-mode cannot be emulated in Playwright. This is part of
+the device certification (sections 22–23).
+
+
+21. ANDROID INSTALLABILITY
+--------------------------
+Chrome's installability criteria are met by the build:
+- served over HTTPS in production;
+- a manifest with name / short_name, 192 and 512 icons, start_url and
+  display standalone;
+- a registered service worker with a fetch handler.
+
+Install entry point (src/components/pwa/install-app.tsx):
+- In the worker More sheet only, "Install Chelth on this device" appears
+  when the browser fires beforeinstallprompt. It is used once, with no
+  banner or repetition, and hides after installing.
+- The browser's own menu install stays available.
+- iOS Safari, not installed: "Add Chelth to your Home Screen" expands
+  one-line Share → Add to Home Screen steps. No automatic iOS install is
+  claimed.
+
+Start behaviour through /app (existing rules, E2E-covered):
+- signed out → Sign in;
+- worker, one agency → My Shifts;
+- worker, several → agency chooser;
+- staff / mixed → gateway.
+
+
+22. ANDROID REAL-DEVICE RESULT
+------------------------------
+No physical Android device was available to this session, and the change
+is not deployed. The full section-28 checklist (install, standalone,
+Files / Photos / PNG / invalid / >10 MB uploads, scanner clean, refresh,
+open, submit, sign out / in, check-in / out) has NOT been run on a device.
+
+Automated equivalents pass in Pixel 7 emulation:
+- refused types / size / empty;
+- PDF / JPG / PNG uploads;
+- empty-MIME and extension-less files;
+- duplicate tap; offline;
+- scan failed; quarantined;
+- clean; submit;
+- offline navigation;
+- service worker caching.
+
+STATUS: NOT YET CERTIFIED.
+
+
+23. IOS STATUS
+--------------
+No physical iPhone available. STATUS: NOT YET CERTIFIED.
+
+
+24. RESPONSIVE RESULTS
+----------------------
+At 360 / 375 / 390 / 412 / 430 / 768 / 1280, checked on My Shifts,
+Timesheets, My Credentials, Add credential and the credential record:
+- one h1;
+- no page overflow;
+- the content column is ≤ 576 px and centred;
+- the last action sits above the bottom nav.
+
+Visual review of the captures (scratchpad only, not committed), compared
+with the canonical PNG, found:
+- the same header, card geometry (14 px radius, teal hairline, soft
+  depth), luminous tiles, glyph chips, 48 px CTAs and bottom nav across My
+  Shifts, Timesheets, Credentials and the record;
+- one fix made during review: the upload confirmation lingering after the
+  document was ready.
+
+
+25. ACCESSIBILITY
+-----------------
+axe (wcag2a / 2aa / 22aa) is clean on:
+- the More sheet;
+- the evidence states: empty, selected, checking, review;
+- My Credentials and Add credential at 375;
+- the record at 375 / 1280;
+- the existing worker pages.
+
+Other checks:
+- The file input is a real labelled control, keyboard-focusable, with the
+  focus ring drawn on the visible button.
+- States are always text.
+- Errors use role="alert" and progress / outcomes use role="status".
+- The steps are an ordered list with aria-current="step".
+- Touch targets are ≥ 44 px (48 px CTAs, 64 px nav).
+
+
+26. SECURITY CONFIRMATION
+-------------------------
+Unchanged:
+- private credential Storage and the signed upload / download semantics;
+- scanner fail-closed;
+- checksum and integrity checks;
+- credential sharing, readiness and agency verification;
+- RLS and tenant isolation;
+- attendance time authority and location privacy;
+- the role architecture, auth and AAL2.
+
+Other confirmations:
+- No service role.
+- No supabase/ file in the diff; no new RPC or policy.
+- The only read change is an embedded owner-visible verification field in
+  listMyCredentials.
+- Production was only read: aggregate counts, inside the existing linked
+  CLI session, with no secret or personal value printed.
+
+
+27. TEST TOTALS
+---------------
+Unit (npm test): 400 passed (32 files). New:
+- checkDocumentFile, 12 cases;
+- E9-3B workerOnlyAgencies, 11 cases.
+
+Integration (npm run test:integration): 120 passed (16 files).
+- The first run had 2 failures in the E9-2 document-scanning tests. These
+  were caused by pending scan-queue rows left by the local E2E run (the
+  scanner claims the oldest 5 first).
+- Rerun on the drained queue: all pass.
+- This test-isolation sensitivity predates this phase.
+
+E2E (npx playwright test, desktop + mobile, --workers=2):
+- 298 passed, 12 skipped, 0 failed (13.3 min).
+- The 12 skips are the existing desktop-only tests on the mobile project.
+- 280 → 298 is the 18 new recovery tests.
+
+New spec tests/e2e/worker-mobile-recovery.spec.ts (9 tests × 2 projects):
+- the root redirect, and staff unchanged;
+- More for one agency, several agencies, and mixed accounts;
+- the full credential flow with refused files, PDF / JPG, duplicate tap,
+  refresh, server refusal, scanning → ready without reload, review and
+  submit;
+- Android-style files, PNG, scan failure and quarantine;
+- offline upload;
+- responsive and bottom-nav clearance;
+- PWA manifest / icons / headers;
+- service worker registration and static-only caching;
+- the offline navigation page.
+
+Updated specs:
+- credentials-compliance;
+- worker-mobile (QA-F2 credential assertions);
+- workforce-facilities (root redirect; worker status in More);
+- final-sweep, shifts-assignments, workspace-shell (the worker agency root
+  now opens My Shifts).
+
+The first full run had 6 failures, all in those last three specs, which
+still expected the old worker root page. They were updated, re-run (36 / 36
+passed), and the whole suite was run again for the totals above.
+
+
+28. FILES CHANGED (E9-3C; E9-3B files listed in its own report)
+---------------------------------------------------------------
+Source:
+  src/app/app/organisations/[organisationId]/(workspace)/page.tsx
+  src/app/app/organisations/[organisationId]/_components/worker-frame.tsx
+  src/components/layout/worker-shell.tsx
+  src/app/app/organisations/[organisationId]/(self-service)/error.tsx
+  src/app/app/organisations/[organisationId]/(self-service)/my-credentials/page.tsx
+  src/app/app/organisations/[organisationId]/(self-service)/my-credentials/[credentialId]/page.tsx
+  src/app/app/organisations/[organisationId]/(self-service)/my-credentials/new/page.tsx (new)
+  src/app/app/organisations/[organisationId]/(self-service)/my-credentials/_components/credential-view.tsx (new)
+  src/app/app/organisations/[organisationId]/(self-service)/my-credentials/_components/refresh-while-checking.tsx (new)
+  src/app/app/organisations/[organisationId]/(self-service)/my-shifts/_components/worker-cards.tsx
+    (tokens re-exported from the new shared module; output unchanged)
+  src/components/reference/worker-ui.ts (new; shared worker style tokens)
+  src/features/credentials/components/evidence-uploader.tsx (new)
+  src/features/credentials/components/document-uploader.tsx (deleted)
+  src/features/credentials/components/create-credential-form.tsx
+  src/features/credentials/index.ts
+  src/features/credentials/queries.ts
+  src/lib/domain/credentials.ts (checkDocumentFile)
+  src/components/forms/inline-action-form.tsx (optional buttonClassName)
+  src/components/pwa/service-worker-registration.tsx (new)
+  src/components/pwa/install-app.tsx (new)
+  src/app/layout.tsx, src/app/manifest.ts, next.config.ts
+  public/sw.js, public/offline.html, public/offline.css (new)
+Tests:
+  tests/e2e/worker-mobile-recovery.spec.ts (new)
+  tests/e2e/credentials-compliance.spec.ts
+  tests/e2e/worker-mobile.spec.ts
+  tests/e2e/workforce-facilities.spec.ts
+  tests/e2e/final-sweep.spec.ts, shifts-assignments.spec.ts, workspace-shell.spec.ts
+    (worker agency root now opens My Shifts; sweep adds Add credential)
+  tests/support/scanner.ts (local-only failWaitingScans,
+    quarantineWaitingScans, documentCount)
+  tests/unit/lib/credential-vocabulary.test.ts
+
+
+29. DATABASE CHANGES
+--------------------
+NONE:
+- no migration, schema, policy, RPC or grant change;
+- npm run check:migrations passes.
+
+
+30. DEPLOYMENT STEPS (operator; not done here)
+----------------------------------------------
+1. Review and commit E9-3B and E9-3C (stage explicitly). Push the branch,
+   open or merge a PR to main, and let Vercel deploy production.
+2. No database step: the production schema is already at 62 / 62
+   migrations.
+3. After deploy, smoke-test https://app.chelth.com:
+   - /manifest.webmanifest and /sw.js return 200;
+   - DevTools → Application shows the manifest as installable and the
+     service worker activated;
+   - the Cache Storage entry "chelth-sw-1-static" contains only
+     /_next/static, /brand/chelth and offline files.
+4. Scanner configuration (E9-2 operator items) must be live, or documents
+   stay "Checking document…" indefinitely (fail-closed):
+   - MALWARE_SCAN_PROVIDER and keys;
+   - the dispatch secret and Vault;
+   - pg_cron.
+   The production scanner principal is registered; provider configuration
+   was not verified here.
+5. Run the Android and iOS checklists (sections 22–23) on the deployed
+   build and record the results.
+
+
+31. REMAINING GAPS
+------------------
+- Real-device certification (Android and iOS) is outstanding.
+- The exact client-side branch the Android tester hit is not identifiable
+  without device or runtime logs (section 12). All candidate defects are
+  fixed.
+- The owner cannot read rejected or quarantined documents (RLS). After a
+  reload, a quarantined upload is not named; it is only reported live
+  while the page is open. Showing it persistently would need an
+  owner-visible projection (a DB change, not made).
+- Installed-app standalone rendering cannot be emulated in CI.
+- My Shifts keeps the W1-documented omissions of unsupported features
+  (photos, unit, contact, map, Today tab, supervisor override).
+- The personal navigation label "Organisations" for worker-only accounts
+  (E9-3B note) is unchanged.
+- Integration-test isolation: the E9-2 scanning tests are sensitive to
+  pending local queue rows left by E2E runs. This existed before.
+
+WORKER ENTRY:
+STATUS: WORKER-FIRST ENTRY COMPLETE.
+
+WORKER MOBILE:
+STATUS: WORKER MOBILE RECOVERY COMPLETE. AWAITING HUMAN REAL-DEVICE APPROVAL.
+
+PWA:
+STATUS: PWA ACTIVE.
+
+ANDROID:
+STATUS: NOT YET CERTIFIED
+
+IOS:
+STATUS: NOT YET CERTIFIED

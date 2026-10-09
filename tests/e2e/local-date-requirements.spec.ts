@@ -4,7 +4,7 @@ import { formatCalendarDate, localCalendarDate } from "@/lib/domain/credentials"
 
 import { generateTotp } from "../support/totp";
 import { createStaffingWorld, type StaffingWorld } from "./staffing-fixture";
-import { signIn } from "./support";
+import { signIn, SIGNED_IN_LANDING } from "./support";
 
 const AFTER_ACTION = { timeout: 20_000 };
 const TZ = "America/Chicago";
@@ -45,7 +45,7 @@ test.describe.serial("local-date requirement effectiveness", () => {
   }) => {
     const page: Page = await (await browser.newContext()).newPage();
     await signIn(page, world.admin.email);
-    await expect(page).toHaveURL(/\/app$/, AFTER_ACTION);
+    await expect(page).toHaveURL(SIGNED_IN_LANDING, AFTER_ACTION);
     const path = `/app/organisations/${world.agencyId}/facilities/${facilityId}`;
     await page.goto(path);
     await page.getByRole("link", { name: "Verify now" }).first().click();

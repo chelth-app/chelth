@@ -9,7 +9,7 @@ import {
   type StaffingWorld,
 } from "./staffing-fixture";
 import { uniqueEmail } from "../support/mailpit";
-import { expectNoPageOverflow, qaScreenshot, signIn } from "./support";
+import { expectNoPageOverflow, qaScreenshot, signIn, SIGNED_IN_LANDING } from "./support";
 
 /*
  * Settings (P0-E8-S9H): one consolidated route over the administration Chelth
@@ -38,7 +38,7 @@ async function expectNoA11yViolations(page: Page) {
 async function signedIn(browser: Browser, email: string): Promise<Page> {
   const page = await (await browser.newContext()).newPage();
   await signIn(page, email);
-  await expect(page).toHaveURL(/\/app$/, AFTER_ACTION);
+  await expect(page).toHaveURL(SIGNED_IN_LANDING, AFTER_ACTION);
   return page;
 }
 

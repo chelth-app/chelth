@@ -1,5 +1,6 @@
-import type { Metadata } from "next";
+import type { Metadata, Route } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { WorkspaceNavIcon } from "@/components/layout/workspace-nav-icon";
@@ -15,6 +16,7 @@ import {
   readActiveOrganisationPreference,
   readPendingInviteToken,
   selectOrganisationAction,
+  workerOnlyAgencies,
 } from "@/features/organisations";
 
 export const metadata: Metadata = { title: "Your organisations" };
@@ -47,6 +49,28 @@ export default async function AppHomePage({ searchParams }: PageProps<"/app">) {
       searchParams,
     ]);
   const visible = memberships.filter((membership) => membership.organisation !== null);
+  const noticeText = typeof notice === "string" ? NOTICES[notice] : undefined;
+
+  // Worker-first entry (P0-E9-3B): a Healthcare-Worker-only account opens its
+  // shifts. One agency → straight to My Shifts (unless a pending invitation or
+  // a notice must be seen first); several → a worker-only agency chooser.
+  // Staff, facility, mixed and new users keep the general gateway below.
+  const workerAgencies = workerOnlyAgencies(visible);
+  if (workerAgencies) {
+    const [onlyAgency] = workerAgencies;
+    if (workerAgencies.length === 1 && onlyAgency && !pendingInvite && !noticeText) {
+      redirect(`/app/organisations/${onlyAgency.id}/my-shifts` as Route);
+    }
+    return (
+      <WorkerAgencyChooser
+        agencies={workerAgencies}
+        displayName={profile.displayName}
+        notice={noticeText}
+        pendingInvite={Boolean(pendingInvite)}
+      />
+    );
+  }
+
   // The preference only reorders the list; nothing is selected automatically.
   const ordered = [...visible].sort(
     (a, b) =>
@@ -58,8 +82,6 @@ export default async function AppHomePage({ searchParams }: PageProps<"/app">) {
   ];
   const roleLists = await Promise.all(types.map((type) => listRoles(type)));
   const roleName = new Map(roleLists.flat().map((role) => [role.key, role.name]));
-  const noticeText = typeof notice === "string" ? NOTICES[notice] : undefined;
-
   return (
     // Gateway (P0-E8-A1.3, spacing A1.4): the welcome spans the top; from lg the primary
     // task (open a workspace) takes ~64% on the left and the secondary "Create a new agency"
@@ -212,6 +234,102 @@ export default async function AppHomePage({ searchParams }: PageProps<"/app">) {
           </div>
         </section>
       </div>
+    </div>
+  );
+}
+
+const WORKER_CARD =
+  "chelth-locked flex h-full flex-col gap-4 rounded-[14px] border border-[rgba(18,107,103,0.10)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,252,252,0.95))] p-5 shadow-[0_10px_30px_rgba(13,47,66,0.07),0_1px_2px_rgba(13,47,66,0.05)]";
+
+/**
+ * Worker-only agency chooser (P0-E9-3B): only the agencies this person works
+ * with as a Healthcare Worker, each opening that agency's My Shifts. No agency
+ * creation or administration here; Account and Security stay in the
+ * personal navigation.
+ */
+function WorkerAgencyChooser({
+  agencies,
+  displayName,
+  notice,
+  pendingInvite,
+}: {
+  agencies: { id: string; name: string }[];
+  displayName: string | null;
+  notice: string | undefined;
+  pendingInvite: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-7">
+      <PageHeader
+        variant="reference"
+        title={
+          agencies.length > 1
+            ? "Choose an agency"
+            : `Welcome${displayName ? `, ${displayName}` : ""}`
+        }
+        description={<p>Open your shifts with an agency you work with.</p>}
+      />
+      {notice ? (
+        <p
+          role="status"
+          className="rounded-[12px] border border-[rgba(18,107,103,0.12)] bg-[linear-gradient(180deg,#f6fbfa,#eef7f4)] px-4 py-3 text-sm font-medium text-chelth-navy"
+        >
+          {notice}
+        </p>
+      ) : null}
+      {pendingInvite ? (
+        <div
+          role="status"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-[rgba(47,116,240,0.14)] bg-info-soft/45 px-4 py-3 text-sm text-chelth-navy"
+        >
+          <span className="font-medium">You have a pending invitation.</span>
+          <Link
+            href="/invite"
+            className="inline-flex min-h-11 items-center font-semibold text-primary underline underline-offset-4"
+          >
+            Review invitation
+          </Link>
+        </div>
+      ) : null}
+      <ul
+        aria-label="Your agencies"
+        className={cn(
+          "grid gap-4 sm:grid-cols-2",
+          agencies.length === 1 && "lg:max-w-[560px] lg:grid-cols-1",
+        )}
+      >
+        {agencies.map((agency) => (
+          <li key={agency.id}>
+            <article aria-label={agency.name} className={WORKER_CARD}>
+              <div className="flex items-start gap-3.5">
+                <span
+                  aria-hidden="true"
+                  className="inline-flex size-12 shrink-0 items-center justify-center rounded-[12px] bg-[radial-gradient(circle_at_30%_25%,#f4fdfa_0%,#d3f2e8_45%,#a9e3d3_100%)] text-chelth-teal-dark shadow-[0_4px_12px_rgba(0,90,96,0.14),inset_0_1px_0_rgba(255,255,255,0.9)] [&>svg]:size-6"
+                >
+                  <WorkspaceNavIcon name="workforce" strokeWidth={1.9} duotone />
+                </span>
+                <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                  <h2 className="font-display text-[18px] leading-6 font-semibold tracking-[-0.01em] break-words text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)]">
+                    {agency.name}
+                  </h2>
+                  <div className="flex flex-wrap gap-1.5">
+                    <RefChip tone="info" className="font-semibold">
+                      Healthcare Worker
+                    </RefChip>
+                  </div>
+                </div>
+              </div>
+              <Link
+                href={`/app/organisations/${agency.id}/my-shifts` as Route}
+                className="mt-auto inline-flex h-11 w-full items-center justify-center rounded-md bg-[linear-gradient(180deg,#00666c,#004f55)] px-4 text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_6px_14px_-4px_rgba(0,58,64,0.45)] hover:brightness-110"
+              >
+                Open shifts
+                <span className="sr-only"> with {agency.name}</span>
+              </Link>
+            </article>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

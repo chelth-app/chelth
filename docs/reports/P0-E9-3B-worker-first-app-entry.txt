@@ -1,0 +1,205 @@
+P0-E9-3B — WORKER-FIRST APP ENTRY
+=================================
+CHELTH — Healthcare Workforce Operations
+
+Branch: p0-e8-visual-implementation
+HEAD:   d6e11d5 (this work is uncommitted)
+Production: not deployed; no db push.
+
+
+1. SUMMARY
+----------
+/app now sends a Healthcare-Worker-only account to its work instead of the
+staff workspace gateway.
+- One agency: an immediate redirect to /app/organisations/<id>/my-shifts.
+- Several agencies: a worker-only "Choose an agency" page. Each card shows
+  the agency name, a "Healthcare Worker" chip and an "Open shifts" action
+  that opens that agency's My Shifts.
+- There is no "Create a new agency" and no staff workspace list.
+- Staff, facility and mixed accounts, and new accounts with no
+  memberships, keep the existing gateway unchanged.
+
+
+2. HOW "WORKER-ONLY" IS DECIDED
+-------------------------------
+New pure helper: workerOnlyAgencies(memberships), in
+src/features/organisations/workspace-navigation.ts.
+- Input is the existing listMyMemberships() result (the RLS-filtered rows
+  the gateway already loads). There is no new query, RPC or policy.
+- Only memberships whose organisation is visible are considered.
+- It returns the agencies only when every visible membership meets all of
+  these:
+  - the organisation is an agency;
+  - the membership has at least one role;
+  - every role is agency.healthcare_worker.
+- Otherwise it returns null and the general gateway renders.
+- Examples that keep the gateway:
+  - an admin, scheduler or finance user;
+  - worker + staff of the same agency;
+  - a worker of one agency who is staff of another;
+  - worker + facility member;
+  - a facility-only member;
+  - role-less, empty or hidden-only memberships.
+- This is a routing decision only. It grants nothing: each worker page
+  still enforces its own capability checks and RLS.
+
+
+3. REDIRECT RULES (src/app/app/(personal)/page.tsx)
+---------------------------------------------------
+- Worker-only, one agency, no pending invitation cookie and no notice:
+  redirect to that agency's My Shifts.
+- Worker-only with a pending invitation (chelth_invite cookie) or a notice
+  (?notice=…): the chooser renders instead of redirecting, so the
+  "You have a pending invitation — Review invitation" banner and notices
+  are never skipped.
+  - This preserves the E9-3A invite flow: an existing worker invited by a
+    second agency still sees the invitation.
+- Worker-only, several agencies: the chooser, with the agencies in
+  alphabetical order (as listMyMemberships returns them).
+- Everyone else: the unchanged gateway.
+- Sign-in still targets /app, so the sign-in destination resolves through
+  the same rule (the auth code is unchanged).
+- E9-3A post-accept behaviour (accept → My Shifts) is unchanged; it does
+  not pass through /app.
+
+
+4. ACCOUNT, SECURITY, SIGN OUT
+------------------------------
+- From My Shifts: the WorkerShell "More" sheet (unchanged) links to
+  Account, Security and All workspaces, and has Sign out.
+  - "All workspaces" → /app. For a single-agency worker this resolves
+    back to My Shifts, which is intended: there is nothing else to choose.
+- From the chooser: the personal frame navigation (Organisations, Security,
+  Account, Sign out) is unchanged.
+- /app/account and /app/security never redirect.
+
+
+5. WHAT DID NOT CHANGE
+----------------------
+- Authentication and auth routes: unchanged.
+- Memberships and roles: unchanged.
+- RLS, policies, RPCs, capabilities: unchanged.
+- Database schema and migrations: none added.
+- Middleware/proxy: unchanged.
+- WorkerShell: not redesigned.
+- Staff gateway markup: unchanged.
+
+Verified with git diff --name-only: no file under supabase/, src/lib/authz,
+auth routes, middleware or proxy is touched.
+
+
+6. VISUAL
+---------
+The chooser reuses the locked system:
+- PageHeader variant="reference";
+- the chelth-locked card surface;
+- RefChip "Healthcare Worker";
+- WorkspaceNavIcon (duotone);
+- the existing primary CTA treatment.
+
+Checked at 1280 px and 412 px:
+- 2-up on desktop, stacked on mobile;
+- no horizontal overflow;
+- axe clean (wcag2a/aa, wcag22aa).
+
+Copy: "Choose an agency" / "Open your shifts with an agency you work with."
+/ "Open shifts". Each link has an accessible name "Open shifts with
+<agency>". There is no AI-centric language.
+
+
+7. TESTS
+--------
+Unit: tests/unit/lib/workspace-navigation.test.ts. Eleven new cases cover
+workerOnlyAgencies:
+- one agency;
+- two agencies;
+- hidden membership ignored;
+- admin;
+- worker + staff (same agency);
+- worker + staff (another agency);
+- worker + facility;
+- facility only;
+- role-less;
+- none;
+- only hidden.
+
+E2E: new tests/e2e/worker-app-entry.spec.ts (desktop + mobile).
+  1. A one-agency worker signs in → /app/organisations/<id>/my-shifts;
+     revisiting /app redirects again.
+  2. A two-agency worker → "Choose an agency" with both agencies → selects
+     the Beta agency → the Beta agency's My Shifts.
+  3. A worker-only account sees no "Create a new agency", no "Your
+     organisations" list and no "Open workspace" buttons.
+  4. An agency admin: the gateway is unchanged (Welcome, Your
+     organisations, Create a new agency).
+  5. Mixed accounts: an admin of agency B who works for agency A, and a
+     worker + facility supervisor. Both keep the general gateway.
+  6. A facility admin: the gateway is unchanged.
+  7. A worker reaches Account → Security → Sign out from My Shifts (More
+     sheet), and Account, Security and Sign out from the chooser (personal
+     navigation).
+  8. Worker permissions are unchanged: Workforce, Shifts and Facilities of
+     the agency still return 404 for a worker.
+
+Existing specs:
+- 17 spec sign-in helpers that asserted the landing URL /app now use
+  SIGNED_IN_LANDING (tests/e2e/support.ts), which accepts /app or a single
+  agency's My Shifts.
+- Assertions for staff, admin and mixed users that check the gateway
+  itself are unchanged.
+
+Fixture: agencyWorker() in tests/e2e/staffing-fixture.ts adds a person as
+a healthcare worker of the primary agency or the Beta agency, through the
+real invite/accept RPCs.
+
+
+8. VALIDATION
+-------------
+npm run format:check      PASS
+npm run lint              PASS
+npm run typecheck         PASS
+npm test                  PASS — 32 files, 388 tests
+npm run build             PASS
+npm run check:bundle      PASS (70 browser files, no secrets)
+npm run check:migrations  PASS (no new migrations)
+npx playwright test       PASS — 280 passed, 12 skipped, 0 failed (10.8m;
+                          desktop + mobile, --workers=2). The 12 skips are
+                          pre-existing (12 before this phase too); 266 → 280
+                          is the 14 new worker-app-entry tests.
+
+Database suites (pgTAP, integration, db lint, db:types) were not rerun:
+this phase changes no SQL, schema, policy or RPC.
+
+
+9. FILES CHANGED
+----------------
+Source:
+  src/app/app/(personal)/page.tsx
+  src/features/organisations/workspace-navigation.ts
+  src/features/organisations/index.ts
+Tests:
+  tests/unit/lib/workspace-navigation.test.ts
+  tests/e2e/worker-app-entry.spec.ts (new)
+  tests/e2e/staffing-fixture.ts (agencyWorker helper)
+  tests/e2e/support.ts (SIGNED_IN_LANDING)
+  tests/e2e/{agency-surfaces, assignment-operations, attendance,
+    facility-surfaces, final-sweep, financial-adjustments, financial,
+    local-date-requirements, overview-fidelity, pricing, settings,
+    shifts-assignments, system-states, timesheets, worker-mobile,
+    workspace-shell, workspace-width}.spec.ts (sign-in landing only)
+
+
+10. KNOWN GAPS / NOTES
+----------------------
+- The personal navigation still labels /app "Organisations", including for
+  worker-only accounts. It was left as-is to avoid changing shared
+  navigation; a possible copy follow-up is "Agencies" for workers.
+- In the WorkerShell More sheet, "All workspaces" for a single-agency
+  worker returns to My Shifts (see section 4). This is harmless, but the
+  link could be hidden for single-agency workers in a later polish pass.
+- Suspended memberships: RLS hides the organisation (organisation = null),
+  so they are ignored. Revoked roles are already filtered out. A worker
+  whose only membership is suspended therefore gets the general gateway
+  with no organisations, as before. No new state handling was added.
+
+STATUS: WORKER-FIRST APP ENTRY COMPLETE. AWAITING DEPLOYMENT.

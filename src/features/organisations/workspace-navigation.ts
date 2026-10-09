@@ -1,5 +1,6 @@
 import {
   CAPABILITIES,
+  ROLES,
   type CapabilityKey,
   type CapabilityState,
   type OrganisationType,
@@ -158,4 +159,35 @@ export function buildWorkspaceNavigation({
  */
 export function isWorkspaceStaff(grantKeys: readonly string[]): boolean {
   return grantKeys.some((key) => key !== CAPABILITIES.ORGANISATION_VIEW);
+}
+
+/** A membership as the app entry sees it (organisation hidden by RLS ⇒ null). */
+export type EntryMembership = {
+  organisation: { id: string; name: string; type: OrganisationType } | null;
+  roleKeys: readonly string[];
+};
+
+/**
+ * Worker-only app entry (P0-E9-3B). Returns the agencies when EVERY visible
+ * membership is an agency membership whose only active role is Healthcare
+ * Worker (the self-service role: organisation.view only, so never workspace
+ * staff). Returns null for staff, facility, mixed, role-less or new users,
+ * who keep the general gateway. Presentation only: no authorization decision
+ * depends on this — every page still applies its own gate.
+ */
+export function workerOnlyAgencies(
+  memberships: readonly EntryMembership[],
+): { id: string; name: string }[] | null {
+  const visible = memberships.filter((membership) => membership.organisation !== null);
+  if (visible.length === 0) return null;
+  const workerOnly = visible.every(
+    ({ organisation, roleKeys }) =>
+      organisation?.type === "agency" &&
+      roleKeys.length > 0 &&
+      roleKeys.every((key) => key === ROLES.AGENCY_HEALTHCARE_WORKER),
+  );
+  if (!workerOnly) return null;
+  return visible.flatMap(({ organisation }) =>
+    organisation ? [{ id: organisation.id, name: organisation.name }] : [],
+  );
 }

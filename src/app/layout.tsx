@@ -7,6 +7,7 @@ import { connection } from "next/server";
 import type { ReactNode } from "react";
 
 import { SkipLink } from "@/components/layout/skip-link";
+import { ServiceWorkerRegistration } from "@/components/pwa/service-worker-registration";
 import { APP_DESCRIPTOR, APP_NAME } from "@/constants/app";
 
 export const metadata: Metadata = {
@@ -23,6 +24,8 @@ export const metadata: Metadata = {
     ],
     apple: [{ url: "/brand/chelth/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
   },
+  // Installed (Add to Home Screen) on iOS: standalone, named Chelth, default status bar.
+  appleWebApp: { capable: true, title: APP_NAME, statusBarStyle: "default" },
   robots: { index: false, follow: false },
 };
 
@@ -44,6 +47,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       <body className="min-h-dvh">
         <SkipLink />
         {children}
+        <ServiceWorkerRegistration />
       </body>
     </html>
   );

@@ -129,10 +129,20 @@ test.describe("workforce", () => {
       workerPage.getByRole("navigation", { name: "Worker" }).getByRole("link", { name: "Shifts" }),
     ).toHaveAttribute("aria-current", "page");
 
-    // Worker self-access: own record, no workforce section, no other workers.
+    // Worker self-access: the agency root is not a worker home (P0-E9-3C) — it opens
+    // My Shifts; the worker's own status is in More. No workforce section.
     await workerPage.goto(organisationUrl);
-    await expect(workerPage.getByRole("heading", { name: "My worker record" })).toBeVisible();
-    await expect(workerPage.getByText("Onboarding")).toBeVisible();
+    await expect(workerPage).toHaveURL(
+      new RegExp(`${new URL(organisationUrl, "http://x").pathname}/my-shifts$`),
+    );
+    await workerPage
+      .getByRole("navigation", { name: "Worker" })
+      .getByRole("button", { name: "More" })
+      .click();
+    await expect(workerPage.getByRole("dialog", { name: "More" })).toContainText(
+      "Workforce Agency · Healthcare Worker · Onboarding",
+    );
+    await workerPage.keyboard.press("Escape");
     await expect(workerPage.getByRole("link", { name: "Workforce" })).toHaveCount(0);
     const forbidden = await workerPage.goto(`${organisationUrl}/workforce`);
     expect(forbidden?.status()).toBe(404);
@@ -170,7 +180,13 @@ test.describe("workforce", () => {
     await expect(page.getByText("Prefers early shifts.")).toBeVisible();
 
     await workerPage.goto(organisationUrl);
-    await expect(workerPage.getByText("Active")).toBeVisible();
+    await workerPage
+      .getByRole("navigation", { name: "Worker" })
+      .getByRole("button", { name: "More" })
+      .click();
+    await expect(workerPage.getByRole("dialog", { name: "More" })).toContainText(
+      "Healthcare Worker · Active",
+    );
     await expect(workerPage.getByText("Prefers early shifts.")).toHaveCount(0);
     await workerContext.close();
   });

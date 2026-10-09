@@ -33,13 +33,14 @@ export function CreateCredentialForm({
   const errors = (field: string) => fieldErrorsFor(state, field);
 
   return (
-    <form action={formAction} className="flex max-w-2xl flex-col gap-4" noValidate>
+    <form action={formAction} className="flex flex-col gap-4" noValidate>
       <FormAlert state={state} />
       <input type="hidden" name="organisationId" value={organisationId} />
-      <div className="grid gap-4 sm:grid-cols-2">
+      {/* One column at every width: the worker app is a phone-width column. */}
+      <div className="grid gap-4 [&_input]:h-12 [&_input]:rounded-[10px] [&_select]:h-12 [&_select]:rounded-[10px]">
         <FormField
           id="credential-type"
-          label="Credential"
+          label="Credential type"
           required
           errors={errors("credentialTypeKey")}
         >
@@ -103,7 +104,7 @@ export function CreateCredentialForm({
           required={type?.requiresIssueDate ?? false}
           errors={errors("issueDate")}
         >
-          <Input name="issueDate" type="date" />
+          <Input name="issueDate" type="date" className="min-w-0" />
         </FormField>
         <FormField
           id="credential-expires"
@@ -111,17 +112,34 @@ export function CreateCredentialForm({
           required={type?.requiresExpiryDate ?? false}
           errors={errors("expiryDate")}
         >
-          <Input name="expiryDate" type="date" />
+          <Input name="expiryDate" type="date" className="min-w-0" />
         </FormField>
       </div>
-      <label className="flex items-start gap-2 text-sm">
-        <input type="checkbox" name="shareWithAgency" defaultChecked className="mt-1 size-4" />
-        <span>
-          Share this credential with <strong>{organisationName}</strong> so they can review it. You
-          can stop sharing at any time. Other agencies see it only if you share it with them too.
-        </span>
-      </label>
-      <SubmitButton className="w-fit">Add credential</SubmitButton>
+      <div className="flex items-start gap-3 rounded-[12px] border border-[rgba(18,107,103,0.14)] bg-[#f6fbfa] px-3.5 py-3 text-[14px] leading-5 text-slate-700">
+        <input
+          id="credential-share"
+          type="checkbox"
+          name="shareWithAgency"
+          defaultChecked
+          aria-describedby="credential-share-note"
+          className="mt-0.5 size-5 shrink-0 accent-[#00666c]"
+        />
+        <div className="flex flex-col gap-0.5">
+          <label
+            htmlFor="credential-share"
+            className="cursor-pointer font-semibold text-chelth-navy"
+          >
+            Share with {organisationName}
+          </label>
+          <p id="credential-share-note">
+            So they can review it. You can stop sharing at any time. Other agencies see it only if
+            you share it with them too.
+          </p>
+        </div>
+      </div>
+      <SubmitButton className="h-12 w-full rounded-[8px] text-[15px]">
+        Save and continue
+      </SubmitButton>
     </form>
   );
 }

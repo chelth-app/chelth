@@ -477,3 +477,25 @@ export async function facilityMember(
   await join(world.facilityAdmin.client, world.facilityOrgId, role, who);
   return who;
 }
+
+/**
+ * A healthcare worker of the world's agency and/or the Beta agency (P0-E9-3B app entry).
+ * Pass `existing` to add another agency to the same person.
+ */
+export async function agencyWorker(
+  world: StaffingWorld,
+  label: string,
+  name: string,
+  agency: "primary" | "beta",
+  existing?: Person,
+): Promise<Person> {
+  const who = existing ?? (await person(label, name));
+  if (agency === "primary") {
+    await join(world.admin.client, world.agencyId, "agency.healthcare_worker", who);
+    return who;
+  }
+  // Inviting is privileged: the Beta owner steps up once.
+  if (!world.betaAdmin.totpSecret) await stepUp(world.betaAdmin);
+  await join(world.betaAdmin.client, world.betaId, "agency.healthcare_worker", who);
+  return who;
+}

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 
+import { InstallApp } from "@/components/pwa/install-app";
 import { InitialsAvatar } from "@/components/reference/locked-reference";
 import { BrandLogo } from "@/components/shared/brand-logo";
 import { cn } from "@/lib/utils/cn";
@@ -26,6 +27,16 @@ type WorkerShellProps = {
   homeHref: string;
   /** The caller's other memberships (existing ones only). */
   otherWorkspaces: { id: string; name: string; typeLabel: string }[];
+  /**
+   * The chooser entry: "All agencies" for a worker of several agencies, "All
+   * workspaces" for mixed accounts, or null for a worker of one agency (the
+   * chooser would only lead back to My Shifts).
+   */
+  chooserLabel: "All agencies" | "All workspaces" | null;
+  /** Heading of the switch list ("Switch agency" for worker-only accounts). */
+  switchLabel: "Switch agency" | "Switch workspace";
+  /** The worker's status with this agency (from their own worker record). */
+  workerStatusLabel: string | null;
   selectWorkspaceAction: (formData: FormData) => Promise<void>;
   signOutAction: () => Promise<void>;
   children: ReactNode;
@@ -85,9 +96,9 @@ const sheetRow =
  * Mobile-first: compact header with the Chelth mark, workspace and the
  * worker's initials; one content column on the locked off-white canvas; a
  * bottom navigation of real worker destinations (teal current item with a top
- * rule, 64 px targets, safe-area padding); and a "More" sheet for workspace
- * home, switching, Account, Security and Sign out. Never the Agency sidebar;
- * at wider widths it stays a centred phone-width column.
+ * rule, 64 px targets, safe-area padding); and a "More" sheet for the worker's
+ * agency context, switching, Account, Security and Sign out. Never the Agency
+ * sidebar; at wider widths it stays a centred phone-width column.
  */
 export function WorkerShell({
   workspaceName,
@@ -95,6 +106,9 @@ export function WorkerShell({
   items,
   homeHref,
   otherWorkspaces,
+  chooserLabel,
+  switchLabel,
+  workerStatusLabel,
   selectWorkspaceAction,
   signOutAction,
   children,
@@ -213,16 +227,12 @@ export function WorkerShell({
             {name}
             {user.displayName && user.email ? ` · ${user.email}` : ""}
           </p>
+          {workerStatusLabel ? (
+            <p className="px-3 text-sm text-muted-foreground">
+              {workspaceName} · Healthcare Worker · {workerStatusLabel}
+            </p>
+          ) : null}
           <ul className="flex flex-col">
-            <li>
-              <Link
-                href={homeHref as Route}
-                className={sheetRow}
-                onClick={() => setMoreOpen(false)}
-              >
-                {workspaceName} home
-              </Link>
-            </li>
             <li>
               <Link href="/app/account" className={sheetRow} onClick={() => setMoreOpen(false)}>
                 Account
@@ -233,6 +243,9 @@ export function WorkerShell({
                 Security
               </Link>
             </li>
+            <li>
+              <InstallApp rowClassName={sheetRow} />
+            </li>
           </ul>
           {otherWorkspaces.length > 0 ? (
             <div className="border-t border-border pt-2">
@@ -240,7 +253,7 @@ export function WorkerShell({
                 id={switchId}
                 className="px-3 pb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase"
               >
-                Switch workspace
+                {switchLabel}
               </p>
               <ul aria-labelledby={switchId} className="flex flex-col">
                 {otherWorkspaces.map((target) => (
@@ -258,9 +271,11 @@ export function WorkerShell({
             </div>
           ) : null}
           <div className="border-t border-border pt-2">
-            <Link href="/app" className={sheetRow} onClick={() => setMoreOpen(false)}>
-              All workspaces
-            </Link>
+            {chooserLabel ? (
+              <Link href="/app" className={sheetRow} onClick={() => setMoreOpen(false)}>
+                {chooserLabel}
+              </Link>
+            ) : null}
             <form action={signOutAction}>
               <button type="submit" className={sheetRow}>
                 Sign out
