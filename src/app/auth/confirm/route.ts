@@ -13,6 +13,7 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 
+import { isInviteTokenFormat, pendingInviteTokenFrom } from "@/features/organisations";
 import { parseEmailOtpType } from "@/lib/auth/email-otp";
 import { logger } from "@/lib/logging";
 import { getSafeRedirectPath } from "@/lib/security/safe-redirect";
@@ -48,6 +49,14 @@ export async function GET(request: NextRequest) {
   if (error) {
     logger.warn("Email link verification failed", { otpType: type, errorCode: error.code });
     return NextResponse.redirect(errorUrl);
+  }
+
+  // A newly confirmed invitee resumes their invitation instead of landing on
+  // the generic gateway (the token stays in its httpOnly cookie).
+  if (type !== "recovery" && next === DEFAULT_DESTINATION) {
+    if (isInviteTokenFormat(pendingInviteTokenFrom(request))) {
+      return NextResponse.redirect(new URL("/invite", request.url));
+    }
   }
 
   return NextResponse.redirect(new URL(next, request.url));

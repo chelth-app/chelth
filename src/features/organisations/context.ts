@@ -1,7 +1,7 @@
 import "server-only";
 
 import { cookies } from "next/headers";
-import type { NextResponse } from "next/server";
+import type { NextRequest, NextResponse } from "next/server";
 
 import { isDevelopmentBuild } from "@/config/runtime";
 
@@ -46,9 +46,18 @@ export async function readPendingInviteToken(): Promise<string | null> {
   return (await cookies()).get(INVITE_COOKIE)?.value ?? null;
 }
 
-/** Stores a pending invitation token on a redirect response (Route Handler use). */
+/** Route Handler variant: the pending invitation token from the incoming request. */
+export function pendingInviteTokenFrom(request: NextRequest): string | null {
+  return request.cookies.get(INVITE_COOKIE)?.value ?? null;
+}
+
+/**
+ * Stores a pending invitation token on a redirect response (Route Handler use).
+ * 24 h, so the invitation survives sign-up and email confirmation in the same
+ * browser; the token itself stays single-use, email-bound and time-limited.
+ */
 export function attachPendingInviteToken(response: NextResponse, token: string): void {
-  response.cookies.set(INVITE_COOKIE, token, { ...baseCookie, maxAge: 60 * 60 });
+  response.cookies.set(INVITE_COOKIE, token, { ...baseCookie, maxAge: 60 * 60 * 24 });
 }
 
 export async function clearPendingInviteToken(): Promise<void> {

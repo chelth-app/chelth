@@ -10,6 +10,7 @@ import { issueInvitation, type IssuedInvite } from "@/features/organisations";
 import { type ActionState, runAction } from "@/lib/actions/run-action";
 import { requireAuthIdentity } from "@/lib/auth/session";
 import { ROLES } from "@/lib/authz";
+import { AppError, normalizeError } from "@/lib/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formDataToObject, parseInput } from "@/lib/validation";
 
@@ -40,6 +41,12 @@ export async function inviteWorkerAction(
       organisationId: input.organisationId,
       email: input.email,
       roleKey: ROLES.AGENCY_HEALTHCARE_WORKER,
+    }).catch((error: unknown) => {
+      // Workforce wording for the "already a member" case (same rule, clearer copy).
+      if (normalizeError(error).code === "ALREADY_A_MEMBER") {
+        throw new AppError("ALREADY_IN_WORKFORCE", { cause: error });
+      }
+      throw error;
     });
     revalidatePath(workforcePath(input.organisationId));
     return issued;

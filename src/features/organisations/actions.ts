@@ -31,7 +31,8 @@ import {
   writeActiveOrganisationPreference,
 } from "./context";
 import { type InvitationDelivery, deliverInvitation } from "./invitation-delivery";
-import { getOrganisation } from "./queries";
+import { getMyCapabilities, getOrganisation } from "./queries";
+import { isWorkspaceStaff } from "./workspace-navigation";
 import {
   createOrganisationSchema,
   inviteIdSchema,
@@ -133,6 +134,7 @@ async function deliverIssuedInvite(input: {
   roleKey: string;
   token: string;
   expiresAt: string;
+  reissued: boolean;
 }): Promise<IssuedInvite> {
   const inviteUrl = `${await requestOrigin()}/invite/${input.token}`;
   const delivery = await deliverInvitation({
@@ -147,6 +149,7 @@ async function deliverIssuedInvite(input: {
     expiresAt: input.expiresAt,
     delivery,
     inviteUrl: delivery === "sent" ? null : inviteUrl,
+    reissued: input.reissued,
   };
 }
 
@@ -154,6 +157,10 @@ async function deliverIssuedInvite(input: {
  * Creates an invitation (RPC: authorises, applies the capability ceiling,
  * audits) and then delivers it post-commit. Shared by member and worker
  * invitations; exported through the feature index.
+ *
+ * If the email already has a pending invitation for the same role, the RPC
+ * re-issues it instead (token rotated, old link invalid, fresh expiry; no
+ * second invitation) and `reissued` is true.
  */
 export async function issueInvitation(input: {
   organisationId: string;
@@ -170,7 +177,7 @@ export async function issueInvitation(input: {
   if (error) throw error;
   const issued = data[0];
   if (!issued) throw new AppError("INTERNAL", { internalMessage: "Invite RPC returned no row" });
-  revalidatePath(organisationPath(input.organisationId));
+  revalidatePath(organisationPath(input.organisationId), "layout");
   return deliverIssuedInvite({
     organisationId: input.organisationId,
     inviteId: issued.invite_id,
@@ -178,6 +185,7 @@ export async function issueInvitation(input: {
     roleKey: input.roleKey,
     token: issued.invite_token,
     expiresAt: issued.invite_expires_at,
+    reissued: issued.invite_reissued,
   });
 }
 
@@ -213,7 +221,7 @@ export async function resendInviteAction(
     if (error) throw error;
     const issued = data[0];
     if (!issued) throw new AppError("INTERNAL", { internalMessage: "Resend RPC returned no row" });
-    revalidatePath(organisationPath(input.organisationId));
+    revalidatePath(organisationPath(input.organisationId), "layout");
     return deliverIssuedInvite({
       organisationId: input.organisationId,
       inviteId: input.inviteId,
@@ -221,6 +229,7 @@ export async function resendInviteAction(
       roleKey: invite.invite_role_key,
       token: issued.invite_token,
       expiresAt: issued.invite_expires_at,
+      reissued: true,
     });
   });
 }
@@ -237,7 +246,7 @@ export async function revokeInviteAction(
       p_invite_id: input.inviteId,
     });
     if (error) throw error;
-    revalidatePath(organisationPath(input.organisationId));
+    revalidatePath(organisationPath(input.organisationId), "layout");
     return null;
   });
 }
@@ -251,6 +260,7 @@ export async function acceptInviteAction(
   _formData: FormData,
 ): Promise<ActionState> {
   let organisationId: string | null = null;
+  let destination: string | null = null;
   const result = await runAction("organisations.acceptInvite", async () => {
     await requireAuthIdentity();
     // The token comes from the httpOnly cookie, never from form input: the
@@ -266,10 +276,35 @@ export async function acceptInviteAction(
     if (!accepted) throw new AppError("INVITE_INVALID");
     await clearPendingInviteToken();
     organisationId = accepted.organisation_id;
+    destination = await postAcceptDestination(accepted.organisation_id);
     return null;
   });
-  if (result.ok && organisationId) redirect(organisationPath(organisationId));
+  if (result.ok && organisationId) redirect(destination ?? organisationPath(organisationId));
   return result;
+}
+
+/**
+ * Where a newly accepted member lands. A self-service-only member with a
+ * worker record (the worker frame's own rule) goes straight to My Shifts;
+ * everyone else goes to the organisation as before. Multi-agency workers keep
+ * their other memberships untouched.
+ */
+async function postAcceptDestination(organisationId: string): Promise<string> {
+  const identity = await requireAuthIdentity();
+  const supabase = await createSupabaseServerClient();
+  const [grants, worker] = await Promise.all([
+    getMyCapabilities(organisationId),
+    supabase
+      .from("agency_workers")
+      .select("id")
+      .eq("agency_organisation_id", organisationId)
+      .eq("profile_id", identity.userId)
+      .limit(1),
+  ]);
+  const isWorkerOnly = !isWorkspaceStaff(grants.map((grant) => grant.capabilityKey));
+  return isWorkerOnly && (worker.data?.length ?? 0) > 0
+    ? `${organisationPath(organisationId)}/my-shifts`
+    : organisationPath(organisationId);
 }
 
 export async function dismissInviteAction(): Promise<void> {
@@ -294,7 +329,7 @@ export async function assignRoleAction(
       p_role_key: input.roleKey,
     });
     if (error) throw error;
-    revalidatePath(organisationPath(input.organisationId));
+    revalidatePath(organisationPath(input.organisationId), "layout");
     return null;
   });
 }
@@ -312,7 +347,7 @@ export async function revokeRoleAction(
       p_role_key: input.roleKey,
     });
     if (error) throw error;
-    revalidatePath(organisationPath(input.organisationId));
+    revalidatePath(organisationPath(input.organisationId), "layout");
     return null;
   });
 }
@@ -330,7 +365,7 @@ export async function setMembershipStatusAction(
       p_status: input.status,
     });
     if (error) throw error;
-    revalidatePath(organisationPath(input.organisationId));
+    revalidatePath(organisationPath(input.organisationId), "layout");
     return null;
   });
 }

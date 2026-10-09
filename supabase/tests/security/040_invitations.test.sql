@@ -6,7 +6,7 @@
 begin;
 \ir _helpers.psql
 
-select plan(37);
+select plan(60);
 
 create temp table ids as
 select
@@ -88,11 +88,11 @@ select throws_ok(
 select throws_ok(
   format($$ select pg_temp.invite(%L, 'aal2', %L, 'ivy@example.test', 'agency.scheduler') $$,
     (select alice from ids), (select alpha from orgs)),
-  '23505', null, 'one pending invitation per person per organisation');
+  'CHI09', null, 'one pending invitation per person per organisation: a different role is refused, not added');
 select throws_ok(
   format($$ select pg_temp.invite(%L, 'aal2', %L, 'rita@example.test', 'agency.scheduler') $$,
     (select alice from ids), (select alpha from orgs)),
-  'CH409', null, 'existing members cannot be invited again');
+  'CHI10', null, 'existing members cannot be invited again (specific error)');
 select throws_ok(
   format($$ select pg_temp.invite(%L, 'aal2', %L, 'not-an-email', 'agency.scheduler') $$,
     (select alice from ids), (select alpha from orgs)),
@@ -198,6 +198,117 @@ select is(
 select throws_ok(
   $$ select pg_temp.query_as(null, null, 'select * from public.accept_organisation_invite(''x'')') $$,
   '42501', null, 'anonymous users cannot redeem invitations');
+
+-- ---------------------------------------------------------------------------
+-- Re-invite while pending (Workforce conflict fix): the same email + role is
+-- re-issued through rotation, never duplicated.
+-- ---------------------------------------------------------------------------
+create temp table re as
+select pg_temp.create_user('rhea@example.test') as rhea,
+       pg_temp.create_user('vic@example.test')  as vic;
+grant select on re to authenticated;
+create temp table ri as
+select pg_temp.invite((select alice from ids), 'aal2', (select alpha from orgs), 'rhea@example.test', 'agency.healthcare_worker') as first;
+grant select on ri to authenticated;
+select is((select (first ->> 'invite_reissued')::boolean from ri), false, 'a first invitation is created (not re-issued)');
+
+alter table ri add column second jsonb;
+update ri set second = pg_temp.invite((select alice from ids), 'aal2', (select alpha from orgs), ' RHEA@example.test ', 'agency.healthcare_worker');
+select is((select (second ->> 'invite_reissued')::boolean from ri), true,
+  'inviting the same email + role while pending re-issues the existing invitation');
+select is((select second ->> 'invite_id' from ri), (select first ->> 'invite_id' from ri),
+  'the same invitation is re-issued (no second invitation)');
+select is((select count(*)::int from public.organisation_invites
+            where organisation_id = (select alpha from orgs) and email = 'rhea@example.test'),
+  1, 'exactly one invitation row exists for the person');
+select is((select send_count from public.organisation_invites where id = (select (first ->> 'invite_id')::uuid from ri)), 2,
+  're-issue counts as a send (resend cap applies)');
+select isnt((select second ->> 'invite_token' from ri), (select first ->> 'invite_token' from ri), 're-issue rotates the token');
+select is((select count(*)::int from public.audit_events
+            where action = 'invite.resent' and target_id = (select (first ->> 'invite_id')::uuid from ri)
+              and metadata ->> 'via' = 'reinvite'),
+  1, 'the re-issue is audited as a resend');
+select is(pg_temp.preview((select rhea from re), (select first ->> 'invite_token' from ri)), '[]'::jsonb,
+  'the old token no longer works');
+select is(jsonb_array_length(pg_temp.accept((select rhea from re), (select second ->> 'invite_token' from ri))), 1,
+  'the new token works for the bound email');
+select throws_ok(
+  format($$ select pg_temp.invite(%L, 'aal2', %L, 'rhea@example.test', 'agency.healthcare_worker') $$,
+    (select alice from ids), (select alpha from orgs)),
+  'CHI10', null, 'an accepted invitation cannot be re-created: the person is now a member');
+
+-- Expired but never accepted (status stays pending): re-issue gives a fresh expiry.
+create temp table ve as
+select pg_temp.invite((select alice from ids), 'aal2', (select alpha from orgs), 'vic@example.test', 'agency.healthcare_worker') as first;
+grant select on ve to authenticated;
+update public.organisation_invites set expires_at = now() - interval '1 day'
+ where id = (select (first ->> 'invite_id')::uuid from ve);
+alter table ve add column second jsonb;
+update ve set second = pg_temp.invite((select alice from ids), 'aal2', (select alpha from orgs), 'vic@example.test', 'agency.healthcare_worker');
+select ok((select (second ->> 'invite_reissued')::boolean and (second ->> 'invite_expires_at')::timestamptz > now() + interval '6 days' from ve),
+  'an expired pending invitation is re-issued with a fresh 7-day expiry');
+
+-- Revoked: a new invitation is created (not re-issued).
+select pg_temp.exec_as((select alice from ids), 'aal2',
+  format('select public.revoke_organisation_invite(%L)', (select second ->> 'invite_id' from ve)));
+select is(pg_temp.preview((select vic from re), (select second ->> 'invite_token' from ve)), '[]'::jsonb,
+  'a revoked invitation''s token does not work');
+select is((select (pg_temp.invite((select alice from ids), 'aal2', (select alpha from orgs), 'vic@example.test', 'agency.healthcare_worker') ->> 'invite_reissued')::boolean),
+  false, 'after revocation a new invitation is created');
+
+-- Resend cap still bounds re-issues.
+update public.organisation_invites set send_count = 5
+ where organisation_id = (select alpha from orgs) and email = 'vic@example.test' and status = 'pending';
+select throws_ok(
+  format($$ select pg_temp.invite(%L, 'aal2', %L, 'vic@example.test', 'agency.healthcare_worker') $$,
+    (select alice from ids), (select alpha from orgs)),
+  'CH429', null, 'the resend cap also limits re-issues');
+
+-- Another agency's pending invitation for the same email is independent.
+select is((select (pg_temp.invite((select bob from ids), 'aal2', (select beta from orgs), 'vic@example.test', 'agency.healthcare_worker') ->> 'invite_reissued')::boolean),
+  false, 'tenant isolation: another agency creates its own invitation');
+
+-- ---------------------------------------------------------------------------
+-- Workforce Pending Invitations surface (P0-E9-3A): list / resend / cancel
+-- authority and projection.
+-- ---------------------------------------------------------------------------
+select ok(pg_get_function_result('public.list_organisation_invites(uuid)'::regprocedure) !~ '(token|hash)',
+  'the invitation list never returns a token or hash column');
+select throws_ok(
+  format($$ select pg_temp.query_as(%L, 'aal2', format('select * from public.list_organisation_invites(%%L)', %L)) $$,
+    (select bob from ids), (select alpha from orgs)),
+  'CH403', null, 'another agency cannot list Alpha''s invitations');
+select throws_ok(
+  format($$ select pg_temp.query_as(%L, 'aal1', format('select * from public.list_organisation_invites(%%L)', %L)) $$,
+    (select rhea from re), (select alpha from orgs)),
+  'CH403', null, 'a healthcare worker cannot list the agency''s invitations');
+create temp table fac as
+select pg_temp.create_facility_org('Gamma Hospital', 'gamma-hospital-inv') as gamma,
+       pg_temp.create_user('gail@example.test') as gail;
+grant select on fac to authenticated;
+select pg_temp.add_member((select gamma from fac), (select gail from fac), 'facility.admin');
+select throws_ok(
+  format($$ select pg_temp.query_as(%L, 'aal2', format('select * from public.list_organisation_invites(%%L)', %L)) $$,
+    (select gail from fac), (select alpha from orgs)),
+  'CH403', null, 'a facility user cannot list an agency''s invitations');
+create temp table pend as
+select pg_temp.invite((select alice from ids), 'aal2', (select alpha from orgs), 'pat@example.test', 'agency.healthcare_worker') as p;
+grant select on pend to authenticated;
+select throws_ok(
+  format($$ select pg_temp.query_as(%L, 'aal1', format('select * from public.resend_organisation_invite(%%L)', %L)) $$,
+    (select rhea from re), (select p ->> 'invite_id' from pend)),
+  'CH403', null, 'a healthcare worker cannot resend an invitation');
+select throws_ok(
+  format($$ select pg_temp.exec_as(%L, 'aal2', format('select public.revoke_organisation_invite(%%L)', %L)) $$,
+    (select bob from ids), (select p ->> 'invite_id' from pend)),
+  'CH403', null, 'another agency cannot cancel an invitation');
+select is((select count(*)::int from public.agency_workers
+            where agency_organisation_id = (select alpha from orgs) and profile_id = (select rhea from re)),
+  1, 'acceptance created exactly one agency worker record');
+select is((select e ->> 'invite_status' from jsonb_array_elements(pg_temp.query_as((select alice from ids), 'aal2',
+            format('select * from public.list_organisation_invites(%L)', (select alpha from orgs)))) e
+            where e ->> 'invitee_email' = 'rhea@example.test'),
+  'accepted', 'an accepted invitation is no longer pending in the list');
 
 select * from finish();
 rollback;

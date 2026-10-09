@@ -32,7 +32,7 @@ test.describe("auth canvas", () => {
     { path: "/sign-up", heading: "Create your account", shot: "s7-sign-up" },
     { path: "/forgot-password", heading: "Reset your password", shot: "s7-forgot-password" },
     { path: "/reset-password", heading: "Choose a new password", shot: "s7-reset-password" },
-    { path: "/invite", heading: "You have been invited to CHELTH", shot: "s7-invite" },
+    { path: "/invite", heading: "You've been invited to join Chelth", shot: "s7-invite" },
     { path: "/auth/error", heading: "We couldn't verify that link", shot: "s7-auth-error" },
   ];
 

@@ -51,6 +51,8 @@ describe("normalizeError", () => {
     ],
     [{ code: "PGRST301", message: "JWT expired" }, "AUTH_SESSION_EXPIRED"],
     [{ code: "CH409", message: "shift is not open" }, "INVALID_STATE_TRANSITION"],
+    [{ code: "CHI09", message: "pending invite, other role" }, "INVITE_PENDING_OTHER_ROLE"],
+    [{ code: "CHI10", message: "already a member" }, "ALREADY_A_MEMBER"],
     [{ status: 429, message: "rate limit" }, "RATE_LIMITED"],
     [{ status: 401, message: "no session" }, "AUTH_REQUIRED"],
     [new Error("boom"), "INTERNAL"],
