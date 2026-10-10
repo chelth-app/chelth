@@ -167,10 +167,9 @@ create temp table go as select pg_temp.clock_in(pg_temp.user_of((select g2 from 
 select is((select (r ->> 'outcome') || '/' || (r ->> 'geofence_result') || '/' || (r -> 'exception_codes' ->> 0) from go),
   'recorded/outside/outside_geofence', 'O. outside with allow_with_review: recorded and flagged for review');
 
--- g6-like: no location, allow_with_review → recorded + location_unavailable
-create temp table gu as select pg_temp.clock_in(pg_temp.user_of((select g5 from g)), (select g5 from ga)) as r;
-select is((select (r ->> 'outcome') || '/' || (r ->> 'geofence_result') || '/' || (r -> 'exception_codes' ->> 0) from gu),
-  'recorded/unavailable/location_unavailable', 'no location with allow_with_review: recorded and flagged');
+-- P0-E9-3E: UNKNOWN ≠ INSIDE under every policy — no location is refused even with allow_with_review.
+select throws_ok(pg_temp.as_sql(pg_temp.user_of((select g5 from g)), format('select * from public.clock_in_assignment(%L)', (select g5 from ga))),
+  'CHT12', null, 'no location with allow_with_review: refused (fail closed), nothing recorded');
 
 -- block policy
 select pg_temp.exec_as((select alice from ids), 'aal2', format(
@@ -178,7 +177,7 @@ select pg_temp.exec_as((select alice from ids), 'aal2', format(
   (select riverside_main from loc), pg_temp.site_lat(), pg_temp.site_lon()));
 select throws_ok(pg_temp.as_sql(pg_temp.user_of((select g3 from g)), format('select * from public.clock_in_assignment(%L)', (select g3 from ga))),
   'CHT12', null, 'O. block policy: a location is required');
-select throws_ok(pg_temp.as_sql(pg_temp.user_of((select g3 from g)), format('select * from public.clock_in_assignment(%L, %s, %s, 400)', (select g3 from ga), pg_temp.site_lat(), pg_temp.site_lon())),
+select throws_ok(pg_temp.as_sql(pg_temp.user_of((select g3 from g)), format('select * from public.clock_in_assignment(%L, %s, %s, 400, now())', (select g3 from ga), pg_temp.site_lat(), pg_temp.site_lon())),
   'CHT14', null, 'O. block policy: poor accuracy is refused (retry with a better fix)');
 create temp table gb as select pg_temp.clock_in(pg_temp.user_of((select g3 from g)), (select g3 from ga),
   pg_temp.site_lat() + pg_temp.lat_offset(900), pg_temp.site_lon(), 12) as r;

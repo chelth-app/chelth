@@ -102,7 +102,15 @@ describe("time & attendance (P0-E6-S1)", () => {
   ) {
     return w(name).identity.client.rpc("clock_in_assignment", {
       p_assignment_id: assignmentId,
-      ...(at ? { p_latitude: at.lat, p_longitude: at.lon, p_accuracy_meters: at.accuracy } : {}),
+      // The app sends a fresh device capture time with every reading (P0-E9-3E).
+      ...(at
+        ? {
+            p_latitude: at.lat,
+            p_longitude: at.lon,
+            p_accuracy_meters: at.accuracy,
+            p_device_captured_at: new Date().toISOString(),
+          }
+        : {}),
     });
   }
 

@@ -1,0 +1,412 @@
+P0-E9-3E — PRODUCTION GEOFENCE REMEDIATION
+==========================================
+CHELTH — Healthcare Workforce Operations
+
+Branch: p0-e8-visual-implementation (uncommitted on top of b26ed01)
+Production: 65 / 65 migrations (E9-3D deployed). Nothing deployed or pushed
+by this phase.
+
+
+1. REAL-DEVICE SYMPTOM
+----------------------
+The operator's Android and iPhone tests showed the installed PWA working,
+but a worker check-in succeeded although geofencing "did not work as
+expected": no location verification took place and the check-in was
+recorded.
+
+
+2. PRODUCTION EVENT INVESTIGATION
+---------------------------------
+Read-only, aggregate SQL against production through the linked CLI. No
+coordinates or personal data were printed.
+
+Latest attendance (operator test, 2026-10-10 UTC), one assignment at
+facility location 58e19984-…-4635:
+  07:32:38  clock_in     geofence_result = not_required   location evidence: none
+  07:32:47  break_start  not_required
+  07:33:00  break_end    not_required
+  07:33:08  clock_out    not_required                     location evidence: none
+
+Production geofence configuration:
+- facility locations: 1;
+- location_geofences rows: 0;
+- enabled: 0;
+- blocking: 0.
+
+So there were no worker coordinates, no browser accuracy, no facility
+coordinates, no radius and no distance. Because no geofence was configured,
+the server never asked for or evaluated a location.
+
+
+3. EXACT ROOT CAUSE
+-------------------
+Primary (this production event):
+- The facility location used for the test has NO geofence configured.
+- By design (GEOFENCE_MODEL §1), a location without an enabled geofence
+  does not check location: internal.check_geofence returns 'not_required'
+  and clock_in_assignment records the check-in on server time.
+- The projection reported location_required = false, so the PWA correctly
+  did not request a position.
+- The server behaved as designed; the gap was configuration. Nothing in the
+  product stopped a pilot site going live without its geofence.
+
+Secondary — latent fail-open paths found in the CONFIGURED path (would
+have mis-fired once a geofence was enabled; fixed in section 10):
+a) The default outside_policy was 'allow_with_review'. Under it, clock-in
+   with NO location ('unavailable') or an imprecise one ('low_accuracy')
+   was RECORDED as successful, with only a review exception. UNKNOWN was
+   treated as acceptable.
+b) The accuracy rule compared accuracy only with max_accuracy_meters
+   (default 100 m). A fence smaller than that (e.g. 50 m) could accept a
+   reading whose uncertainty was wider than the fence itself.
+c) The device capture time was stored but not checked, so a stale or cached
+   fix was not refused server-side. The client already requests
+   maximumAge 0, but the server must not rely on that.
+
+
+4. FACILITY CONFIGURATION
+-------------------------
+Where the radius comes from: public.location_geofences, one per facility
+LOCATION (not per facility, agency or shift). Its fields:
+- enabled;
+- latitude / longitude (NOT NULL);
+- radius_meters: 50–2000, METRES;
+- max_accuracy_meters: 10–500;
+- outside_policy.
+
+The shift binds to exactly one location (composite FKs shift → facility →
+location), and the assignment inherits it. There is no default radius:
+without a row, location is not checked.
+
+The production location has no row. To enforce location there, an agency
+user with attendance.manage_settings (AAL2) must add it. Operator step,
+section 18.
+
+
+5. BROWSER LOCATION BEHAVIOUR
+-----------------------------
+ClockControl reads one position per action with getCurrentPosition
+{ enableHighAccuracy: true, timeout: 15 000 ms, maximumAge: 0 }:
+- never watched, never cached, never stored client-side;
+- sends latitude, longitude, accuracy and the fix timestamp.
+
+It is requested only when the server says the site requires location. In
+the production test it was correctly NOT requested (not_required).
+
+Fixed:
+- Previously, permission denied, unavailable and timeout all became
+  "record the attempt without location".
+- Now check-in distinguishes them and sends nothing:
+  - "Location access is required to check in." (permission denied);
+  - "We couldn't determine your location. Try again." (unavailable /
+    timeout).
+- Check-out still proceeds without a reading.
+
+
+6. ACCURACY HANDLING (rule and rationale)
+-----------------------------------------
+Rule (server, internal.check_geofence):
+  inside  ⇔ accuracy ≤ least(max_accuracy_meters, radius_meters)
+             AND distance_meters ≤ radius_meters
+  low_accuracy ⇔ accuracy is NULL or > least(max_accuracy_meters, radius_meters)
+
+Rationale:
+- max_accuracy_meters is the agency's configured trust threshold (existing
+  product setting, default 100 m).
+- Capping it at the radius means a reading less precise than the fence
+  cannot be evidence of being inside it. This rejects, for example, the
+  brief's 2000 m-accuracy reading against a 150 m fence, and a 60 m reading
+  against a 50 m fence.
+- A stricter distance + accuracy ≤ radius rule was not adopted. It would
+  refuse many legitimate on-site readings near the edge (typical 10–30 m
+  GPS). The configured accuracy cap plus the radius cap is the documented
+  middle ground.
+- Clock-in additionally requires a CURRENT reading: the device capture time
+  must be no more than 5 minutes before, and no more than 2 minutes after,
+  the server clock (the tolerance allows ordinary device clock drift).
+  Otherwise CHT13.
+
+
+7. DISTANCE CALCULATION
+-----------------------
+internal.distance_meters(lat1, lon1, lat2, lon2):
+- haversine;
+- radians() conversion;
+- mean Earth radius 6 371 008.8 m;
+- result in METRES, compared with radius_meters (metres).
+- Arguments are latitude then longitude, worker reading first, then the
+  site.
+
+It is verified in pgTAP 210:
+- same point 0 m;
+- 25 / 100 / 149 / 500 m and 7.5 km along a meridian (within 1–5 cm);
+- an east offset measured correctly (latitude and longitude not swapped).
+
+Boundary: 149.99 m of a 150 m fence is inside (distance ≤ radius); 150.5 m
+is outside. The authoritative calculation is only in the database.
+
+
+8. RPC DECISION PATH (clock_in_assignment, after the fix)
+---------------------------------------------------------
+1. Identity; own assignment only (internal.own_assignment_for_attendance).
+2. Shift open, not cancelled; assignment accepted; relationship active.
+3. Clock-in window (early / ended).
+4. Not already clocked in / out (CHT09 / CHT11).
+5. Geofence (server).
+   - No enabled geofence ⇒ not_required (documented).
+   - Otherwise:
+     - invalid input (one coordinate missing, out of range, NaN, absurd
+       accuracy) ⇒ CH400;
+     - no coordinates ⇒ CHT12;
+     - capture time missing, older than 5 minutes or more than 2 minutes
+       ahead ⇒ CHT13;
+     - accuracy over least(max, radius) ⇒ CHT14.
+     These refusals apply under EVERY policy and record nothing (the
+     transaction rolls back).
+6. Eligibility, or a precise OUTSIDE reading:
+   - 'block' (now the default) ⇒ refused, with a committed exception and
+     an agency notice;
+   - 'allow_with_review' (explicit agency choice) ⇒ recorded, with an
+     outside_geofence exception.
+7. Insert the clock_in event on the SERVER clock, with location evidence
+   (server-computed distance, radius and result) and an audit record
+   without coordinates.
+
+Every unknown branch now fails closed. There is no path from
+missing / unknown evidence to a recorded geofenced check-in.
+
+
+9. BYPASS AUDIT
+---------------
+- There is ONE worker clock-in path: public.clock_in_assignment, called only
+  by clockInAction (src/features/attendance/actions.ts) from ClockControl.
+- No other RPC, legacy action, PWA endpoint, feature flag or environment
+  override creates a worker clock-in.
+- attendance_events and attendance_location_evidence grant SELECT only
+  (RLS). There are no INSERT / UPDATE / DELETE grants.
+- Other writers of clock events are staff-only and reviewed:
+  - review_attendance_correction / apply_attendance_correction approve a
+    worker's correction REQUEST (attendance.review);
+  - adjust_attendance_time is a reviewer adjustment (attendance.review).
+  A worker cannot self-approve.
+- Test-only owner arrangements (pgTAP / E2E fixtures) run as the database
+  owner locally; they are never shipped.
+
+
+10. FIX IMPLEMENTED
+-------------------
+Migration supabase/migrations/20261010120000_geofence_fail_closed.sql:
+- location_geofences.outside_policy defaults to 'block'.
+- internal.check_geofence:
+  - accuracy cap least(max_accuracy, radius);
+  - NaN coordinates / accuracy rejected as invalid.
+- public.clock_in_assignment:
+  - unavailable (CHT12), stale / missing capture time (CHT13) and
+    low_accuracy (CHT14) are refused under every policy;
+  - same signature, otherwise unchanged.
+
+Application (states only; no redesign):
+- ClockControl:
+  - permission denied → "Location access is required to check in.";
+  - unavailable / timeout → "We couldn't determine your location. Try
+    again.";
+  - neither sends a check-in;
+  - network failure → "Check-in was not recorded. Try again."
+- Error messages:
+  - GEOFENCE_REQUIRED "Location access is required to check in.";
+  - LOCATION_UNAVAILABLE "We couldn't determine your location. Try
+    again.";
+  - LOCATION_ACCURACY_TOO_LOW "We can't verify that you're at the facility
+    yet. Move to an open area and try again.";
+  - OUTSIDE_GEOFENCE "You appear to be outside the allowed check-in area."
+    The brief's wording is kept, except "appear": an existing tested rule
+    says the message must not claim certainty, because GPS can be wrong
+    (GEOFENCE_MODEL §5).
+- Agency geofence form: the policy defaults to "Block clock-in outside the
+  area"; the review option is relabelled "Allow precise readings outside
+  the area and flag for review".
+- docs/architecture/GEOFENCE_MODEL.md: the rules, the fail-closed table
+  and the not-configured behaviour.
+
+Success is still shown only after the server committed the event.
+
+
+11. CLOCK-OUT PROTECTION
+------------------------
+Unchanged: clock_out_assignment is never blocked by location. A reading
+outside the fence, a missing reading or an imprecise reading is recorded
+with an exception.
+
+The client sends a check-out without a reading when location cannot be
+read.
+
+Tested (pgTAP 210 K / L; 170): clock-out 5 km outside is recorded; clock-out
+with no location is recorded.
+
+
+12. PRIVACY CONFIRMATION
+------------------------
+- No coordinates in application logs, audit metadata (tested), the worker
+  UI, the service worker or browser storage.
+- No new debug logging.
+- Evidence is stored only where a geofence applies, under the existing
+  restricted access (attendance.location.view, AAL2, audited) and the
+  existing retention.
+- The production investigation printed no coordinates.
+
+
+13. AUTOMATED TESTS
+-------------------
+pgTAP: new supabase/tests/security/210_geofence_fail_closed.test.sql (36
+assertions) covering:
+- distance (0 / 25 / 100 / 149 / 500 m / 7.5 km; no latitude/longitude
+  swap);
+- the default policy 'block'; the site coordinates and radius are NOT NULL;
+- the boundary (inside at ≤ radius) and just outside;
+- 2000 m accuracy at the centre ⇒ low_accuracy; accuracy wider than the
+  fence ⇒ low_accuracy; NaN ⇒ CH400;
+- A: inside ⇒ recorded with evidence;
+- C: outside ⇒ refused, no event;
+- D / H: no coordinates ⇒ CHT12;
+- missing / stale / future capture time ⇒ CHT13;
+- G: poor accuracy ⇒ CHT14;
+- F: invalid coordinates ⇒ CH400;
+- none of the above recorded an event;
+- allow_with_review: no location ⇒ CHT12; too-imprecise ⇒ CHT14; a precise
+  outside reading ⇒ recorded and flagged;
+- J: duplicate ⇒ CHT09;
+- K: clock-out outside ⇒ recorded; L: clock-out without location ⇒
+  recorded;
+- M: another worker / another agency ⇒ refused, nothing recorded;
+- N: no geofence ⇒ not_required (documented).
+Updated:
+- 170 (no location under allow_with_review is now refused; the accuracy
+  case sends a capture time);
+- 200 (the rate-limit case sends a capture time);
+- the helper (current capture time).
+Total: 31 files, 1,520 assertions, PASS.
+
+Integration: attendance and timesheets send a capture time with readings.
+Total: 123 passed. The first run hit a local Auth-container restart (all
+suites 502), fixed by restarting the local stack; an infrastructure issue,
+not a code failure.
+
+E2E (attendance.spec):
+- the existing weak-GPS, outside and inside flows pass with the new
+  wording;
+- NEW "Flow 3b": a browser without location permission is told location is
+  required, sees no success, and no attendance event exists.
+
+Unit: 406 passed (the "outside message must not claim certainty" rule is
+preserved).
+
+Validation:
+format, lint, typecheck, build, check:bundle and check:migrations PASS;
+db reset and db lint PASS; db:types is unchanged (same signatures).
+npx playwright test: PASS — 336 passed, 14 skipped, 0 failed (13.1 min).
+The skips are the existing desktop-only tests and the phone-only fidelity walk.
+
+
+14. ANDROID PHYSICAL RESULT
+---------------------------
+The PWA install and operation are certified by the operator's real-device
+test (reported).
+
+GEOFENCE on Android: NOT YET TESTED with an enforced geofence. The
+production site had no geofence, and this fix is not deployed.
+
+
+15. iOS PHYSICAL RESULT
+-----------------------
+As Android: PWA install and operation certified by the operator (reported).
+Geofence: NOT YET TESTED with an enforced geofence.
+
+
+16. FILES CHANGED
+-----------------
+  supabase/migrations/20261010120000_geofence_fail_closed.sql (new)
+  supabase/tests/security/210_geofence_fail_closed.test.sql (new)
+  supabase/tests/security/170_attendance.test.sql
+  supabase/tests/security/200_attendance_hardening.test.sql
+  supabase/tests/security/_attendance_helpers.psql
+  src/features/attendance/components/clock-control.tsx
+  src/features/attendance/components/settings-forms.tsx
+  src/lib/domain/attendance.ts
+  src/lib/errors/error-codes.ts
+  docs/architecture/GEOFENCE_MODEL.md
+  tests/e2e/attendance.spec.ts
+  tests/integration/attendance.test.ts
+  tests/integration/timesheets.test.ts
+
+
+17. MIGRATION
+-------------
+20261010120000_geofence_fail_closed (one; production becomes 66 / 66).
+- One column default change.
+- Two functions replaced with the same signatures.
+- No data change, no new grants.
+
+
+18. DEPLOYMENT STEPS (operator; not performed)
+----------------------------------------------
+1. Review, commit and open a PR.
+2. Take a production restore point. Run supabase db push --dry-run and
+   expect exactly 20261010120000_geofence_fail_closed. Then push.
+3. Merge to main and let Vercel deploy. Database first is safe: the current
+   app already sends the capture time.
+4. CONFIGURE THE PILOT SITE (the actual production root cause):
+   - Agency admin, at AAL2: Facilities → <facility> → Attendance location
+     checks → <location>.
+   - Enable it and set:
+     - the site centre (the building entrance coordinates);
+     - the radius in metres (e.g. 150);
+     - max accuracy (e.g. 100);
+     - the policy "Block clock-in outside the area".
+   - Repeat for every pilot location. A location without this does not
+     check location.
+5. Verify read-only that every pilot location has an enabled blocking
+   geofence:
+     select count(*) filter (where g.enabled and g.outside_policy='block'), count(*)
+     from public.facility_locations l left join public.location_geofences g
+       on g.facility_location_id = l.id;
+6. Run the device checklist on Android and iOS, standalone:
+   - clearly outside: refused;
+   - near the boundary: per the rule;
+   - inside: succeeds;
+   - permission denied: clear refusal;
+   - weak GPS: retry / refusal;
+   - location disabled after check-in: check-out still works.
+
+
+19. REMAINING GAPS
+------------------
+- Real-device geofence certification is outstanding (not deployed; site not
+  configured).
+- No enforced "every site must have a geofence" rule. An unconfigured
+  location records check-in without a location check, by documented
+  design. Making geofencing mandatory per agency would be a new setting
+  (out of scope: no new features). The operator verification query in §18
+  is the pilot control.
+- Browser locations can be spoofed by a determined user (GEOFENCE_MODEL
+  §5). The geofence is an operational signal with review, not proof of
+  presence.
+
+FINAL STATUS:
+
+ANDROID PWA:
+STATUS: CERTIFIED (installation and operation, per the operator's
+real-device test)
+
+IOS PWA:
+STATUS: CERTIFIED (installation and operation, per the operator's
+real-device test)
+
+GEOFENCE:
+STATUS: NOT CERTIFIED — the fix is not yet deployed; the production pilot
+location has no geofence configured; real-device geofence tests (outside,
+boundary, inside, denied, weak GPS, check-out) have not been run.
+
+PILOT:
+STATUS: NOT READY — deploy 20261010120000_geofence_fail_closed, configure
+blocking geofences for every pilot location, and pass the Android and iOS
+geofence device tests.

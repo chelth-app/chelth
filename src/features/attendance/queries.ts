@@ -11,9 +11,12 @@ import type {
   AttendanceExceptionStatus,
   AttendanceExceptionType,
   GeofenceOutsidePolicy,
+  GeofencePolicy,
+  GeofenceReadiness,
   GeofenceResult,
   LocationEvidenceState,
 } from "@/lib/domain/attendance";
+import { GEOFENCE_POLICY_DEFAULTS } from "@/lib/domain/attendance";
 import type { AssignmentStatus, ShiftStatus } from "@/lib/domain/shifts";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Constants, type Json } from "@/types/database.types";
@@ -312,6 +315,7 @@ export type AttendanceRules = {
   missedClockOutMinutes: number;
   clockOutCutoffMinutes: number;
   retentionDays: number;
+  geofencePolicy: GeofencePolicy;
   isDefault: boolean;
 };
 
@@ -332,8 +336,53 @@ export async function getAttendanceRules(organisationId: string): Promise<Attend
     missedClockOutMinutes: data?.missed_clock_out_minutes ?? 60,
     clockOutCutoffMinutes: data?.clock_out_cutoff_minutes ?? 240,
     retentionDays: data?.location_evidence_retention_days ?? 90,
+    geofencePolicy: data
+      ? {
+          requireGeofence: data.require_geofence,
+          defaultRadiusMeters: data.default_geofence_radius_meters,
+          defaultMaxAccuracyMeters: data.default_geofence_max_accuracy_meters,
+          defaultOutsidePolicy: data.default_geofence_outside_policy,
+        }
+      : GEOFENCE_POLICY_DEFAULTS,
     isDefault: data === null,
   };
+}
+
+export type GeofenceReadinessRow = {
+  facilityId: string;
+  facilityName: string;
+  locationId: string;
+  locationName: string;
+  /** The location and its facility are both active. */
+  locationActive: boolean;
+  enabled: boolean;
+  radiusMeters: number | null;
+  maxAccuracyMeters: number | null;
+  outsidePolicy: GeofenceOutsidePolicy | null;
+  readiness: GeofenceReadiness;
+};
+
+/** Per-location worker check-in readiness (facility.view). Never includes coordinates. */
+export async function listGeofenceReadiness(
+  organisationId: string,
+): Promise<GeofenceReadinessRow[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("list_geofence_readiness", {
+    p_organisation_id: organisationId,
+  });
+  if (error) throw error;
+  return data.map((row) => ({
+    facilityId: row.facility_id,
+    facilityName: row.facility_name,
+    locationId: row.location_id,
+    locationName: row.location_name,
+    locationActive: row.location_active,
+    enabled: row.enabled,
+    radiusMeters: row.radius_meters,
+    maxAccuracyMeters: row.max_accuracy_meters,
+    outsidePolicy: row.outside_policy,
+    readiness: row.readiness,
+  }));
 }
 
 export type LocationGeofence = {

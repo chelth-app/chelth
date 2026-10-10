@@ -100,6 +100,15 @@ export default async function SettingsOrganizationPage({
             ),
           },
           {
+            label: "Geofencing for worker check-in",
+            value: (
+              <>
+                {rules.geofencePolicy.requireGeofence ? "Required" : "Optional"}
+                {change("attendance", "geofencing")}
+              </>
+            ),
+          },
+          {
             label: "Raw location evidence kept",
             value: (
               <>

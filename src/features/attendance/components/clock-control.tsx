@@ -17,20 +17,27 @@ type ClockControlProps = {
 };
 
 type Position = { latitude: string; longitude: string; accuracy: string; capturedAt: string };
+type Reading = { position: Position } | { failure: "denied" | "unavailable" };
 
-/** One-shot location for THIS action only; never watched, never polled. */
-function currentPosition(): Promise<Position | null> {
+/**
+ * One-shot location for THIS action only; never watched, never polled; a
+ * fresh fix (maximumAge 0). The server decides whether it counts.
+ */
+function currentPosition(): Promise<Reading> {
   return new Promise((resolve) => {
-    if (!("geolocation" in navigator)) return resolve(null);
+    if (!("geolocation" in navigator)) return resolve({ failure: "unavailable" });
     navigator.geolocation.getCurrentPosition(
       (position) =>
         resolve({
-          latitude: String(position.coords.latitude),
-          longitude: String(position.coords.longitude),
-          accuracy: String(position.coords.accuracy),
-          capturedAt: new Date(position.timestamp).toISOString(),
+          position: {
+            latitude: String(position.coords.latitude),
+            longitude: String(position.coords.longitude),
+            accuracy: String(position.coords.accuracy),
+            capturedAt: new Date(position.timestamp).toISOString(),
+          },
         }),
-      () => resolve(null),
+      (error) =>
+        resolve({ failure: error.code === error.PERMISSION_DENIED ? "denied" : "unavailable" }),
       { enableHighAccuracy: true, timeout: 15_000, maximumAge: 0 },
     );
   });
@@ -73,7 +80,9 @@ export function ClockControl({
         // Nothing is recorded unless Chelth confirms it: never fake success.
         setState(null);
         setNotice(
-          "Not recorded: Chelth could not be reached. Check your connection and try again.",
+          kind === "in"
+            ? "Check-in was not recorded. Try again."
+            : "Check-out was not recorded. Try again.",
         );
       }
     });
@@ -89,12 +98,21 @@ export function ClockControl({
   async function continueWithLocation() {
     setExplaining(false);
     setLocating(true);
-    const position = await currentPosition();
+    const reading = await currentPosition();
     setLocating(false);
-    if (!position) {
-      setNotice("Your location could not be read. Chelth will record the attempt without it.");
+    if ("position" in reading) return submit(reading.position);
+    // Check-in needs location evidence (P0-E9-3E): nothing is sent, nothing recorded.
+    if (kind === "in") {
+      setNotice(
+        reading.failure === "denied"
+          ? "Location access is required to check in."
+          : "We couldn't determine your location. Try again.",
+      );
+      return;
     }
-    submit(position);
+    // Check-out is never blocked by location: it is recorded without a reading.
+    setNotice("Your location could not be read. Chelth will record your check-out without it.");
+    submit(null);
   }
 
   const verb = kind === "in" ? "clock in" : "clock out";
@@ -223,10 +241,11 @@ export function ClockControl({
 
 /** Plain-language headings for the existing attendance refusals (text, not colour). */
 const FAILURE_TITLES: Record<string, string> = {
-  OUTSIDE_GEOFENCE: "Outside the site area",
+  OUTSIDE_GEOFENCE: "Outside the check-in area",
   LOCATION_ACCURACY_TOO_LOW: "Location not precise enough",
   LOCATION_UNAVAILABLE: "Location not available",
-  GEOFENCE_REQUIRED: "Location needed for this site",
+  GEOFENCE_REQUIRED: "Location access needed",
+  GEOFENCE_NOT_CONFIGURED: "Check-in not available yet",
 };
 
 /** What the worker can do next after a refusal (guidance only; the rule is the server's). */

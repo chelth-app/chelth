@@ -479,6 +479,7 @@ describe("timesheets (P0-E6-S2)", () => {
       p_latitude: SITE.lat + 0.01,
       p_longitude: SITE.lon,
       p_accuracy_meters: 10,
+      p_device_captured_at: new Date().toISOString(),
     };
     const outcomes: string[] = [];
     for (let attempt = 0; attempt < 10; attempt += 1) {

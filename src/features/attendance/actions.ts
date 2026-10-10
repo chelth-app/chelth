@@ -22,6 +22,7 @@ import {
   correctionRequestSchema,
   correctionReviewSchema,
   exceptionReviewSchema,
+  geofencePolicySchema,
   geofenceSchema,
   legalHoldSchema,
   releaseHoldSchema,
@@ -233,6 +234,29 @@ export async function saveGeofenceAction(
     });
     if (error) throw error;
     revalidatePath(`/app/organisations/${input.organisationId}/facilities/${input.facilityId}`);
+    revalidatePath(`/app/organisations/${input.organisationId}/settings`, "layout");
+    return null;
+  });
+}
+
+/** Agency geofence policy: require geofencing, and the defaults for new location geofences. */
+export async function saveGeofencePolicyAction(
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction("attendance.saveGeofencePolicy", async () => {
+    const input = parseInput(geofencePolicySchema, formDataToObject(formData));
+    await requireAuthIdentity();
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.rpc("set_geofence_policy", {
+      p_organisation_id: input.organisationId,
+      p_require_geofence: input.requireGeofence,
+      p_default_radius_meters: input.defaultRadiusMeters,
+      p_default_max_accuracy_meters: input.defaultMaxAccuracyMeters,
+      p_default_outside_policy: input.defaultOutsidePolicy,
+    });
+    if (error) throw error;
+    revalidatePath(`/app/organisations/${input.organisationId}`, "layout");
     return null;
   });
 }

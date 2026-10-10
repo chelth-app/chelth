@@ -72,7 +72,7 @@ create function pg_temp.clock_in(p_user uuid, p_assignment uuid, p_lat double pr
 returns jsonb language sql as $$
   select pg_temp.query_as(p_user, 'aal1', format(
     'select * from public.clock_in_assignment(%L, %L, %L, %L, %L)',
-    p_assignment, p_lat, p_lon, p_acc, '2000-01-01T00:00:00Z')) -> 0
+    p_assignment, p_lat, p_lon, p_acc, now())) -> 0
 $$;
 
 create function pg_temp.clock_out(p_user uuid, p_assignment uuid, p_lat double precision default null,

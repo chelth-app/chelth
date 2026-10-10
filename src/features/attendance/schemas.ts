@@ -172,6 +172,32 @@ export const attendanceSettingsSchema = z.object({
   clockOutCutoffMinutes: z.coerce.number().int().min(60).max(1440),
 });
 
+/** Whole metres within bounds; a blank, zero, negative or non-numeric value is rejected. */
+function wholeMetres(bounds: { min: number; max: number }) {
+  return z.coerce
+    .number({ error: "Enter a number of metres." })
+    .int("Enter whole metres.")
+    .min(bounds.min, `At least ${bounds.min} m.`)
+    .max(bounds.max, `At most ${bounds.max} m.`);
+}
+const radiusMeters = wholeMetres(GEOFENCE_RADIUS_BOUNDS);
+const maxAccuracyMeters = wholeMetres(GEOFENCE_ACCURACY_BOUNDS);
+
+/** A required decimal-degree coordinate. Blank is "missing", never 0°. */
+function coordinate(missing: string, min: number, max: number) {
+  return z
+    .string({ error: missing })
+    .trim()
+    .min(1, missing)
+    .transform(Number)
+    .pipe(
+      z
+        .number({ error: "Enter decimal degrees, e.g. 41.8781." })
+        .min(min, `Between ${min} and ${max}.`)
+        .max(max, `Between ${min} and ${max}.`),
+    );
+}
+
 export const geofenceSchema = z.object({
   organisationId,
   facilityId: z.uuid(),
@@ -180,19 +206,22 @@ export const geofenceSchema = z.object({
     .string()
     .optional()
     .transform((value) => value === "on"),
-  latitude: z.coerce.number({ error: "Enter a latitude." }).min(-90).max(90),
-  longitude: z.coerce.number({ error: "Enter a longitude." }).min(-180).max(180),
-  radiusMeters: z.coerce
-    .number()
-    .int()
-    .min(GEOFENCE_RADIUS_BOUNDS.min, `At least ${GEOFENCE_RADIUS_BOUNDS.min} m.`)
-    .max(GEOFENCE_RADIUS_BOUNDS.max, `At most ${GEOFENCE_RADIUS_BOUNDS.max} m.`),
-  maxAccuracyMeters: z.coerce
-    .number()
-    .int()
-    .min(GEOFENCE_ACCURACY_BOUNDS.min)
-    .max(GEOFENCE_ACCURACY_BOUNDS.max),
+  latitude: coordinate("Enter the site latitude.", -90, 90),
+  longitude: coordinate("Enter the site longitude.", -180, 180),
+  radiusMeters,
+  maxAccuracyMeters,
   outsidePolicy: z.enum(GEOFENCE_OUTSIDE_POLICIES),
+});
+
+export const geofencePolicySchema = z.object({
+  organisationId,
+  requireGeofence: z
+    .string()
+    .optional()
+    .transform((value) => value === "on"),
+  defaultRadiusMeters: radiusMeters,
+  defaultMaxAccuracyMeters: maxAccuracyMeters,
+  defaultOutsidePolicy: z.enum(GEOFENCE_OUTSIDE_POLICIES),
 });
 
 export const attendanceRangeSchema = z.object({

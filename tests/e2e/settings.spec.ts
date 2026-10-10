@@ -117,13 +117,55 @@ test.describe.serial("settings", () => {
     await expectNoA11yViolations(page);
     await qaScreenshot(page, "stqa-settings-team");
 
-    // Attendance & Geofencing: the existing rules form saves for real.
+    // Attendance & Geofencing: geofencing defaults, readiness and per-location
+    // status (P0-E9-3E.1), then the existing rules form, all saving for real.
     await page.goto(`${base}/attendance`);
+    await expect(page.getByLabel("Default check-in radius (metres)")).toHaveValue("150");
+    await expect(page.getByLabel("Maximum location accuracy (metres)")).toHaveValue("100");
+    await expect(page.getByLabel("Require geofencing for worker check-in")).not.toBeChecked();
+    await page.getByLabel("Default check-in radius (metres)").fill("49");
+    await page.getByRole("button", { name: "Save geofencing settings" }).click();
+    await expect(page.getByText("At least 50 m.")).toBeVisible(AFTER_ACTION);
+    await page.getByLabel("Default check-in radius (metres)").fill("150");
+    await page.getByRole("button", { name: "Save geofencing settings" }).click();
+    await expect(page.getByText("Geofencing settings saved.")).toBeVisible(AFTER_ACTION);
+    await expect(page.getByRole("region", { name: "Worker Check-In Readiness" })).toContainText(
+      "Not ready",
+    );
+    const geofences = page.getByRole("region", { name: "Facility geofences table" });
+    const mercyMain = geofences.getByRole("row", { name: /Mercy Main/ });
+    await expect(mercyMain).toContainText("Not configured");
+    await expectNoA11yViolations(page);
+    await qaScreenshot(page, "e9-3e1-settings-geofencing");
+
+    // Set up the location: prefilled from the defaults; the site centre is confirmed by hand.
+    await mercyMain.getByRole("link", { name: /Set up geofence/ }).click();
+    await expect(page.getByRole("region", { name: "Worker Check-In Readiness" })).toContainText(
+      "Not configured",
+    );
+    await expect(page.getByLabel("Check-in radius (metres)")).toHaveValue("150");
+    await expect(page.getByLabel("Site centre latitude")).toHaveValue("");
+    await page.getByRole("button", { name: "Save geofence for Mercy Main" }).click();
+    await expect(page.getByText("Enter the site latitude.")).toBeVisible(AFTER_ACTION);
+    await page.getByLabel("Check location at clock-in and clock-out for Mercy Main").check();
+    await page.getByLabel("Site centre latitude").fill("40.7128");
+    await page.getByLabel("Site centre longitude").fill("-74.006");
+    await page.getByLabel("Check-in radius (metres)").fill("250");
+    await page.getByRole("button", { name: "Save geofence for Mercy Main" }).click();
+    await expect(page.getByText("Geofence saved.")).toBeVisible(AFTER_ACTION);
+    await expectNoA11yViolations(page);
+    await qaScreenshot(page, "e9-3e1-settings-location-geofence");
+    await page.getByRole("link", { name: "Attendance & Geofencing" }).first().click();
+    const configured = page
+      .getByRole("region", { name: "Facility geofences table" })
+      .getByRole("row", { name: /Mercy Main/ });
+    await expect(configured).toContainText("Enabled", AFTER_ACTION);
+    await expect(configured).toContainText("250 m");
+    await expect(configured).toContainText("Block outside");
+    await expect(page.locator("main")).not.toContainText(/40\.7128|-74\.006/);
+
     await page.getByRole("button", { name: "Save attendance rules" }).click();
     await expect(page.getByText("Attendance rules saved.")).toBeVisible(AFTER_ACTION);
-    await expect(
-      page.getByRole("link", { name: "Manage location checks on Facilities" }),
-    ).toBeVisible();
     await expectNoA11yViolations(page);
     await qaScreenshot(page, "stqa-settings-attendance");
 

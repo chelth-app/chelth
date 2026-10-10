@@ -1,21 +1,39 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import {
+  DataTable,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeaderCell,
+  DataTableRegion,
+  DataTableRow,
+} from "@/components/ui/data-table";
 import { Panel } from "@/components/ui/panel";
-import { AttendanceSettingsForm, getAttendanceRules, RetentionForm } from "@/features/attendance";
+import {
+  AttendanceSettingsForm,
+  GeofencePolicyForm,
+  GeofenceReadinessBadge,
+  getAttendanceRules,
+  listGeofenceReadiness,
+  RetentionForm,
+} from "@/features/attendance";
 import { loadOrganisationPage, StepUpNotice } from "@/features/organisations";
 import { CAPABILITIES } from "@/lib/authz";
+import { GEOFENCE_POLICY_SHORT_LABELS, summariseGeofenceReadiness } from "@/lib/domain/attendance";
 
 import { canOpenSection, settingsHref } from "../_components/settings-sections";
-import { SettingsActionLink, SettingsActionRow } from "../_components/settings-ui";
+import { SettingsActionLink } from "../_components/settings-ui";
+import { CheckInReadinessSummary } from "./_components/check-in-readiness";
 
 export const metadata: Metadata = { title: "Attendance & Geofencing" };
 
 /**
- * Settings → Attendance & Geofencing. The existing agency attendance rules and
- * location-evidence retention forms (moved from the Attendance page,
- * P0-E8-S9H), with the same server validation bounds. Geofences are set per
- * facility location; there is no workspace-wide geofence default.
+ * Settings → Attendance & Geofencing. Geofencing (P0-E9-3E.1): the agency's
+ * require-geofencing policy and defaults, worker check-in readiness, and each
+ * facility location's geofence status. Geofences stay per location — the
+ * defaults only prefill a location's setup. Then the existing attendance rules
+ * and location-evidence retention forms, with the same server bounds.
  */
 export default async function SettingsAttendancePage({
   params,
@@ -24,7 +42,17 @@ export default async function SettingsAttendancePage({
   const { organisationId, organisation, can } = context;
   if (!canOpenSection("attendance", organisation.type, can)) notFound();
   const manage = can(CAPABILITIES.ATTENDANCE_MANAGE_SETTINGS);
-  const rules = manage === "granted" ? await getAttendanceRules(organisationId) : null;
+  const canViewLocations = can(CAPABILITIES.FACILITY_VIEW) === "granted";
+  const [rules, locations] =
+    manage === "granted"
+      ? await Promise.all([
+          getAttendanceRules(organisationId),
+          canViewLocations ? listGeofenceReadiness(organisationId) : Promise.resolve(null),
+        ])
+      : [null, null];
+  const policy = rules?.geofencePolicy;
+  const manageHref = (locationId: string) =>
+    settingsHref(organisationId, `attendance/geofences/${locationId}`);
 
   return (
     <>
@@ -34,8 +62,121 @@ export default async function SettingsAttendancePage({
         </StepUpNotice>
       ) : null}
 
-      {rules ? (
+      {rules && policy ? (
         <>
+          <Panel
+            titleId="geofence-policy-heading"
+            title={<>Geofencing Defaults</>}
+            description={
+              <>
+                Whether worker check-in requires a configured geofence, and the values used when
+                setting up a facility location.
+              </>
+            }
+          >
+            <GeofencePolicyForm organisationId={organisationId} policy={policy} />
+          </Panel>
+
+          {locations ? (
+            <>
+              <Panel
+                titleId="check-in-readiness-heading"
+                title={<>Worker Check-In Readiness</>}
+                description={<>Whether every active location is ready for geofenced check-in.</>}
+              >
+                <CheckInReadinessSummary
+                  requireGeofence={policy.requireGeofence}
+                  summary={summariseGeofenceReadiness(locations, policy.requireGeofence)}
+                />
+              </Panel>
+
+              <Panel
+                titleId="facility-geofences-heading"
+                title={<>Facility Geofences</>}
+                description={
+                  <>
+                    Check-in uses each location&apos;s own geofence. Changing the defaults above
+                    never changes a location that is already set up.
+                  </>
+                }
+              >
+                {locations.length === 0 ? (
+                  <p className="text-[13.5px] text-slate-600">
+                    No facility locations yet. Add a location on a facility to set up its geofence.
+                  </p>
+                ) : (
+                  <DataTableRegion aria-label="Facility geofences table">
+                    <DataTable className="min-w-[44rem]">
+                      <DataTableHead>
+                        <tr>
+                          <DataTableHeaderCell>Facility</DataTableHeaderCell>
+                          <DataTableHeaderCell>Location</DataTableHeaderCell>
+                          <DataTableHeaderCell>Status</DataTableHeaderCell>
+                          <DataTableHeaderCell>Radius</DataTableHeaderCell>
+                          <DataTableHeaderCell>Accuracy</DataTableHeaderCell>
+                          <DataTableHeaderCell>Policy</DataTableHeaderCell>
+                          <DataTableHeaderCell>
+                            <span className="sr-only">Action</span>
+                          </DataTableHeaderCell>
+                        </tr>
+                      </DataTableHead>
+                      <tbody>
+                        {locations.map((location) => {
+                          const configured = location.radiusMeters !== null;
+                          return (
+                            <DataTableRow key={location.locationId}>
+                              <DataTableCell>{location.facilityName}</DataTableCell>
+                              <th
+                                scope="row"
+                                className="px-3 py-2.5 text-left font-medium text-chelth-navy"
+                              >
+                                {location.locationName}
+                                {location.locationActive ? null : (
+                                  <span className="block text-[12.5px] font-normal text-slate-600">
+                                    Inactive
+                                  </span>
+                                )}
+                              </th>
+                              <DataTableCell>
+                                <GeofenceReadinessBadge
+                                  readiness={location.readiness}
+                                  requireGeofence={policy.requireGeofence}
+                                />
+                              </DataTableCell>
+                              <DataTableCell numeric>
+                                {configured ? `${location.radiusMeters} m` : "—"}
+                              </DataTableCell>
+                              <DataTableCell numeric>
+                                {configured ? `${location.maxAccuracyMeters} m` : "—"}
+                              </DataTableCell>
+                              <DataTableCell>
+                                {location.outsidePolicy
+                                  ? GEOFENCE_POLICY_SHORT_LABELS[location.outsidePolicy]
+                                  : "—"}
+                              </DataTableCell>
+                              <DataTableCell>
+                                <SettingsActionLink
+                                  href={manageHref(location.locationId)}
+                                  size="sm"
+                                >
+                                  {configured ? "Manage" : "Set up geofence"}
+                                  <span className="sr-only">
+                                    {" "}
+                                    for {location.facilityName} {location.locationName}
+                                  </span>
+                                </SettingsActionLink>
+                              </DataTableCell>
+                            </DataTableRow>
+                          );
+                        })}
+                      </tbody>
+                    </DataTable>
+                  </DataTableRegion>
+                )}
+              </Panel>
+            </>
+          ) : null}
+
           <Panel
             titleId="rules-heading"
             title={<>Check-In Rules</>}
@@ -64,30 +205,6 @@ export default async function SettingsAttendancePage({
           </Panel>
         </>
       ) : null}
-
-      <Panel
-        titleId="geofence-heading"
-        title={<>Geofence Defaults</>}
-        description={
-          <>
-            Location checks are configured per facility location — site position, radius, required
-            accuracy and what happens outside the area. They are off unless a location enables them.
-          </>
-        }
-      >
-        {can(CAPABILITIES.FACILITY_VIEW) !== "not_held" ? (
-          <SettingsActionRow>
-            <SettingsActionLink
-              href={`/app/organisations/${organisationId}/facilities`}
-              icon="facilities"
-            >
-              Manage location checks on Facilities
-            </SettingsActionLink>
-          </SettingsActionRow>
-        ) : (
-          <p className="text-[13.5px] text-slate-600">Your role cannot open facility settings.</p>
-        )}
-      </Panel>
     </>
   );
 }

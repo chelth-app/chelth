@@ -14,6 +14,9 @@ export type Database = {
           agency_organisation_id: string
           agency_organisation_type: Database["public"]["Enums"]["organisation_type"]
           clock_out_cutoff_minutes: number
+          default_geofence_max_accuracy_meters: number
+          default_geofence_outside_policy: Database["public"]["Enums"]["geofence_outside_policy"]
+          default_geofence_radius_meters: number
           early_clock_in_minutes: number
           early_clock_out_minutes: number
           late_clock_in_minutes: number
@@ -21,6 +24,7 @@ export type Database = {
           location_evidence_retention_days: number
           missed_clock_in_minutes: number
           missed_clock_out_minutes: number
+          require_geofence: boolean
           updated_at: string
           updated_by_profile_id: string | null
         }
@@ -28,6 +32,9 @@ export type Database = {
           agency_organisation_id: string
           agency_organisation_type?: Database["public"]["Enums"]["organisation_type"]
           clock_out_cutoff_minutes?: number
+          default_geofence_max_accuracy_meters?: number
+          default_geofence_outside_policy?: Database["public"]["Enums"]["geofence_outside_policy"]
+          default_geofence_radius_meters?: number
           early_clock_in_minutes?: number
           early_clock_out_minutes?: number
           late_clock_in_minutes?: number
@@ -35,6 +42,7 @@ export type Database = {
           location_evidence_retention_days?: number
           missed_clock_in_minutes?: number
           missed_clock_out_minutes?: number
+          require_geofence?: boolean
           updated_at?: string
           updated_by_profile_id?: string | null
         }
@@ -42,6 +50,9 @@ export type Database = {
           agency_organisation_id?: string
           agency_organisation_type?: Database["public"]["Enums"]["organisation_type"]
           clock_out_cutoff_minutes?: number
+          default_geofence_max_accuracy_meters?: number
+          default_geofence_outside_policy?: Database["public"]["Enums"]["geofence_outside_policy"]
+          default_geofence_radius_meters?: number
           early_clock_in_minutes?: number
           early_clock_out_minutes?: number
           late_clock_in_minutes?: number
@@ -49,6 +60,7 @@ export type Database = {
           location_evidence_retention_days?: number
           missed_clock_in_minutes?: number
           missed_clock_out_minutes?: number
+          require_geofence?: boolean
           updated_at?: string
           updated_by_profile_id?: string | null
         }
@@ -7537,6 +7549,22 @@ export type Database = {
           total_minor: number
         }[]
       }
+      list_geofence_readiness: {
+        Args: { p_organisation_id: string }
+        Returns: {
+          enabled: boolean
+          facility_id: string
+          facility_name: string
+          location_active: boolean
+          location_id: string
+          location_name: string
+          max_accuracy_meters: number
+          outside_policy: Database["public"]["Enums"]["geofence_outside_policy"]
+          radius_meters: number
+          readiness: Database["public"]["Enums"]["geofence_readiness"]
+          updated_at: string
+        }[]
+      }
       list_invoice_adjustment_candidates: {
         Args: { p_organisation_id: string }
         Returns: {
@@ -8520,6 +8548,16 @@ export type Database = {
         Args: { p_organisation_id: string; p_required: boolean }
         Returns: undefined
       }
+      set_geofence_policy: {
+        Args: {
+          p_default_max_accuracy_meters: number
+          p_default_outside_policy: Database["public"]["Enums"]["geofence_outside_policy"]
+          p_default_radius_meters: number
+          p_organisation_id: string
+          p_require_geofence: boolean
+        }
+        Returns: undefined
+      }
       set_location_evidence_retention: {
         Args: { p_organisation_id: string; p_retention_days: number }
         Returns: undefined
@@ -8837,6 +8875,12 @@ export type Database = {
       facility_location_status: "active" | "inactive"
       facility_status: "active" | "inactive" | "archived"
       geofence_outside_policy: "block" | "allow_with_review"
+      geofence_readiness:
+        | "ready"
+        | "not_blocking"
+        | "disabled"
+        | "not_configured"
+        | "invalid"
       geofence_result:
         | "not_required"
         | "inside"
@@ -9227,6 +9271,13 @@ export const Constants = {
       facility_location_status: ["active", "inactive"],
       facility_status: ["active", "inactive", "archived"],
       geofence_outside_policy: ["block", "allow_with_review"],
+      geofence_readiness: [
+        "ready",
+        "not_blocking",
+        "disabled",
+        "not_configured",
+        "invalid",
+      ],
       geofence_result: [
         "not_required",
         "inside",
