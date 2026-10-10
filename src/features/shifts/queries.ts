@@ -147,6 +147,10 @@ export type AgencyShiftDetail = {
   instructions: string | null;
   cancellationReason: ShiftCancellationReason | null;
   classification: ShiftClassification;
+  unitLabel: string | null;
+  relationshipId: string;
+  /** The client facility is linked to a Chelth facility organisation (it can be messaged). */
+  facilityLinked: boolean;
 };
 
 export async function getAgencyShift(
@@ -157,7 +161,7 @@ export async function getAgencyShift(
   const { data: shift, error } = await supabase
     .from("shifts")
     .select(
-      "id, agency_facility_id, facility_location_id, relationship_id, discipline_key, start_at, end_at, timezone, requested_headcount, status, source, external_reference, instructions, cancellation_reason, classification",
+      "id, agency_facility_id, facility_location_id, relationship_id, discipline_key, start_at, end_at, timezone, requested_headcount, status, source, external_reference, instructions, cancellation_reason, classification, unit_label",
     )
     .eq("agency_organisation_id", organisationId)
     .eq("id", shiftId)
@@ -168,7 +172,7 @@ export async function getAgencyShift(
   const [facility, location, discipline, relationship] = await Promise.all([
     supabase
       .from("agency_facilities")
-      .select("name")
+      .select("name, linked_facility_organisation_id")
       .eq("id", shift.agency_facility_id)
       .maybeSingle(),
     supabase
@@ -202,6 +206,9 @@ export async function getAgencyShift(
     instructions: shift.instructions,
     cancellationReason: shift.cancellation_reason,
     classification: shift.classification,
+    unitLabel: shift.unit_label,
+    relationshipId: shift.relationship_id,
+    facilityLinked: Boolean(facility.data?.linked_facility_organisation_id),
   };
 }
 
@@ -530,6 +537,7 @@ export async function listRequestLocations(relationshipId: string): Promise<Requ
 export type MyShiftAssignment = {
   id: string;
   shiftId: string;
+  facilityId: string;
   facilityName: string;
   locationName: string;
   disciplineName: string;
@@ -541,6 +549,25 @@ export type MyShiftAssignment = {
   instructions: string | null;
   cancellationReason: AssignmentCancellationReason | null;
   canRespond: boolean;
+  /** Facility-local calendar date of the start (server-derived). */
+  localDate: string;
+  unitLabel: string | null;
+  /**
+   * Shift context (P0-E9-3D-S2), present only while the assignment is active:
+   * the address, arrival guidance, the worker-facing contact and the image.
+   */
+  address: {
+    line1: string | null;
+    line2: string | null;
+    locality: string | null;
+    region: string | null;
+    postalCode: string | null;
+    countryCode: string | null;
+  } | null;
+  parkingInstructions: string | null;
+  arrivalInstructions: string | null;
+  contact: { label: string; phone: string } | null;
+  imagePath: string | null;
 };
 
 export async function listMyShiftAssignments(organisationId: string): Promise<MyShiftAssignment[]> {
@@ -563,6 +590,27 @@ export async function listMyShiftAssignments(organisationId: string): Promise<My
     instructions: row.instructions,
     cancellationReason: row.cancellation_reason,
     canRespond: row.can_respond,
+    facilityId: row.agency_facility_id,
+    localDate: row.local_date,
+    unitLabel: row.unit_label,
+    address:
+      row.address_line1 || row.locality
+        ? {
+            line1: row.address_line1,
+            line2: row.address_line2,
+            locality: row.locality,
+            region: row.region,
+            postalCode: row.postal_code,
+            countryCode: row.country_code,
+          }
+        : null,
+    parkingInstructions: row.parking_instructions,
+    arrivalInstructions: row.arrival_instructions,
+    contact:
+      row.worker_contact_label && row.worker_contact_phone
+        ? { label: row.worker_contact_label, phone: row.worker_contact_phone }
+        : null,
+    imagePath: row.image_path,
   }));
 }
 

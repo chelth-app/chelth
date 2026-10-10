@@ -34,13 +34,18 @@ async function signedIn(browser: Browser, email: string): Promise<Page> {
   return page;
 }
 
-/** No reference-only features that Chelth does not have. */
+/**
+ * No reference-only features that Chelth does not have. Messaging is real
+ * since P0-E9-3D ("Message worker" opens an operational thread), so only the
+ * worker-record message action is allowed.
+ */
 async function expectNoInventedFeatures(page: Page) {
   const main = page.getByRole("main");
   await expect(main).not.toContainText(/forecast|revenue|utili[sz]ation|score|rating|trend/i);
-  await expect(main.getByRole("button", { name: /message|rate worker|availability/i })).toHaveCount(
-    0,
-  );
+  await expect(main.getByRole("button", { name: /rate worker|availability/i })).toHaveCount(0);
+  await expect(
+    main.getByRole("button", { name: /message/i }).filter({ hasNotText: "Message worker" }),
+  ).toHaveCount(0);
   await expect(main.getByRole("link", { name: /message|reports?$|availability/i })).toHaveCount(0);
 }
 

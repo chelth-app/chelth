@@ -91,6 +91,7 @@ const AGENCY_ADMIN_NAV = [
   "Shifts",
   "Attendance",
   "Timesheets",
+  "Messages",
   "Workforce",
   "Facilities",
   "Compliance",
@@ -207,6 +208,7 @@ test.describe.serial("workspace shell", () => {
       "Shifts",
       "Attendance",
       "Timesheets",
+      "Messages",
       "Workforce",
       "Facilities",
       "Settings",
@@ -293,7 +295,12 @@ test.describe.serial("workspace shell", () => {
       page.getByRole("heading", { level: 1, name: world.facilityOrgName }),
     ).toBeVisible();
     const facilityNav = await openWorkspaceNav(page, testInfo);
-    expect(await navLabels(facilityNav)).toEqual(["Overview", "Staffing requests", "Settings"]);
+    expect(await navLabels(facilityNav)).toEqual([
+      "Overview",
+      "Staffing requests",
+      "Messages",
+      "Settings",
+    ]);
     await closeWorkspaceNav(page, testInfo);
   });
 
@@ -302,7 +309,13 @@ test.describe.serial("workspace shell", () => {
     await page.goto(`/app/organisations/${world.facilityOrgId}`);
 
     const nav = await openWorkspaceNav(page, testInfo);
-    expect(await navLabels(nav)).toEqual(["Overview", "Staffing requests", "Sign-off", "Settings"]);
+    expect(await navLabels(nav)).toEqual([
+      "Overview",
+      "Staffing requests",
+      "Sign-off",
+      "Messages",
+      "Settings",
+    ]);
     await screenshot(page, testInfo, "facility-admin-overview");
     await closeWorkspaceNav(page, testInfo);
     // Single-workspace user: no switcher choices.

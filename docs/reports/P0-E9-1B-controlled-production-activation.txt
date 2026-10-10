@@ -1,0 +1,402 @@
+P0-E9-1B — CONTROLLED PRODUCTION ACTIVATION
+===========================================
+CHELTH — Healthcare Workforce Operations
+
+Branch: p0-e8-visual-implementation
+HEAD:   b4de3b4 (unchanged)
+Production: app.chelth.com (Vercel) + Supabase project xqgzfpxlnqfcavgijsne
+            ("chelth-Project", us-west-1, Postgres 17.6.1.171)
+
+Outcome:
+- Every pre-write safety gate passed, and a verified restore point was
+  taken.
+- The agent's `db push` was blocked by the Claude Code permission system
+  ("Production Deploy"). The OPERATOR then applied the 13 migrations
+  manually.
+- RESUMED at section 5: production is now 60 / 60, and the finance schema
+  and its security are verified identical to the tested local schema.
+- Remaining items are operator-only dashboard / DNS / mailbox actions:
+  Auth read-back, SMTP, templates, the Auth and authenticated app smoke
+  tests, and pg_net.
+
+
+1. PRODUCTION PROJECT CONFIRMATION
+----------------------------------
+- Linked ref (supabase/.temp/project-ref) = xqgzfpxlnqfcavgijsne: matches
+  the expected production project.
+- `supabase projects list`: the only project in the organisation;
+  ACTIVE_HEALTHY.
+- origin/main (deployed by Vercel) contains all 60 migrations,
+  byte-identical to this branch. The live app already expects the finance
+  schema; the database is behind the code.
+- Working tree: clean apart from two untracked reports (E9-A1, E9-1).
+  Branch p0-e8-visual-implementation. Last commits b4de3b4, f8b7f77,
+  8daf3ec.
+
+
+2. BACKUP STATE
+---------------
+Provider (`supabase backups list`):
+- walg_enabled = true;
+- pitr_enabled = false;
+- backups = [] (no listed physical backup or restore point).
+
+The provider restore point could NOT be confirmed, so the gate initially
+failed and the operator was asked. Decision: take a manual logical backup
+(allowed by DATABASE_MIGRATION_POLICY §7, "PITR or manual backup").
+
+Manual backup taken: 2026-10-09 03:49–03:55 UTC.
+- `supabase db dump --linked`:
+  - --role-only → roles.sql (511 B);
+  - schema → schema.sql (746,592 B);
+  - --data-only --use-copy → data.sql (433,725 B).
+- Location: ~/chelth-backups/prod-pre-e9-1b-20261009T034908Z/ (operator
+  workstation, outside the repository, never committed). Directory mode
+  700; files mode 600; SHA256SUMS recorded alongside.
+- pg_dump noted a circular foreign-key hint for the data-only dump. It is
+  handled at restore time by session_replication_role = replica.
+
+Restore rehearsal (local only):
+- The local stack was reset to exactly production's migration level
+  (`db reset --version 20261001110000`, 47 migrations).
+- The tables present in the dump were cleared, then data.sql was loaded in
+  ONE transaction in replica mode.
+- Result: 93 tables, 3,794 rows dumped = 3,794 rows restored, 0
+  mismatches.
+- The local stack was then reset back to 60 / 60.
+
+This is the first Chelth restore that has been tested. It is a manual,
+logical restore point. Provider backups / PITR remain an open E9-4 item.
+
+Production data profile (counts only):
+- 2 auth users, 3 organisations, 3 memberships, 13 audit events;
+- 0 shifts, 0 timesheets;
+- consistent with "no real user signups".
+
+
+3. PRE-MIGRATION STATE (`supabase migration list --linked`)
+-----------------------------------------------------------
+- Repository 60; hosted 47 applied; 13 pending.
+- Applied = an exact in-order prefix of the repository.
+- No duplicates; no hosted-only versions.
+- Identical to P0-E9-1, so the gate passed.
+
+
+4. DRY-RUN RESULT (`supabase db push --dry-run --linked`)
+--------------------------------------------------------
+"Would push these migrations": exactly the 13 expected, in order:
+  20261001120000_financial_vocabulary   …   20261001130500_adjustment_exports
+
+SQL review of all 13 files:
+- No reset, history repair or schema drop.
+- Changes to tables from the applied 47 are ADDITIVE only:
+  - unique constraints on agency_workers, priced_timesheets and
+    priced_timesheet_lines (composite keys including each primary key, so
+    they cannot fail on existing rows);
+  - agency_financial_settings gains columns with defaults (that table is
+    itself created in this batch).
+- Every DROP CONSTRAINT / DROP POLICY / DROP FUNCTION replaces an object
+  created earlier WITHIN these 13 migrations:
+  - financial_reference_counters check;
+  - get_agency_financial_settings;
+  - financial_exports constraints and policy;
+  - download_financial_export;
+  - approve_payroll_batch / approve_invoice_draft.
+- "before truncate" lines are protective triggers. "delete from … claims"
+  lines are runtime logic inside RPC bodies.
+
+Verdict: the plan matches expectations; the gate passed.
+
+
+5. MIGRATIONS APPLIED
+--------------------
+- Applied by: the operator (manual `supabase db push`), after the agent's
+  push was refused by the permission system.
+- Applied: the 13 reviewed migrations,
+  20261001120000_financial_vocabulary …
+  20261001130500_adjustment_exports.
+- Not used: `db reset`, `migration repair` or manual SQL.
+
+
+6. POST-MIGRATION STATE (agent read-back, `supabase migration list --linked`)
+----------------------------------------------------------------------------
+- Repository 60; hosted 60 applied; 0 pending; 0 hosted-only.
+- No duplicates; order correct; identical to the repository.
+- Last: 20261001130500.
+
+
+7. NEW FINANCE SCHEMA VERIFICATION
+----------------------------------
+Method:
+- read-only `supabase db dump --linked` (schema only) of production;
+- diff against `supabase db dump --local` of the local database (60
+  migrations; all 1,331 pgTAP assertions pass on it).
+
+Present in production:
+- 21 finance tables:
+  - payroll_periods, payroll_batches, payroll_batch_lines,
+    payroll_line_claims, payroll_batch_history;
+  - invoice_drafts, invoice_draft_lines, invoice_line_claims,
+    invoice_draft_history;
+  - financial_exports, internal.financial_export_files,
+    internal.financial_reference_counters, agency_financial_settings;
+  - payroll_adjustments, payroll_adjustment_lines,
+    payroll_adjustment_claims, payroll_adjustment_history;
+  - invoice_adjustments, invoice_adjustment_lines,
+    invoice_adjustment_claims, invoice_adjustment_history.
+- 52 finance public RPCs:
+  - payroll: create / review / approve / lock / cancel batch; export;
+    batch lines / workers / history; list_payroll_work /
+    list_payroll_issues;
+  - invoice: create / review / approve / lock / void draft; export;
+    lines / history / issues;
+  - adjustments: payroll and invoice create / review / approve / lock /
+    cancel or void, export, candidates, lines, history;
+  - download_financial_export, list_financial_exports,
+    financial_reconciliation, get / set_agency_financial_settings,
+    set_financial_maker_checker.
+
+Schema diff (prod vs local), 709 lines, ALL platform-level:
+- No Chelth table, column, constraint, policy, function body, trigger,
+  RLS flag or anon / authenticated grant differs.
+- Differences:
+  (a) production default privileges and grants give `service_role` ALL on
+      public tables / functions / sequences, where locally they are
+      narrower. These are Supabase platform defaults. service_role
+      bypasses RLS anyway and is never used by the Chelth app.
+      Recommendation: no action now; note for hardening.
+  (b) production has a Supabase-added event trigger function
+      `public.rls_auto_enable()` (SECURITY DEFINER, search_path pinned to
+      pg_catalog). It auto-enables RLS on new public tables (a beneficial
+      safety net). It returns event_trigger, so it cannot be invoked as
+      an RPC despite its default EXECUTE grants.
+  (c) `pg_net` is absent in production (present locally). See section 16.
+
+
+8. RLS / SECURITY VERIFICATION (production)
+-------------------------------------------
+- RLS enabled on all 81 Chelth tables (public / internal / authz),
+  including the 21 finance tables. 0 without RLS.
+- SECURITY DEFINER functions: 299; all pin search_path (0 unpinned).
+- Grants to anon: only the standard `USAGE ON SCHEMA public` (identical
+  locally). The only other anon-visible grant is the platform
+  rls_auto_enable trigger function (non-callable).
+- `USING (true)` policies: 8, the same global reference-vocabulary
+  SELECT policies as locally.
+- Finance capability gates, spot-checked in the production function
+  bodies:
+  - approve_payroll_batch / approve_invoice_draft /
+    approve_payroll_adjustment call internal.require_identity +
+    internal.financial_authorize(org, 'payroll.approve' |
+    'invoice.approve', …) and record the maker_checker requirement;
+  - create_payroll_export checks 'payroll.export';
+  - download_financial_export requires an identity.
+- AAL2: internal.require_capability raises CH402 ("multi-factor
+  authentication required") when a privileged capability is held at AAL1,
+  and CH403 otherwise.
+- Maker-checker: database-enforced (internal.maker_checker_required in the
+  approval path).
+
+Because every Chelth object is byte-identical to the locally tested schema,
+the pgTAP security suite (1,331 assertions, including 240 / 250 finance)
+applies to production.
+
+
+9. APP.CHELTH.COM HEALTH (read-only GETs, 2026-10-09 ~04:30 UTC)
+----------------------------------------------------------------
+- /api/health: 200 {"status":"ok"}.
+- 200: /, /sign-in, /sign-up, /forgot-password,
+  /brand/chelth/logo-primary.svg.
+- Signed-out /app and the Overview / timesheets / pricing / rates /
+  payroll / invoices / settings routes: 307 →
+  /sign-in?next=%2Fapp (correct; no 500s).
+
+
+10. PRODUCTION ENVIRONMENT STATUS
+---------------------------------
+UNKNOWN in detail. Vercel is not accessible from this machine.
+
+The app builds, serves and validates its environment at start, so the
+required NEXT_PUBLIC_SUPABASE_URL / ANON_KEY are PRESENT by implication.
+
+  LOG_LEVEL                           UNKNOWN (optional)
+  APP_BASE_URL, EMAIL_PROVIDER,       NOT REQUIRED YET (E9-3)
+  RESEND_API_KEY, EMAIL_FROM,
+  NOTIFICATION_*
+  SENTRY_DSN                          NOT REQUIRED YET (E9-4)
+
+
+11. AUTH SETTINGS
+-----------------
+OPERATOR ACTION REQUIRED (dashboard read-back; steps in section 21).
+
+The public /auth/v1/settings probe could not be used: the anon key was not
+found in the sign-in page's static chunks, and I did not pursue other
+sources. No hosted Auth value has been read.
+
+
+12. SMTP STATUS
+---------------
+UNKNOWN until read back. Assumed default Supabase mail until shown
+otherwise. OPERATOR ACTION REQUIRED (provider, DNS and credentials).
+
+
+13. AUTH TEMPLATES
+------------------
+OPERATOR ACTION REQUIRED (dashboard paste and read-back of the three
+repository templates).
+
+
+14. AUTH SMOKE TEST
+-------------------
+NOT RUN. It needs SMTP and a controlled test mailbox (operator).
+
+
+15. STORAGE CONFIGURATION (production, scoped read-only data dump, 04:29 UTC)
+----------------------------------------------------------------------------
+credential-documents:
+- public = false;
+- file_size_limit = 10485760;
+- allowed_mime_types = {application/pdf, image/jpeg, image/png}.
+
+Objects: 0 in every bucket. Matches migration intent; no public exposure.
+
+
+16. EXTENSIONS / CRON (production)
+----------------------------------
+- pg_cron: PRESENT. supabase_vault: PRESENT.
+- pg_net: ABSENT (confirmed by the schema diff).
+  - No Chelth migration creates it.
+  - The notification kick returns 'idle' / 'not_configured' before any
+    net.http_post, so it is harmless today.
+  - REQUIRED before E9-3 (operator: enable in Database → Extensions).
+- Cron activity after the push (internal.scheduled_job_runs):
+
+    assignment_readiness_scan   204 runs   last 2026-10-09 04:07 UTC (hourly)
+    attendance_scan             816 runs   last 2026-10-09 04:15 UTC (15 min)
+    offer_expiry                2,449 runs last 2026-10-09 04:25 UTC (5 min)
+    location_evidence_purge     9 runs     last 2026-10-09 03:17 UTC (daily)
+    notification kick           not logged; expected no-op until E9-3
+
+- internal.notification_outbox: 0 rows.
+
+
+17. PRODUCTION APPLICATION SMOKE TEST (authenticated)
+-----------------------------------------------------
+NOT RUN. It needs a production account at AAL2 (Finance pages are
+privileged), and no test account / mailbox is available to the agent.
+
+OPERATOR ACTION REQUIRED (section 21 step 5). Signed-out routing is
+verified (section 9).
+
+
+18. LOCAL VALIDATION (2026-10-09, HEAD b4de3b4)
+-----------------------------------------------
+- format:check, lint, typecheck, check:bundle, check:migrations (60):
+  pass.
+- npm test: 355 passed. build: pass.
+- supabase test db: PASS (27 files, 1,331 tests).
+- npm run test:integration: 111 passed.
+- npx playwright test: 262 passed, 12 skipped, 0 failed.
+
+
+19. FILES / CONFIGURATION CHANGED
+---------------------------------
+Repository: this report only.
+
+Production:
+- database migrations 47 → 60 (by the operator);
+- no other production change by the agent.
+
+Operator workstation: the backup set
+~/chelth-backups/prod-pre-e9-1b-20261009T034908Z/.
+
+Scratch (deleted): the scoped operations dump. The schema dumps were kept
+in the session scratchpad only.
+
+
+20. UNRESOLVED BLOCKERS
+-----------------------
+B1  Auth settings not read back (operator dashboard).
+B2  Custom SMTP not confirmed or configured (P0-2).
+B3  Auth templates not applied or read back.
+B4  Auth smoke test and authenticated app smoke test not run.
+B5  pg_net absent (an E9-3 prerequisite; not an E9-2 blocker).
+B6  Provider backups / PITR off (the manual restore point exists;
+    E9-4).
+
+RESOLVED this phase:
+- production 60 / 60;
+- finance schema present;
+- security identical to the tested schema;
+- Storage verified;
+- cron verified active;
+- a restore point taken and rehearsed.
+
+
+21. EXACT OPERATOR STEPS (Supabase dashboard, project chelth-Project / xqgzfpxlnqfcavgijsne)
+-----------------------------------------------------------------------------------------
+1. Auth read-back. Record each value; send them back for the report.
+   a. Authentication → Sign In / Providers → Email:
+      - "Allow new users to sign up" (expected ON);
+      - "Confirm email" (expected ON);
+      - "Secure password change" (expected ON);
+      - minimum password length (expected ≥ 12);
+      - password requirements (expected lowercase, uppercase and digits);
+      - "Prevent use of leaked passwords" (Pro feature; record ON / OFF /
+        unavailable).
+   b. Authentication → URL Configuration:
+      - Site URL must be exactly https://app.chelth.com;
+      - Redirect URLs must include https://app.chelth.com/** (or at least
+        https://app.chelth.com/auth/confirm and
+        https://app.chelth.com/reset-password);
+      - remove localhost entries from production.
+   c. Authentication → Multi-Factor: TOTP "Enabled" (enroll and verify
+      ON).
+   d. Authentication → Sessions / JWT (Project Settings → JWT Keys): record
+      the access-token expiry (expected 3600 s).
+   e. Authentication → Rate Limits: record the email-sent-per-hour value.
+2. Custom SMTP (Resend recommended):
+   a. Resend → Domains → add the sending domain (e.g. mail.chelth.com or
+      chelth.com). Add the SPF (TXT), DKIM (CNAME / TXT) and MX / return
+      path records it shows at the DNS host. Add DMARC: TXT _dmarc.<domain>
+      "v=DMARC1; p=quarantine; rua=mailto:<you>". Wait for "Verified".
+   b. Resend → API Keys → create an SMTP-capable key (sending access).
+   c. Supabase → Authentication → Emails → SMTP Settings:
+      - enable custom SMTP;
+      - Host smtp.resend.com; Port 465; Username "resend"; Password = the
+        key;
+      - Sender email no-reply@<domain>; Sender name "Chelth".
+      Save.
+   d. Authentication → Rate Limits: raise "emails per hour" for the pilot
+      (e.g. 30–100).
+3. Templates: Authentication → Emails → Templates.
+   - For "Confirm signup", "Reset password" and "Change email address",
+     paste the full contents of supabase/templates/confirmation.html,
+     recovery.html and email_change.html.
+   - Set the subjects to match supabase/config.toml (e.g. "Reset your
+     CHELTH password").
+   - Save, reopen each, and confirm the link reads
+     {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=signup |
+     recovery | email_change.
+4. Extensions: Database → Extensions → search "pg_net" → enable (schema
+   "extensions"). It is needed before E9-3; enabling it does not change
+   behaviour today.
+5. Smoke tests, with a dedicated test mailbox (not a customer address):
+   a. https://app.chelth.com/sign-up → the confirmation email arrives
+      from the custom sender → click → sign in.
+   b. Sign out → Forgot password → the email arrives → link opens
+      /reset-password → set a new password → sign in.
+   c. Signed in: create a test agency named "Chelth Test Agency (internal)",
+      enrol TOTP when prompted, and open Overview, Timesheets, Rates,
+      Pricing, Payroll, Invoices and Settings. Confirm none shows an
+      error page.
+   d. Record UTC timestamps and pass / fail per step. Keep the test
+      account clearly labelled.
+6. Optional (E9-4): Database → Backups — enable PITR or confirm daily
+   backups on the current plan.
+
+When steps 1–5 are reported, the agent will record the evidence here and
+can set the status to PRODUCTION BASELINE CURRENT.
+
+STATUS: PRODUCTION BASELINE INCOMPLETE. BLOCKERS REMAIN.

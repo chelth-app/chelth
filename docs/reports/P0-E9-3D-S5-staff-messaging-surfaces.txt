@@ -1,0 +1,135 @@
+P0-E9-3D-S5 — AGENCY / FACILITY MESSAGING SURFACES
+==================================================
+CHELTH — Healthcare Workforce Operations
+
+Branch: p0-e8-visual-implementation (uncommitted)
+Basis:  the S3 RPCs (agency and facility viewer sides).
+No schema change in S5.
+
+
+1. AGENCY SURFACE (S5.1)
+------------------------
+Routes, in the existing workspace shell (not redesigned):
+- /app/organisations/<agency>/conversations (list);
+- /app/organisations/<agency>/conversations/<thread>.
+
+Navigation:
+- "Messages" (new speech-bubble icon in the existing line family);
+- listed only with message.view (capability-driven, the same predicate as
+  the page gate);
+- it sits after Timesheets in the Operations group.
+
+Page gate: requireCapabilityOrNotFound(message.view) returns 404 without
+it. The RPCs re-authorise every read and write.
+
+Who holds message.view / send (S3):
+- agency admin, operations manager, scheduler, recruiter, credentialing
+  officer;
+- NOT finance (tested: no nav item, 404).
+Not every staff role gets every conversation automatically: access follows
+the capability.
+
+List:
+- locked RecordPage, "All" / "Unread" tabs, a "Conversations" panel;
+- each row shows:
+  - the counterpart: the worker's name, or the facility for facility
+    threads;
+  - the context: "Worker conversation · <facility> · <date>" or "General";
+  - the latest message;
+  - the time (viewer's time zone);
+  - an "<n> unread" chip.
+
+Conversation:
+- the counterpart as title, the context line linking to the agency's own
+  shift record;
+- messages with sender labels; the composer (reply) when the caller holds
+  message.send, otherwise "You can read this conversation but not reply";
+- marked read on open, refreshed while visible.
+
+
+2. SHIFT / REQUEST CONTEXT (S5.2)
+---------------------------------
+Agency shift record:
+- "Message <worker>" on each assigned worker opens the worker thread about
+  that shift (requires message.send);
+- "Message facility" opens the facility thread about that shift / request
+  when the client facility is linked to a Chelth facility organisation and
+  the shift is not a draft.
+
+Agency worker record: "Message worker" (general thread).
+
+Facility staffing request record: "Message agency" opens the facility
+thread for that relationship and request.
+
+The context link is preserved:
+- the agency is taken to /shifts/<id>;
+- the facility to its own /staffing-requests/<id>.
+Truth is read from the shift, never copied.
+
+
+3. FACILITY USERS (S5.3)
+------------------------
+- Facility admin and scheduler (message.view / send through the linked
+  relationship) see ONLY facility threads of their relationships.
+- They never see:
+  - worker threads (tested: 404 on a worker thread URL; none listed);
+  - other facilities or agencies;
+  - agency notes;
+  - staff personal names. The agency appears by organisation name.
+- A facility supervisor without the capability gets no Messages item and a
+  404 (tested).
+
+
+4. INTERNAL NOTES SEPARATION (S5.4)
+-----------------------------------
+- Participant-visible messages are a separate model.
+- Existing internal notes (shift_internal_notes, agency_worker_notes) are
+  untouched, stay on their records, and never appear in threads; threads
+  never appear in notes.
+- No new internal-notes feature was invented.
+
+
+5. HISTORY (S5.5)
+-----------------
+- Threads and messages are never deleted (S3 triggers).
+- Tested: after the shift is marked completed, the conversation still shows
+  the full history.
+- Threads stay writable while the participants keep access. Access, not
+  shift state, decides; a closed shift still often needs follow-up (for
+  example timesheet questions).
+- When a relationship ends, the facility side loses access automatically;
+  the agency keeps the history.
+
+
+6. TESTS
+--------
+New tests/e2e/staff-messaging.spec.ts (5 tests × 2 projects; 10 passed):
+- the agency admin messages a worker from the worker record (axe clean);
+- the scheduler messages an assigned worker from the shift:
+  - the context link goes to the shift record;
+  - the worker replies;
+  - the Unread filter shows the thread with its preview and "1 unread";
+  - Messages is current in the navigation (desktop);
+  - opening clears it;
+- the facility admin messages the agency from a staffing request:
+  - the agency replies; the facility sees the agency by name, not a staff
+    name;
+  - a worker thread is 404 for the facility and is never listed;
+- narrow access:
+  - finance (agency) and supervisor (facility) have no item and get 404;
+  - another agency's admin gets 404 on the thread and sees no Wendy;
+- history remains after the shift is completed.
+
+Unit: workspace navigation expectations and fixtures (mirroring the seeded
+grants) were updated; 43 passed.
+
+Typecheck, lint and build pass.
+
+
+7. PROCEED?
+-----------
+No blocker.
+
+STATUS:
+STAFF / FACILITY MESSAGING COMPLETE.
+READY FOR S6.

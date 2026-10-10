@@ -30,6 +30,8 @@ const ROLE_GRANTS: Record<string, CapabilityKey[]> = {
     "compliance.view",
     "facility.view",
     "membership.view",
+    "message.send",
+    "message.view",
     "relationship.view",
     "shift.create",
     "shift.manage",
@@ -65,6 +67,8 @@ const ROLE_GRANTS: Record<string, CapabilityKey[]> = {
     "membership.invite",
     "membership.manage",
     "membership.view",
+    "message.send",
+    "message.view",
     "organisation.manage",
     "relationship.view",
     "role.assign",
@@ -77,6 +81,8 @@ const ROLE_GRANTS: Record<string, CapabilityKey[]> = {
     "attendance.view",
     "credential.view",
     "membership.view",
+    "message.send",
+    "message.view",
     "relationship.view",
     "shift.request",
     "shift.view",
@@ -129,6 +135,7 @@ describe("buildWorkspaceNavigation", () => {
       "Shifts",
       "Attendance",
       "Timesheets",
+      "Messages",
       "Workforce",
       "Facilities",
       "Compliance",
@@ -144,6 +151,7 @@ describe("buildWorkspaceNavigation", () => {
       "Shifts",
       "Attendance",
       "Timesheets",
+      "Messages",
       "Workforce",
       "Facilities",
       "Settings",
@@ -160,19 +168,21 @@ describe("buildWorkspaceNavigation", () => {
     ]);
   });
 
-  it("gives a facility admin requests and timesheet sign-off only", () => {
+  it("gives a facility admin requests, timesheet sign-off and messages only", () => {
     expect(navFor("facility.admin", "facility").labels).toEqual([
       "Overview",
       "Staffing requests",
       "Sign-off",
+      "Messages",
       "Settings",
     ]);
   });
 
-  it("gives a facility scheduler requests without sign-off", () => {
+  it("gives a facility scheduler requests and messages without sign-off", () => {
     expect(navFor("facility.scheduler", "facility").labels).toEqual([
       "Overview",
       "Staffing requests",
+      "Messages",
       "Settings",
     ]);
   });
@@ -188,7 +198,7 @@ describe("buildWorkspaceNavigation", () => {
 
   it("never lists agency routes in a facility workspace, even with every capability", () => {
     const { labels } = navFor("agency.admin", "facility");
-    expect(labels).toEqual(["Overview", "Staffing requests", "Sign-off", "Settings"]);
+    expect(labels).toEqual(["Overview", "Staffing requests", "Sign-off", "Messages", "Settings"]);
   });
 
   it("lists capabilities pending MFA step-up (the page renders a step-up notice)", () => {

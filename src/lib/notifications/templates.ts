@@ -300,6 +300,18 @@ function content(event: NotificationEvent, data: NotificationTemplateData): Cont
         details: [],
         cta: "Review timesheet",
       };
+    case "message_received":
+      // P0-E9-3D-S3: never the message body — only that there is one, and where.
+      return {
+        subject: "You have a new Chelth message regarding your shift",
+        heading: "You have a new message",
+        paragraphs: [
+          `${agency} sent you a message in Chelth.`,
+          "Sign in to read and reply. For your privacy, the message itself is not included in this e-mail.",
+        ],
+        details: data.startAt ? shiftDetails(data) : [],
+        cta: "Open message",
+      };
     case "pricing_blocked_missing_rate":
       return {
         subject: `Pricing blocked: ${worker}, ${period(data)}`,

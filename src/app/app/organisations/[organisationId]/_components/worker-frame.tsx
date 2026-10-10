@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import { WorkerShell, type WorkerNavItem } from "@/components/layout/worker-shell";
 import { getMyProfile, signOutAction } from "@/features/identity";
+import { unreadMessageCount } from "@/features/messaging";
 import {
   getMyCapabilities,
   getOrganisation,
@@ -50,11 +51,12 @@ export async function WorkerFrame({
   if (!organisation || organisation.type !== "agency") {
     return <PersonalFrame>{children}</PersonalFrame>;
   }
-  const [worker, grants, profile, memberships] = await Promise.all([
+  const [worker, grants, profile, memberships, unreadMessages] = await Promise.all([
     getMyWorkerRecord(organisationId),
     getMyCapabilities(organisationId),
     getMyProfile(),
     listMyMemberships(),
+    unreadMessageCount(organisationId),
   ]);
   if (!worker) return <PersonalFrame>{children}</PersonalFrame>;
 
@@ -94,6 +96,8 @@ export async function WorkerFrame({
       chooserLabel={chooserLabel}
       switchLabel={workerAgencies ? "Switch agency" : "Switch workspace"}
       workerStatusLabel={WORKER_STATUS_LABELS[worker.status]}
+      messagesHref={`${base}/messages`}
+      unreadMessages={unreadMessages}
       selectWorkspaceAction={selectOrganisationAction}
       signOutAction={signOutAction}
     >

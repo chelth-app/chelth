@@ -9,6 +9,13 @@ import { redirect } from "next/navigation";
 
 import { type ActionState, runAction } from "@/lib/actions/run-action";
 import { requireAuthIdentity } from "@/lib/auth/session";
+import {
+  FACILITY_IMAGE_BUCKET,
+  facilityImagePath,
+  imageMatchesType,
+  MAX_FACILITY_IMAGE_BYTES,
+} from "@/lib/domain/facility-images";
+import { type ActionResult, AppError } from "@/lib/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formDataToObject, parseInput } from "@/lib/validation";
 
@@ -16,9 +23,13 @@ import {
   createFacilitySchema,
   createLocationSchema,
   createRelationshipSchema,
+  facilityImageCompleteSchema,
+  facilityImageRemoveSchema,
+  facilityImageStartSchema,
   facilityStatusSchema,
   relationshipStatusSchema,
   updateFacilitySchema,
+  workerContextSchema,
 } from "./schemas";
 
 function facilityPath(organisationId: string, facilityId?: string) {
@@ -168,6 +179,112 @@ export async function setRelationshipStatusAction(
       p_status: input.status,
     });
     if (error) throw error;
+    revalidatePath(facilityPath(input.organisationId, input.facilityId));
+    return null;
+  });
+}
+
+// -----------------------------------------------------------------------------
+// Worker-facing context (P0-E9-3D-S2)
+// -----------------------------------------------------------------------------
+
+export async function updateWorkerContextAction(
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction("facilities.updateWorkerContext", async () => {
+    const input = parseInput(workerContextSchema, formDataToObject(formData));
+    await requireAuthIdentity();
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.rpc("update_facility_worker_context", {
+      p_facility_id: input.facilityId,
+      p_parking_instructions: input.parkingInstructions ?? "",
+      p_arrival_instructions: input.arrivalInstructions ?? "",
+      p_worker_contact_label: input.workerContactLabel ?? "",
+      p_worker_contact_phone: input.workerContactPhone ?? "",
+    });
+    if (error) throw error;
+    revalidatePath(facilityPath(input.organisationId, input.facilityId));
+    return null;
+  });
+}
+
+/** One-time signed upload into the facility's own image prefix (Storage re-checks the policy). */
+export async function startFacilityImageUploadAction(input: {
+  organisationId: string;
+  facilityId: string;
+  mimeType: string;
+  sizeBytes: number;
+}): Promise<ActionResult<{ path: string; token: string }>> {
+  return runAction("facilities.startImageUpload", async () => {
+    const parsed = parseInput(facilityImageStartSchema, input);
+    await requireAuthIdentity();
+    const supabase = await createSupabaseServerClient();
+    const path = facilityImagePath(parsed.organisationId, parsed.facilityId, crypto.randomUUID());
+    const signed = await supabase.storage.from(FACILITY_IMAGE_BUCKET).createSignedUploadUrl(path);
+    if (signed.error) throw new AppError("FORBIDDEN", { internalMessage: "image upload refused" });
+    return { path: signed.data.path, token: signed.data.token };
+  });
+}
+
+/** Verifies the stored bytes, attaches the image and removes the one it replaces. */
+export async function completeFacilityImageAction(input: {
+  organisationId: string;
+  facilityId: string;
+  path: string;
+  mimeType: string;
+}): Promise<ActionResult<null>> {
+  return runAction("facilities.completeImageUpload", async () => {
+    const parsed = parseInput(facilityImageCompleteSchema, input);
+    if (!parsed.path.startsWith(`${parsed.organisationId}/${parsed.facilityId}/`)) {
+      throw new AppError("VALIDATION_FAILED", { internalMessage: "foreign image path" });
+    }
+    await requireAuthIdentity();
+    const supabase = await createSupabaseServerClient();
+    const bucket = supabase.storage.from(FACILITY_IMAGE_BUCKET);
+    const download = await bucket.download(parsed.path);
+    if (download.error) {
+      throw new AppError("VALIDATION_FAILED", { internalMessage: "uploaded image missing" });
+    }
+    const bytes = new Uint8Array(await download.data.arrayBuffer());
+    if (
+      bytes.byteLength === 0 ||
+      bytes.byteLength > MAX_FACILITY_IMAGE_BYTES ||
+      !imageMatchesType(bytes, parsed.mimeType)
+    ) {
+      await bucket.remove([parsed.path]);
+      throw new AppError("VALIDATION_FAILED", {
+        internalMessage: "image content failed validation",
+        fieldErrors: { image: ["This file is not a JPG or PNG image."] },
+      });
+    }
+    const { data: previous, error } = await supabase.rpc("set_facility_image", {
+      p_facility_id: parsed.facilityId,
+      p_image_path: parsed.path,
+    });
+    if (error) {
+      await bucket.remove([parsed.path]);
+      throw error;
+    }
+    if (previous) await bucket.remove([previous]);
+    revalidatePath(facilityPath(parsed.organisationId, parsed.facilityId));
+    return null;
+  });
+}
+
+export async function removeFacilityImageAction(
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction("facilities.removeImage", async () => {
+    const input = parseInput(facilityImageRemoveSchema, formDataToObject(formData));
+    await requireAuthIdentity();
+    const supabase = await createSupabaseServerClient();
+    const { data: previous, error } = await supabase.rpc("set_facility_image", {
+      p_facility_id: input.facilityId,
+    });
+    if (error) throw error;
+    if (previous) await supabase.storage.from(FACILITY_IMAGE_BUCKET).remove([previous]);
     revalidatePath(facilityPath(input.organisationId, input.facilityId));
     return null;
   });

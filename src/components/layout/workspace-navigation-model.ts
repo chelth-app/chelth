@@ -18,6 +18,7 @@ export type WorkspaceNavIcon =
   | "payroll"
   | "invoices"
   | "requests"
+  | "messages"
   | "settings";
 
 export type WorkspaceNavItem = {

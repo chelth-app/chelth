@@ -95,6 +95,14 @@ export const updateShiftDetailsSchema = z.object({
   requestedHeadcount: scheduleFields.requestedHeadcount,
   instructions: scheduleFields.instructions,
   externalReference: scheduleFields.externalReference,
+  // P0-E9-3D-S2: optional unit / department label (e.g. ICU, Ward 3).
+  unitLabel: z
+    .string()
+    .trim()
+    .max(80, "Use at most 80 characters.")
+    .regex(/^[^\p{Cc}]*$/u, "Remove unsupported characters.")
+    .optional()
+    .transform((value) => (value ? value : undefined)),
 });
 
 export const shiftNoteSchema = z.object({

@@ -53,7 +53,7 @@ export function ClockControl({
   const [explaining, setExplaining] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
-  const label = kind === "in" ? "Clock in" : "Clock out";
+  const label = kind === "in" ? "Check In" : "Check Out";
 
   function submit(position: Position | null) {
     const formData = new FormData();

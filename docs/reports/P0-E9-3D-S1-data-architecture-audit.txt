@@ -1,0 +1,349 @@
+P0-E9-3D-S1 — DATA & ARCHITECTURE AUDIT
+=======================================
+CHELTH — Healthcare Workforce Operations
+
+Branch: p0-e8-visual-implementation (E9-3B / E9-3C uncommitted, preserved)
+Mode:   read-only audit. No migration, no code change in S1.
+
+Sources read:
+- supabase/migrations (all 62);
+- docs/architecture/FACILITY_DOMAIN_MODEL.md;
+- docs/security/SHIFT_CROSS_ORG_ACCESS.md, CROSS_ORG_DATA_SHARING.md and
+  SECURITY_INVARIANTS.md;
+- src/features/{shifts,attendance,timesheets,credentials,compliance};
+- src/lib/notifications;
+- WorkerShell / WorkerFrame;
+- the worker routes and the PWA files.
+
+
+1. WHAT EXISTS TODAY
+-------------------
+Facilities — public.agency_facilities: the agency's client-site record.
+- Columns: name, facility_type_key, status, timezone; phone and email
+  ("business site contacts only"); address_line1, address_line2, locality,
+  region, postal_code, country_code; external_reference.
+- RLS: agency members with facility.view. Facility organisations and
+  workers never read it directly (FACILITY_DOMAIN_MODEL §6).
+- Documented invariant: "Minimal PII: no personal contact names".
+
+Locations — public.facility_locations: campus / building / site under a
+facility.
+- Columns: name, timezone, status, address_line1, locality, postal_code.
+- Departments / units are "designed, not created" (domain model §5).
+
+Shifts — public.shifts:
+- agency, facility, relationship, location, discipline, start / end,
+  timezone, headcount, status, source (agency | facility);
+- instructions (≤ 2000, shift-level);
+- external_reference and the cancellation fields.
+
+A "staffing request" is a shift row with source = 'facility' (same table,
+same id). There is no separate staffing_requests table.
+
+Assignments and offers: public.shift_assignments and public.shift_offers.
+
+Internal notes: public.shift_internal_notes and public.agency_worker_notes.
+These are staff-only and must stay separate from any participant-visible
+messaging.
+
+Requirements and readiness:
+- public.credential_requirements: agency-wide and facility-scoped.
+- internal.evaluate_compliance, exposed through
+  evaluate_worker_compliance(worker, facility) and
+  worker_readiness(worker, facility).
+- Workers may call these for their own worker record and a facility of the
+  same agency (internal.authorize_compliance_read).
+
+Attendance: geofences per location, attendance events / exceptions /
+corrections, and location evidence (retention documented).
+
+Timesheets:
+- weekly timesheets, plus per-assignment timesheet_entries derived from
+  attendance (effective start / end, breaks, break_minutes,
+  worked_minutes);
+- submit_timesheet(p_timesheet_id) is weekly;
+- there is no free-text notes field.
+
+Worker read models (security-definer projections; workers never read
+agency tables):
+- list_my_shift_assignments: assignment id, shift id, facility name,
+  location name, discipline name, start / end, timezone, statuses,
+  instructions (active assignments only), cancellation reason,
+  can_respond;
+- list_my_shift_offers; list_my_attendance; list_my_timesheets.
+
+Notification infrastructure:
+- internal.notification_outbox (one row per event per recipient profile);
+- internal.notification_event enum (worker_assigned, shift_offered,
+  attendance_*, …);
+- a claim / dispatch pipeline and email templates in
+  src/lib/notifications/templates.ts.
+- Reusable for message events.
+
+Audit: public.audit_events via internal.record_audit_event.
+
+Messaging / conversations: NONE. No thread, message, conversation or
+receipt table, enum or RPC exists.
+
+PWA (E9-3C): manifest, a static-only public/sw.js, the offline page, and
+the install entry in More.
+
+
+2. FEATURE CLASSIFICATION
+-------------------------
+Legend:
+  A = stored and exposed to the worker
+  B = stored but not exposed to the worker
+  C = missing
+  D = stored but inappropriate to expose
+
+  Feature                          Class  Notes
+  ------------------------------------------------------------------------
+  Today / Upcoming / Past          A*     Data exists (start / end, timezone).
+                                         Only Upcoming / Past tabs exist; the
+                                         "today" set is the Attendance
+                                         section. A Today tab is a UI change
+                                         over existing projection data, using
+                                         facility-local dates (no client
+                                         date truth).
+  Facility image                   C      No column, bucket or asset.
+  Full address                     B      agency_facilities address fields
+                                         (plus a more specific
+                                         facility_locations address).
+                                         Not in the worker projection.
+  Directions                       B      Derived from the address
+                                         (destination-only deep link); no
+                                         storage needed.
+  Unit / department                C      Departments are deferred; the
+                                         location name is the closest
+                                         existing context (already exposed).
+  Parking instructions             C      Not stored. The shift-level
+                                         "instructions" (A, active
+                                         assignments only) can carry
+                                         shift-specific arrival notes.
+  Arrival instructions             C/A    No facility default; shift-level
+                                         override already exists
+                                         (shifts.instructions).
+  Worker-facing contact            C/D    agency_facilities.phone / email are
+                                         business site contacts that were
+                                         never designated worker-facing (D
+                                         as-is). Personal contact names are
+                                         excluded by the domain invariant.
+  Worker-facing phone              C/D    As above.
+  Shift requirements               B      Engine exists; workers may
+                                         evaluate their own record per
+                                         facility. The worker projection
+                                         lacks the agency_facility_id
+                                         needed to ask.
+  Messaging                        C
+  Unread / read state              C
+  Shift-linked thread              C
+  Staffing-request-linked thread   C      Same key as a shift (source =
+                                         facility).
+  Facility-linked thread           C
+  Message retention                C      No mechanism; retention by
+                                         design (append-only, never
+                                         deleted).
+
+
+3. ARCHITECTURAL DECISIONS (taken in S1, within existing invariants)
+---------------------------------------------------------------------
+D1  Worker-facing contact = a ROLE / DESK contact, opt-in per facility.
+    - No personal name is required or modelled: label (e.g. "Nursing
+      supervisor desk") plus a business phone.
+    - This keeps the domain invariant "no personal contact names", and
+      only intentionally worker-facing data is exposed.
+    - The existing site phone / email are NOT exposed (not designated).
+
+D2  Arrival guidance = facility default + shift override.
+    - Facility-level parking_instructions and arrival_instructions (new,
+      nullable).
+    - The existing shifts.instructions is the shift-level override (no
+      duplicate shift field).
+
+D3  Unit = a nullable shift-level label (unit_label).
+    - Departments as an entity remain deferred (domain model §5); a free
+      label is the smallest representation and does not pre-empt them.
+
+D4  Facility image.
+    - Optional, uploaded by agency staff with facility.manage (AAL2).
+    - JPEG / PNG only, ≤ 2 MB.
+    - Private bucket, server-verified signature and size.
+    - Workers receive short-lived signed URLs only through their own
+      active-assignment projection.
+    - Fallback: the approved W1 facility tile (no generated or stock
+      photos).
+    - Not malware-scanned: images are only ever rendered as <img> from a
+      signed URL with a fixed image content type, and uploads are
+      restricted to authenticated AAL2 staff. Recorded as an accepted
+      risk; revisit if images become user-downloadable.
+
+D5  Messaging participant model: DERIVED AUTHORISATION, no copied
+    participant rows. Access is computed from the thread's context on
+    every read and write (deny by default):
+    - WORKER thread (worker ↔ agency, optional shift context):
+      - the worker whose profile is on the thread, while their membership
+        and worker record are active;
+      - agency members holding message.view (read) / message.send
+        (reply).
+    - FACILITY thread (agency ↔ facility, optional shift / request
+      context):
+      - agency members as above;
+      - facility members holding message.view / message.send through
+        authz.has_relationship_capability on the thread's relationship
+        (the existing cross-org rule).
+    - Workers are never in facility threads, and facility users never see
+      worker threads.
+    - Worker ↔ facility direct messaging is NOT provided. The facility's
+      worker view stays the narrow "who is coming" projection; the agency
+      coordinates. ("Message shift / facility contact" on Shift Details
+      therefore means the agency, and the call action uses the D1
+      contact.)
+    - Revocation is automatic: losing the membership, capability or
+      relationship removes access with no clean-up.
+    - A receipts table holds each reader's last-read position.
+
+D6  Messages are text-only, append-only, never edited or deleted.
+    - Server timestamps.
+    - A client-supplied idempotency key, unique per sender per thread,
+      for duplicate taps and retries.
+    - Rate-limited.
+    - History is kept when shifts complete or requests close; closed
+      context does not delete or hide history.
+
+D7  Notifications reuse internal.notification_outbox with a new event
+    "message_received".
+    - The email has no message body: "You have a new Chelth message
+      regarding your shift." plus a deep link to the authenticated thread.
+    - v1 notifies the WORKER on agency replies.
+    - Staff are notified in-app (unread counts) to avoid emailing every
+      capability holder; per-staff email routing is deferred.
+    - Push is deferred (no push infrastructure exists).
+
+D8  New capabilities message.view and message.send (catalogue rows plus
+    role_capabilities):
+    - agency admin, operations manager, scheduler: view + send;
+    - recruiter, credentialing officer: view + send (they coordinate
+      workers);
+    - finance: none;
+    - facility admin, scheduler: view + send (relationship-scoped).
+    - Workers need no capability: they are authorised as the thread's
+      worker.
+
+
+4. MIGRATION PROPOSALS
+----------------------
+M1 — S2 "shift_context" (one migration).
+
+a) public.agency_facilities, add nullable columns:
+   - parking_instructions text (1–500, no control characters except
+     newline);
+   - arrival_instructions text (1–500, same);
+   - worker_contact_label text (1–80, no control characters);
+   - worker_contact_phone text (the existing phone pattern);
+   - image_path text (unique, bucket-relative);
+   - image_updated_at timestamptz.
+
+   Ownership and RLS:
+   - Owner: the agency (facility record).
+   - Nullable, so existing rows are unaffected (backward compatible).
+   - RLS unchanged (agency facility.view / manage). Writes go through
+     update RPCs at facility.manage (AAL2).
+   - Audit: facility.updated / facility.image_updated.
+   - Retention: lives with the facility record.
+   - Check: the contact label and phone are both set or both null.
+
+b) public.shifts, add unit_label text, nullable (1–80, no control
+   characters).
+   - Owner: the agency shift.
+   - Set by agency staff with shift.manage, and when facilities request
+     (optional).
+   - Not required (shift creation unchanged).
+   - Audit: shift.updated.
+   - Facility projection: include the unit in list_facility_shifts
+     (facility-visible context they could set).
+
+c) Storage bucket facility-images:
+   - private, 2 MB, image/jpeg and image/png;
+   - path <agency_id>/<facility_id>/<uuid>.
+   Policies:
+   - insert: agency facility.manage for that facility;
+   - select: agency facility.view, OR a worker with an active assignment
+     at that facility (helper authz.can_view_facility_image);
+   - no update / delete from clients. Replacement writes a new object; the
+     old one is removed by the server action.
+
+d) Replace list_my_shift_assignments (drop + create; same name, extra
+   columns).
+   - Adds: agency_facility_id, local_date (facility local),
+     location_address, facility address fields, unit_label,
+     parking / arrival instructions, worker_contact_label / phone,
+     image_path.
+   - Context fields are returned ONLY while the assignment is active
+     (assigned / accepted, shift open), matching the existing instructions
+     rule.
+   - Cancelled or declined rows keep only the identity fields.
+
+e) RPCs:
+   - update_agency_facility_worker_context (facility.manage, AAL2);
+   - set_shift_unit (shift.manage);
+   - begin / complete facility image (facility.manage, AAL2), with the
+     server verifying the signature.
+
+M2 — S3 "operational_messaging" (one migration):
+
+  public.conversation_threads:
+    id, agency_organisation_id, kind (enum worker | facility),
+    worker_profile_id (worker threads), agency_worker_id,
+    relationship_id (facility threads), shift_id nullable (shift or
+    request context), created_by_profile_id, created_at, last_message_at.
+    - check: worker threads need a worker; facility threads need a
+      relationship; facility threads have no worker.
+    - Composite FKs bind the shift / worker / relationship to the agency.
+    - Unique: one worker thread per (agency, worker, shift-or-null); one
+      facility thread per (relationship, shift-or-null).
+  public.messages:
+    id, thread_id, agency_organisation_id, sender_profile_id,
+    sender_side (worker | agency | facility), body (1–2000),
+    client_key uuid, created_at default now().
+    - unique (thread_id, sender_profile_id, client_key);
+    - immutability trigger (no update / delete).
+  public.message_receipts:
+    (thread_id, profile_id) primary key, last_read_message_id,
+    last_read_at.
+  RLS:
+  - enabled on all three; select via authz.can_read_thread(thread_id);
+  - no direct insert / update / delete grants. Writes only through
+    security-definer RPCs: open_worker_thread, open_facility_thread,
+    send_message, mark_thread_read, list_my_threads, list_thread_messages
+    (keyset pagination), unread_message_count.
+  Audit: thread opened. Message bodies are NOT copied into audit_events
+  (they are the record).
+  Retention: no deletion path; the Cascade rule is RESTRICT everywhere.
+  Notification: the new enum value message_received.
+
+M3 — S3 capability rows message.view and message.send, plus role mappings
+(may share the M2 migration).
+
+Backward compatibility:
+- All additions are nullable or new objects.
+- The one replaced function keeps its name and arguments. Callers that
+  read named columns keep working; the generated types are regenerated.
+
+
+5. RISKS AND BLOCKERS
+---------------------
+- No architectural blocker. Every decision fits the existing invariants
+  (projection-only cross-org reads, relationship-scoped facility access,
+  no personal contact names, deny by default).
+- Accepted risk D4 (images not scanned) is recorded for operator
+  awareness.
+- Messaging is a new cross-organisation data surface. It must ship with
+  adversarial pgTAP tests: cross-agency, cross-facility, other-worker,
+  revoked membership, and immutability.
+- The timesheet "notes" field in the canonical handoff is not supported
+  (no column, weekly submission). It is omitted honestly rather than
+  invented. Break time is attendance-derived (read-only), not a dropdown.
+
+STATUS:
+READY FOR S2

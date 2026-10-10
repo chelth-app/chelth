@@ -1,0 +1,352 @@
+P0-E9-1 — HOSTED ENVIRONMENT BASELINE
+====================================
+CHELTH — Healthcare Workforce Operations
+
+Branch: p0-e8-visual-implementation
+HEAD:   b4de3b4 (unchanged)
+Scope:  P0-2 (Auth email), P0-3 (hosted environment), P1-7 (release
+        discipline), P2-8 (Storage read-back).
+
+Outcome: STOPPED AT THE INVENTORY GATE (brief section 3).
+- Staging and production are NOT separated: the Supabase account contains
+  exactly one project.
+- The hosted database is also 13 migrations behind the repository.
+- Per the brief, no configuration, migration or production-changing action
+  was taken.
+
+Hosted actions performed (all read-only, via the Supabase CLI's existing
+login):
+- `supabase projects list`
+- `supabase migration list --linked`
+
+Not done:
+- no hosted writes, SMTP changes or template changes;
+- no emails sent;
+- no Vercel access (none available on this machine);
+- no secrets read or printed.
+
+
+1. HOSTED PROJECT INVENTORY
+---------------------------
+Supabase (`supabase projects list`): ONE project in the organisation.
+
+  Name             chelth-Project
+  Reference        xqgzfpxlnqfcavgijsne (public identifier, not a secret)
+  Region           us-west-1
+  Status           ACTIVE_HEALTHY
+  Postgres         17.6.1.171 (GA channel)
+  Created          2026-09-29 17:37 UTC
+  Linked           yes (this checkout)
+  Intended role    UNDETERMINED. No repository record designates it as
+                   staging or production. It has been used as "the hosted
+                   deployment" (the P0-E3-S2B password-recovery fix).
+
+Vercel: NOT INVENTORIED.
+- No vercel.json and no .vercel project link.
+- The Vercel CLI is not installed and no Vercel token is available.
+- The repository records no deployment domain; "app.chelth.com" appears
+  only as a documentation example.
+- The production project, preview / staging environments, domains and
+  branch mapping are therefore unknown from here.
+- CI notes say deployment is via the Vercel Git integration on `main`.
+
+
+2. STAGING / PRODUCTION MAPPING
+-------------------------------
+  Required (README; DATABASE_MIGRATION_POLICY §7)  Actual
+  Staging Supabase project                         DOES NOT EXIST
+  Production Supabase project                      one project, role
+                                                   undetermined
+  Vercel Preview → staging project                 UNKNOWN
+  Vercel Production → production project           UNKNOWN
+
+GAP (blocking): there is no environment where configuration and migrations
+can be proven before they touch the only hosted database. The brief's stop
+condition applies.
+
+
+3. MIGRATION STATE (`supabase migration list --linked`, read-only)
+-----------------------------------------------------------------
+Repository: 60 migrations.
+Hosted:     47 applied.
+
+- The 47 applied, 20260929232049 … 20261001110000, match the repository
+  versions exactly, in order: no duplicates, no out-of-order entries, no
+  hosted-only migrations.
+- 13 PENDING (not applied to hosted):
+    20261001120000_financial_vocabulary
+    20261001120100_payroll_tables
+    20261001120200_invoice_tables
+    20261001120300_financial_exports
+    20261001120400_payroll_rpcs
+    20261001120500_invoice_rpcs
+    20261001120600_financial_export_rpcs
+    20261001130000_adjustment_controls
+    20261001130100_payroll_adjustment_tables
+    20261001130200_invoice_adjustment_tables
+    20261001130300_adjustment_state
+    20261001130400_adjustment_rpcs
+    20261001130500_adjustment_exports
+  These come from commits 0961e4f (payroll preparation and invoice
+  drafting) and 4d76815 (financial adjustments).
+
+Impact: the hosted database is at the P0-E7-S1 pricing stage. Any
+deployment of the current application would fail on the Payroll,
+Invoices, export and adjustment surfaces, and on anything reading their
+types.
+
+Not repaired or pushed. This is plain "pending" state, not history drift.
+The remediation is a normal `supabase db push`, FIRST to a staging
+project, then (after review) to the production project, with a backup
+point taken before production (policy §7).
+
+
+4. ENVIRONMENT-VARIABLE PRESENCE MATRIX
+---------------------------------------
+NOT VERIFIABLE. Vercel environment settings cannot be read from here.
+Required set (from .env.example and env schemas; values never read):
+
+  Variable                            Required this phase      Hosted status
+  NEXT_PUBLIC_SUPABASE_URL            yes                      UNKNOWN
+  NEXT_PUBLIC_SUPABASE_ANON_KEY       yes                      UNKNOWN
+  NEXT_PUBLIC_APP_ENV                 optional (from           UNKNOWN
+                                      VERCEL_ENV)
+  LOG_LEVEL                           yes (default info)       UNKNOWN
+  EMAIL_PROVIDER                      not required (E9-3)      UNKNOWN
+  RESEND_API_KEY / EMAIL_FROM         not required (E9-3)      UNKNOWN
+  APP_BASE_URL                        not required (E9-3)      UNKNOWN
+  NOTIFICATION_DISPATCH_SECRET        not required (E9-3)      UNKNOWN
+  NOTIFICATION_WORKER_DATABASE_URL    not required (E9-3)      UNKNOWN
+  SENTRY_DSN                          not required (E9-4)      UNKNOWN
+
+The application fails fast at build and start on invalid or missing
+required configuration (env.schema / env.server.schema), so a successful
+hosted build implies the required public set is present and valid.
+
+
+5. AUTH CONFIGURATION (hosted)
+------------------------------
+NOT READ BACK. The CLI has no auth-config read command. The Management API
+(GET /v1/projects/{ref}/config/auth) needs a personal access token used
+directly. I did not extract the CLI's stored credential for this. The
+operator should read these in the dashboard or provide an approved token:
+
+- email confirmations;
+- password policy;
+- TOTP MFA;
+- JWT expiry;
+- leaked-password protection;
+- Site URL;
+- redirect allow-list;
+- sign-up enabled;
+- email rate limits.
+
+Local config.toml is NOT evidence of hosted state.
+
+
+6. CUSTOM SMTP
+--------------
+NOT CONFIGURED BY THIS PHASE.
+
+It requires all of the following, none available here:
+- the provider account and credentials (e.g. Resend SMTP);
+- DNS access for the sending domain (SPF / DKIM / DMARC);
+- the hosted Auth SMTP settings;
+- a real test mailbox.
+
+It should also target a staging project, which does not exist.
+
+Status: P0-2 remains open.
+
+
+7. EMAIL-TEMPLATE VERIFICATION
+------------------------------
+NOT DONE (depends on items 5 and 6, and on staging).
+
+Repository templates ready to apply:
+- supabase/templates/confirmation.html;
+- recovery.html;
+- email_change.html.
+
+These must link to {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}
+&type=… (P0-E3-S2B). The app's recovery route only ever lands on
+/reset-password, whatever `next` says.
+
+
+8. STORAGE VERIFICATION
+-----------------------
+NOT READ BACK.
+
+Migration 20260930110x creates `credential-documents` with:
+- private;
+- 10485760 bytes;
+- application/pdf, image/jpeg, image/png.
+
+That migration is among the 47 applied, so the bucket should exist with
+these values unless changed in the dashboard. Read-back needs SQL or
+dashboard access to `storage.buckets` on the live database (deferred to
+the operator, or to staging).
+
+
+9. EXTENSION STATE
+------------------
+NOT READ BACK on hosted.
+- The applied migrations create pg_cron (and use pg_net / Vault), so they
+  are expected present.
+- Locally confirmed: pg_cron, pg_net, supabase_vault.
+
+
+10. CRON VERIFICATION
+---------------------
+NOT READ BACK on hosted.
+
+Expected from the applied migrations (5 jobs; the A1 audit's "6" counted
+one duplicate reference):
+
+  chelth-readiness-scan            7 * * * *
+  chelth-offer-expiry              */5 * * * *
+  chelth-notification-kick         * * * * *    (no-op without Vault
+                                                 secrets; E9-3)
+  chelth-attendance-scan           */15 * * * *
+  chelth-location-evidence-purge   17 3 * * *
+
+Read-back needs `cron.job` / `cron.job_run_details` /
+`internal.scheduled_job_runs` on the hosted DB.
+
+
+11. VERCEL STAGING STATE
+------------------------
+NOT VERIFIABLE (section 1). No known staging domain, so /api/health was
+not called.
+
+
+12. HOSTED AUTH SMOKE TEST
+--------------------------
+NOT RUN.
+- There is no staging environment.
+- SMTP is not configured or verified.
+- I have no real mailbox.
+Running it against the only, possibly live, project would contradict the
+staging-first rule.
+
+
+13. RELEASE-DISCIPLINE DOCUMENTATION (proposed model)
+-----------------------------------------------------
+This was not written into docs/ in this phase: it depends on the
+environment decision in section 17.
+
+Proposed, consistent with DATABASE_MIGRATION_POLICY.md:
+
+  LOCAL
+    - every change; format, lint, typecheck, unit, build, bundle scan,
+      check:migrations;
+    - db reset from zero, db lint, pgTAP, integration, Playwright (= CI).
+  STAGING (new Supabase project + Vercel Preview / staging branch)
+    - operator `supabase db push --dry-run` then `db push`;
+    - record applied versions; read back Auth / Storage / cron;
+    - Auth smoke test with a real mailbox;
+    - golden-path and role smoke as phases progress.
+  PRODUCTION (only after staging sign-off)
+    - backup point confirmed (PITR or manual);
+    - `db push --dry-run` reviewed, then applied by a named operator;
+    - verified by a second person (`migration list`);
+    - application deployed AFTER the schema (expand-first);
+    - rollback = Vercel instant rollback of the app;
+    - schema is fix-forward only (no down-migrations);
+    - data loss = PITR restore incident.
+  Promotion conditions:
+    - CI green; staging migrations applied and verified;
+    - staging smoke tests passed and recorded;
+    - no open P0 / P1 for the change.
+  Migrations stay operator-controlled. No automatic production DB
+  migrations are proposed.
+
+
+14. PRODUCTION READ-ONLY AUDIT
+------------------------------
+The single project is the only hosted environment. Its read-only state is
+sections 1 and 3:
+- healthy;
+- 47 / 60 migrations;
+- Auth, SMTP, Storage, extensions, cron and environment variables not
+  read back.
+
+No production change was made.
+
+
+15. VALIDATION (local; nothing changed)
+---------------------------------------
+format:check, lint, typecheck, check:bundle, check:migrations (60): pass.
+npm test: 355 passed. build: pass.
+
+pgTAP (1,331), integration (111) and Playwright (262 passed / 12 skipped
+/ 0 failed) were run in P0-E9-A1 on the same HEAD (b4de3b4). The source is
+unchanged since, so they were not re-run (re-running resets the local
+database).
+
+
+16. FILES / CONFIGURATION CHANGED
+---------------------------------
+Repository: this report only. No source, migration, config or
+environment file changed.
+
+Hosted: none (read-only CLI calls only).
+
+
+17. UNRESOLVED BLOCKERS
+-----------------------
+B1  No staging environment. The single Supabase project's role is
+    undetermined.
+B2  Hosted database is 13 migrations behind (finance preparation and
+    adjustments).
+B3  Vercel project, environments, domains and environment variables are
+    unknown and not accessible from here.
+B4  Hosted Auth settings, SMTP and templates were not read back or
+    configured (P0-2 open).
+B5  Hosted Storage, extensions and cron were not read back (P2-8 open;
+    part of P0-3).
+B6  No hosted Auth smoke test (P0-3 open).
+
+
+18. EXACT OPERATOR ACTIONS STILL REQUIRED
+-----------------------------------------
+1. DECIDE the environment model. Recommended:
+   - designate the existing `chelth-Project` (us-west-1) as STAGING if no
+     real customer data or users exist on it;
+   - create a NEW production project (same region or the region the pilot
+     legal decision requires) later, after staging is certified.
+   Otherwise, create a new staging project and treat the existing one as
+   production. Confirm whether any real users or data exist on
+   chelth-Project.
+2. VERCEL: provide access (CLI login or token, or dashboard export) and
+   confirm:
+   - the production project and domain;
+   - a Preview / staging environment and its branch;
+   - that Preview env vars point at the staging Supabase project and
+     Production at production.
+3. STAGING MIGRATIONS: with backups confirmed, run
+   `supabase db push --dry-run` then `supabase db push` against STAGING
+   (applies the 13 pending), and record `migration list`.
+4. AUTH READ-BACK: dashboard (Authentication → Providers / URL
+   Configuration / Rate Limits / MFA / Policies) or an approved Management
+   API token. Record each setting in section 5's list.
+5. SMTP: in the email provider, verify the sending domain:
+   - SPF, DKIM and DMARC records at the DNS host;
+   - an SMTP credential;
+   - Supabase Auth → SMTP on STAGING with a Chelth "From" address.
+   Raise the auth email rate limit for the pilot.
+6. TEMPLATES: paste the three repository templates into STAGING Auth
+   email templates. Set the Site URL to the staging app origin; add the
+   staging origin `/auth/confirm` to the redirect allow-list. Read them
+   back.
+7. STORAGE / EXTENSIONS / CRON read-back on STAGING (SQL editor):
+   - storage.buckets where id = 'credential-documents';
+   - pg_extension (pg_cron, pg_net, supabase_vault);
+   - cron.job; cron.job_run_details (recent);
+   - internal.scheduled_job_runs (recent).
+8. SMOKE TEST on staging with a real mailbox: sign up → confirm → sign in
+   → reset → sign in. Record timestamps.
+9. Then re-run E9-1 to record the evidence. Production stays untouched
+   until staging is certified.
+
+STATUS: E9-1 HOSTED BASELINE INCOMPLETE. BLOCKERS REMAIN.

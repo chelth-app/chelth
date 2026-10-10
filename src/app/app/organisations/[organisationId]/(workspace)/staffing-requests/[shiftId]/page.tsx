@@ -14,6 +14,7 @@ import {
 import { DataTableRegion } from "@/components/ui/data-table";
 import { KeyValueList } from "@/components/ui/key-value-list";
 import { PageHeader } from "@/components/ui/page-header";
+import { OpenThreadButton } from "@/features/messaging";
 import { Panel } from "@/components/ui/panel";
 import { SectionTabs } from "@/components/ui/section-tabs";
 import { StatusChip } from "@/components/ui/status-chip";
@@ -104,6 +105,15 @@ export default async function StaffingRequestPage({
               <StatusChip tone="warning">Agency relationship not active</StatusChip>
             ) : null}
           </>
+        }
+        primaryAction={
+          can(CAPABILITIES.MESSAGE_SEND) === "granted" ? (
+            <OpenThreadButton
+              organisationId={organisationId}
+              target={{ kind: "facility", relationshipId: shift.relationshipId, shiftId: shift.id }}
+              label="Message agency"
+            />
+          ) : undefined
         }
       />
 

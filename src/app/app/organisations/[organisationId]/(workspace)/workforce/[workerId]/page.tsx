@@ -31,6 +31,7 @@ import { Badge } from "@/components/ui/badge";
 import { FilterBar, FilterSelect } from "@/components/ui/filter-bar";
 import { KeyValueList } from "@/components/ui/key-value-list";
 import { PageHeader } from "@/components/ui/page-header";
+import { OpenThreadButton } from "@/features/messaging";
 import { SectionTabs } from "@/components/ui/section-tabs";
 import { StatusChip } from "@/components/ui/status-chip";
 import {
@@ -144,6 +145,15 @@ export default async function WorkerPage({
           </p>
         }
         meta={<WorkerStatusBadge status={worker.status} />}
+        primaryAction={
+          can(CAPABILITIES.MESSAGE_SEND) === "granted" ? (
+            <OpenThreadButton
+              organisationId={organisationId}
+              target={{ kind: "worker", agencyWorkerId: worker.id }}
+              label="Message worker"
+            />
+          ) : undefined
+        }
       />
 
       <SectionTabs

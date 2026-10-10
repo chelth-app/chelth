@@ -179,6 +179,12 @@ export async function updateShiftDetailsAction(
       p_external_reference: input.externalReference ?? "",
     });
     if (error) throw error;
+    // The unit has its own audited setter (no-op when unchanged).
+    const unit = await supabase.rpc("set_shift_unit", {
+      p_shift_id: input.shiftId,
+      p_unit_label: input.unitLabel ?? "",
+    });
+    if (unit.error) throw unit.error;
     revalidatePath(shiftPath(input.organisationId, input.shiftId));
     return null;
   });

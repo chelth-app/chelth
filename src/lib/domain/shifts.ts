@@ -295,3 +295,61 @@ export function daysUntilDate(isoDate: string): number {
 export function startsWithin({ startAt }: Pick<ShiftTimes, "startAt">, hours: number): boolean {
   return new Date(startAt).getTime() <= Date.now() + hours * 3_600_000;
 }
+
+// -----------------------------------------------------------------------------
+// Worker shift periods and context (P0-E9-3D-S2)
+// -----------------------------------------------------------------------------
+export type ShiftPeriod = "today" | "upcoming" | "past";
+
+/**
+ * Today / Upcoming / Past for the worker, in the facility's local calendar:
+ * today = starts on the facility's current date, or is in progress (a night
+ * shift that began yesterday); upcoming = a later local date; past = earlier
+ * and over. `now` comes from the server render, never the client.
+ */
+export function shiftPeriod(
+  { startAt, endAt, timezone }: ShiftTimes,
+  now: Date = new Date(),
+): ShiftPeriod {
+  const today = localDate(now.toISOString(), timezone);
+  const day = localDate(startAt, timezone);
+  const started = new Date(startAt).getTime() <= now.getTime();
+  const ended = new Date(endAt).getTime() <= now.getTime();
+  if (day === today || (started && !ended)) return "today";
+  return day > today ? "upcoming" : "past";
+}
+
+/** "8 hours", "7 h 30 min" — scheduled length, for the shift header. */
+export function formatShiftLength({ startAt, endAt }: Pick<ShiftTimes, "startAt" | "endAt">) {
+  const minutes = Math.round((new Date(endAt).getTime() - new Date(startAt).getTime()) / 60_000);
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (rest === 0) return hours === 1 ? "1 hour" : `${hours} hours`;
+  return hours === 0 ? `${rest} min` : `${hours} h ${rest} min`;
+}
+
+export type ShiftAddress = {
+  line1: string | null;
+  line2: string | null;
+  locality: string | null;
+  region: string | null;
+  postalCode: string | null;
+  countryCode: string | null;
+};
+
+/** Street line and "City, Region Postcode" for display. */
+export function formatAddressLines(address: ShiftAddress): string[] {
+  const street = [address.line1, address.line2].filter(Boolean).join(", ");
+  const place = [address.locality, [address.region, address.postalCode].filter(Boolean).join(" ")]
+    .filter(Boolean)
+    .join(", ");
+  return [street, place].filter(Boolean);
+}
+
+/** Destination-only query for map apps: the address, nothing about the worker or shift. */
+export function directionsDestination(address: ShiftAddress, facilityName: string): string {
+  const lines = formatAddressLines(address);
+  return [...(lines.length ? lines : [facilityName]), address.countryCode]
+    .filter(Boolean)
+    .join(", ");
+}

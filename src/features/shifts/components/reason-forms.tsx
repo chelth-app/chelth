@@ -108,10 +108,12 @@ export function ShiftDetailsForm({
   requestedHeadcount,
   instructions,
   externalReference,
+  unitLabel,
 }: ShiftRef & {
   requestedHeadcount: number;
   instructions: string | null;
   externalReference: string | null;
+  unitLabel: string | null;
 }) {
   const [state, formAction] = useActionState(updateShiftDetailsAction, null);
   return (
@@ -139,6 +141,14 @@ export function ShiftDetailsForm({
         errors={fieldErrorsFor(state, "externalReference")}
       >
         <Input name="externalReference" defaultValue={externalReference ?? ""} autoComplete="off" />
+      </FormField>
+      <FormField
+        id="details-unit"
+        label="Unit / department"
+        description="Optional, e.g. ICU or Ward 3. Shown to assigned workers."
+        errors={fieldErrorsFor(state, "unitLabel")}
+      >
+        <Input name="unitLabel" maxLength={80} defaultValue={unitLabel ?? ""} autoComplete="off" />
       </FormField>
       <FormField
         id="details-instructions"

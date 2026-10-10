@@ -1,0 +1,160 @@
+P0-E9-3D-S4 — WORKER MESSAGING EXPERIENCE
+=========================================
+CHELTH — Healthcare Workforce Operations
+
+Branch: p0-e8-visual-implementation (uncommitted)
+Basis:  the S3 foundation (RPCs, RLS, notification).
+No schema change in S4.
+
+
+1. ENTRY POINTS (S4.1)
+----------------------
+The bottom navigation is unchanged (Shifts, Timesheets, Credentials, More).
+
+More → "Messages":
+- the first row in the More sheet, with "<n> unread";
+- the More tab carries a numeric badge, and its accessible name gains
+  ", <n> unread messages";
+- More is marked current while on Messages.
+
+Shift Details → "Need help?" → "Message agency":
+- opens (or reuses) the shift-linked thread, using open_worker_thread with
+  the worker's own record and the shift;
+- alongside the existing "Call contact" and "Get directions" when they are
+  available.
+
+Empty inbox → "Message your agency" opens the general (non-shift) thread.
+
+
+2. MESSAGES LIST (S4.2)
+-----------------------
+Route: /app/organisations/<agency>/messages (worker frame).
+- "All" / "Unread" segmented control (nav "Message filter", aria-current).
+- One worker card per thread:
+  - the agency name (a stretched link);
+  - the context subject: "<Facility> · <shift date>", or "General";
+  - the latest message preview, bold when unread, "You: " for your own;
+  - the time in the device's own time zone (time today, date otherwise);
+  - a "<n> unread" pill.
+- Only the caller's own worker threads are listed (viewer_side = worker);
+  everything else is denied by the RPC.
+
+
+3. THREAD SCREEN (S4.3)
+-----------------------
+Route: /app/organisations/<agency>/messages/<thread>.
+
+Header:
+- back "Messages", the agency name (h1), the context line.
+
+Conversation:
+- chronological order, a sender label and the full date-time (device time
+  zone, server timestamp);
+- the worker's messages right-aligned (soft mint bubble); the agency's
+  left (white card);
+- the agency appears by NAME, never a staff member's personal name.
+
+Pagination:
+- 30 per page, with a keyset cursor;
+- "Show earlier messages" / "Back to latest".
+
+Composer:
+- a sticky card above the bottom navigation (safe-area aware), so it stays
+  visible when the mobile keyboard opens;
+- a 16 px textarea (no iOS zoom), 2000 characters;
+- Enter sends on hardware keyboards; Shift+Enter adds a line;
+- Send shows a spinner while pending and is disabled when empty.
+
+Opening the thread marks it read and refreshes the badges. While visible
+and online, the page re-reads the server every 15 s, so replies appear.
+
+The thread is 404 for anyone but its worker, including other workers; agency
+staff use their workspace (S5).
+
+
+4. SHIFT CONTEXT HEADER (S4.4)
+------------------------------
+For shift-linked threads, a context card shows:
+- the facility;
+- the date · time range;
+- the role · unit.
+
+Tapping it opens the worker's Shift Details (my_assignment_id from the
+projection). The context is read from the shift; nothing is copied into
+messages.
+
+
+5. SHIFT DETAILS ACTIONS (S4.5)
+-------------------------------
+"Need help?" offers only the actions that actually exist:
+- Message agency: always, for the worker's own assignment;
+- Call contact: only with an intentionally worker-facing contact;
+- Get directions: only with an address, on non-past shifts.
+
+There is no "message the facility" action. Facility contact goes through
+the agency or the contact's phone (S1 D5).
+
+
+6. UNREAD ATTENTION (S4.6)
+--------------------------
+- Shown in the Messages list (per thread), in More (the sheet row plus the
+  tab badge and its accessible name), and in the Unread filter.
+- There is no fake notification centre and no bell.
+
+
+7. OFFLINE (S4.7)
+-----------------
+- Sending while offline shows "You're offline. Your message was not sent."
+- The text is kept, and nothing is queued or stored.
+- Sending again online works with the same text.
+- Success is shown only after the server accepted the message (the
+  composer clears on the server's response).
+- Idempotency: one client key per composed message, so double taps and
+  retries return the same stored message (tested: a double-click stores
+  one).
+
+
+8. PWA (S4.8)
+-------------
+- The service worker never caches /messages pages, RSC payloads or message
+  text: navigations are network-first and data is never cached.
+  - Asserted: no cached URL contains /messages, and no cached response
+    contains message text.
+- No message content is placed in localStorage or sessionStorage
+  (asserted).
+- Standalone: the same routes and sticky composer. Safe-area padding comes
+  from the shell.
+
+
+9. TESTS
+--------
+New tests/e2e/worker-messaging.spec.ts (6 tests × 2 projects; 12 passed):
+- Shift Details → Message agency:
+  - the thread with its context link and empty state;
+  - a double-clicked Send stores one message (database count);
+  - the composer clears; axe is clean.
+- The agency reply (API):
+  - More's accessible name includes "1 unread message";
+  - the sheet row shows "1 unread";
+  - Messages → Unread lists it with its preview and context;
+  - the thread shows the reply by agency name, not a staff name;
+  - reading clears the unread state; axe is clean.
+- Offline: the alert appears, the text is kept, nothing is stored; the send
+  then succeeds online.
+- Pagination: 34+ messages give 30 shown, and earlier ones on request.
+- Another worker gets 404 on the thread. An empty inbox can "Message your
+  agency" (General thread) and sees nothing of the other thread.
+- Service worker caches and browser storage contain no message URLs or
+  text.
+
+Typecheck, lint and format pass.
+
+
+10. PROCEED?
+------------
+No blocker. The staff surfaces (S5) use the same RPCs with agency and
+facility viewer sides.
+
+STATUS:
+WORKER MESSAGING COMPLETE.
+READY FOR S5.

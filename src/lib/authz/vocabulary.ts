@@ -67,6 +67,8 @@ export const CAPABILITIES = {
   INVOICE_PREPARE: "invoice.prepare",
   INVOICE_APPROVE: "invoice.approve",
   INVOICE_EXPORT: "invoice.export",
+  MESSAGE_VIEW: "message.view",
+  MESSAGE_SEND: "message.send",
 } as const;
 
 export type CapabilityKey = (typeof CAPABILITIES)[keyof typeof CAPABILITIES];

@@ -1,5 +1,9 @@
 import "server-only";
 
+import {
+  FACILITY_IMAGE_BUCKET,
+  FACILITY_IMAGE_URL_TTL_SECONDS,
+} from "@/lib/domain/facility-images";
 import type {
   FacilityLocationStatus,
   FacilityStatus,
@@ -62,6 +66,13 @@ export type FacilityDetail = FacilitySummary & {
   postalCode: string | null;
   countryCode: string | null;
   externalReference: string | null;
+  /** Worker-facing context (P0-E9-3D-S2). */
+  parkingInstructions: string | null;
+  arrivalInstructions: string | null;
+  workerContactLabel: string | null;
+  workerContactPhone: string | null;
+  /** Short-lived signed URL of the facility image, or null. Never stored. */
+  imageUrl: string | null;
 };
 
 export async function getFacility(
@@ -93,7 +104,21 @@ export async function getFacility(
     postalCode: data.postal_code,
     countryCode: data.country_code,
     externalReference: data.external_reference,
+    parkingInstructions: data.parking_instructions,
+    arrivalInstructions: data.arrival_instructions,
+    workerContactLabel: data.worker_contact_label,
+    workerContactPhone: data.worker_contact_phone,
+    imageUrl: data.image_path ? await facilityImageUrl(data.image_path) : null,
   };
+}
+
+/** A short-lived signed URL for a facility image the caller may read (Storage re-checks). */
+export async function facilityImageUrl(path: string): Promise<string | null> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.storage
+    .from(FACILITY_IMAGE_BUCKET)
+    .createSignedUrl(path, FACILITY_IMAGE_URL_TTL_SECONDS);
+  return error ? null : data.signedUrl;
 }
 
 export type FacilityLocation = {

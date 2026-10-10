@@ -71,8 +71,11 @@ select throws_ok(pg_temp.as_sql((select fiona from ids), format('select * from p
 -- ---------------------------------------------------------------------------
 select is((select array_agg(key order by key) from jsonb_object_keys(pg_temp.query_as((select wendy from ids), 'aal1',
             format('select * from public.list_my_shift_assignments(%L)', (select alpha from orgs))) -> 0) key),
-  array['accepted_at', 'assigned_at', 'assignment_id', 'can_respond', 'cancellation_reason', 'discipline_name', 'end_at',
-        'facility_name', 'instructions', 'location_name', 'shift_id', 'shift_status', 'start_at', 'status', 'timezone'],
+  array['accepted_at', 'address_line1', 'address_line2', 'agency_facility_id', 'arrival_instructions', 'assigned_at',
+        'assignment_id', 'can_respond', 'cancellation_reason', 'country_code', 'discipline_name', 'end_at',
+        'facility_name', 'image_path', 'instructions', 'local_date', 'locality', 'location_name',
+        'parking_instructions', 'postal_code', 'region', 'shift_id', 'shift_status', 'start_at', 'status', 'timezone',
+        'unit_label', 'worker_contact_label', 'worker_contact_phone'],
   'the worker projection has exactly the worker-safe fields');
 select is(pg_temp.query_as((select wendy from ids), 'aal1', format('select facility_name, instructions, can_respond from public.list_my_shift_assignments(%L)', (select alpha from orgs))) -> 0,
   '{"facility_name": "Mercy Rehab", "instructions": "Report to ward 3", "can_respond": true}'::jsonb,
