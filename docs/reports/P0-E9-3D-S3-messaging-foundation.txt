@@ -1,0 +1,245 @@
+P0-E9-3D-S3 — OPERATIONAL MESSAGING FOUNDATION
+==============================================
+CHELTH — Healthcare Workforce Operations
+
+Branch: p0-e8-visual-implementation (uncommitted)
+Basis:  P0-E9-3D-S1 §3 D5–D8 and §4 M2 / M3
+Production: nothing deployed; the migrations are local only.
+
+
+1. EXISTING STRUCTURES (S3.1)
+-----------------------------
+No messaging, conversation, thread or receipt structure existed (S1 audit).
+
+Reused rather than duplicated:
+- the capability catalogue and role mappings;
+- authz.has_capability and authz.has_relationship_capability (the
+  cross-organisation rule);
+- authz.is_own_active_worker;
+- the notification outbox and dispatcher;
+- internal.record_audit_event;
+- internal.consume_rate_limit.
+
+Staffing requests are shift rows (source = facility), so a request-linked
+thread is a shift-linked thread. No separate key exists.
+
+
+2. DATA MODEL (S3.2 / S3.3)
+---------------------------
+Migrations:
+- 20261010110000_messaging_vocabulary.sql
+- 20261010110100_operational_messaging.sql
+
+New enums:
+- public.conversation_kind: worker | facility.
+- public.message_sender_side: worker | agency | facility.
+- internal.notification_event: + message_received.
+
+public.conversation_threads:
+- id, agency_organisation_id, kind;
+- agency_worker_id and worker_profile_id (worker threads);
+- relationship_id (facility threads);
+- shift_id (optional context: a shift or a staffing request);
+- created_by_profile_id, created_at, last_message_at.
+
+Constraints:
+- Composite FKs bind the worker / relationship / shift to the same agency.
+- A check enforces the kind's shape: workers are never on facility
+  threads.
+- Unique (NULLS NOT DISTINCT): one worker thread per (worker, shift or
+  general); one facility thread per (relationship, shift or general).
+
+public.messages:
+- id, thread_id, agency_organisation_id;
+- sender_profile_id (no FK, like audit_events: history outlives
+  identities);
+- sender_side (decided by the server);
+- body: text, 1–2000 characters, newlines only;
+- client_key;
+- created_at = clock_timestamp() (server time at insert).
+- unique (thread_id, sender_profile_id, client_key).
+
+public.message_receipts: (thread_id, profile_id) → last_read_at,
+last_read_message_id.
+
+Conceptual contexts (S3.3):
+- WORKER_AGENCY = worker thread without a shift;
+- SHIFT = worker thread with shift_id;
+- FACILITY_CONTEXT = facility thread without a shift;
+- STAFFING_REQUEST = facility thread with shift_id.
+
+The UI is not coupled to enum labels; it renders from the context columns.
+
+
+3. IMMUTABILITY AND RETENTION (S3.4 / S3.5)
+-------------------------------------------
+- Append-only. A trigger refuses UPDATE / DELETE on messages and DELETE on
+  threads (CH409), even for the owner role.
+- No editing in v1, and no Edited marker needed.
+- History is never deleted, including when:
+  - a shift completes or a request closes;
+  - a relationship ends;
+  - a worker leaves or is suspended (they lose access; the record stays);
+  - a staff member loses a role.
+- A thread becoming inaccessible to one side never removes it from the
+  other.
+- No retention purge is implemented, so retention is indefinite. A future
+  retention policy must be an explicit, audited operator process.
+- No HIPAA claim is made on the strength of this feature.
+
+
+4. ATTACHMENTS (S3.6)
+---------------------
+Text only. There is no attachment column, bucket or upload path.
+Credential documents stay in Credentials.
+
+
+5. AUTHORISATION / RLS (S3.7)
+-----------------------------
+Deny by default. authz.thread_side(thread, capability) derives the caller's
+side on every read and write:
+- worker: the thread's worker, while their membership and worker record are
+  active;
+- agency: message.view / message.send in the agency;
+- facility: the same capabilities in the explicitly linked facility
+  organisation for the thread's relationship (the existing
+  has_relationship_capability: relationship not ended, record linked).
+
+Rules:
+- Workers are never in facility threads; facility users never see worker
+  threads.
+- Worker ↔ facility direct messaging is not provided (S1 D5).
+- RLS: SELECT on threads and messages via authz.can_read_thread; on
+  receipts only one's own.
+- No INSERT / UPDATE / DELETE grants or policies: writes only through
+  security-definer RPCs with a pinned search_path.
+- Capabilities (non-privileged; no AAL2 needed to message):
+  - message.view and message.send: agency admin, operations manager,
+    scheduler, recruiter, credentialing officer; facility admin and
+    scheduler;
+  - none: finance, facility supervisor;
+  - workers need no grant.
+- Revocation is automatic. Losing a membership, worker status, capability
+  or relationship removes access immediately, with no clean-up (tested:
+  a suspended worker reads 0).
+
+RPCs:
+- open_worker_thread(worker, shift?): the worker themself or staff with
+  message.send. The shift must be one the worker is or was assigned to.
+  Get-or-create under an advisory lock. Audited (message.thread_opened, no
+  content).
+- open_facility_thread(relationship, shift?): agency or linked facility
+  with message.send. The shift must be under that relationship and not a
+  draft.
+- send_message(thread, body, client_key): sender side, validation,
+  idempotency, rate limit (300 / day / person), last_message_at, the
+  sender's own receipt, and the notification.
+- mark_thread_read(thread).
+- list_my_threads(organisation, unread_only?, limit?): an agency, or a
+  facility organisation for its relationship threads.
+- get_thread(thread): returns no row when missing or hidden (no oracle);
+  includes can_send.
+- list_thread_messages(thread, before_at?, before_id?, limit?): keyset
+  pagination, newest first.
+- unread_message_count(organisation).
+
+Sender labels:
+- your own messages show "You";
+- workers are named to agency staff;
+- same-side colleagues by name;
+- the OTHER organisation only by its organisation name. Staff personal
+  names never cross organisations.
+- The worker's name is shown only to agency staff.
+
+
+6. READ STATE (S3.8)
+--------------------
+- The unread count per thread is messages from others newer than your
+  last_read_at.
+- unread_message_count gives the total; mark_thread_read records the
+  latest message.
+- Sending marks your own message read.
+- No typing indicators, presence or delivery receipts.
+
+
+7. DUPLICATE SEND / IDEMPOTENCY (S3.9)
+--------------------------------------
+- The browser generates one client key per composed message.
+- A double tap, a mobile retry or a resubmission with the same key returns
+  the original message (duplicate = true).
+- Enforced by a unique constraint and ON CONFLICT, safe under concurrency.
+
+
+8. NOTIFICATIONS (S3.10)
+------------------------
+- When the agency side posts in a worker thread, one message_received
+  notice is queued for the worker.
+- The existing "one open notice per (event, subject, recipient)" rule
+  coalesces bursts per thread.
+- internal.notification_template has a conversation_thread branch:
+  - worker audience only;
+  - agency and facility name and shift times when present;
+  - path /app/organisations/<agency>/messages/<thread>.
+- Never the message body.
+- E-mail: "You have a new Chelth message regarding your shift" — "<Agency>
+  sent you a message … the message itself is not included in this e-mail."
+- Staff are not e-mailed per message in v1 (in-app unread counts instead).
+  This avoids mailing every capability holder; per-staff routing is a
+  later decision.
+- Push notifications are deferred: no push infrastructure exists.
+
+
+9. APPLICATION LAYER
+--------------------
+src/features/messaging:
+- queries: listMyThreads, getThread, listThreadMessages (opaque cursor,
+  chronological pages of 30), unreadMessageCount;
+- actions: sendMessageAction, markThreadReadAction, openWorkerThreadAction,
+  openFacilityThreadAction;
+- schemas.
+
+Vocabulary:
+- CAPABILITIES.MESSAGE_VIEW / MESSAGE_SEND;
+- NOTIFICATION_EVENTS + message_received (category "required", label "New
+  message");
+- the template case.
+- Database types regenerated.
+
+
+10. VALIDATION
+--------------
+- supabase db reset: OK.
+- db lint (public, authz, internal): no errors.
+- pgTAP: 1,484 assertions, 30 files, all pass. New:
+  supabase/tests/security/160_messaging.test.sql (48 assertions):
+  - opening is context-bound (not a foreign shift / relationship / draft);
+  - idempotent send; validation (empty, too long, missing key);
+  - the server-decided side;
+  - unread / mark-read; receipts are owner-only;
+  - pagination; sender labels across organisations;
+  - other worker / other agency / other facility / supervisor without the
+    capability / platform admin: all denied;
+  - no direct inserts (42501);
+  - the facility thread and its scope;
+  - the notification has no body;
+  - edits and deletes are refused; suspension revokes access.
+  Updated:
+  - the baseline allowlists (8 RPCs, 2 helpers);
+  - the held-capability count (44 → 46).
+- Integration (new tests/integration/messaging.test.ts, 3 tests):
+  - the real API: idempotency, unread, labels, deny-by-default, forged
+    insert refused;
+  - the rendered e-mail contains no message body and links to the thread.
+  - The vocabulary drift test passes with the new event.
+- npm test 406 passed; lint, typecheck and format pass.
+
+
+11. PROCEED?
+------------
+There is no unresolved architectural or security blocker. The data model,
+RLS and RPC surface are tested adversarially, so S4 (worker UI) can build
+on them.
+
+STATUS:
+MESSAGING FOUNDATION COMPLETE.
+READY FOR S4.

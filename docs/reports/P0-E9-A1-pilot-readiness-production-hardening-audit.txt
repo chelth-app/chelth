@@ -1,0 +1,958 @@
+P0-E9-A1 — PILOT READINESS & PRODUCTION HARDENING AUDIT
+=======================================================
+CHELTH — Healthcare Workforce Operations
+
+Branch: p0-e8-visual-implementation
+HEAD:   b4de3b4 "feat: complete Chelth P0-E8 visual system"
+        (E8 closed; 1 commit ahead of origin; the working tree is clean)
+Mode:   READ-ONLY.
+        - No source, database, migration, environment or configuration
+          file was changed. Nothing was deployed, committed or pushed.
+        - Nothing was run against any hosted Supabase or Vercel
+          environment. The local Supabase database was reset as part of
+          the requested validation (local only).
+        - No secret value was read into this report.
+
+Question answered: "If we onboarded one real staffing agency, one
+facility and a small group of workers tomorrow, what could stop the pilot
+from operating safely and reliably?"
+
+Sources:
+- the E8 closure report, the locked visual system, CLAUDE.md / AGENTS.md
+  and the README;
+- docs/architecture (41 documents) and docs/security (12 documents);
+- the earlier phase reports (E3–E7);
+- all 60 migrations (static analysis plus a live read-only query of the
+  reset local database);
+- the auth / RBAC / capability code, the credential document pipeline,
+  the notification outbox and dispatcher, and the attendance / geofence
+  code;
+- .github/workflows/ci.yml, next.config.ts, supabase/config.toml,
+  .env.example (key names only), scripts/;
+- the full local validation suite (section 22).
+
+
+1. EXECUTIVE SUMMARY
+--------------------
+Chelth's application layer is unusually well hardened for this stage:
+- deny-by-default RLS on all 81 tables;
+- 351 SECURITY DEFINER functions, all with a pinned search_path;
+- no anon grants and no service role in the app;
+- AAL2 on every privileged capability; maker-checker on finance;
+- private, policy-checked storage with 60-second signed URLs;
+- server-authoritative attendance; an append-only audit trail;
+- 1,331 pgTAP security assertions;
+- every suite green.
+
+The functional golden path is implemented and tested end to end locally.
+
+Chelth cannot yet run a pilot with real people, because the parts OUTSIDE
+the repository have not been built or verified:
+
+1. There is no production malware scanner. In production every uploaded
+   credential document stays "scanning" forever (deliberately
+   fail-closed). As a result:
+   - document-backed credentials can never be verified;
+   - readiness can never pass;
+   - no worker can become eligible for a shift.
+   The golden path is broken in production.
+2. Auth email delivery (sign-up confirmation, password reset) depends on
+   hosted Supabase SMTP, and nothing shows custom SMTP is configured. The
+   built-in sender is rate-limited and is not meant to reach arbitrary
+   recipients, so real agencies and workers may be unable to confirm
+   accounts or recover passwords.
+3. No hosted environment has been verified end to end: environment
+   variables, applied migrations, cron, Vault, the notifier role, Resend
+   and auth templates. No production smoke test has been run.
+4. There is no error monitoring or alerting, no verified backup /
+   restore, no privacy notice or terms, no support channel, and no
+   real-device certification of check-in / out.
+
+None of these is a flaw in the application's security model. They are
+infrastructure, configuration, operations and legal work, plus one
+integration (scanning).
+
+Recommendation: NOT READY FOR PILOT. With about five focused phases (section
+25), Chelth can reach READY FOR CONTROLLED EXTERNAL PILOT.
+
+
+2. PILOT READINESS SCORE
+------------------------
+Domain scores (0–100, not inflated by passing tests):
+
+  Security / tenancy                  88  strong in code; hosted Auth
+                                          settings unverified
+  Production infrastructure           30  one linked hosted project;
+                                          nothing verified
+  Credential / document safety        30  fail-closed, but no scanner, so
+                                          the path is blocked
+  Email / notifications               35  well engineered; never run on a
+                                          hosted environment
+  Worker mobile                       65  code complete; zero
+                                          real-device evidence
+  Attendance / geofence               70  code-verified; device and site
+                                          calibration missing
+  Timesheets                          85  complete lifecycle, revisions,
+                                          concurrency guards
+  Finance preparation                 80  complete; retention and
+                                          maker-checker UX pending
+  Backups / recovery                  15  documented procedure only;
+                                          never restore-tested
+  Monitoring                          15  server logs only; no
+                                          aggregation or alerting
+  Pilot onboarding                    45  agency setup has UI; facilities
+                                          need scripted RPCs
+  Operational support                 20  no support channel, incident
+                                          runbook or admin console
+
+PILOT READINESS SCORE: 47 / 100
+
+The application core is roughly pilot-grade (about 80). The overall score
+is held down by the production and operations layers.
+
+
+3. P0 BLOCKERS — CANNOT PILOT
+-----------------------------
+P0-1  No production malware scanner. The golden path cannot complete.
+      [INFRASTRUCTURE + CODE]
+      - docs/security/CREDENTIAL_DOCUMENT_SECURITY.md §3: "There is no
+        production scanner yet: production uploads stay `scanning` and
+        therefore cannot satisfy requirements or be verified."
+      - The only scanner is scripts/local-scan-documents.mjs (it refuses
+        non-local hosts) plus the test harness.
+      - The current state is safe (fail-closed: nothing is falsely
+        clean), but every requirement whose credential type requires a
+        document blocks every worker.
+      - No safe workaround: marking documents clean without scanning
+        would defeat the trust gate. It must NOT be done as a
+        "pilot shortcut".
+      Fix: the planned integration (Storage webhook or scheduled
+      function → scanning service → internal.record_document_scan_
+      result, with the quarantine move and an owner notice), run as an
+      approved privileged role, not the web app.
+
+P0-2  Auth email delivery to real users unverified. [CONFIGURATION]
+      - Sign-up requires confirmation (enable_confirmations).
+      - Password recovery and email change are email-only.
+      - supabase/config.toml is local-only; [auth.email.smtp] is commented
+        out.
+      - Nothing in the repository or the reports shows custom SMTP on the
+        hosted project.
+      - P0-E3-S2B found the hosted recovery template had drifted. The
+        required template state was documented, but "the hosted values …
+        were not read back".
+      Without custom SMTP and the Chelth templates (confirmation.html,
+      recovery.html, email_change.html with the
+      /auth/confirm?token_hash=… link), agencies and workers cannot
+      reliably confirm accounts or reset passwords.
+      Fix:
+      - configure custom SMTP (e.g. Resend SMTP) with SPF / DKIM / DMARC
+        on the sending domain;
+      - apply and read back the three templates, Site URL and redirect
+        allow-list;
+      - raise the auth email rate limits for the pilot;
+      - smoke-test sign-up, confirmation and recovery on real mailboxes.
+
+P0-3  No hosted environment verified end to end; no production smoke
+      test. [INFRASTRUCTURE / OPERATIONS]
+      This checkout is linked to ONE hosted project ("chelth-Project").
+      There is no .vercel link, no Vercel config file and no evidence of:
+      - which environment that project is (staging or production), or
+        whether both exist as the README requires;
+      - all 60 migrations applied (no `migration list` record);
+      - production environment variables set and validated;
+      - pg_cron jobs active on the hosted DB;
+      - Vault secrets and the chelth_notifier login role present;
+      - a golden-path run on any hosted deployment.
+      Fix: a hosted verification phase (section 27) with a scripted smoke
+      test and recorded evidence.
+
+
+4. P1 — MUST FIX BEFORE A REAL PILOT
+------------------------------------
+P1-1  Notification email never run on a hosted environment.
+      [CONFIGURATION / INFRASTRUCTURE]
+      - EMAIL_PROVIDER defaults to `disabled`; until the §28 operator
+        steps of P0-E5-S2 are done, rows queue as `pending` and no
+        operational email is sent. Those steps are:
+        - RESEND_API_KEY, EMAIL_FROM and APP_BASE_URL;
+        - NOTIFICATION_DISPATCH_SECRET and
+          NOTIFICATION_WORKER_DATABASE_URL;
+        - the Vault URL and secret;
+        - the chelth_notifier role.
+      - This affects offers, assignments, cancellations, missed clock-out
+        and timesheet events.
+      - Invitations fall back to "link shown once to the issuer"
+        (workable for a pilot, but manual).
+      - The email banner is 1.6 MB (P0-E5-S2 recommends under 150 KB).
+P1-2  No error monitoring or alerting. [INFRASTRUCTURE / CODE]
+      - Server errors go only to structured logs (instrumentation.ts);
+        SENTRY_DSN is "reserved".
+      - Client errors are not captured.
+      - Nothing alerts on any of these:
+        - final notification failures (audited, shown only on
+          /operations);
+        - stuck `scanning` documents;
+        - failed or absent cron runs (internal.scheduled_job_runs is
+          recorded but unread);
+        - auth failures or database errors.
+      The operator would learn of problems from customers.
+P1-3  Backups and restore not verified. [INFRASTRUCTURE / OPERATIONS]
+      - DATABASE_MIGRATION_POLICY §7–8 assumes PITR, but the plan tier,
+        PITR enablement and retention window are unknown.
+      - No restore has ever been rehearsed.
+      - Storage (credential documents) is not covered by database PITR,
+        and there is no storage backup plan.
+      - The required periodic drift detection is "deferred, required
+        before production launch".
+P1-4  No privacy notice, terms or worker data notices.
+      [LEGAL/POLICY + CODE]
+      - The app collects precise location (at clock actions), health
+        workforce credentials and documents, and personal data, but has
+        no privacy policy, terms of use or support / contact route.
+      - The in-app location explanation exists; it is not a legal
+        privacy notice.
+      This is a blocker for an EXTERNAL pilot; an internal pilot can
+      proceed under internal agreements.
+P1-5  Real-device certification of the worker flow. [DEVICE CERTIFICATION]
+      No evidence of check-in / out on real iOS Safari or Android Chrome,
+      at a real facility, with a calibrated radius and accuracy threshold
+      (section 26). All geofence results so far are code / emulation
+      verified.
+P1-6  Platform operations have no tooling. [OPERATIONS / CODE]
+      - Creating the facility organisation, linking it to the agency
+        (platform_link_agency_facility) and suspending accounts exist
+        only as AAL2 platform-admin RPCs.
+      - There is no UI and no runbook script.
+      - The SQL editor runs without a user JWT, so it cannot satisfy
+        is_platform_admin(). Onboarding a facility therefore needs an
+        enrolled platform admin calling the RPC through an authenticated
+        client.
+      Fix: a minimal audited operator script or a small admin surface,
+      plus a runbook.
+P1-7  No staging-first release discipline evidenced. [OPERATIONS]
+      - Migrations are applied manually by an operator (by design); no
+        applied-migration log exists.
+      - CI never deploys and does not gate on hosted state.
+      - Supabase CLI is 2.109.0 (2.120.0 available).
+P1-8  No support or incident process. [OPERATIONS]
+      There is no support contact in the product, no incident runbook,
+      no on-call owner, and no documented access path for an operator to
+      investigate a tenant's issue without breaking tenant isolation.
+
+
+5. P2 — SHOULD FIX DURING PILOT PREP
+------------------------------------
+P2-1  Open self-service sign-up plus agency creation: any confirmed email
+      can create up to 5 agencies a day. Decide whether pilot environments
+      restrict agency creation (workers still need sign-up for invites).
+      [CONFIGURATION / POLICY]
+P2-2  Notification outbox has no retention purge (P0-E5-S2 follow-up).
+      [CODE]
+P2-3  Geolocation errors are collapsed: denied, timeout (15 s) and
+      unavailable all become "no reading", so workers get generic
+      guidance. The server outcome is still correct. [CODE]
+P2-4  No offline / service worker: clock actions need connectivity at the
+      moment of the action. The web manifest exists. Acceptable if the
+      pilot site has coverage; verify on site. [DEVICE / OPERATIONS]
+P2-5  No bulk worker onboarding: invitations are one at a time. Fine for a
+      small pilot. [CODE]
+P2-6  Supabase-js getSession() server warning (E8 P3-7): review before an
+      external pilot. [CODE]
+P2-7  Readiness is re-evaluated hourly (worker acceptance re-checks live).
+      Document this for operators. [OPERATIONS]
+P2-8  Hosted Storage bucket limits (10 MiB; pdf / jpeg / png) should be
+      read back on the hosted project to confirm they match the
+      migration. [CONFIGURATION]
+
+
+6. P3 — POST-PILOT / POLISH
+---------------------------
+- E8 deferred items: P3-1 to P3-6, the agency Worker record ISO start date,
+  the Sign-off h1 / label mismatch, 20 px disclosure toggles, the Overview
+  9 px overflow.
+- P3-8: maker-checker Approve shown to the preparer (the database refuses
+  it; needs a data-layer field).
+- Notification preferences and digests; SMS / push; an in-app inbox
+  (none exists).
+- CI-gated migration deployment with a protected environment.
+- A Supabase CLI upgrade.
+
+
+7. SECURITY / TENANCY
+---------------------
+Verified (code + tests):
+- RLS: enabled on all 81 tables (75 public, 6 internal). Static analysis
+  found 0 tables without RLS.
+- Permissive policies: 8 `using (true)` policies, all SELECT-only, to
+  authenticated, on global vocabulary (capabilities, roles,
+  role_capabilities, facility_types, jurisdictions, credential_types,
+  disciplines, currencies). Acceptable.
+- 0 grants to anon; 0 policies to anon.
+- SECURITY DEFINER: 351 functions, all with `set search_path`. Authorization
+  is inside each RPC (require_identity, capability checks, CH402 / CH403).
+- Service role: none in src/. Environment validation REJECTS service-role
+  or sb_secret keys in NEXT_PUBLIC_*. The bundle scan finds no secrets.
+  The notifier uses a dedicated least-privilege login role
+  (claim / complete only; pgTAP-enforced).
+- Tenant isolation:
+  - facility visibility of workers is readiness and reasons only;
+  - documents are never visible to facilities;
+  - cross-organisation shift access is limited by relationship;
+  - secure 404 is verified (QA4 probes; pgTAP 000–250).
+- AAL2: 19 privileged capabilities (attendance.location.view,
+  credential.review / verify, membership / role / organisation
+  management, rates.manage, payroll / invoice approve and export,
+  worker.manage, …). The platform admin requires AAL2.
+- Maker-checker: payroll / invoice approval by a second person (database
+  enforced; the UI visibility issue is P3-8).
+- Storage: one private bucket (credential-documents), opaque UUID paths,
+  no UPDATE, table and Storage policies share one predicate, 60-second
+  signed URLs minted after an audited authorization RPC. Financial export
+  bytes live in internal tables with no grants (no signed URLs).
+- Invites: token rotation, expiry, email binding, revocation (pgTAP 040).
+- Password recovery: server-side token_hash verifier; the recovery
+  session can only reach /reset-password (S2B fix).
+- Audit: append-only audit_events for privileged and access events;
+  denials are audited where documented.
+
+Needs hosted verification:
+- hosted Auth settings (confirmations, password policy, MFA TOTP enabled,
+  rate limits, Site URL, redirect allow-list);
+- JWT expiry; leaked-password protection.
+
+No security P0 in the code was found.
+
+
+8. PRODUCTION ENVIRONMENT
+-------------------------
+  Item                                   Status
+  Production Supabase project            NEEDS VERIFICATION. One project
+                                         linked; role (staging or
+                                         production) unknown.
+  Staging Supabase project               NEEDS VERIFICATION (README
+                                         requires it).
+  Vercel production project              NEEDS VERIFICATION. A hosted
+                                         deployment existed (S2B); no
+                                         config in the repo.
+  Production domain / callback URLs      NEEDS CONFIGURATION. Site URL,
+                                         redirect allow-list and
+                                         APP_BASE_URL.
+  Environment variables                  NEEDS VERIFICATION. Validated at
+                                         build / start (fail-fast, a
+                                         strength).
+  SMTP for Auth email                    BLOCKER until verified (P0-2).
+  Resend (notifications)                 NEEDS CONFIGURATION (P1-1).
+  pg_cron jobs (6)                       NEEDS VERIFICATION on hosted.
+                                         Local: readiness scan hourly,
+                                         offer expiry 5 min, notification
+                                         kick 1 min, attendance scan
+                                         15 min, location purge daily.
+  pg_net + Vault secrets                 NEEDS CONFIGURATION (missing
+                                         Vault makes the kick a no-op).
+  Notification dispatcher route          READY in code
+                                         (/api/internal/notifications/
+                                         dispatch, Bearer secret); hosted
+                                         NEEDS VERIFICATION.
+  chelth_notifier login role             NEEDS CONFIGURATION (manual SQL;
+                                         the password is a secret).
+  Storage buckets                        READY in migration; hosted
+                                         NEEDS VERIFICATION.
+  Secrets handling                       READY by design (Vercel / Vault
+                                         only; nothing in the repo).
+  Error monitoring (Sentry or similar)   MISSING.
+  Log visibility                         NEEDS CONFIGURATION (Vercel
+                                         logs only; no retention or
+                                         alerting).
+  Production migrations                  NEEDS VERIFICATION (manual
+                                         procedure; no applied log).
+  Malware scanner                        BLOCKER (P0-1).
+  Backups / PITR                         NEEDS VERIFICATION (P1-3).
+
+
+9. CREDENTIAL / DOCUMENT SAFETY
+-------------------------------
+Exact current condition:
+- Upload:
+  1. The server action validates the name, declared MIME, size and
+     extension match.
+  2. begin_credential_document_upload checks ownership, a draft version,
+     ≤5 documents, 50 per day, MIME and size → upload_pending.
+  3. A signed upload URL is minted for exactly that path.
+  4. The browser uploads directly to Storage.
+- Completion: the server downloads the object as the user and checks:
+  - size = declared ≤ 10 MiB (bucket-enforced too);
+  - magic bytes match pdf / jpeg / png;
+  - SHA-256 → scanning (or rejected, and the bytes are removed).
+- Scan state machine: upload_pending → scanning → clean | quarantined |
+  rejected (trigger-enforced). No API role can execute
+  record_document_scan_result.
+- Production scanner: NONE. Local / test only. Placeholder logic never
+  runs against hosted hosts.
+- Fail mode: fail-CLOSED. Pending / scanning documents:
+  - are not evidence;
+  - cannot be opened by reviewers;
+  - cannot be verified.
+  The owner can open their own scanning document (their own bytes only).
+- Quarantined / rejected: unreadable by reviewers (RLS, Storage policy
+  and the RPC); the owner sees the state.
+- Retry: no scanner, so no retry logic yet.
+- Audit: document access, denial, upload and verification are audited
+  (never paths or URLs).
+- Pilot impact: P0-1.
+
+
+10. EMAIL / NOTIFICATIONS
+-------------------------
+- Outbox: one row per recipient in the same transaction as the domain
+  event; ids and codes only (no address, body or token).
+- Claim: FOR UPDATE SKIP LOCKED, batch ≤ 100, 120-second lease, claim-token
+  completion (stale_claim protection).
+- Retries: backoff 1 min / 5 min / 30 min / 2 h; final after 5;
+  deliver_until expiry.
+- Idempotency: Resend idempotency key per outbox row (24-hour window);
+  a unique pending row per (event, subject, recipient).
+- Delivery records: sent_at and provider_message_id on the row; final
+  failures are audited; /operations lists failed / retrying deliveries per
+  tenant.
+- Local verification: pgTAP 140, integration (notifications-operations),
+  e2e.
+- Hosted execution: NEVER VERIFIED. No production smoke test exists.
+- Auth email (Supabase GoTrue): separate path; see P0-2.
+- In-app notifications: none (no recipient-scoped inbox exists).
+
+
+11. WORKER MOBILE
+-----------------
+Code verified (e2e on Pixel 7 emulation plus desktop):
+- sign-in; My Shifts; offers / assignments; the Shift Details sheet;
+- clock in / break / clock out; attendance captured; timesheet handoff,
+  submit;
+- credentials; upload / open own document.
+
+Assumptions and risks:
+- Browser web app (responsive) plus a web manifest; no service worker:
+  - not offline-capable;
+  - installable only as a basic home-screen bookmark;
+  - no push.
+- Geolocation: one getCurrentPosition per action, enableHighAccuracy,
+  15-second timeout, maximumAge 0; never watched. All errors map to "no
+  reading" (P2-3).
+- Permission denied: the server then refuses where location is required
+  (worker guidance shown), or records it with review.
+- Duplicate submit: the button is disabled while pending, and the server
+  refuses a second clock-in / out (CHT09 / CHT11).
+- Reload: state is server-derived (safe).
+- Safari risks:
+  - permission prompts per site and session;
+  - precise location can be toggled off ("Precise: Off" gives
+    kilometre-level accuracy, which becomes low_accuracy);
+  - a background-tab timer can stall.
+- Android Chrome risks:
+  - battery saver / location mode;
+  - a cold GPS fix exceeding 15 seconds indoors.
+- Native mobile: not recommended. No demonstrated blocker; the web flow
+  is complete.
+
+
+12. ATTENDANCE / GEOFENCE
+-------------------------
+CODE VERIFIED:
+- server-authoritative timestamps (recorded_at = server time);
+- haversine at mean Earth radius 6,371,008.8 m;
+- radius 50–2000 m; max_accuracy 10–500 m (default 100);
+- block vs allow_with_review at clock-in;
+- clock-out is never blocked (exceptions only);
+- one location read per action; no background tracking;
+- raw coordinates only via attendance.location.view at AAL2, audited per
+  view, purged per agency retention;
+- corrections are append-only requests;
+- exceptions: late, missed, outside, low accuracy, early clock-out;
+- the review flow (pgTAP 170 / 180 / 200, integration, e2e).
+
+REAL DEVICE VERIFIED: NONE (section 26).
+
+
+13. TIMESHEETS
+--------------
+- The implemented flow is:
+  attendance → derived timesheet → worker submit → AGENCY approve →
+  FACILITY sign-off → locked.
+  Facility sign-off follows agency approval. That is by design, not the
+  order in the brief.
+- Integrity:
+  - a trigger-enforced state machine;
+  - expected_revision optimistic concurrency (CHP14);
+  - every attendance change after approval creates a new revision
+    (re-approval);
+  - an explicit reopen with a reason;
+  - locked snapshots; facility discrepancy (dispute) with the agency
+    answer;
+  - blocking reasons on submit / approve;
+  - facility-local dates throughout.
+- Tests: pgTAP 190, integration, e2e Flows 1–7.
+- No pilot blocker.
+
+
+14. PRICING / PAYROLL / INVOICE
+-------------------------------
+- Rate cards:
+  - effective-dated versions (draft → active / discarded);
+  - no overlapping versions (CHM12);
+  - specificity precedence with NO silent fallback for gaps;
+  - ambiguity is refused;
+  - a missing rate blocks pricing and notifies once.
+- Priced timesheets snapshot rates.
+- Payroll and invoice preparation in batches / drafts; adjustments chain;
+  reconciliation.
+- Exports: CSV / PDF with a database SHA-256 verified at generation,
+  insert, RPC and route; no signed URLs; POST-only same-origin download;
+  formula-injection neutralised; rate limits.
+- Maker-checker and AAL2 on approve / export.
+- Chelth does not pay, send or collect (product truth intact).
+- Pilot blockers: none in code. The retention decision (section 15) and
+  P3-8 are pending.
+
+
+15. DATA RETENTION / PRIVACY
+----------------------------
+  Data                         Current rule                    Classification
+  Raw coordinates / device     Per agency, default 90 days     implemented,
+  capture time                 (7–365), daily purge, legal     configurable;
+                               hold                            AWAITING LEGAL
+  Attendance results /         Kept with the attendance        implemented
+  evidence                     record (no coordinates after    (indefinite);
+  metadata                     purge)                          AWAITING POLICY
+  Credentials and versions     Kept (append-only)              implemented
+                                                               (indefinite);
+                                                               AWAITING POLICY
+  Credential documents         Kept; only rejected uploads     implemented
+                               deletable                       (indefinite);
+                                                               AWAITING POLICY
+  Audit events                 Kept (append-only)              undocumented
+                                                               period;
+                                                               AWAITING POLICY
+  Notification outbox          Kept; no purge                  technical gap
+                                                               (P2-2)
+  Financial exports and        Kept indefinitely               documented;
+  metadata                                                     AWAITING LEGAL
+                                                               (per
+                                                               jurisdiction)
+  Payroll / invoice            Kept                            AWAITING LEGAL
+  preparation records
+
+No legal retention period is asserted here.
+
+
+16. BACKUP / RECOVERY
+---------------------
+- Provider feature exists: Supabase daily backups (plan-dependent); PITR is
+  an add-on.
+- Chelth evidence: a procedure only (DATABASE_MIGRATION_POLICY §7–8:
+  backup point before production migrations; restore by PITR to a new
+  project; forward-only migrations; `migration repair`).
+- Restore tested by the Chelth team: NO.
+- Storage objects (credential documents): no backup or recovery plan.
+- Financial exports: stored in the database (covered by database backups
+  once verified).
+- Rollback: the application rolls back via Vercel; the schema is fix-forward
+  only.
+- Status: NOT CERTIFIED (P1-3).
+
+
+17. MONITORING / OBSERVABILITY
+------------------------------
+Exists:
+- a redacted structured logger;
+- onRequestError server error logging;
+- audit_events;
+- internal.scheduled_job_runs;
+- /operations delivery failures per tenant;
+- /api/health.
+
+Missing:
+- an error tracker; client error capture;
+- alerting on: notification failures, cron gaps, stuck scans, auth
+  anomalies, database errors, attendance clock failures;
+- uptime monitoring of /api/health;
+- log retention / search beyond Vercel defaults.
+
+Answer: NO. A pilot operator cannot discover problems before a customer
+reports them (P1-2).
+
+
+18. PILOT ONBOARDING
+--------------------
+  Step                                Support
+  Create agency                       UI-supported (any confirmed user;
+                                      5 a day)
+  Agency admin access / MFA           UI-supported (TOTP enrolment,
+                                      step-up)
+  Agency members and roles            UI-supported (invites; links shown
+                                      when email is disabled)
+  Agency facilities and locations     UI-supported
+  Facility geofence                   UI-supported (set_location_
+                                      geofence; radius / accuracy /
+                                      policy)
+  Disciplines per worker              UI-supported (set_agency_worker_
+                                      discipline)
+  Workers                             UI-supported, one at a time by
+                                      invitation; no import
+  Credential requirements             UI-supported (agency baseline and
+                                      facility requirements)
+  Rate cards / versions               UI-supported (create, draft,
+                                      activate, discard)
+  Facility ORGANISATION               MANUAL-ADMIN:
+                                      platform_create_organisation, AAL2
+                                      platform admin, no UI
+  Agency ↔ facility link              MANUAL-ADMIN:
+                                      platform_link_agency_facility, no UI
+  Facility users                      UI-supported after the organisation
+                                      exists (owner invite by email)
+  Classifications                     not a separate model (disciplines
+                                      and credential types are global
+                                      reference data, migration-seeded)
+  Email configuration                 MISSING on hosted (P0-2, P1-1)
+  Platform admin grant                SQL / manual (platform_admins row)
+                                      plus TOTP enrolment
+
+
+19. ROLE CERTIFICATION MATRIX
+-----------------------------
+Capabilities are read from the reset local database (role_capabilities).
+"Priv" means AAL2 is required.
+
+AGENCY ADMIN (agency.admin, owner)
+  Workflow:  full agency setup and operations, approvals, exports
+  Caps:      all agency capabilities (45), including the priv ones:
+             attendance.location.view, credential.review / verify,
+             membership / role / organisation, rates.manage,
+             payroll / invoice approve and export
+  Routes:    all agency routes, Finance, Settings
+  Never:     another agency's data; facility-internal data; worker pay
+             to facilities
+  Test:      AAL1 sees step-up only; AAL2 completes the golden path;
+             maker-checker blocks self-approval
+
+OPERATIONS MANAGER
+  Workflow:  shifts, assignments, attendance review, timesheet approval,
+             people
+  Caps:      assignment.*, attendance.review / view, shift.*,
+             timesheet.approve, worker.manage, membership.invite /
+             manage, role.assign, facility.manage; finance VIEW only
+             (invoice / payroll / pricing / rates.view)
+  Never:     payroll / invoice prepare / approve / export, raw location,
+             credential verify
+  Test:      Finance actions absent / 404; approves a timesheet;
+             evidence 404
+
+RECRUITER
+  Workflow:  invite and maintain workers
+  Caps:      worker.manage, worker.notes.*, membership.invite,
+             credential.view, compliance.view
+  Never:     shifts, attendance, timesheets, finance, documents
+             (credential.view gives no document access)
+  Test:      invites a worker; shifts / finance / attendance 404
+
+SCHEDULER
+  Workflow:  create shifts, assign / offer
+  Caps:      shift.*, assignment.*, attendance.view, timesheet.view,
+             compliance.view, worker.view, facility.view
+  Never:     approvals, finance, documents, raw location, member
+             management
+  Test:      creates and fills a shift; payroll 404 (QA4); approve
+             absent
+
+CREDENTIALING OFFICER
+  Workflow:  review and verify credentials, manage requirements
+  Caps:      credential.review / verify (priv), credential.requirements.*,
+             compliance.view, worker.view
+  Never:     shifts, attendance, finance
+  Test:      opens a clean document at AAL2 only; scanning / quarantined
+             unopenable; verifies
+
+FINANCE
+  Workflow:  rates, pricing, payroll / invoice preparation and export
+  Caps:      rates.manage, pricing.run, payroll.*, invoice.* (approve /
+             export priv), timesheet.view, facility.view
+  Never:     worker management, documents, raw location, attendance
+             review
+  Test:      prepares a batch; a second finance user approves;
+             self-approve refused; export checksum verified
+
+HEALTHCARE WORKER
+  Workflow:  My Shifts, clock, timesheets, credentials
+  Caps:      organisation.view (plus own-record self-service RPCs)
+  Never:     other workers, pay / bill rates, payroll, agency finance,
+             facility data, raw location of others
+  Test:      every agency route 404 (QA4); only own timesheet / credential
+
+FACILITY ADMIN (owner)
+  Workflow:  request staff, view attendance, sign off, members
+  Caps:      shift.request / view, attendance.view, credential.view
+             (readiness only), timesheet.facility_signoff, members /
+             roles (priv)
+  Never:     pay / bill / margin, documents, coordinates, agency internal
+             data
+  Test:      agency workforce / evidence / worker credential 404 (QA4);
+             signs off
+
+FACILITY SCHEDULER
+  Workflow:  request staff
+  Caps:      shift.request / view, attendance.view, credential.view
+  Never:     sign-off, member management, pay, documents
+  Test:      requests a shift; Sign-off absent
+
+FACILITY SUPERVISOR
+  Workflow:  sign off worked time
+  Caps:      timesheet.facility_signoff, attendance.view, shift.view
+  Never:     requests, members, pay, documents
+  Test:      signs off / raises a discrepancy; request creation absent
+
+Each role's tests exist in pgTAP 030 / 050 and the per-domain files, plus
+the integration and e2e suites. The pilot certification is to re-run these
+role journeys ON THE HOSTED STAGING ENVIRONMENT with real accounts.
+
+
+20. GOLDEN-PATH CERTIFICATION
+-----------------------------
+  Step                         Implementation           Automated tests       Manual / device         Blocker
+  Facility request             submit_facility_shift_   e2e facility-         hosted smoke            —
+                               request                  surfaces,
+                                                        integration
+  Agency creates / opens shift create_shift / open      e2e shifts,           hosted smoke            —
+                                                        pgTAP 110
+  Eligible worker              compliance engine,       pgTAP 100 / 120       —                       P0-1
+                               readiness                                                              (documents
+                                                                                                      never clean)
+  Offer / assignment           offer_shift_to_workers / pgTAP 120 / 150,      hosted smoke            P1-1
+                               assign                   e2e                                           (no email)
+  Worker accepts               accept RPC (live         e2e worker-mobile     real phone              —
+                               readiness re-check)
+  Credential readiness passes  engine                   pgTAP 100             —                       P0-1
+  Worker arrives / check in    clock_in + geofence      e2e attendance,       REAL DEVICE on site     P1-5
+                                                        pgTAP 170 / 200
+  Break                        break start / end        e2e, pgTAP            real phone             —
+  Check out                    clock_out (never         e2e, pgTAP            REAL DEVICE             P1-5
+                               blocked)
+  Attendance generated         refresh_attendance       pgTAP 170             —                       —
+  Timesheet derived            derivation               pgTAP 190,            —                       —
+                                                        integration
+  Worker submits               submit_timesheet         e2e Flow 1            real phone              —
+  Agency approves              approve_timesheet        e2e Flow 2            —                       —
+                               (revision)
+  Facility signs off           facility_decide_         e2e Flow 3            hosted smoke            —
+                               timesheet_entry
+  Pricing                      pricing engine           pgTAP 220,            hosted smoke            —
+                                                        integration, e2e
+  Payroll preparation          batches                  pgTAP 240, e2e        —                       —
+  Invoice draft                drafts                   pgTAP 240, e2e        —                       —
+  Export                       CSV / PDF + checksum     pgTAP 240,            hosted download check   —
+                                                        integration, e2e
+
+Locally the path is green end to end. In production it is broken at
+"eligible worker" (P0-1). It is not hosted-verified (P0-3).
+
+
+21. FAILURE-PATH CERTIFICATION
+------------------------------
+  Failure                    Behaviour                        Tests                   Remaining
+  Expired credential         EXPIRED_CREDENTIAL blocks;       pgTAP 100, e2e          —
+                             hourly scan plus live check
+  Outside geofence           block → CHT refusal;             pgTAP 170 / 200, e2e    device
+                             allow_with_review → exception
+  Poor GPS accuracy          low_accuracy → CHT14 retry or    pgTAP 200 (1 file)      device (Safari
+                             review exception                                         "Precise off")
+  Facility discrepancy       dispute → agency answer /        e2e, pgTAP 190          —
+                             revision
+  Missing rate               pricing blocked, notified once   pgTAP 220,              email (P1-1)
+                                                              integration
+  Overlapping assignment     refused                          6 test files            —
+  Cancelled shift            CHT06; notifications             13 test files           email (P1-1)
+  Rejected timesheet         returned → new revision          16 test files           —
+  Failed email               retry / backoff → failed,        pgTAP 140,              hosted + alerting
+                             audited, /operations             integration             (P1-1, P1-2)
+  Failed document scan       quarantined / rejected,          pgTAP 095, 2 files      no scanner (P0-1)
+                             unopenable
+  Unauthorized tenant        secure 404 / CH403               pgTAP all, QA4 probes   —
+  AAL1 privileged action     CH402 step-up                    53 files                —
+  Duplicate click / retry    server state guards              19 files                —
+                             (CHT09 / 11), idempotency keys,
+                             unique outbox, expected_revision
+
+
+22. CI / TEST RESULTS
+---------------------
+Run locally on HEAD b4de3b4 (all exit 0):
+- npm run format:check: pass
+- npm run lint: pass (0 warnings)
+- npm run typecheck: pass
+- npm test: 355 passed (30 files)
+- npm run build: pass
+- npm run check:bundle: OK (69 browser files, no secrets)
+- npm run check:migrations: OK (60 migrations)
+- supabase db reset: OK (local)
+- supabase db lint --level warning --fail-on warning: no schema errors
+- supabase test db: PASS, 27 files, 1,331 tests
+- npm run test:integration: 111 passed (14 files)
+- db:types drift (generator --stdout vs committed file; the file was not
+  rewritten): no drift
+- npx playwright test: 262 passed, 12 skipped, 0 failed (6.9 min). The
+  skips are existing desktop-only tests on the mobile project.
+
+Failures to classify: none.
+
+CI (.github/workflows/ci.yml) runs the same three gates on PR / push to
+main, against an ephemeral local stack. It never deploys and holds no
+production secrets (correct). It does not verify any hosted environment
+(see P0-3 / P1-7).
+
+
+23. GIT / DEPLOYMENT HYGIENE
+----------------------------
+- Branch p0-e8-visual-implementation, HEAD b4de3b4 (E8 closure), 1 ahead
+  of origin. The working tree is clean before and after the audit.
+- Last 5 commits: b4de3b4, f8b7f77, 8daf3ec, 18ad514, 8f5749d.
+- The E8 branch is not merged to main. Deployment is via the Vercel Git
+  integration on main (per CI comments), so E8 is not deployed.
+- Vercel: no vercel.json and no .vercel link (configuration lives in the
+  dashboard).
+- Supabase: config.toml is local-only. The CLI is linked to one hosted
+  project (name only read).
+- .env.example lists the required keys: public URL / anon key, LOG_LEVEL,
+  EMAIL_PROVIDER, RESEND_API_KEY / EMAIL_FROM, APP_BASE_URL,
+  NOTIFICATION_DISPATCH_SECRET, NOTIFICATION_WORKER_DATABASE_URL, and
+  SENTRY_DSN (reserved). Values were not read.
+- Secrets: none in the repository (bundle scan plus environment-schema
+  guard).
+
+
+24. RECOMMENDED REMEDIATION SEQUENCE
+------------------------------------
+1. E9-1 Hosted environment baseline (P0-3, P0-2, P1-7, P2-8):
+   - name staging and production;
+   - apply and record migrations;
+   - set and validate environment variables;
+   - custom SMTP plus the Auth templates, Site URL and redirects;
+   - read back Auth settings and bucket limits;
+   - verify the cron jobs.
+2. E9-2 Document scanning (P0-1): integrate a real scanner via a
+   privileged worker → record_document_scan_result. Add quarantine
+   handling, retry and alerting for stuck scans. Test with EICAR on
+   staging.
+3. E9-3 Notification go-live (P1-1, P2-2): Resend domain, Vault, notifier
+   role, banner compression, outbox retention, hosted smoke test of each
+   event family.
+4. E9-4 Observability and recovery (P1-2, P1-3, P1-8):
+   - error tracker (server and client) plus alerting;
+   - uptime check;
+   - scheduled_job_runs / outbox / scan alerts;
+   - PITR confirmation plus a rehearsed restore;
+   - a storage backup plan;
+   - incident and support runbook.
+5. E9-5 Pilot operations and legal (P1-4, P1-6, P2-1):
+   - privacy notice, terms and a support contact (after legal input);
+   - a platform-operator onboarding script or surface;
+   - an agency-creation policy.
+6. E9-6 Pilot certification (P1-5): the golden path and the role matrix
+   on hosted staging; real-device certification at the pilot facility;
+   geofence calibration; a go / no-go review.
+
+
+25. ESTIMATED NUMBER OF IMPLEMENTATION PHASES
+---------------------------------------------
+Six phases (E9-1 … E9-6). E9-1 and E9-3 are mostly configuration and
+verification. E9-2 is the largest engineering item. E9-5 depends on legal
+turnaround. E9-6 is certification, not build.
+
+
+26. EXPLICIT ITEMS REQUIRING REAL-DEVICE TESTING
+------------------------------------------------
+On at least one current iPhone (Safari) and one mid-range Android
+(Chrome), at the pilot facility:
+- the location permission prompt flow;
+- clock-in inside, outside and at the radius edge;
+- Precise Location OFF (iOS) / approximate location (Android) → low
+  accuracy;
+- indoor cold-fix timing against the 15-second timeout;
+- permission denied, then re-enabled;
+- airplane mode / dead zone at clock time;
+- break start / end; clock-out outside the geofence (must be recorded);
+- background / lock screen mid-action; reload after an action;
+- duplicate taps;
+- credential photo upload from the camera (jpeg / png / pdf, size limit);
+- opening own documents; home-screen install behaviour;
+- small-screen layout at 375 px;
+- calibrating radius_meters / max_accuracy_meters per site from observed
+  accuracy.
+
+
+27. EXPLICIT ITEMS REQUIRING PRODUCTION / HOSTED VERIFICATION
+-------------------------------------------------------------
+- Which hosted projects exist (staging, production); Vercel environments
+  mapped to them.
+- `supabase migration list` on each: all 60 applied, none pending or
+  out of order.
+- Environment validation passes on Vercel production (fail-fast start).
+- Auth: custom SMTP; the confirmation / recovery / email-change templates
+  (token_hash links); Site URL; redirect allow-list; email confirmations
+  ON; password policy; TOTP enabled; rate limits; leaked-password
+  protection.
+- Storage: credential-documents is private, 10 MiB, pdf / jpeg / png.
+- Extensions: pg_cron, pg_net, Vault. All 6 cron jobs scheduled and
+  succeeding (scheduled_job_runs).
+- Notifications: Vault URL and secret, the chelth_notifier role,
+  NOTIFICATION_* variables, Resend domain (SPF / DKIM / DMARC); one email
+  per event family delivered.
+- Scanner: clean, EICAR → quarantined, a failure → stays scanning plus an
+  alert.
+- Backups: PITR enabled with a known window; a restore rehearsal to a
+  scratch project.
+- Monitoring: a test error appears in the tracker; an alert fires.
+- The golden path and every role journey run on staging with real
+  mailboxes.
+
+
+28. EXPLICIT LEGAL / BUSINESS-POLICY DECISIONS
+----------------------------------------------
+- The privacy notice and terms of use (workers, agency users, facility
+  users) for the pilot jurisdiction(s).
+- A lawful basis / consent and notice wording for clock-time location
+  capture.
+- Retention periods:
+  - raw coordinates (the 90-day engineering default needs approval);
+  - attendance records; credentials and documents; audit logs;
+  - notification records; financial exports and preparation records
+    (per jurisdiction).
+- Data processing agreement(s) with the pilot agency and facility (Chelth
+  as processor or controller), and the sub-processor list (Supabase,
+  Vercel, Resend, scanner provider, error tracker).
+- Data residency / hosting region acceptable to the pilot customers.
+- Whether self-service agency creation is open during the pilot (P2-1).
+- The incident / breach notification commitments and support hours
+  (SLA) for the pilot.
+- The choice of malware-scanning provider (data leaves to a processor?)
+  and of error-tracker data handling.
+
+
+29. FINAL RECOMMENDATION
+------------------------
+NOT READY FOR PILOT.
+
+The application core is secure and functionally complete. Three P0
+blockers stop real use:
+- no production document scanner, so no worker can become eligible;
+- unverified auth email delivery, so real users may not be able to
+  confirm or recover accounts;
+- no verified hosted environment or smoke test.
+
+The P1 items (notifications, monitoring, backup / restore, legal notices,
+device certification, platform tooling, release discipline, support)
+must follow before external use.
+
+With E9-1 to E9-3 complete, an INTERNAL pilot (Chelth team acting as
+agency, facility and workers on staging) becomes possible. With E9-1 to
+E9-6 complete, Chelth is expected to reach READY FOR CONTROLLED EXTERNAL
+PILOT.
+
+STATUS: P0-E9 PILOT READINESS AUDIT COMPLETE. READ-ONLY. AWAITING HUMAN DECISION.

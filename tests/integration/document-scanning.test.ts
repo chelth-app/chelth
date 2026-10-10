@@ -100,6 +100,21 @@ async function queueOf(documentId: string) {
   return rows[0];
 }
 
+/**
+ * Keeps only this test's documents due, so a batch is deterministic even when
+ * other local runs (E2E) left pending scans behind (the scanner claims the
+ * oldest due rows first).
+ */
+async function onlyDue(documentIds: string[]) {
+  await ownerQuery(
+    (sql) => sql`update internal.document_scan_queue
+                 set next_attempt_at = case when document_id = any(${documentIds}::uuid[])
+                                            then now() - interval '1 second'
+                                            else now() + interval '1 day' end
+                 where state = 'pending'`,
+  );
+}
+
 describe("credential document malware scanning (P0-E9-2)", () => {
   let scannerIdentity: TestIdentity;
   let worker: TestIdentity;
@@ -130,6 +145,7 @@ describe("credential document malware scanning (P0-E9-2)", () => {
       await upload(worker, versionId, PNG, "image/png"),
     ];
     for (const id of ids) expect(await statusOf(id)).toBe("scanning");
+    await onlyDue(ids);
 
     const scanStore = await store();
     try {
@@ -158,6 +174,7 @@ describe("credential document malware scanning (P0-E9-2)", () => {
     const eicar = await upload(worker, second, EICAR_PDF, "application/pdf");
     const corrupt = await upload(worker, second, CORRUPT_PDF, "application/pdf");
     const mismatched = await upload(worker, second, PDF, "application/pdf", "c".repeat(64));
+    await onlyDue([eicar, corrupt, mismatched]);
 
     const scanStore = await store();
     try {
@@ -181,6 +198,7 @@ describe("credential document malware scanning (P0-E9-2)", () => {
   it("retries a transient provider failure without changing trust state", async () => {
     const third = await draftVersion(worker);
     const flaky = await upload(worker, third, FLAKY_PDF, "application/pdf");
+    await onlyDue([flaky]);
     const scanStore = await store();
     try {
       const result = await runDocumentScans({

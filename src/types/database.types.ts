@@ -75,6 +75,7 @@ export type Database = {
           address_line2: string | null
           agency_organisation_id: string
           agency_organisation_type: Database["public"]["Enums"]["organisation_type"]
+          arrival_instructions: string | null
           country_code: string | null
           created_at: string
           created_by_profile_id: string | null
@@ -82,24 +83,30 @@ export type Database = {
           external_reference: string | null
           facility_type_key: string
           id: string
+          image_path: string | null
+          image_updated_at: string | null
           linked_facility_organisation_id: string | null
           linked_facility_organisation_type:
             | Database["public"]["Enums"]["organisation_type"]
             | null
           locality: string | null
           name: string
+          parking_instructions: string | null
           phone: string | null
           postal_code: string | null
           region: string | null
           status: Database["public"]["Enums"]["facility_status"]
           timezone: string
           updated_at: string
+          worker_contact_label: string | null
+          worker_contact_phone: string | null
         }
         Insert: {
           address_line1?: string | null
           address_line2?: string | null
           agency_organisation_id: string
           agency_organisation_type?: Database["public"]["Enums"]["organisation_type"]
+          arrival_instructions?: string | null
           country_code?: string | null
           created_at?: string
           created_by_profile_id?: string | null
@@ -107,24 +114,30 @@ export type Database = {
           external_reference?: string | null
           facility_type_key: string
           id?: string
+          image_path?: string | null
+          image_updated_at?: string | null
           linked_facility_organisation_id?: string | null
           linked_facility_organisation_type?:
             | Database["public"]["Enums"]["organisation_type"]
             | null
           locality?: string | null
           name: string
+          parking_instructions?: string | null
           phone?: string | null
           postal_code?: string | null
           region?: string | null
           status?: Database["public"]["Enums"]["facility_status"]
           timezone: string
           updated_at?: string
+          worker_contact_label?: string | null
+          worker_contact_phone?: string | null
         }
         Update: {
           address_line1?: string | null
           address_line2?: string | null
           agency_organisation_id?: string
           agency_organisation_type?: Database["public"]["Enums"]["organisation_type"]
+          arrival_instructions?: string | null
           country_code?: string | null
           created_at?: string
           created_by_profile_id?: string | null
@@ -132,18 +145,23 @@ export type Database = {
           external_reference?: string | null
           facility_type_key?: string
           id?: string
+          image_path?: string | null
+          image_updated_at?: string | null
           linked_facility_organisation_id?: string | null
           linked_facility_organisation_type?:
             | Database["public"]["Enums"]["organisation_type"]
             | null
           locality?: string | null
           name?: string
+          parking_instructions?: string | null
           phone?: string | null
           postal_code?: string | null
           region?: string | null
           status?: Database["public"]["Enums"]["facility_status"]
           timezone?: string
           updated_at?: string
+          worker_contact_label?: string | null
+          worker_contact_phone?: string | null
         }
         Relationships: [
           {
@@ -1182,6 +1200,85 @@ export type Database = {
           key?: string
         }
         Relationships: []
+      }
+      conversation_threads: {
+        Row: {
+          agency_organisation_id: string
+          agency_worker_id: string | null
+          created_at: string
+          created_by_profile_id: string | null
+          id: string
+          kind: Database["public"]["Enums"]["conversation_kind"]
+          last_message_at: string | null
+          relationship_id: string | null
+          shift_id: string | null
+          worker_profile_id: string | null
+        }
+        Insert: {
+          agency_organisation_id: string
+          agency_worker_id?: string | null
+          created_at?: string
+          created_by_profile_id?: string | null
+          id?: string
+          kind: Database["public"]["Enums"]["conversation_kind"]
+          last_message_at?: string | null
+          relationship_id?: string | null
+          shift_id?: string | null
+          worker_profile_id?: string | null
+        }
+        Update: {
+          agency_organisation_id?: string
+          agency_worker_id?: string | null
+          created_at?: string
+          created_by_profile_id?: string | null
+          id?: string
+          kind?: Database["public"]["Enums"]["conversation_kind"]
+          last_message_at?: string | null
+          relationship_id?: string | null
+          shift_id?: string | null
+          worker_profile_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_threads_agency_organisation_id_fkey"
+            columns: ["agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_threads_agency_worker_id_agency_organisation__fkey"
+            columns: [
+              "agency_worker_id",
+              "agency_organisation_id",
+              "worker_profile_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "agency_workers"
+            referencedColumns: ["id", "agency_organisation_id", "profile_id"]
+          },
+          {
+            foreignKeyName: "conversation_threads_created_by_profile_id_fkey"
+            columns: ["created_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_threads_relationship_id_agency_organisation_i_fkey"
+            columns: ["relationship_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "agency_facility_relationships"
+            referencedColumns: ["id", "agency_organisation_id"]
+          },
+          {
+            foreignKeyName: "conversation_threads_shift_id_agency_organisation_id_fkey"
+            columns: ["shift_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "shifts"
+            referencedColumns: ["id", "agency_organisation_id"]
+          },
+        ]
       }
       credential_documents: {
         Row: {
@@ -3164,6 +3261,83 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "roles"
             referencedColumns: ["key", "organisation_type"]
+          },
+        ]
+      }
+      message_receipts: {
+        Row: {
+          last_read_at: string
+          last_read_message_id: string | null
+          profile_id: string
+          thread_id: string
+        }
+        Insert: {
+          last_read_at: string
+          last_read_message_id?: string | null
+          profile_id: string
+          thread_id: string
+        }
+        Update: {
+          last_read_at?: string
+          last_read_message_id?: string | null
+          profile_id?: string
+          thread_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_receipts_last_read_message_id_fkey"
+            columns: ["last_read_message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_receipts_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "conversation_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messages: {
+        Row: {
+          agency_organisation_id: string
+          body: string
+          client_key: string
+          created_at: string
+          id: string
+          sender_profile_id: string
+          sender_side: Database["public"]["Enums"]["message_sender_side"]
+          thread_id: string
+        }
+        Insert: {
+          agency_organisation_id: string
+          body: string
+          client_key: string
+          created_at?: string
+          id?: string
+          sender_profile_id: string
+          sender_side: Database["public"]["Enums"]["message_sender_side"]
+          thread_id: string
+        }
+        Update: {
+          agency_organisation_id?: string
+          body?: string
+          client_key?: string
+          created_at?: string
+          id?: string
+          sender_profile_id?: string
+          sender_side?: Database["public"]["Enums"]["message_sender_side"]
+          thread_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "conversation_threads"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -5628,6 +5802,7 @@ export type Database = {
           status: Database["public"]["Enums"]["shift_status"]
           status_changed_at: string
           timezone: string
+          unit_label: string | null
           updated_at: string
         }
         Insert: {
@@ -5660,6 +5835,7 @@ export type Database = {
           status: Database["public"]["Enums"]["shift_status"]
           status_changed_at?: string
           timezone: string
+          unit_label?: string | null
           updated_at?: string
         }
         Update: {
@@ -5692,6 +5868,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["shift_status"]
           status_changed_at?: string
           timezone?: string
+          unit_label?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -6966,6 +7143,30 @@ export type Database = {
           worker_name: string
         }[]
       }
+      get_thread: {
+        Args: { p_thread_id: string }
+        Returns: {
+          agency_name: string
+          agency_organisation_id: string
+          can_send: boolean
+          discipline_name: string
+          end_at: string
+          facility_name: string
+          kind: Database["public"]["Enums"]["conversation_kind"]
+          last_message_at: string
+          last_message_preview: string
+          last_sender_side: Database["public"]["Enums"]["message_sender_side"]
+          my_assignment_id: string
+          shift_id: string
+          start_at: string
+          thread_id: string
+          timezone: string
+          unit_label: string
+          unread_count: number
+          viewer_side: Database["public"]["Enums"]["message_sender_side"]
+          worker_name: string
+        }[]
+      }
       get_timesheet: {
         Args: { p_timesheet_id: string }
         Returns: {
@@ -7521,20 +7722,34 @@ export type Database = {
         Args: { p_organisation_id: string }
         Returns: {
           accepted_at: string
+          address_line1: string
+          address_line2: string
+          agency_facility_id: string
+          arrival_instructions: string
           assigned_at: string
           assignment_id: string
           can_respond: boolean
           cancellation_reason: Database["public"]["Enums"]["assignment_cancellation_reason"]
+          country_code: string
           discipline_name: string
           end_at: string
           facility_name: string
+          image_path: string
           instructions: string
+          local_date: string
+          locality: string
           location_name: string
+          parking_instructions: string
+          postal_code: string
+          region: string
           shift_id: string
           shift_status: Database["public"]["Enums"]["shift_status"]
           start_at: string
           status: Database["public"]["Enums"]["assignment_status"]
           timezone: string
+          unit_label: string
+          worker_contact_label: string
+          worker_contact_phone: string
         }[]
       }
       list_my_shift_offers: {
@@ -7550,6 +7765,33 @@ export type Database = {
           start_at: string
           status: Database["public"]["Enums"]["shift_offer_status"]
           timezone: string
+        }[]
+      }
+      list_my_threads: {
+        Args: {
+          p_limit?: number
+          p_organisation_id: string
+          p_unread_only?: boolean
+        }
+        Returns: {
+          agency_name: string
+          agency_organisation_id: string
+          discipline_name: string
+          end_at: string
+          facility_name: string
+          kind: Database["public"]["Enums"]["conversation_kind"]
+          last_message_at: string
+          last_message_preview: string
+          last_sender_side: Database["public"]["Enums"]["message_sender_side"]
+          my_assignment_id: string
+          shift_id: string
+          start_at: string
+          thread_id: string
+          timezone: string
+          unit_label: string
+          unread_count: number
+          viewer_side: Database["public"]["Enums"]["message_sender_side"]
+          worker_name: string
         }[]
       }
       list_my_timesheets: {
@@ -7915,6 +8157,22 @@ export type Database = {
           worker_status: Database["public"]["Enums"]["worker_status"]
         }[]
       }
+      list_thread_messages: {
+        Args: {
+          p_before_at?: string
+          p_before_id?: string
+          p_limit?: number
+          p_thread_id: string
+        }
+        Returns: {
+          body: string
+          created_at: string
+          is_mine: boolean
+          message_id: string
+          sender_label: string
+          sender_side: Database["public"]["Enums"]["message_sender_side"]
+        }[]
+      }
       list_timesheet_entries: {
         Args: { p_timesheet_id: string }
         Returns: {
@@ -7968,6 +8226,7 @@ export type Database = {
         Returns: undefined
       }
       lock_payroll_batch: { Args: { p_batch_id: string }; Returns: undefined }
+      mark_thread_read: { Args: { p_thread_id: string }; Returns: undefined }
       my_capabilities: {
         Args: { p_organisation_id: string }
         Returns: {
@@ -7989,7 +8248,15 @@ export type Database = {
           reason: string
         }[]
       }
+      open_facility_thread: {
+        Args: { p_relationship_id: string; p_shift_id?: string }
+        Returns: string
+      }
       open_shift: { Args: { p_shift_id: string }; Returns: undefined }
+      open_worker_thread: {
+        Args: { p_agency_worker_id: string; p_shift_id?: string }
+        Returns: string
+      }
       place_location_evidence_hold: {
         Args: { p_attendance_id: string; p_reason: string }
         Returns: string
@@ -8181,6 +8448,14 @@ export type Database = {
         Args: { p_share_id: string }
         Returns: undefined
       }
+      send_message: {
+        Args: { p_body: string; p_client_key: string; p_thread_id: string }
+        Returns: {
+          created_at: string
+          duplicate: boolean
+          message_id: string
+        }[]
+      }
       set_agency_attendance_settings: {
         Args: {
           p_clock_out_cutoff_minutes: number
@@ -8230,6 +8505,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_facility_image: {
+        Args: { p_facility_id: string; p_image_path?: string }
+        Returns: string
+      }
       set_facility_relationship_status: {
         Args: {
           p_relationship_id: string
@@ -8278,6 +8557,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_shift_unit: {
+        Args: { p_shift_id: string; p_unit_label: string }
+        Returns: undefined
+      }
       share_credential: {
         Args: { p_agency_organisation_id: string; p_credential_id: string }
         Returns: string
@@ -8319,6 +8602,10 @@ export type Database = {
           outcome: string
         }[]
       }
+      unread_message_count: {
+        Args: { p_organisation_id: string }
+        Returns: number
+      }
       update_agency_facility: {
         Args: {
           p_address_line1?: string
@@ -8349,6 +8636,16 @@ export type Database = {
           p_must_be_verified: boolean
           p_requirement_id: string
           p_status: Database["public"]["Enums"]["requirement_status"]
+        }
+        Returns: undefined
+      }
+      update_facility_worker_context: {
+        Args: {
+          p_arrival_instructions: string
+          p_facility_id: string
+          p_parking_instructions: string
+          p_worker_contact_label: string
+          p_worker_contact_phone: string
         }
         Returns: undefined
       }
@@ -8517,6 +8814,7 @@ export type Database = {
         | "DISCIPLINE_NOT_SET"
       compliance_severity: "ok" | "warning" | "blocking"
       compliance_share_status: "active" | "revoked"
+      conversation_kind: "worker" | "facility"
       credential_category:
         | "professional_license"
         | "certification"
@@ -8557,6 +8855,7 @@ export type Database = {
       jurisdiction_level: "country" | "subdivision"
       location_evidence_state: "retained" | "purged" | "on_hold"
       membership_status: "active" | "suspended" | "revoked"
+      message_sender_side: "worker" | "agency" | "facility"
       organisation_status: "active" | "suspended" | "archived"
       organisation_type: "agency" | "facility"
       overtime_mode: "none" | "weekly_threshold"
@@ -8903,6 +9202,7 @@ export const Constants = {
       ],
       compliance_severity: ["ok", "warning", "blocking"],
       compliance_share_status: ["active", "revoked"],
+      conversation_kind: ["worker", "facility"],
       credential_category: [
         "professional_license",
         "certification",
@@ -8947,6 +9247,7 @@ export const Constants = {
       jurisdiction_level: ["country", "subdivision"],
       location_evidence_state: ["retained", "purged", "on_hold"],
       membership_status: ["active", "suspended", "revoked"],
+      message_sender_side: ["worker", "agency", "facility"],
       organisation_status: ["active", "suspended", "archived"],
       organisation_type: ["agency", "facility"],
       overtime_mode: ["none", "weekly_threshold"],

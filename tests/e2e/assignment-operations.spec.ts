@@ -226,7 +226,8 @@ test.describe.serial("assignment operations: offers, readiness, suspension", () 
       404,
     );
     await wendy.goto(`/app/organisations/${world.agencyId}/my-shifts`);
-    await expect(wendy.getByText("No shift offers right now.")).toBeVisible();
+    await expect(wendy.getByRole("heading", { level: 1, name: "My Shifts" })).toBeVisible();
+    await expect(wendy.getByRole("list", { name: "Shift offers" })).toHaveCount(0);
     await wendy.context().close();
 
     const facility = await signedIn(browser, world.facilityAdmin.email);

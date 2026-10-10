@@ -1,0 +1,280 @@
+P0-E9-3D-S2 — SHIFT CONTEXT ENRICHMENT
+======================================
+CHELTH — Healthcare Workforce Operations
+
+Branch: p0-e8-visual-implementation (uncommitted)
+Basis:  docs/reports/P0-E9-3D-S1-data-architecture-audit.txt (decisions D1–D4,
+        proposal M1)
+Production: nothing deployed; the migration is local only.
+
+
+1. MIGRATION (local only)
+-------------------------
+supabase/migrations/20261010100000_shift_context.sql. All changes are
+nullable or additive.
+
+agency_facilities, new columns:
+- parking_instructions, arrival_instructions: ≤ 500 characters, newlines
+  allowed.
+- worker_contact_label: 2–80 characters; a role or desk.
+- worker_contact_phone: business phone format. The label and phone are set
+  together or not at all.
+- image_path: bucket-relative; it must sit under its own agency / facility
+  prefix.
+- image_updated_at.
+
+shifts:
+- unit_label: optional, 1–80 characters.
+
+Storage bucket facility-images: private, 2 MB, JPEG / PNG only.
+- read: agency facility.view, or a worker with an active assignment there,
+  and only for the facility's current image;
+- upload / delete: agency facility.manage at AAL2, inside that facility's
+  prefix;
+- no update path.
+
+Helpers:
+- authz.has_active_assignment_at_facility;
+- authz.can_read_facility_image;
+- authz.can_write_facility_image;
+- internal.facility_image_owner.
+
+RPCs:
+- update_facility_worker_context (facility.manage, AAL2; the audit lists
+  which fields changed, never their values);
+- set_facility_image (facility.manage; the image must already exist in
+  storage under that facility's prefix; returns the previous path for
+  removal; audited);
+- set_shift_unit (shift.manage; no-op when unchanged; audited).
+
+list_my_shift_assignments was replaced: same name and argument, with extra
+columns.
+- New columns: agency_facility_id, local_date (facility-local), unit_label,
+  the address (the location's own address when it has one, otherwise the
+  facility's), parking / arrival guidance, worker contact, image_path.
+- The context is returned ONLY while the assignment is active (assigned /
+  accepted on an open shift) — the existing instructions rule.
+- Site phone, site e-mail and internal notes are never returned.
+
+Validation:
+- db reset: OK.
+- db lint (public, authz, internal): no errors.
+- pgTAP: 1,436 → 1,464 assertions, all pass. New:
+  supabase/tests/security/150_shift_context.test.sql (28 assertions):
+  - managers only, step-up required, cross-agency denied, the contact
+    pair;
+  - units: shift.manage only; worker and other agency get CHS04 (no
+    oracle);
+  - the worker projection with context; facility-local date; no site
+    contacts;
+  - another worker sees nothing; a declined assignment carries no context;
+  - image write / read policies, including the linked facility and other
+    agencies denied, and loss of read once the assignment is no longer
+    active.
+  - The security baseline allowlists and the projection field test were
+    updated.
+- db:types regenerated.
+
+
+2. TODAY / UPCOMING / PAST
+--------------------------
+src/lib/domain/shifts.ts shiftPeriod() (unit-tested in
+tests/unit/lib/shift-context.test.ts). It uses the facility's own
+calendar, with "now" from the server render:
+- today: starts on the facility's current local date, or is in progress
+  (a night shift that began yesterday);
+- upcoming: a later local date;
+- past: earlier and over.
+Example: 23:30 in New York on the 10th is "today" there, even though it is
+the 11th in UTC.
+
+My Shifts (canonical screen 1):
+- The segmented control (nav "Shift period", aria-current).
+- Today shows today's shifts as full cards. With none, it shows the "Next
+  Shift" card, then up to three "Upcoming Shifts" rows with "View all".
+- Upcoming shows every future shift as a card. Past shows compact rows.
+- Offers stay at the top of Today and Upcoming.
+- Accept / Decline remain on the card while the worker can respond.
+
+
+3. FACILITY IMAGE
+-----------------
+Agency: Facility record → new "For workers" panel (requires facility.manage
+and AAL2):
+- the upload is a one-time signed upload;
+- the server downloads and verifies size (≤ 2 MB) and the JPEG / PNG
+  signature, then attaches the image. Bytes that fail are removed and
+  refused ("not a JPG or PNG");
+- replacing an image removes the old object; "Remove photo" clears it.
+
+Worker:
+- a short-lived (1 h) signed URL per render, only for facilities with an
+  active assignment;
+- shown on the card thumbnail and the Shift Details hero;
+- the service worker never caches it (cross-origin).
+
+Fallback: the approved Chelth facility artwork (the W1 luminous tile
+language). It is also used when an image cannot be shown. No generated or
+stock photos.
+
+Accepted risk (S1 D4): facility images are not malware-scanned. They are
+staff-uploaded at AAL2, signature-verified, and only ever rendered as
+<img>.
+
+
+4. FACILITY ADDRESS
+-------------------
+Shift Details shows the street, then "City, Region Postcode", with a pin.
+It is the location's own address when one is recorded, otherwise the
+facility's. No field is duplicated.
+
+
+5. DIRECTIONS
+-------------
+"Get directions" is a destination-only deep link:
+- Apple devices: maps.apple.com/?daddr=…;
+- everything else: Google Maps dir/?api=1&destination=… (the native app on
+  Android when installed, the browser otherwise).
+
+Only the facility address is sent. Asserted: no worker name, unit, contact
+or ids in the link.
+
+
+6. UNIT / DEPARTMENT
+--------------------
+- The agency shift "Manage shift" form has an optional "Unit / department"
+  field (set_shift_unit), shown in the shift Details.
+- Workers see it on the card and in Shift Details when present.
+
+
+7. PARKING / ARRIVAL
+--------------------
+- Facility defaults: Parking, and Arrival and check-in.
+- The existing shift instructions are the per-shift override. On Shift
+  Details they are shown together in an "Arrival" card as "Parking",
+  "Arrival and check-in" and "For this shift".
+
+
+8. WORKER-FACING CONTACT
+------------------------
+- An opt-in role / desk label plus a business phone (S1 D1). No personal
+  contact names, consistent with the facility domain invariant.
+- Shown as "Facility contact · <label> · <phone>" with a tel: Call button
+  (accessible name "Call <label>"), and again under "Need help?".
+- The site's business phone and e-mail are NOT shown (asserted).
+
+
+9. REQUIREMENTS
+---------------
+- The existing engine is read through getReadiness(worker, facility):
+  evaluate_worker_compliance and worker_readiness, which already allow a
+  worker their own record.
+- Each requirement shows the credential name, "Valid until <date>" or the
+  engine's reason, with a chip for issues.
+- "Update my credentials" appears when anything needs action.
+- Nothing is recomputed on the client.
+
+
+10. SHIFT DETAILS (canonical screen 2)
+--------------------------------------
+New route: /app/organisations/<id>/my-shifts/<assignmentId>. It replaces
+the drawer, matching the canonical separate screen.
+
+Content, in order:
+- back "My Shifts";
+- facility hero image (or artwork);
+- facility name (h1) and address;
+- status chip;
+- the date / time block with the length ("(8 hours)");
+- facts: Role, Unit, Location, Facility contact with Call;
+- Get directions;
+- Arrival;
+- Requirements;
+- Need help? (Call contact, Get directions);
+- Accept / Decline when the worker can respond;
+- the attendance section.
+
+Only real data is shown:
+- a past shift shows its record, not live context (no address, contact,
+  guidance or requirements);
+- an inactive assignment receives no context from the server.
+
+
+11. CHECK-IN CONTEXT AND CHECKED-IN STATE (canonical screen 3)
+--------------------------------------------------------------
+Attendance section, using the unchanged ClockControl / BreakControl logic:
+- Not started: "Check In", with context (facility · date · time · role ·
+  unit), then the canonical location verification panel. Nothing is
+  claimed before the server confirms.
+- Clocked in: "Checked in successfully — today at <server time>".
+  - A "Current Shift" row (scheduled time, role, unit) with a "Checked In"
+    chip.
+  - Then Clock out, Start break, and "You can check out when your shift is
+    complete."
+- On a break: the existing panel and End break.
+- There are no pay or earnings figures.
+
+
+12. TIMESHEET HANDOFF (canonical screen 4)
+------------------------------------------
+After clock-out: "Worked Time", with a "From check in / out" chip and a
+summary of:
+- Check In and Check Out (server times, "Recorded" unless under review);
+- Total Hours;
+- Break (unpaid, attendance-derived);
+- Worked Hours.
+
+Then:
+- the week, with its real timesheet status;
+- "Review and submit timesheet" (when the week can be submitted) or "View
+  timesheet";
+- "Your timesheet is sent to your agency for review and approval."
+
+Notes are omitted: not supported (no column, weekly submission).
+
+
+13. TESTS
+---------
+- Unit: shiftPeriod (facility-local boundaries), length, address and
+  destination formatting (6 tests). Total unit tests: 406.
+- pgTAP: 150_shift_context (28).
+- E2E: new tests/e2e/worker-shift-context.spec.ts (5 tests × 2 projects):
+  - the fallback artwork with no context;
+  - the agency sets guidance (pair validation), the contact, a photo
+    (non-image content refused) and a unit;
+  - the worker: Today card with photo and unit; Shift Details with
+    address, unit, contact with tel:, destination-only directions,
+    arrival, requirements; no site contacts;
+  - Upcoming / Past tabs, and no live context on past shifts;
+  - an unassigned worker gets none of it;
+  - Shift Details at 360–1280 stays a centred column, no overflow.
+- Updated specs (attendance now lives on Shift Details): attendance,
+  timesheets, worker-mobile, assignment-operations, shifts-assignments. A
+  shared helper openShiftAttendance() is in tests/e2e/support.ts.
+- Targeted run (9 worker / attendance / timesheet / facility specs, both
+  projects): 114 passed, 0 failed.
+
+
+14. SECURITY CONFIRMATION
+-------------------------
+- No RLS weakened.
+- Context is exposed only through the worker's own projection while
+  active.
+- Images: bucket policies plus server signature checks.
+- No private contact is exposed (the site phone / e-mail are withheld; the
+  worker contact is explicit and opt-in).
+- Directions send the destination only.
+- No service role.
+
+
+15. GAPS
+--------
+- Facility users' projection does not yet show the unit (not required).
+- Offers do not show the address or contact before acceptance (the existing
+  narrow offer projection is kept).
+- A broken image whose error fires before hydration may show the browser
+  placeholder; the server-side signature check makes this unlikely.
+
+STATUS:
+SHIFT CONTEXT ENRICHMENT COMPLETE.
+READY FOR S3.

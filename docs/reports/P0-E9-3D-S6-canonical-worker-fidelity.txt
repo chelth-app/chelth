@@ -1,0 +1,135 @@
+P0-E9-3D-S6 — CANONICAL WORKER FIDELITY
+=======================================
+CHELTH — Healthcare Workforce Operations
+
+Branch: p0-e8-visual-implementation (uncommitted)
+
+Reference (the hard acceptance reference):
+docs/ui-reference/p08-e8/canonical/Chelth_Worker mobile Flow/
+assets/chelth-worker-mobile-flow-locked.png, with LOCKED-DESIGN-SPEC.md,
+WORKER-MOBILE-INTERACTIONS.md, ATTENDANCE-GEOFENCE-FLOW.md and
+CLAUDE-IMPLEMENTATION.md.
+
+Method:
+- tests/e2e/worker-fidelity.spec.ts walks every worker screen at 390 × 844
+  (Pixel 7 project), with real data: a facility with an address, guidance,
+  a contact and a unit; an in-progress shift; a verified BLS credential; a
+  second agency.
+- It checks the app-shell invariants (header ≤ 72 px, the bottom
+  navigation pinned to the bottom edge, one h1, no overflow) and saves
+  temporary captures, outside the repository and never committed.
+- Each capture was compared with the reference image by eye. The
+  comparison was not approved on colours or tokens alone.
+
+
+1. VIEWS REVIEWED (12)
+----------------------
+   1  My Shifts             Today / Upcoming / Past segmented control,
+                            "Today" card (facility tile, name, place, status
+                            chip, date / time / role / unit rows, full-width
+                            "View Shift Details"), "Upcoming Shifts" rows
+                            with chevrons and "View all".
+   2  Shift Details         back "My Shifts", facility hero, name, pinned
+                            address, status, date block with length, facts
+                            card (Role, Unit, Location, Facility contact with
+                            round call button), Get directions card, Arrival
+                            card, Requirements with ticks, then the primary
+                            attendance action, then "Need help?".
+   3  Check In              "Check In" card: state chip, the context line
+                            (facility · date · time · role · unit), the
+                            full-width teal "Check In" with pin. On
+                            location sites, the canonical "Verify your
+                            location" panel.
+   4  Checked In / Out      "Checked in successfully — today at <time>"
+                            success panel, the "Current Shift" row with a
+                            "Checked In" chip, the coral outlined "Check Out"
+                            with exit glyph, "Start break", and "You can check
+                            out when your shift is complete."
+   5  Timesheet handoff     "Worked Time" with a "From check in / out" chip;
+                            Check In / Check Out / Total Hours /
+                            Break (unpaid) / Worked Hours rows; week status;
+                            the full-width primary timesheet action; the
+                            "sent to your agency for review and approval"
+                            footnote.
+   6  Messages              All / Unread segmented control; thread cards
+                            (agency, context, preview, time, unread pill).
+   7  Message thread        back, agency title, context card (tap → Shift
+                            Details), bubbles, sticky composer above the
+                            bottom navigation.
+   8  My Credentials        primary "+ Add credential", readiness card,
+                            credential cards with state and sharing chips.
+   9  Add Credential        step indicator (Details → Evidence → Review),
+                            single-column 48 px fields, share consent card,
+                            "Save and continue".
+  10  Credential detail     state + expiry header; Evidence, Sharing, Review,
+                            Renew cards; collapsed History; danger zone.
+  11  More                  bottom sheet: identity, agency context, Messages
+                            (unread), Account, Security, Switch agency, All
+                            agencies, Sign out.
+  12  Agency chooser        "Choose an agency" cards (E9-3B).
+
+
+2. DIFFERENCES FOUND AND CORRECTED IN S6
+----------------------------------------
+- Shift Details order: "Need help?" came between Requirements and Check In,
+  and Accept / Decline came last. Changed to the reference order: the
+  primary decision (Accept / Decline) and the attendance action now follow
+  Requirements directly; "Need help?" is last.
+- Checked-in row: the "Current Shift" text was squeezed beside the
+  "Checked In" chip into four lines. The chip now sits beside the title,
+  with time and role · unit on their own lines.
+- The "Worked Time" heading broke over two lines beside two chips. The
+  chips now sit beneath the heading.
+- Action wording: the buttons said "Clock in / Clock out"; the reference
+  says "Check In / Check Out". The visible label and accessible name now
+  read "Check In at <facility>" / "Check Out at <facility>". Behaviour is
+  unchanged; 14 test references were updated.
+- (S2) Facility imagery: a hero and thumbnails, with the approved artwork
+  as fallback, and a fallback when an image cannot be shown.
+
+
+3. SILHOUETTE / TYPOGRAPHY / RHYTHM (assessed)
+----------------------------------------------
+- Silhouette: header 64 px (logo mark, agency, "Worker · name", initials);
+  the content is a single phone column; the bottom navigation is 64 px with
+  a teal current item and top rule. It matches the reference frame.
+- Typography: navy Manrope headings (page h1 28 px on phones, cards
+  16–20 px / 600), Inter body 13–15 px, slate secondary text, as in the
+  reference.
+- Tabs: a white rounded container with a mint active segment, like the
+  reference's Today / Upcoming / Past.
+- Cards: white, 14 px radius, teal hairline, soft navy depth; icon-led fact
+  rows with teal line icons.
+- CTAs: full-width 48 px deep-teal gradient primaries; outlined
+  secondaries; a coral outline for Check Out (the reference's red outline).
+- State density: one chip per state, semantic panels (success, info,
+  warning) only for real states.
+
+It reads as a dedicated mobile application, not a responsive admin site:
+- no sidebar or table at any width;
+- the column stays ≤ 576 px and centred at 768 / 1280 (S7 responsive
+  tests).
+
+
+4. HONEST DIFFERENCES THAT REMAIN (product truth)
+-------------------------------------------------
+- Facility photos appear only when the agency uploads one; otherwise the
+  approved artwork is shown. No stock or generated photos.
+- No map thumbnail: there is no map tile provider. The "Get directions"
+  card opens the device's map app (destination only).
+- No notification bell or profile photo: there is no notification centre or
+  photo model. Unread attention lives in More and Messages.
+- No "Home" tab: My Shifts is home; More holds Messages and account items.
+- No pre-action "Within facility radius" ticks: the server decides at the
+  action. The outcome is shown afterwards ("never claim before server
+  confirmation").
+- No break dropdown or notes on the handoff: break time is derived from
+  attendance; timesheet notes are not supported and submission is weekly.
+  The handoff links to the weekly timesheet.
+- Facility contact: a role / desk label, never a personal name (domain
+  invariant).
+
+
+STATUS:
+CANONICAL WORKER FIDELITY COMPLETE.
+READY FOR S7.

@@ -88,6 +88,8 @@ describe("invitation → membership → role lifecycle", () => {
       "compliance.view",
       "facility.view",
       "membership.view",
+      "message.send",
+      "message.view",
       "organisation.view",
       "relationship.view",
       "shift.create",

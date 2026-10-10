@@ -16,7 +16,13 @@ import {
   createStaffingWorld,
   type StaffingWorld,
 } from "./staffing-fixture";
-import { expectNoPageOverflow, qaScreenshot, signIn, SIGNED_IN_LANDING } from "./support";
+import {
+  expectNoPageOverflow,
+  openShiftAttendance,
+  qaScreenshot,
+  SIGNED_IN_LANDING,
+  signIn,
+} from "./support";
 
 const A11Y_TAGS = ["wcag2a", "wcag2aa", "wcag22aa"];
 const AFTER_ACTION = { timeout: 20_000 };
@@ -359,8 +365,7 @@ test.describe.serial("timesheets & attendance review", () => {
     browser,
   }) => {
     const cy = await signedIn(browser, person("cy").email);
-    await cy.goto(`/app/organisations/${world.agencyId}/my-shifts`);
-    const card = cy.getByRole("list", { name: "My attendance" }).getByRole("listitem").first();
+    const card = await openShiftAttendance(cy, world.agencyId);
     await card.getByText("Request a time correction").click();
     await card.getByRole("combobox", { name: "Which time?" }).selectOption("clock_out");
     await card
@@ -434,18 +439,17 @@ test.describe.serial("timesheets & attendance review", () => {
     if (accepted.error) throw accepted.error;
 
     const bo = await signedIn(browser, person("bo").email);
-    await bo.goto(`/app/organisations/${world.agencyId}/my-shifts`);
-    const card = bo.getByRole("list", { name: "My attendance" }).getByRole("listitem").first();
-    await bo.getByRole("button", { name: "Clock in at Mercy Rehab" }).click();
+    const card = await openShiftAttendance(bo, world.agencyId);
+    await bo.getByRole("button", { name: "Check In at Mercy Rehab" }).click();
     await expect(card).toContainText(/Clocked in|Needs review/, AFTER_ACTION);
     await bo.getByRole("button", { name: "Start break at Mercy Rehab" }).click();
     await expect(bo.getByRole("button", { name: "End break at Mercy Rehab" })).toBeVisible(
       AFTER_ACTION,
     );
-    await expect(bo.getByRole("button", { name: "Clock out at Mercy Rehab" })).toHaveCount(0);
+    await expect(bo.getByRole("button", { name: "Check Out at Mercy Rehab" })).toHaveCount(0);
     await expectNoA11yViolations(bo);
     await bo.getByRole("button", { name: "End break at Mercy Rehab" }).click();
-    await bo.getByRole("button", { name: "Clock out at Mercy Rehab" }).click();
+    await bo.getByRole("button", { name: "Check Out at Mercy Rehab" }).click();
     await expect(card).toContainText("Worked", AFTER_ACTION);
 
     await bo.goto(

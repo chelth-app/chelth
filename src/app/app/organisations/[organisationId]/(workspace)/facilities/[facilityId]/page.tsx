@@ -26,6 +26,7 @@ import {
   createRelationshipAction,
   facilityIdSchema,
   FacilityForm,
+  FacilityImageUploader,
   FacilityStatusBadge,
   getFacility,
   listFacilityTypes,
@@ -33,8 +34,10 @@ import {
   listRelationships,
   listTimezones,
   RELATIONSHIP_TONE,
+  removeFacilityImageAction,
   setFacilityStatusAction,
   setRelationshipStatusAction,
+  WorkerContextForm,
 } from "@/features/facilities";
 import {
   loadOrganisationPage,
@@ -135,6 +138,7 @@ export default async function FacilityPage({
         label="Facility sections"
         tabs={[
           { label: "Details", href: "#details-heading" as Route, current: false },
+          { label: "For workers", href: "#worker-context-heading" as Route, current: false },
           { label: "Locations", href: "#locations-heading" as Route, current: false },
           ...(canManageGeofences && locations.length > 0
             ? [{ label: "Location checks", href: "#geofence-heading" as Route, current: false }]
@@ -184,6 +188,74 @@ export default async function FacilityPage({
             { label: "Your reference", value: facility.externalReference ?? "—" },
           ]}
         />
+      </Panel>
+
+      <Panel
+        titleId="worker-context-heading"
+        title={<>For workers</>}
+        description={
+          <p>
+            Shown to healthcare workers only while they hold an active assignment here: the photo,
+            parking, arrival guidance and contact.
+          </p>
+        }
+      >
+        <div className="flex flex-wrap items-start gap-4">
+          {facility.imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- short-lived signed URL
+            <img
+              src={facility.imageUrl}
+              alt={facility.name}
+              className="h-28 w-44 rounded-[10px] border border-[rgba(18,107,103,0.12)] object-cover"
+            />
+          ) : (
+            <RecordNote>No photo yet. Workers see the Chelth facility tile instead.</RecordNote>
+          )}
+          {canManageFacility ? (
+            <div className="flex flex-col gap-2">
+              <FacilityImageUploader
+                organisationId={organisationId}
+                facilityId={facility.id}
+                hasImage={Boolean(facility.imageUrl)}
+              />
+              {facility.imageUrl ? (
+                <div className="w-fit">
+                  <InlineActionForm
+                    action={removeFacilityImageAction}
+                    fields={{ organisationId, facilityId: facility.id }}
+                    label="Remove photo"
+                  />
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+        {canManageFacility ? (
+          <WorkerContextForm
+            organisationId={organisationId}
+            facilityId={facility.id}
+            values={{
+              parkingInstructions: facility.parkingInstructions ?? "",
+              arrivalInstructions: facility.arrivalInstructions ?? "",
+              workerContactLabel: facility.workerContactLabel ?? "",
+              workerContactPhone: facility.workerContactPhone ?? "",
+            }}
+          />
+        ) : (
+          <KeyValueList
+            className="max-w-2xl"
+            items={[
+              { label: "Parking", value: facility.parkingInstructions ?? "—" },
+              { label: "Arrival and check-in", value: facility.arrivalInstructions ?? "—" },
+              {
+                label: "Contact for workers",
+                value: facility.workerContactLabel
+                  ? `${facility.workerContactLabel} · ${facility.workerContactPhone}`
+                  : "—",
+              },
+            ]}
+          />
+        )}
       </Panel>
 
       <Panel titleId="locations-heading" title={<>Locations</>}>

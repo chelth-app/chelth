@@ -22,7 +22,8 @@ import type {
  *
  * Only existing routes are listed. There is deliberately no Reports,
  * Notifications, agency Credentials register or agency Staffing Requests
- * entry: those routes do not exist. Settings (P0-E8-S9H) is listed for every
+ * entry: those routes do not exist. Messages (P0-E9-3D-S5) is listed with
+ * message.view. Settings (P0-E8-S9H) is listed for every
  * workspace member: its Organization and Security sections apply to all, and
  * each other section applies its own capability gate. Self-service worker pages
  * (My shifts, My credentials) are not part of the operational shell; they
@@ -105,6 +106,7 @@ export function buildWorkspaceNavigation({
             item("Staffing requests", "staffing-requests", "requests"),
           has(CAPABILITIES.TIMESHEET_FACILITY_SIGNOFF) &&
             item("Sign-off", "timesheets", "timesheets"),
+          has(CAPABILITIES.MESSAGE_VIEW) && item("Messages", "conversations", "messages"),
         ]),
       },
       settings,
@@ -122,6 +124,7 @@ export function buildWorkspaceNavigation({
         has(CAPABILITIES.ATTENDANCE_VIEW) && item("Attendance", "attendance", "attendance"),
         (has(CAPABILITIES.TIMESHEET_VIEW) || hasWorkerRecord) &&
           item("Timesheets", "timesheets", "timesheets"),
+        has(CAPABILITIES.MESSAGE_VIEW) && item("Messages", "conversations", "messages"),
       ]),
     },
     {

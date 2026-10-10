@@ -1,0 +1,164 @@
+P0-E9-3D-S7 — SECURITY, QA & PILOT CERTIFICATION
+================================================
+CHELTH — Healthcare Workforce Operations
+
+Branch: p0-e8-visual-implementation (uncommitted)
+Production: nothing deployed; no migration pushed.
+
+
+1. SECURITY TESTS (S7.1)
+------------------------
+Each requirement and where it is verified:
+
+worker cannot access other worker threads
+  pgTAP 160 (X: read, list, post, get_thread); E2E worker-messaging (404).
+cross-agency thread denied
+  pgTAP 160 (another agency reads nothing, cannot open a thread with Alpha's
+  worker); integration messaging; E2E staff-messaging (Beta admin: 404).
+facility cannot access unrelated thread
+  pgTAP 160 (other facility, worker threads, a supervisor without the
+  capability); E2E staff-messaging (a worker thread is 404 and not listed).
+worker cannot access staff-only data
+  The worker frame never shows the workspace; staff routes are 404
+  (worker-mobile, worker-app-entry test 8). Threads never carry internal
+  notes.
+revoked participant loses access
+  pgTAP 160 V (a suspended membership reads 0). Relationship and
+  capability loss work through the same derived predicate.
+message creation enforces membership / context
+  pgTAP 160 O / S / F (no foreign shift, relationship or draft; side decided
+  by the server; no direct INSERT, 42501).
+read receipts scoped correctly
+  pgTAP 160 R (owner-only receipts).
+no service role
+  No service role anywhere: all writes go through security-definer RPCs as
+  the user; check:bundle shows no secrets in browser files.
+RLS deny by default
+  RLS on all three new tables; SELECT via a derived predicate; no write
+  grants. The baseline allowlists list exactly the new RPCs and helpers.
+no message content in service-worker caches
+  E2E worker-messaging (no /messages URLs and no message text in Cache
+  Storage or localStorage / sessionStorage); E2E worker-mobile-recovery
+  (static-only cache).
+
+Shift context (S2):
+- pgTAP 150: managers only, AAL2, cross-agency denied, context only while
+  the assignment is active, image read / write policies, no oracle on
+  units.
+
+
+2. SHIFT CONTEXT TESTS (S7.2)
+-----------------------------
+- Today / Upcoming / Past and local-date boundaries: unit shiftPeriod
+  (facility-local, including 23:30 New York vs UTC and an in-progress night
+  shift); E2E worker-shift-context and worker-mobile.
+- Address, image fallback, a real facility image, unit absent / present,
+  arrival instructions, directions (destination only), contact permission
+  (opt-in role / desk; tel:), requirements (engine), and no private contact
+  leakage (site phone / e-mail withheld): E2E worker-shift-context and
+  pgTAP 150.
+
+
+3. MESSAGING FUNCTIONAL TESTS (S7.3)
+------------------------------------
+Covered by worker-messaging, staff-messaging, integration messaging and
+pgTAP 160:
+- the worker opens a shift thread and sends;
+- the agency receives and replies;
+- the worker sees unread (More badge, Unread filter), marks read, and the
+  unread count clears;
+- pagination (30 per page, earlier on request);
+- a duplicate tap stores one message;
+- an offline send is refused honestly;
+- history remains after shift completion;
+- staffing-request context (facility thread from the request);
+- facility context;
+- cross-tenant denial.
+
+
+4. WORKER FLOW REGRESSION (S7.4)
+--------------------------------
+New tests/e2e/worker-journey.spec.ts (both projects):
+sign in → My Shifts (accept) → Shift Details → Get directions (destination
+only) → Message agency → back to the shift through the thread context →
+Check In → Current Shift → Check Out → Worked Time → the worker's own
+weekly timesheet (no pay or bill values) → Credentials → Messages (via
+More) → Sign out (a protected route then redirects to sign-in).
+
+There are no regressions in attendance, timesheets, credentials, the
+scanner, worker entry or the PWA: the full E2E suite is green, including
+attendance, timesheets, credentials-compliance, worker-mobile-recovery,
+worker-app-entry and final-sweep.
+
+
+5. PWA (S7.5)
+-------------
+- The manifest, icons and apple-touch-icon resolve.
+- The service worker registers and caches static files only.
+- Worker routes and messaging routes are inside the scope "/".
+- No sensitive cache; no mutation queue.
+- The offline page.
+- These are covered by worker-mobile-recovery and worker-messaging.
+- Standalone display-mode cannot be emulated in CI; it is part of the
+  device checklists.
+
+
+6. RESPONSIVE (S7.6)
+--------------------
+Shift Details, My Shifts, Timesheets, My Credentials, Add credential and
+the credential record were checked at 360 / 375 / 390 / 412 / 430 / 768 /
+1280:
+- the centred ≤ 576 px column;
+- no page overflow;
+- actions clear of the bottom navigation.
+Tests: worker-shift-context, worker-mobile-recovery, worker-mobile.
+
+The worker UI never becomes a dashboard: no sidebar at any width.
+
+
+7. ANDROID PHYSICAL DEVICE (S7.7)
+---------------------------------
+Not performed: no device was available to this session, and the build is
+not deployed. The checklist is in the closure report, §28.
+
+STATUS: NOT YET CERTIFIED
+
+
+8. IOS PHYSICAL DEVICE (S7.8)
+-----------------------------
+Not performed: no iPhone is available.
+
+STATUS: NOT YET CERTIFIED
+
+
+9. STANDARD VALIDATION (S7.9)
+-----------------------------
+npm run format:check      PASS
+npm run lint              PASS (0 warnings)
+npm run typecheck         PASS
+npm test                  PASS — 33 files, 406 tests
+npm run build             PASS
+npm run check:bundle      PASS (74 browser files, no secrets)
+npm run check:migrations  PASS
+supabase db reset         PASS
+supabase db lint          PASS (public, authz, internal: no errors)
+supabase test db          PASS — 30 files, 1,484 assertions
+npm run db:types          regenerated
+npm run test:integration  PASS — 17 files, 123 tests
+npx playwright test       PASS — 334 passed, 14 skipped, 0 failed (11.8 min).
+                          The skips are the 12 existing desktop-only tests
+                          plus the phone-only fidelity walk on desktop.
+
+Fixes made while validating (all test-side, matching the new real
+features):
+- The navigation label lists now include Messages (agency admin,
+  scheduler; facility admin, scheduler).
+- The "no invented features" check now allows the real "Message worker".
+- The location-check button reads "Share location and check in".
+- The scheduler's capability list (integration) includes message.view /
+  message.send.
+- The E9-2 scanning integration test now parks unrelated pending queue rows
+  (the pre-existing isolation issue noted in E9-3C), so its batches are
+  deterministic after E2E runs.
+
+STATUS: AUTOMATED CERTIFICATION COMPLETE. DEVICE CERTIFICATION OUTSTANDING.

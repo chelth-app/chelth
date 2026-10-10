@@ -91,6 +91,12 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M9 2.5h6v3H9zM9 11h6M9 15h4" />
     </>
   ),
+  messages: (
+    <>
+      <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v9a1.5 1.5 0 0 1-1.5 1.5H10l-4.5 4v-4h0A1.5 1.5 0 0 1 4 14.5z" />
+      <path d="M8.5 9h7M8.5 12h4.5" />
+    </>
+  ),
   settings: (
     <>
       <circle cx="12" cy="12" r="3" />

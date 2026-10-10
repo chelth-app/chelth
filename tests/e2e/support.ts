@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 import { uniqueEmail, waitForEmailLink } from "../support/mailpit";
 import { generateTotp } from "../support/totp";
@@ -161,4 +161,24 @@ export async function expectNoPaymentVocabulary(page: Page): Promise<void> {
       name: /pay now|send invoice|process payment|mark (as )?paid|collect/i,
     }),
   ).toHaveCount(0);
+}
+
+/**
+ * P0-E9-3D: attendance lives on the worker's Shift Details screen. Opens the
+ * worker's shift at `facility` from My Shifts (Today / Next Shift) and returns
+ * its attendance region.
+ */
+export async function openShiftAttendance(
+  page: Page,
+  agencyId: string,
+  facility = "Mercy Rehab",
+): Promise<Locator> {
+  const link = page.getByRole("link", { name: new RegExp(`^Shift details: ${facility}`) }).first();
+  for (const view of ["", "?view=upcoming", "?view=past"]) {
+    await page.goto(`/app/organisations/${agencyId}/my-shifts${view}`);
+    if (await link.count()) break;
+  }
+  await link.click();
+  await expect(page).toHaveURL(/\/my-shifts\/[0-9a-f-]{36}$/, { timeout: 20_000 });
+  return page.getByRole("region", { name: /^Attendance: / });
 }

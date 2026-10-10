@@ -8,7 +8,13 @@ import {
 } from "@playwright/test";
 
 import { createStaffingWorld, type StaffingWorld } from "./staffing-fixture";
-import { expectNoPageOverflow, qaScreenshot, signIn, SIGNED_IN_LANDING } from "./support";
+import {
+  expectNoPageOverflow,
+  openShiftAttendance,
+  qaScreenshot,
+  SIGNED_IN_LANDING,
+  signIn,
+} from "./support";
 
 const A11Y_TAGS = ["wcag2a", "wcag2aa", "wcag22aa"];
 const AFTER_ACTION = { timeout: 20_000 };
@@ -138,13 +144,12 @@ test.describe.serial("time & attendance", () => {
   test("Flow 1: a worker clocks in and out from My Shifts", async ({ browser }) => {
     await acceptedShift("ana", mainLocation, 2, 14);
     const ana = await signedIn(browser, world.extra.ana?.email ?? "");
-    await ana.goto(`/app/organisations/${world.agencyId}/my-shifts`);
-    const card = ana.getByRole("list", { name: "My attendance" }).getByRole("listitem").first();
+    const card = await openShiftAttendance(ana, world.agencyId);
     await expect(card).toContainText("Not started");
     await expectNoA11yViolations(ana);
-    await ana.getByRole("button", { name: "Clock in at Mercy Rehab" }).click();
+    await ana.getByRole("button", { name: "Check In at Mercy Rehab" }).click();
     await expect(card).toContainText("Clocked in", AFTER_ACTION);
-    await ana.getByRole("button", { name: "Clock out at Mercy Rehab" }).click();
+    await ana.getByRole("button", { name: "Check Out at Mercy Rehab" }).click();
     await expect(card).toContainText("Completed", AFTER_ACTION);
     await ana.context().close();
   });
@@ -152,8 +157,8 @@ test.describe.serial("time & attendance", () => {
   test("Flow 2: a late clock-in is visible to the agency", async ({ browser }) => {
     await acceptedShift("leo", mainLocation, -20, 180);
     const leo = await signedIn(browser, world.extra.leo?.email ?? "");
-    await leo.goto(`/app/organisations/${world.agencyId}/my-shifts`);
-    await leo.getByRole("button", { name: "Clock in at Mercy Rehab" }).click();
+    await openShiftAttendance(leo, world.agencyId);
+    await leo.getByRole("button", { name: "Check In at Mercy Rehab" }).click();
     await expect(leo.getByRole("list", { name: "Attendance notes" })).toContainText(
       "Late clock-in",
       AFTER_ACTION,
@@ -204,8 +209,8 @@ test.describe.serial("time & attendance", () => {
       permissions: ["geolocation"],
       geolocation: { ...FAR_AWAY, accuracy: 20 },
     });
-    await gia.goto(`/app/organisations/${world.agencyId}/my-shifts`);
-    await gia.getByRole("button", { name: "Clock in at Mercy Rehab" }).click();
+    await openShiftAttendance(gia, world.agencyId);
+    await gia.getByRole("button", { name: "Check In at Mercy Rehab" }).click();
     // The reason is explained BEFORE the browser location is read.
     await expect(gia.getByRole("region", { name: "Location check" })).toContainText(
       "uses your location only for this attendance action",
@@ -219,15 +224,15 @@ test.describe.serial("time & attendance", () => {
 
     // Weak GPS: a blocking site refuses an imprecise reading, and nothing is recorded.
     await gia.context().setGeolocation({ ...SITE, accuracy: 900 });
-    await gia.getByRole("button", { name: "Share location and clock in" }).click();
+    await gia.getByRole("button", { name: "Share location and check in" }).click();
     await expect(
       gia.getByRole("alert").filter({ hasText: "Location not precise enough" }),
     ).toBeVisible(AFTER_ACTION);
     await qaScreenshot(gia, "s6-weak-gps");
 
     await gia.context().setGeolocation({ ...FAR_AWAY, accuracy: 20 });
-    await gia.getByRole("button", { name: "Clock in at Mercy Rehab" }).click();
-    await gia.getByRole("button", { name: "Share location and clock in" }).click();
+    await gia.getByRole("button", { name: "Check In at Mercy Rehab" }).click();
+    await gia.getByRole("button", { name: "Share location and check in" }).click();
     await expect(gia.getByRole("alert").filter({ hasText: "outside the site area" })).toBeVisible(
       AFTER_ACTION,
     );
@@ -235,11 +240,12 @@ test.describe.serial("time & attendance", () => {
     await qaScreenshot(gia, "s6-outside-geofence");
 
     await gia.context().setGeolocation({ ...SITE, accuracy: 20 });
-    await gia.getByRole("button", { name: "Clock in at Mercy Rehab" }).click();
-    await gia.getByRole("button", { name: "Share location and clock in" }).click();
-    await expect(
-      gia.getByRole("list", { name: "My attendance" }).getByRole("listitem").first(),
-    ).toContainText(/Clocked in|Needs review/, AFTER_ACTION);
+    await gia.getByRole("button", { name: "Check In at Mercy Rehab" }).click();
+    await gia.getByRole("button", { name: "Share location and check in" }).click();
+    await expect(gia.getByRole("region", { name: /^Attendance: / })).toContainText(
+      /Clocked in|Needs review/,
+      AFTER_ACTION,
+    );
     await gia.context().close();
   });
 
@@ -248,8 +254,7 @@ test.describe.serial("time & attendance", () => {
   }) => {
     await acceptedShift("max", mainLocation, -40, 180);
     const max = await signedIn(browser, world.extra.max?.email ?? "");
-    await max.goto(`/app/organisations/${world.agencyId}/my-shifts`);
-    const card = max.getByRole("list", { name: "My attendance" }).getByRole("listitem").first();
+    const card = await openShiftAttendance(max, world.agencyId);
     await card.getByText("Request a time correction").click();
     await card
       .getByRole("combobox", { name: "Reason" })

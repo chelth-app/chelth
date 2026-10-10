@@ -37,6 +37,9 @@ type WorkerShellProps = {
   switchLabel: "Switch agency" | "Switch workspace";
   /** The worker's status with this agency (from their own worker record). */
   workerStatusLabel: string | null;
+  /** Messages with the agency (P0-E9-3D-S4) and how many are unread. */
+  messagesHref: string;
+  unreadMessages: number;
   selectWorkspaceAction: (formData: FormData) => Promise<void>;
   signOutAction: () => Promise<void>;
   children: ReactNode;
@@ -109,6 +112,8 @@ export function WorkerShell({
   chooserLabel,
   switchLabel,
   workerStatusLabel,
+  messagesHref,
+  unreadMessages,
   selectWorkspaceAction,
   signOutAction,
   children,
@@ -193,10 +198,30 @@ export function WorkerShell({
               aria-expanded={moreOpen}
               aria-controls={sheetId}
               onClick={() => setMoreOpen(true)}
-              className="flex min-h-16 w-full flex-col items-center justify-center gap-1 px-2 text-[12px] font-medium text-slate-500 hover:text-chelth-navy"
+              className={cn(
+                "relative flex min-h-16 w-full flex-col items-center justify-center gap-1 px-2 text-[12px] font-medium hover:text-chelth-navy",
+                isCurrent(messagesHref)
+                  ? "font-semibold text-chelth-teal-dark before:absolute before:inset-x-5 before:top-0 before:h-[3px] before:rounded-b-full before:bg-chelth-teal"
+                  : "text-slate-500",
+              )}
             >
-              <NavIcon name="more" />
+              <span className="relative">
+                <NavIcon name="more" />
+                {unreadMessages > 0 ? (
+                  <span
+                    aria-hidden="true"
+                    className="absolute -top-1.5 -right-2.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-chelth-teal-dark px-1 text-[10.5px] font-bold text-white ring-2 ring-white"
+                  >
+                    {unreadMessages > 99 ? "99+" : unreadMessages}
+                  </span>
+                ) : null}
+              </span>
               More
+              {unreadMessages > 0 ? (
+                <span className="sr-only">
+                  , {unreadMessages} unread {unreadMessages === 1 ? "message" : "messages"}
+                </span>
+              ) : null}
             </button>
           </li>
         </ul>
@@ -233,6 +258,21 @@ export function WorkerShell({
             </p>
           ) : null}
           <ul className="flex flex-col">
+            <li>
+              <Link
+                href={messagesHref as Route}
+                className={sheetRow}
+                aria-current={isCurrent(messagesHref) ? "page" : undefined}
+                onClick={() => setMoreOpen(false)}
+              >
+                <span className="flex-1">Messages</span>
+                {unreadMessages > 0 ? (
+                  <span className="inline-flex h-6 items-center rounded-full bg-chelth-teal-dark px-2.5 text-[12px] font-semibold text-white">
+                    {unreadMessages} unread
+                  </span>
+                ) : null}
+              </Link>
+            </li>
             <li>
               <Link href="/app/account" className={sheetRow} onClick={() => setMoreOpen(false)}>
                 Account

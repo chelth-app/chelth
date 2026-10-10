@@ -4,6 +4,8 @@ import Link from "next/link";
 import { Panel } from "@/components/ui/panel";
 import { notFound } from "next/navigation";
 
+import { OpenThreadButton } from "@/features/messaging";
+
 import { ActivityTimeline } from "@/components/ui/activity-timeline";
 import {
   DataTable,
@@ -107,6 +109,7 @@ export default async function ShiftPage({
   if (!shift) notFound();
 
   const canManageShift = can(CAPABILITIES.SHIFT_MANAGE) === "granted";
+  const canMessage = can(CAPABILITIES.MESSAGE_SEND) === "granted";
   const canViewAssignments = can(CAPABILITIES.ASSIGNMENT_VIEW) === "granted";
   const canAssign =
     can(CAPABILITIES.ASSIGNMENT_MANAGE) === "granted" &&
@@ -256,6 +259,7 @@ export default async function ShiftPage({
             { label: "Time", value: formatShiftTimeRange(shift) },
             { label: "Timezone", value: shift.timezone },
             { label: "Location", value: shift.locationName },
+            ...(shift.unitLabel ? [{ label: "Unit", value: shift.unitLabel }] : []),
             { label: "Workers needed", value: shift.requestedHeadcount },
             ...(shift.externalReference
               ? [{ label: "Reference", value: shift.externalReference }]
@@ -278,6 +282,16 @@ export default async function ShiftPage({
               : []),
           ]}
         />
+        {canMessage && shift.facilityLinked && shift.status !== "draft" ? (
+          <div className="w-fit">
+            <OpenThreadButton
+              organisationId={organisationId}
+              target={{ kind: "facility", relationshipId: shift.relationshipId, shiftId: shift.id }}
+              label="Message facility"
+              className="h-11 px-3 text-sm sm:h-9"
+            />
+          </div>
+        ) : null}
         {canManageShift ? (
           <div className="flex flex-wrap gap-2">
             {(shift.status === "draft" || shift.status === "submitted") && relationshipActive ? (
@@ -322,6 +336,20 @@ export default async function ShiftPage({
                       <InitialsAvatar name={assignment.workerName} size={36} />
                       <span className={RECORD_ROW_TITLE}>{assignment.workerName}</span>
                       <AssignmentStatusBadge status={assignment.status} />
+                      {canMessage ? (
+                        <span className="ml-auto">
+                          <OpenThreadButton
+                            organisationId={organisationId}
+                            target={{
+                              kind: "worker",
+                              agencyWorkerId: assignment.workerId,
+                              shiftId: shift.id,
+                            }}
+                            label={`Message ${assignment.workerName ?? "worker"}`}
+                            className="h-11 px-3 text-sm sm:h-9"
+                          />
+                        </span>
+                      ) : null}
                       {live ? (
                         live.eligible ? (
                           <ReadinessBadge status="ready" />
@@ -628,6 +656,7 @@ export default async function ShiftPage({
             shiftId={shift.id}
             requestedHeadcount={shift.requestedHeadcount}
             instructions={shift.instructions}
+            unitLabel={shift.unitLabel}
             externalReference={shift.externalReference}
           />
           <CancelShiftForm organisationId={organisationId} shiftId={shift.id} />

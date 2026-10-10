@@ -7,7 +7,13 @@ import {
   isoDay,
   type StaffingWorld,
 } from "./staffing-fixture";
-import { expectNoPageOverflow, qaScreenshot, signIn, SIGNED_IN_LANDING } from "./support";
+import {
+  expectNoPageOverflow,
+  openShiftAttendance,
+  qaScreenshot,
+  SIGNED_IN_LANDING,
+  signIn,
+} from "./support";
 
 /*
  * P0-E8-S6 Worker Mobile (P7): the worker self-service shell, bottom
@@ -158,14 +164,15 @@ test.describe.serial("worker mobile experience", () => {
     await page.context().close();
   });
 
-  test("My shifts: accept, shift details drawer, upcoming / past tabs", async ({ browser }) => {
+  test("My Shifts: Today / Upcoming / Past, accept, Shift Details screen (P0-E9-3D)", async ({
+    browser,
+  }) => {
     const page = await signedIn(browser, world.wendy.email);
     await page.goto(`/app/organisations/${world.agencyId}/my-shifts`);
-    const tabs = page.getByRole("navigation", { name: "Assignment period" });
-    await expect(tabs.getByRole("link", { name: "Upcoming" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
+    const tabs = page.getByRole("navigation", { name: "Shift period" });
+    await expect(tabs.getByRole("link", { name: "Today" })).toHaveAttribute("aria-current", "page");
+    // Nothing today: the next shift is shown (in 4 days).
+    await expect(page.getByRole("heading", { level: 2, name: "Next Shift" })).toBeVisible();
     const assignments = page.getByRole("list", { name: "My assignments" });
     await expect(assignments).toContainText("Mercy Rehab");
     await qaScreenshot(page, "s6-my-shifts");
@@ -174,19 +181,22 @@ test.describe.serial("worker mobile experience", () => {
     await page.getByRole("button", { name: "Accept shift at Mercy Rehab" }).click();
     await expect(assignments).toContainText("Accepted", AFTER_ACTION);
 
-    const details = assignments.getByRole("button", { name: /^Shift details: Mercy Rehab/ });
-    await details.click();
-    const drawer = page.getByRole("dialog", { name: "Mercy Rehab" });
-    await expect(drawer.getByRole("button", { name: "Close details" })).toBeFocused();
-    await expect(drawer).toContainText("Certified Nursing Assistant");
-    await expect(drawer).toContainText("Accepted");
+    await assignments.getByRole("link", { name: /^Shift details: Mercy Rehab/ }).click();
+    await expect(page).toHaveURL(/\/my-shifts\/[0-9a-f-]{36}$/);
+    await expect(page.getByRole("heading", { level: 1, name: "Mercy Rehab" })).toBeVisible();
+    const facts = page.getByRole("region", { name: "Shift facts" });
+    await expect(facts).toContainText("Certified Nursing Assistant");
+    await expect(page.getByRole("main")).toContainText("Accepted");
     // Own data only: no other workers, no pay or bill values.
-    await expect(drawer).not.toContainText(/Nina|Wes|\$/);
+    await expect(page.getByRole("main")).not.toContainText(/Nina|Wes|\$/);
     await qaScreenshot(page, "s6-shift-detail");
     await expectNoA11yViolations(page);
-    await page.keyboard.press("Escape");
-    await expect(details).toBeFocused();
+    await page.getByRole("link", { name: "My Shifts" }).first().click();
+    await expect(page).toHaveURL(/\/my-shifts$/);
 
+    await tabs.getByRole("link", { name: "Upcoming" }).click();
+    await expect(page).toHaveURL(/view=upcoming/);
+    await expect(page.getByRole("list", { name: "My assignments" })).toContainText("Mercy Rehab");
     await tabs.getByRole("link", { name: "Past" }).click();
     await expect(page).toHaveURL(/view=past/);
     await expect(page.getByText("No past assignments.")).toBeVisible();
@@ -197,25 +207,24 @@ test.describe.serial("worker mobile experience", () => {
     browser,
   }) => {
     const page = await signedIn(browser, world.extra.wes?.email ?? "");
-    await page.goto(`/app/organisations/${world.agencyId}/my-shifts`);
-    const card = page.getByRole("list", { name: "My attendance" }).getByRole("listitem").first();
+    const card = await openShiftAttendance(page, world.agencyId);
     await expect(card).toContainText("Not started");
 
     // This site does not check location: no explanation, no browser prompt.
-    await page.getByRole("button", { name: "Clock in at Mercy Rehab" }).click();
+    await page.getByRole("button", { name: "Check In at Mercy Rehab" }).click();
     await expect(page.getByRole("region", { name: "Location check" })).toHaveCount(0);
     await expect(card).toContainText(/Clocked in|Needs review/, AFTER_ACTION);
     await qaScreenshot(page, "s6-clocked-in");
 
     await page.getByRole("button", { name: "Start break at Mercy Rehab" }).click();
     await expect(card).toContainText("You are on a break", AFTER_ACTION);
-    await expect(page.getByRole("button", { name: "Clock out at Mercy Rehab" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Check Out at Mercy Rehab" })).toHaveCount(0);
     await qaScreenshot(page, "s6-break-active");
     await expectNoA11yViolations(page);
     await page.getByRole("button", { name: "End break at Mercy Rehab" }).click();
 
     // Clock-out is available again once the break ends.
-    const clockOut = page.getByRole("button", { name: "Clock out at Mercy Rehab" });
+    const clockOut = page.getByRole("button", { name: "Check Out at Mercy Rehab" });
     await expect(clockOut).toBeEnabled(AFTER_ACTION);
     await clockOut.click();
     await expect(card).toContainText(/Completed|Needs review/, AFTER_ACTION);
@@ -235,15 +244,17 @@ test.describe.serial("worker mobile experience", () => {
   }) => {
     // Wes clocked in and out in the attendance test above (serial suite).
     const page = await signedIn(browser, world.extra.wes?.email ?? "");
-    await page.goto(`/app/organisations/${world.agencyId}/my-shifts`);
-    const card = page.getByRole("list", { name: "My attendance" }).getByRole("listitem").first();
-    await expect(card).toContainText("Attendance captured");
-    await expect(card).toContainText("Clocked out");
+    const card = await openShiftAttendance(page, world.agencyId);
+    // P0-E9-3D: the canonical Worked Time handoff, prefilled from attendance.
+    await expect(card).toContainText("Worked Time");
+    await expect(card.locator('dl[aria-label="Worked time"]')).toContainText("Check Out");
     // Worker-friendly outcome only: no coordinates, no pay values.
     await expect(page.getByRole("main")).not.toContainText(/latitude|longitude|\$\d/i);
     await expectNoA11yViolations(page);
     await qaScreenshot(page, "w1-handoff");
-    await card.getByRole("link", { name: "View timesheet" }).click();
+    await card
+      .getByRole("link", { name: /^(View timesheet|Review and submit timesheet)$/ })
+      .click();
     await expect(page).toHaveURL(/\/timesheets\/[0-9a-f-]{36}$/);
     await expect(page.getByRole("heading", { level: 1, name: "My timesheet" })).toBeVisible();
     await expect(
@@ -273,7 +284,7 @@ test.describe.serial("worker mobile experience", () => {
       }
       const details = page
         .getByRole("list", { name: "My assignments" })
-        .getByRole("button", { name: /^Shift details: Mercy Rehab/ })
+        .getByRole("link", { name: /^Shift details: Mercy Rehab/ })
         .first();
       expect((await details.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
       await expectNoPageOverflow(page);

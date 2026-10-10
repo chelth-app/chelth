@@ -366,6 +366,7 @@ test.describe.serial("facility workspace surfaces", () => {
         "Overview",
         "Staffing requests",
         "Sign-off",
+        "Messages",
         "Settings",
       ]);
     }

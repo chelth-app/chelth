@@ -1,0 +1,434 @@
+P0-E9-3D — WORKER EXPERIENCE COMPLETION (MASTER CLOSURE)
+========================================================
+CHELTH — Healthcare Workforce Operations
+
+Branch: p0-e8-visual-implementation (uncommitted; HEAD d6e11d5)
+Production: nothing deployed; no migration pushed.
+
+Subphase reports:
+- P0-E9-3D-S1-data-architecture-audit.txt
+- P0-E9-3D-S2-shift-context-enrichment.txt
+- P0-E9-3D-S3-messaging-foundation.txt
+- P0-E9-3D-S4-worker-messaging-ui.txt
+- P0-E9-3D-S5-staff-messaging-surfaces.txt
+- P0-E9-3D-S6-canonical-worker-fidelity.txt
+- P0-E9-3D-S7-pilot-certification.txt
+
+The preceding E9-3B / E9-3C work (worker entry, credential recovery, PWA)
+is preserved. Its tests are green.
+
+
+1. EXECUTIVE SUMMARY
+--------------------
+The worker product is now one coherent mobile / PWA experience:
+- Today / Upcoming / Past;
+- a canonical Shift Details screen with real context (photo or approved
+  artwork, address, destination-only directions, unit, parking / arrival
+  guidance, an opt-in role / desk contact, engine requirements);
+- the check-in → checked-in → check-out → worked-time handoff on that
+  screen;
+- secure, retained, text-only operational messaging for workers, agency
+  staff and facility staff;
+- credentials and the PWA from E9-3C.
+
+Everything is server-authoritative, deny-by-default and covered by pgTAP,
+integration and E2E tests. All automated validation is green.
+
+The one remaining pilot gate is real-device certification (Android and
+iOS), which this session could not perform.
+
+
+2. S1 ARCHITECTURE FINDINGS
+---------------------------
+Already present and reused:
+- facility addresses;
+- shift-level instructions;
+- the readiness engine;
+- the notification outbox;
+- the capability system;
+- relationship-scoped cross-organisation access.
+
+Missing:
+- units, facility arrival guidance, worker-facing contacts, facility
+  images, messaging.
+
+Decisions taken within the invariants:
+- the contact is a role / desk, not a personal name;
+- arrival guidance is a facility default with the shift instructions as
+  override;
+- the unit is a nullable shift label;
+- images are optional, private, AAL2-uploaded and signature-checked;
+- messaging access is derived, not stored (worker ↔ agency, agency ↔
+  facility; there is no worker ↔ facility direct thread).
+
+
+3. SCHEMA CHANGES
+-----------------
+Three new local migrations (none pushed):
+- 20261010100000_shift_context.sql:
+  - facility worker-context columns and image path;
+  - shifts.unit_label;
+  - the facility-images bucket and policies;
+  - helpers and RPCs;
+  - list_my_shift_assignments with context.
+- 20261010110000_messaging_vocabulary.sql:
+  - the enums;
+  - notification event message_received;
+  - capabilities message.view / message.send and role mappings.
+- 20261010110100_operational_messaging.sql:
+  - threads, messages, receipts, RLS;
+  - append-only triggers;
+  - RPCs;
+  - the notification template branch.
+
+
+4. SHIFT CONTEXT ADDED
+----------------------
+The worker projection carries the unit, address, guidance, contact, image
+and facility-local date, only while the assignment is active. Past shifts
+show their record, not live context.
+
+
+5. TODAY / UPCOMING / PAST
+--------------------------
+Facility-local calendar from the server render:
+- today includes in-progress night shifts;
+- Today shows "Next Shift" when nothing is today, plus "Upcoming Shifts"
+  rows.
+
+
+6. FACILITY IMAGE
+-----------------
+- Agency "For workers" panel; JPEG / PNG ≤ 2 MB; server signature check.
+- Short-lived signed URLs for assigned workers.
+- The approved artwork as fallback.
+- Not malware-scanned (accepted risk, S1 D4).
+
+
+7. ADDRESS
+----------
+The location's own address when recorded, otherwise the facility's. No
+duplicate fields.
+
+
+8. DIRECTIONS
+-------------
+Destination-only deep link: Apple Maps on Apple devices, Google Maps
+elsewhere. No worker or shift data is sent.
+
+
+9. UNIT
+-------
+Optional, set by agency schedulers on the shift (audited). Shown on cards,
+Shift Details, check-in and threads.
+
+
+10. PARKING / ARRIVAL
+---------------------
+Facility defaults plus the existing per-shift instructions, shown together
+in "Arrival".
+
+
+11. WORKER-FACING CONTACT
+-------------------------
+An opt-in role / desk label and business phone with a tel: Call button. The
+site phone / e-mail are never shown to workers.
+
+
+12. REQUIREMENTS
+----------------
+The readiness engine per facility, unchanged: valid-until / reason, with a
+link to credentials when something needs action.
+
+
+13. MESSAGING ARCHITECTURE
+--------------------------
+- conversation_threads: worker | facility, with optional shift / request
+  context.
+- messages: append-only text, server time, an idempotency key.
+- message_receipts: last-read position.
+- RPCs to open, send (idempotent, rate-limited), mark read, list, get and
+  page.
+- Text only; no attachments.
+
+
+14. RLS MODEL
+-------------
+authz.thread_side derives the caller's side on every call:
+- the worker of the thread while active;
+- agency message.view / message.send;
+- the linked facility's capabilities through the relationship.
+
+There are no write grants; immutability is enforced by trigger. Revocation
+is automatic.
+
+
+15. WORKER MESSAGING
+--------------------
+- More → Messages (unread badge).
+- Shift Details → Message agency.
+- All / Unread list; thread with a context card (→ Shift Details), bubbles
+  and pagination.
+- Sticky composer: idempotent, offline-honest.
+
+
+16. AGENCY MESSAGING
+--------------------
+- "Messages" in the workspace navigation (message.view).
+- Conversations list and thread.
+- Message worker from the worker record and from assigned workers on a
+  shift; Message facility from the shift.
+- Finance has no access.
+
+
+17. FACILITY MESSAGING
+----------------------
+- Facility admin / scheduler: Messages in the navigation; "Message agency"
+  from a staffing request.
+- They see only their relationships' facility threads, and the agency by
+  organisation name.
+- The supervisor has no access.
+
+
+18. UNREAD / READ BEHAVIOUR
+---------------------------
+- Per-thread unread counts and a total.
+- Opening a thread marks it read and refreshes the badges.
+- Sending marks your own message read.
+- No typing, presence or delivery receipts.
+
+
+19. RETENTION
+-------------
+Indefinite: no deletion path; history survives shift completion, request
+closure, relationship end and access loss. No HIPAA claim.
+
+
+20. NOTIFICATION INTEGRATION
+----------------------------
+- message_received goes to the worker when the agency side writes: "You
+  have a new Chelth message regarding your shift", with no body and a deep
+  link to the thread.
+- One open notice per thread.
+- Staff: in-app unread only (v1).
+- Push is deferred.
+
+
+21. PWA BEHAVIOUR
+-----------------
+- Manifest, icons, static-only service worker, offline page, install entry
+  (E9-3C).
+- Messaging and shift routes work in standalone mode.
+- No message content or sensitive data in caches or browser storage
+  (tested).
+
+
+22. CANONICAL UI COMPARISON
+---------------------------
+All 12 views were reviewed at 390 × 844 against the locked reference
+(S6):
+- the order, heading layout and Check In / Check Out wording were
+  corrected;
+- the remaining differences are product truth (no stock photos, no map
+  tiles, no bell, no pre-action radius ticks, no timesheet notes).
+
+
+23. ATTENDANCE REGRESSION
+-------------------------
+Clock logic is unchanged. Moving the flow to Shift Details kept all
+attendance, geofence, break and correction tests green (labels updated).
+
+
+24. TIMESHEET REGRESSION
+------------------------
+- Unchanged weekly model; the handoff links to the worker's own week.
+- Timesheet specs are green; no pay or bill values are shown.
+
+
+25. CREDENTIAL REGRESSION
+-------------------------
+The E9-3C flow is unchanged and green: uploads, scanner states,
+offline / Android handling.
+
+
+26. SECURITY TEST RESULTS
+-------------------------
+pgTAP:
+- 150_shift_context: 28 assertions;
+- 160_messaging: 48 assertions;
+- 1,484 in total, all pass.
+
+Also:
+- integration messaging: 3 tests;
+- E2E denials across workers, agencies, facilities and capabilities: all
+  pass.
+
+
+27. AUTOMATED TEST TOTALS
+-------------------------
+unit 406 · integration 123 · pgTAP 1,484 ·
+Playwright 334 passed / 14 skipped / 0 failed.
+
+format, lint, typecheck, build, check:bundle, check:migrations,
+db reset / lint and db:types all pass.
+
+
+28. ANDROID STATUS
+------------------
+Not certified (no device).
+
+Checklist to run on the deployed build:
+- install the PWA and launch it standalone;
+- sign in; My Shifts tabs; Shift Details;
+- directions; call;
+- message, receive a reply, unread;
+- credential upload (Files / Photos); scanner;
+- check in / check out;
+- timesheet;
+- sign out / in.
+
+
+29. iOS STATUS
+--------------
+Not certified (no iPhone).
+
+Checklist:
+- Safari → Add to Home Screen; standalone; safe areas;
+- My Shifts;
+- message and the keyboard / composer;
+- Files / Photos upload;
+- check in / out;
+- timesheet;
+- sign out / in.
+
+
+30. FILES CHANGED (this phase, beyond E9-3B / E9-3C)
+----------------------------------------------------
+Database:
+- the three migrations (§3);
+- supabase/tests/security/150_shift_context.test.sql and
+  160_messaging.test.sql;
+- updated 000_security_baseline, 030_roles_capabilities and
+  130_shift_projections;
+- src/types/database.types.ts (regenerated).
+
+Domain / features:
+- src/lib/domain/shifts.ts (shiftPeriod, length, address, directions);
+- src/lib/domain/facility-images.ts;
+- src/features/facilities: actions, schemas, queries, worker-context-form,
+  facility-image-uploader, index;
+- src/features/shifts: queries, actions, schemas, reason-forms;
+- src/features/messaging (new: queries, actions, schemas, composer,
+  thread-live, open-thread-button, local-time, index);
+- src/features/attendance/components/clock-control.tsx (Check In / Check
+  Out labels);
+- src/lib/authz/vocabulary.ts;
+- src/lib/notifications (vocabulary, templates);
+- src/features/organisations/workspace-navigation.ts.
+
+UI:
+- worker: my-shifts page, my-shifts/[assignmentId] (new), _components
+  (facility-photo, directions-link, period-tabs, shift-card), messages and
+  messages/[threadId] (new), worker-frame;
+- src/components/layout/worker-shell.tsx;
+- workspace-nav icon / model;
+- staff: (workspace)/conversations and conversations/[threadId] (new);
+  facility record "For workers" panel; agency shift record (unit, message
+  actions); worker record (Message worker); staffing request (Message
+  agency).
+
+Tests:
+- new specs: worker-shift-context, worker-messaging, staff-messaging,
+  worker-fidelity, worker-journey;
+- new unit test: tests/unit/lib/shift-context.test.ts;
+- new integration test: tests/integration/messaging.test.ts;
+- updated specs, the support helpers (openShiftAttendance) and the
+  document-scanning isolation.
+
+
+31. MIGRATIONS (to push, in order, after the E9-3B / E9-3C code)
+----------------------------------------------------------------
+20261010100000_shift_context
+20261010110000_messaging_vocabulary
+20261010110100_operational_messaging
+
+Production is at 62 / 62; these make 65. All three are additive. One
+function is replaced, list_my_shift_assignments, with the same name and
+argument.
+
+
+32. DEPLOYMENT SEQUENCE
+-----------------------
+1. Review the diff, commit E9-3B, E9-3C and E9-3D (stage explicitly), and
+   open a PR.
+2. Take a production backup / restore point.
+3. Operator: supabase db push (dry run first; expect exactly the three
+   migrations).
+4. Merge to main, so Vercel deploys the app. The DB first and the app
+   second is safe: the old app ignores the new columns, but the new app
+   needs the new RPCs.
+5. Smoke test:
+   - worker sign-in → My Shifts → Shift Details → Message agency;
+   - agency reply → worker unread;
+   - facility "Message agency";
+   - facility photo upload;
+   - manifest and service worker.
+6. Confirm the E9-2 scanner configuration is live.
+7. Run the Android and iOS checklists (§28 / §29) and record the results.
+
+
+33. REMAINING GAPS
+------------------
+- Real-device certification (Android, iOS).
+- Facility images are not malware-scanned (accepted, documented).
+- Staff are not e-mailed per message (in-app unread only); push is
+  deferred.
+- No worker ↔ facility direct messaging (by design, S1 D5).
+- Facility projections do not show the unit; offers show no address before
+  acceptance.
+- Timesheet notes are not supported (no column; weekly submission).
+- The owner cannot see quarantined documents after reload (RLS, E9-3C).
+- Message retention is indefinite; any future purge needs an audited
+  operator policy.
+
+
+34. PILOT RECOMMENDATION
+------------------------
+Proceed to a controlled pilot once:
+(a) the three migrations and the code are deployed;
+(b) the scanner configuration is confirmed;
+(c) Android and iOS device checklists pass on the deployed build.
+
+Until (c) is done, the worker app is functionally and automatically
+certified but not device-certified.
+
+FINAL STATUS BLOCK:
+
+WORKER ENTRY:
+STATUS: COMPLETE
+
+WORKER MOBILE:
+STATUS: COMPLETE
+
+SHIFT CONTEXT:
+STATUS: COMPLETE
+
+MESSAGING:
+STATUS: COMPLETE
+
+PWA:
+STATUS: ACTIVE
+
+CANONICAL UI:
+STATUS: COMPLETE
+
+ANDROID:
+STATUS: NOT YET CERTIFIED
+
+IOS:
+STATUS: NOT YET CERTIFIED
+
+PILOT:
+STATUS: NOT READY — Android and iOS physical-device certification
+outstanding, and the three new migrations plus the code are not yet
+deployed.
