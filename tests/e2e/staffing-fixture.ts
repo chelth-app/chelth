@@ -87,16 +87,33 @@ async function person(label: string, name: string, email = uniqueEmail(label)): 
   return { client, email, userId: data.user.id, name };
 }
 
+/**
+ * Local Supabase Auth (GoTrue) keeps a UNIQUE index on
+ * mfa_factors.last_challenged_at: two parallel test workers challenging in the
+ * same instant get "duplicate key … mfa_factors_last_challenged_at_key" as a
+ * 500 (AuthRetryableFetchError). That is an upstream race in test setup, not a
+ * Chelth behaviour, so ONLY that retryable error is retried, briefly; any
+ * other error (e.g. a wrong code) fails immediately.
+ */
+async function challengeAndVerifyWithRetry(who: Person, factorId: string, secret: string) {
+  for (let attempt = 1; ; attempt += 1) {
+    const { error } = await who.client.auth.mfa.challengeAndVerify({
+      factorId,
+      code: generateTotp(secret),
+    });
+    if (!error) return;
+    const retryable =
+      error.name === "AuthRetryableFetchError" || ("status" in error && error.status === 500);
+    if (!retryable || attempt >= 4) throw error;
+    await new Promise((resolve) => setTimeout(resolve, 150 * attempt + Math.random() * 250));
+  }
+}
+
 async function stepUp(who: Person) {
   const enrolled = await must(
     who.client.auth.mfa.enroll({ factorType: "totp", friendlyName: "e2e" }),
   );
-  await run(
-    who.client.auth.mfa.challengeAndVerify({
-      factorId: enrolled.id,
-      code: generateTotp(enrolled.totp.secret),
-    }),
-  );
+  await challengeAndVerifyWithRetry(who, enrolled.id, enrolled.totp.secret);
   who.totpSecret = enrolled.totp.secret;
 }
 

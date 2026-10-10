@@ -30,6 +30,8 @@ export const NOTIFICATION_EVENTS = [
   "attendance_time_adjusted",
   "pricing_blocked_missing_rate",
   "message_received",
+  "shift_changed",
+  "shift_reminder",
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
@@ -77,6 +79,10 @@ export const NOTIFICATION_CATEGORY: Record<NotificationEvent, "required" | "opti
   attendance_time_adjusted: "required",
   pricing_blocked_missing_rate: "required",
   message_received: "required",
+  // P0-E9-3G. No preference model yet (§13): both stay on. A future preference
+  // split may make the reminder optional; changes and cancellations stay required.
+  shift_changed: "required",
+  shift_reminder: "required",
 };
 
 export const NOTIFICATION_EVENT_LABELS: Record<NotificationEvent, string> = {
@@ -104,6 +110,8 @@ export const NOTIFICATION_EVENT_LABELS: Record<NotificationEvent, string> = {
   attendance_time_adjusted: "Attendance time adjusted",
   pricing_blocked_missing_rate: "Pricing blocked: rate missing",
   message_received: "New message",
+  shift_changed: "Shift updated",
+  shift_reminder: "Shift reminder",
 };
 
 /**

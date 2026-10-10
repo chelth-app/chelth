@@ -6,6 +6,8 @@ import type {
   ReadinessStatus,
   RequirementStatus,
 } from "@/lib/domain/credentials";
+import { getRequestTerminology } from "@/features/localization";
+import { localizeTerms } from "@/lib/i18n/terminology";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 /* The database derives compliance; nothing here computes eligibility. */
@@ -28,6 +30,7 @@ export type Readiness = {
 };
 
 export async function getReadiness(workerId: string, facilityId?: string): Promise<Readiness> {
+  const terms = await getRequestTerminology();
   const supabase = await createSupabaseServerClient();
   const args = {
     p_agency_worker_id: workerId,
@@ -48,7 +51,9 @@ export async function getReadiness(workerId: string, facilityId?: string): Promi
       requirementId: item.requirement_id,
       scope: item.requirement_scope,
       credentialTypeKey: item.credential_type_key,
-      credentialTypeName: item.credential_type_name,
+      credentialTypeName: item.credential_type_name
+        ? localizeTerms(item.credential_type_name, terms)
+        : item.credential_type_name,
       reason: item.reason,
       severity: item.severity,
       effectiveExpiryDate: item.effective_expiry_date,
@@ -148,6 +153,7 @@ export type SharedWorkerCompliance = {
 export async function listSharedWorkerCompliance(
   relationshipId: string,
 ): Promise<SharedWorkerCompliance[]> {
+  const terms = await getRequestTerminology();
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.rpc("list_shared_worker_compliance", {
     p_relationship_id: relationshipId,
@@ -162,7 +168,7 @@ export async function listSharedWorkerCompliance(
       items: [],
     };
     entry.items.push({
-      credentialTypeName: row.credential_type_name,
+      credentialTypeName: localizeTerms(row.credential_type_name, terms),
       reason: row.reason,
       severity: row.severity,
       effectiveExpiryDate: row.effective_expiry_date,

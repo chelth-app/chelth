@@ -11,6 +11,7 @@ export { AcceptInviteForm } from "./components/accept-invite-form";
 export { AssignRoleForm } from "./components/assign-role-form";
 export { CreateOrganisationForm } from "./components/create-organisation-form";
 export { InviteMemberForm } from "./components/invite-member-form";
+export { OrganisationLocaleForm } from "./components/organisation-locale-form";
 export { OrganisationSections } from "./components/organisation-sections";
 export { StepUpNotice, stepUpHref } from "./components/step-up-notice";
 export { CancelInviteForm } from "./components/cancel-invite-form";

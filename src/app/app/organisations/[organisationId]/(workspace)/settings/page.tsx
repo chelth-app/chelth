@@ -7,7 +7,12 @@ import { StatusChip } from "@/components/ui/status-chip";
 import { getAttendanceRules } from "@/features/attendance";
 import { listRequirements } from "@/features/compliance";
 import { getFinancialSettings } from "@/features/financial";
-import { listMyMemberships, listRoles, loadOrganisationPage } from "@/features/organisations";
+import {
+  listMyMemberships,
+  listRoles,
+  loadOrganisationPage,
+  OrganisationLocaleForm,
+} from "@/features/organisations";
 import { getTimesheetWeekStart } from "@/features/timesheets";
 import { CAPABILITIES } from "@/lib/authz";
 import { PAYROLL_PERIOD_TYPE_LABELS } from "@/lib/domain/financial";
@@ -167,6 +172,16 @@ export default async function SettingsOrganizationPage({
           here.
         </p>
       </Panel>
+
+      {can(CAPABILITIES.ORGANISATION_MANAGE) === "granted" ? (
+        <Panel
+          titleId="workspace-language-heading"
+          title={<>Language &amp; Spelling</>}
+          description={<>Wording only. Stored records and identifiers never change.</>}
+        >
+          <OrganisationLocaleForm organisationId={organisationId} locale={organisation.locale} />
+        </Panel>
+      ) : null}
 
       {preferences.length > 0 ? (
         <Panel

@@ -1,3 +1,4 @@
+import { getRequestTerminology } from "@/features/localization";
 import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -34,6 +35,7 @@ export const metadata: Metadata = { title: "My Credentials" };
 export default async function MyCredentialsPage({
   params,
 }: PageProps<"/app/organisations/[organisationId]/my-credentials">) {
+  const terms = await getRequestTerminology();
   const { organisationId, organisation } = await loadOrganisationPage(
     (await params).organisationId,
   );
@@ -132,7 +134,7 @@ export default async function MyCredentialsPage({
           <WorkerEmpty
             icon="compliance"
             title="No credentials yet."
-            note="Add your licences and certificates to keep your readiness up to date."
+            note={`Add your ${terms.licensesLower} and certificates to keep your readiness up to date.`}
           />
         ) : (
           <ul aria-label="My credentials" className="flex flex-col gap-3">

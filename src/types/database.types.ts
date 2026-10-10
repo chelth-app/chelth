@@ -3514,6 +3514,7 @@ export type Database = {
           created_at: string
           created_by_profile_id: string | null
           id: string
+          locale: string | null
           name: string
           slug: string
           status: Database["public"]["Enums"]["organisation_status"]
@@ -3524,6 +3525,7 @@ export type Database = {
           created_at?: string
           created_by_profile_id?: string | null
           id?: string
+          locale?: string | null
           name: string
           slug: string
           status?: Database["public"]["Enums"]["organisation_status"]
@@ -3534,6 +3536,7 @@ export type Database = {
           created_at?: string
           created_by_profile_id?: string | null
           id?: string
+          locale?: string | null
           name?: string
           slug?: string
           status?: Database["public"]["Enums"]["organisation_status"]
@@ -5175,21 +5178,30 @@ export type Database = {
           created_at: string
           display_name: string | null
           id: string
+          locale: string | null
           status: Database["public"]["Enums"]["profile_status"]
+          timezone: string | null
+          timezone_mode: Database["public"]["Enums"]["timezone_mode"]
           updated_at: string
         }
         Insert: {
           created_at?: string
           display_name?: string | null
           id: string
+          locale?: string | null
           status?: Database["public"]["Enums"]["profile_status"]
+          timezone?: string | null
+          timezone_mode?: Database["public"]["Enums"]["timezone_mode"]
           updated_at?: string
         }
         Update: {
           created_at?: string
           display_name?: string | null
           id?: string
+          locale?: string | null
           status?: Database["public"]["Enums"]["profile_status"]
+          timezone?: string | null
+          timezone_mode?: Database["public"]["Enums"]["timezone_mode"]
           updated_at?: string
         }
         Relationships: []
@@ -5816,6 +5828,7 @@ export type Database = {
           timezone: string
           unit_label: string | null
           updated_at: string
+          worker_change_version: number
         }
         Insert: {
           agency_facility_id: string
@@ -5849,6 +5862,7 @@ export type Database = {
           timezone: string
           unit_label?: string | null
           updated_at?: string
+          worker_change_version?: number
         }
         Update: {
           agency_facility_id?: string
@@ -5882,6 +5896,7 @@ export type Database = {
           timezone?: string
           unit_label?: string | null
           updated_at?: string
+          worker_change_version?: number
         }
         Relationships: [
           {
@@ -8581,6 +8596,18 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_my_display_preferences: {
+        Args: {
+          p_locale?: string
+          p_timezone?: string
+          p_timezone_mode: Database["public"]["Enums"]["timezone_mode"]
+        }
+        Returns: undefined
+      }
+      set_organisation_locale: {
+        Args: { p_locale?: string; p_organisation_id: string }
+        Returns: undefined
+      }
       set_pricing_policy_status: {
         Args: {
           p_policy_id: string
@@ -8639,6 +8666,10 @@ export type Database = {
           blocking_reasons: string[]
           outcome: string
         }[]
+      }
+      sync_my_device_timezone: {
+        Args: { p_timezone: string }
+        Returns: boolean
       }
       unread_message_count: {
         Args: { p_organisation_id: string }
@@ -8980,6 +9011,7 @@ export type Database = {
         | "rejected"
         | "agency_approved"
         | "locked"
+      timezone_mode: "automatic" | "manual"
       verification_outcome: "under_review" | "verified" | "rejected"
       verification_rejection_reason:
         | "document_illegible"
@@ -9389,6 +9421,7 @@ export const Constants = {
         "agency_approved",
         "locked",
       ],
+      timezone_mode: ["automatic", "manual"],
       verification_outcome: ["under_review", "verified", "rejected"],
       verification_rejection_reason: [
         "document_illegible",

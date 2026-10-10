@@ -4,7 +4,7 @@ import { ActivityTimeline } from "@/components/ui/activity-timeline";
 import { KeyValueList } from "@/components/ui/key-value-list";
 import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
-import { listMfaFactors } from "@/features/identity";
+import { getMyProfile, listMfaFactors } from "@/features/identity";
 import {
   listAuditEvents,
   listMembers,
@@ -12,14 +12,13 @@ import {
   StepUpNotice,
 } from "@/features/organisations";
 import { getAssurance } from "@/lib/auth/session";
+import { resolveDisplayTimeZone } from "@/lib/domain/display-timezone";
 import { auditActionLabel, CAPABILITIES } from "@/lib/authz";
 
 import { settingsHref } from "../_components/settings-sections";
 import { SettingsActionLink, SettingsActionRow } from "../_components/settings-ui";
 
 export const metadata: Metadata = { title: "Security" };
-
-const dateTime = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" });
 
 /**
  * Settings → Security. Real security state only: this session's assurance
@@ -32,6 +31,13 @@ const dateTime = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeSty
 export default async function SettingsSecurityPage({
   params,
 }: PageProps<"/app/organisations/[organisationId]/settings/security">) {
+  // Audit times are personal display (P0-E9-3F): the person's own timezone.
+  const displayTimeZone = resolveDisplayTimeZone(await getMyProfile());
+  const dateTime = new Intl.DateTimeFormat("en-GB", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: displayTimeZone,
+  });
   const context = await loadOrganisationPage((await params).organisationId);
   const { organisationId, can, needsStepUp } = context;
   const canAudit = can(CAPABILITIES.AUDIT_VIEW) === "granted";
@@ -103,7 +109,7 @@ export default async function SettingsSecurityPage({
           description={
             <>
               Recent membership, role, invitation and other administrative changes in this
-              workspace. The log is append-only.
+              workspace. The log is append-only. Times are shown in {displayTimeZone}.
             </>
           }
         >

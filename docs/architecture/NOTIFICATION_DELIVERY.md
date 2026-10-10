@@ -183,3 +183,46 @@ queues, ordered needs-attention first:
 This keeps amounts, references and personal pay data out of email entirely.
 Future reminders (for example "3 periods ready to prepare") should carry
 counts and links only.
+
+## 13. Shift emails (P0-E9-3G)
+
+All worker shift emails use this pipeline (outbox in the domain transaction →
+dispatcher → template → Resend). No action sends email directly.
+
+| Event                  | When                                                                                | Subject                          | Link                      |
+| ---------------------- | ----------------------------------------------------------------------------------- | -------------------------------- | ------------------------- |
+| `worker_assigned`      | direct assignment (the worker then confirms in Chelth)                              | You have a new shift             | `/my-shifts/<assignment>` |
+| `shift_offered`        | an offer is created (never implies assignment)                                      | New shift available              | `/my-shifts`              |
+| `shift_changed`        | a worker-relevant field of an open shift changes (time, date, location, role, unit) | Your shift has been updated      | `/my-shifts/<assignment>` |
+| `shift_cancelled`      | the shift is cancelled                                                              | Your shift has been cancelled    | `/my-shifts`              |
+| `assignment_cancelled` | the worker's assignment is cancelled                                                | Your shift has been cancelled    | `/my-shifts`              |
+| `shift_reminder`       | ~24 h before an ACCEPTED shift (scan every 15 min)                                  | Reminder: your shift is tomorrow | `/my-shifts/<assignment>` |
+
+- Acceptance (of an assignment or an offer) sends nothing: the worker did it.
+- `shift_changed` comes from a trigger on `public.shifts`
+  (`worker_change_version`). Headcount, references, classification and
+  instructions never email. A further change while the email is still
+  waiting merges into it (net change, original "previous" values). Today
+  date / time / location / role cannot change under an assigned worker
+  (`shifts_transition` + the assignment → shift `start_at` FK), so in practice
+  the unit is the changing field; the trigger covers the rest if that rule is
+  ever relaxed.
+- Reminders: `internal.run_shift_reminder_scan` (cron
+  `chelth-shift-reminder-scan`). Accepted assignments on open shifts starting
+  within 24 h; assignments made inside that window are skipped. Wording
+  ("tomorrow" / "today") uses the facility's calendar, never the device's.
+- Idempotency: `notification_outbox.dedupe_key` (unique, every state).
+  Lifecycle events get `<event>:<subject>:<recipient>` automatically; changes
+  `shift_changed:<assignment>:<version>`; reminders
+  `shift_reminder:<assignment>:<start epoch>`.
+- Delivery-time guards: change and reminder rows resolve to nothing (failed
+  `subject_unavailable`, never sent) when the assignment or shift is no longer
+  active, or the shift has started; a worker row renders only for that
+  worker's own assignment.
+- Content: facility, location, date / time / timezone, role, unit and (new
+  assignment / reminder) up to 280 characters of the facility's worker
+  arrival guidance. Never pay or rates, coordinates, credentials, notes, other
+  workers or facility contact details.
+- Preferences: none yet — all shift emails are required operational
+  notifications (default on). A later split could make reminders optional;
+  cancellations and changes stay required.

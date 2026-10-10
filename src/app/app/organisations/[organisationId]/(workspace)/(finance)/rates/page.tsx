@@ -510,14 +510,15 @@ export default async function RatesPage({
 
         <RefPanel title="Rounding and Overtime" titleId="policies-heading">
           <RecordNote className="max-w-3xl px-[5px] pt-1 pb-2">
-            Both are off unless you activate a policy. Rounding applies per timesheet entry and
-            never changes recorded time. Overtime is a weekly threshold per timesheet week, set
-            separately for pay and bill. These are calculations you configure, not legal advice.
+            Without a policy, worked time is priced in exact minutes and there is no overtime.
+            Rounding applies per timesheet entry and never changes recorded time. Overtime is a
+            weekly threshold per timesheet week, set separately for pay and bill. These are
+            calculations you configure, not legal advice.
           </RecordNote>
           {policyRows.length === 0 ? (
             <LockedEmpty
               icon="pricing"
-              title="No rounding, no overtime."
+              title="Exact minutes, no overtime."
               note="Worked minutes are priced as recorded at the base hourly rate."
             />
           ) : (

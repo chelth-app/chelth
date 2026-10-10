@@ -8,6 +8,8 @@ import type {
   RejectionReason,
   VerificationOutcome,
 } from "@/lib/domain/credentials";
+import { getRequestTerminology } from "@/features/localization";
+import { localizeTerms } from "@/lib/i18n/terminology";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 /* All reads run as the signed-in user; RLS decides visibility. */
@@ -24,6 +26,7 @@ export type CredentialTypeOption = {
 };
 
 export async function listCredentialTypes(): Promise<CredentialTypeOption[]> {
+  const terms = await getRequestTerminology();
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("credential_types")
@@ -35,7 +38,7 @@ export async function listCredentialTypes(): Promise<CredentialTypeOption[]> {
   if (error) throw error;
   return data.map((row) => ({
     key: row.key,
-    name: row.name,
+    name: localizeTerms(row.name, terms),
     scope: row.scope,
     jurisdictionRule: row.jurisdiction_rule,
     requiresIssueDate: row.requires_issue_date,
@@ -94,6 +97,7 @@ export type MyCredentialSummary = {
 export async function listMyCredentials(
   agencyOrganisationId: string,
 ): Promise<MyCredentialSummary[]> {
+  const terms = await getRequestTerminology();
   const identity = await requireAuthIdentity();
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
@@ -109,7 +113,7 @@ export async function listMyCredentials(
     return {
       id: row.id,
       typeKey: row.credential_type_key,
-      typeName: row.type?.name ?? row.credential_type_key,
+      typeName: localizeTerms(row.type?.name ?? row.credential_type_key, terms),
       jurisdictionCode: row.jurisdiction_code,
       status: row.status,
       latestVersion: latest
@@ -190,6 +194,7 @@ export type CredentialDetail = {
 
 /** A credential as the caller may see it (owner or authorised agency), or null. */
 export async function getCredential(credentialId: string): Promise<CredentialDetail | null> {
+  const terms = await getRequestTerminology();
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("credentials")
@@ -224,7 +229,7 @@ export async function getCredential(credentialId: string): Promise<CredentialDet
     id: data.id,
     profileId: data.profile_id,
     typeKey: data.credential_type_key,
-    typeName: data.type?.name ?? data.credential_type_key,
+    typeName: localizeTerms(data.type?.name ?? data.credential_type_key, terms),
     scope: data.type?.scope ?? "person",
     requiresDocument: data.type?.requires_document ?? true,
     requiresIssueDate: data.type?.requires_issue_date ?? false,
@@ -286,6 +291,7 @@ export type AgencyWorkerCredential = {
 export async function listAgencyWorkerCredentials(
   workerId: string,
 ): Promise<AgencyWorkerCredential[]> {
+  const terms = await getRequestTerminology();
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.rpc("list_agency_worker_credentials", {
     p_agency_worker_id: workerId,
@@ -293,7 +299,7 @@ export async function listAgencyWorkerCredentials(
   if (error) throw error;
   return data.map((row) => ({
     credentialId: row.credential_id,
-    typeName: row.credential_type_name,
+    typeName: localizeTerms(row.credential_type_name, terms),
     jurisdictionCode: row.jurisdiction_code,
     latestVersionNumber: row.latest_version_number,
     latestVersionStatus: row.latest_version_status,

@@ -1,3 +1,4 @@
+import { getRequestTerminology } from "@/features/localization";
 import type { Metadata, Route } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -666,6 +667,7 @@ export default async function CompliancePage({
       {manage === "granted" ? (
         <Panel titleId="add-baseline-heading" title={<>Add a baseline requirement</>}>
           <RequirementForm
+            terms={await getRequestTerminology()}
             organisationId={organisationId}
             credentialTypes={credentialTypes}
             disciplines={disciplines}

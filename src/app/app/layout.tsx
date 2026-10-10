@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { DeviceTimezoneSync, getMyProfile } from "@/features/identity";
 import { requireAuthIdentityOrRedirect } from "@/lib/auth/session";
 
 /**
@@ -13,8 +14,17 @@ import { requireAuthIdentityOrRedirect } from "@/lib/auth/session";
  * - organisations/[organisationId]/(self-service)/layout.tsx — worker
  *   self-service pages: the personal frame, unchanged.
  * Route groups do not change any URL.
+ *
+ * P0-E9-3F: an AUTOMATIC personal display timezone follows the device here
+ * (manual choices are never overwritten). Display only — no operational time.
  */
 export default async function AppLayout({ children }: { children: ReactNode }) {
   await requireAuthIdentityOrRedirect("/app");
-  return children;
+  const profile = await getMyProfile();
+  return (
+    <>
+      <DeviceTimezoneSync timezoneMode={profile.timezoneMode} timezone={profile.timezone} />
+      {children}
+    </>
+  );
 }

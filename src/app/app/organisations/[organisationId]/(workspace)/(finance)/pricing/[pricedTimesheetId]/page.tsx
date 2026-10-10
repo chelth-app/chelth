@@ -27,6 +27,7 @@ import {
   formatMoney,
   marginMinor,
   RATE_PRECEDENCE_LABELS,
+  formatHoursMinutes,
   SHIFT_CLASSIFICATION_LABELS,
 } from "@/lib/domain/pricing";
 import { formatPeriod, formatWorkedMinutes } from "@/lib/domain/timesheets";
@@ -191,9 +192,13 @@ export default async function PricedTimesheetPage({
                       {SHIFT_CLASSIFICATION_LABELS[line.classification]}
                     </div>
                   </DataTableCell>
-                  <DataTableCell numeric>{line.rawMinutes} min</DataTableCell>
+                  <DataTableCell numeric>
+                    {formatHoursMinutes(line.rawMinutes)}
+                    <div className="text-xs text-slate-600">{line.rawMinutes} min</div>
+                  </DataTableCell>
                   <DataTableCell numeric>
                     {line.pricedMinutes} min
+                    <div className="text-xs text-slate-600">calculation basis</div>
                     {line.payOvertimeMinutes > 0 ? (
                       <div className="text-xs text-slate-600">
                         {line.payOvertimeMinutes} min pay overtime
@@ -235,8 +240,9 @@ export default async function PricedTimesheetPage({
           </DataTable>
         </DataTableRegion>
         <RecordNote>
-          Amounts: minutes × hourly rate ÷ 60 per line, rounded half up to the cent; overtime
-          minutes use the configured multiplier. Totals are the sum of lines.
+          Amounts: calculation-basis minutes ÷ 60 × hourly rate per line, rounded half up to the
+          cent (exact minutes, or rounded first where a rounding policy applied); overtime minutes
+          use the configured multiplier. Totals are the sum of lines.
         </RecordNote>
       </Panel>
     </RecordPage>

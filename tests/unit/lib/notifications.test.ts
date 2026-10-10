@@ -36,6 +36,110 @@ function template(overrides: Partial<NotificationTemplateData> = {}): Notificati
   };
 }
 
+describe("shift emails (P0-E9-3G)", () => {
+  const ASSIGNMENT = "22222222-2222-4222-8222-222222222222";
+  const worker = (overrides: Partial<NotificationTemplateData>) =>
+    template({ path: `/app/organisations/${ORG}/my-shifts/${ASSIGNMENT}`, ...overrides });
+
+  it("new assignment: subject, worker context, unit, arrival guidance and a deep link", () => {
+    const rendered = renderNotification(
+      worker({ unitLabel: "ICU", arrivalInstructions: "Use the east entrance." }),
+      BASE,
+    );
+    expect(rendered.subject).toBe("You have a new shift");
+    expect(rendered.text).toContain("Facility: Mercy Rehab");
+    expect(rendered.text).toContain("Role: Certified Nursing Assistant (CNA)");
+    expect(rendered.text).toContain("Unit: ICU");
+    expect(rendered.text).toContain("Arrival: Use the east entrance.");
+    expect(rendered.text).toContain(
+      `View shift: ${BASE}/app/organisations/${ORG}/my-shifts/${ASSIGNMENT}`,
+    );
+  });
+
+  it("offer: never implies the shift is already assigned", () => {
+    const rendered = renderNotification(
+      template({ event: "shift_offered", offerExpiresAt: "2030-07-14T23:00:00Z" }),
+      BASE,
+    );
+    expect(rendered.subject).toBe("New shift available");
+    expect(rendered.text).toContain("It is not yours until you accept it.");
+    expect(rendered.text).toContain("Review shift:");
+    expect(rendered.text).not.toMatch(/assigned you|You have a new shift/);
+  });
+
+  it("change: only the meaningful change, previous → updated", () => {
+    const rendered = renderNotification(
+      worker({
+        event: "shift_changed",
+        changes: ["time"],
+        previousStartAt: "2030-07-15T11:00:00Z",
+        previousEndAt: "2030-07-15T19:00:00Z",
+        startAt: "2030-07-15T12:00:00Z",
+        endAt: "2030-07-15T20:00:00Z",
+      }),
+      BASE,
+    );
+    expect(rendered.subject).toBe("Your shift has been updated");
+    expect(rendered.text).toContain("Shift time changed.");
+    expect(rendered.text).toContain("Previous: Mon, Jul 15, 2030, 7:00 AM – 3:00 PM EDT");
+    expect(rendered.text).toContain("Updated: Mon, Jul 15, 2030, 8:00 AM – 4:00 PM EDT");
+    expect(rendered.text).toContain("Review updated shift:");
+  });
+
+  it("change: a unit change names only the unit", () => {
+    const rendered = renderNotification(
+      worker({
+        event: "shift_changed",
+        changes: ["unit"],
+        previousUnitLabel: "ICU",
+        unitLabel: "Ward 4",
+      }),
+      BASE,
+    );
+    expect(rendered.text).toContain("Shift unit changed.");
+    expect(rendered.text).toContain("Previous unit: ICU");
+    expect(rendered.text).toContain("Updated unit: Ward 4");
+    expect(rendered.text).not.toContain("Previous:");
+  });
+
+  it("cancellation: clear, and never suggests attending", () => {
+    for (const event of ["shift_cancelled", "assignment_cancelled"] as const) {
+      const rendered = renderNotification(template({ event }), BASE);
+      expect(rendered.subject).toBe("Your shift has been cancelled");
+      expect(rendered.text).toContain("You do not need to attend.");
+      expect(rendered.text).not.toMatch(/arrive|attend the shift|see you/i);
+    }
+  });
+
+  it("reminder: worded in the FACILITY's calendar, not the server's or device's", () => {
+    // 7:00 PM New York on Jul 15 = 23:00 UTC. At 22:00 UTC on Jul 14 it is 6:00 PM in New York
+    // (Jul 14) ⇒ tomorrow; in UTC it would already read differently.
+    const data = worker({ event: "shift_reminder" });
+    expect(renderNotification(data, BASE, new Date("2030-07-14T22:00:00Z")).subject).toBe(
+      "Reminder: your shift is tomorrow",
+    );
+    // 01:00 UTC Jul 15 is still Jul 14 (9:00 PM) in New York ⇒ still "tomorrow".
+    expect(renderNotification(data, BASE, new Date("2030-07-15T01:00:00Z")).subject).toBe(
+      "Reminder: your shift is tomorrow",
+    );
+    expect(renderNotification(data, BASE, new Date("2030-07-15T13:00:00Z")).subject).toBe(
+      "Reminder: your shift is today",
+    );
+  });
+
+  it("no pay, rates, coordinates, notes or credentials in shift emails", () => {
+    for (const event of [
+      "worker_assigned",
+      "shift_changed",
+      "shift_reminder",
+      "shift_offered",
+    ] as const) {
+      const text = renderNotification(worker({ event }), BASE).text;
+      expect(text).not.toMatch(/\$|rate|latitude|longitude|credential|note:/i);
+    }
+  });
+});
+
 describe("notification templates", () => {
   it("render every event with safe operational content and a canonical link", () => {
     for (const event of NOTIFICATION_EVENTS) {
@@ -52,7 +156,8 @@ describe("notification templates", () => {
 
   it("shows local time, timezone and date without raw ids in visible text", () => {
     const rendered = renderNotification(template(), BASE);
-    expect(rendered.subject).toBe("New shift assignment: Mercy Rehab, Mon, Jul 15, 2030");
+    expect(rendered.subject).toBe("You have a new shift");
+    expect(rendered.text).toContain("Date: Mon, Jul 15, 2030");
     expect(rendered.text).toContain("Time: 7:00 PM – 7:00 AM (+1 day) EDT");
     expect(rendered.text).toContain("Timezone: America/New_York");
     const visible = rendered.text.replace(/https?:\/\/\S+/g, "");

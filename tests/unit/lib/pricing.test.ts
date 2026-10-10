@@ -90,7 +90,7 @@ describe("rate version phases", () => {
 
 describe("policy descriptions", () => {
   it("describes rounding and overtime without implying legal compliance", () => {
-    expect(describeRounding("none", null)).toBe("No rounding");
+    expect(describeRounding("none", null)).toBe("Exact minutes");
     expect(describeRounding("nearest", 15)).toBe("Nearest 15 minutes");
     expect(describeOvertime(3, 2, 2400)).toBe("1.5× after 40 h per week");
     expect(describeOvertime(null, null)).toBe("No overtime");

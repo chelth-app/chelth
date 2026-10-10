@@ -1,3 +1,4 @@
+import { getRequestTerminology } from "@/features/localization";
 import type { Metadata, Route } from "next";
 import Link from "next/link";
 
@@ -230,6 +231,7 @@ export default async function FacilityPage({
               <FacilityImageUploader
                 organisationId={organisationId}
                 facilityId={facility.id}
+                facilityName={facility.name}
                 hasImage={Boolean(facility.imageUrl)}
               />
               {facility.imageUrl ? (
@@ -373,6 +375,7 @@ export default async function FacilityPage({
           />
           {canManageRequirements && facility.status !== "archived" ? (
             <RequirementForm
+              terms={await getRequestTerminology()}
               organisationId={organisationId}
               facilityId={facility.id}
               credentialTypes={credentialTypes}

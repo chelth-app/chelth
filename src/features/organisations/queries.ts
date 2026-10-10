@@ -56,6 +56,8 @@ export type OrganisationSummary = {
   name: string;
   type: OrganisationType;
   status: OrganisationStatus;
+  /** Configured presentation locale (P0-E9-3F); null ⇒ the fallback chain. */
+  locale: string | null;
 };
 
 /** The organisation if the caller may see it, otherwise null. Memoised per request. */
@@ -64,7 +66,7 @@ export const getOrganisation = cache(
     const supabase = await createSupabaseServerClient();
     const { data, error } = await supabase
       .from("organisations")
-      .select("id, name, type, status")
+      .select("id, name, type, status, locale")
       .eq("id", organisationId)
       .maybeSingle();
     if (error) throw error;

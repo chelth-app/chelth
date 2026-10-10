@@ -1,0 +1,424 @@
+P0-E9-3G — SHIFT EMAIL NOTIFICATIONS
+===================================
+CHELTH — Healthcare Workforce Operations
+
+Branch: p0-e8-visual-implementation (uncommitted, on top of the uncommitted
+P0-E9-3F work). Nothing deployed or pushed; no production change. Read-only,
+aggregate production queries were run (section 9); they printed no
+addresses, no content and no secret values.
+
+
+1. EXISTING NOTIFICATION AUDIT
+------------------------------
+Chelth already had a complete delivery pipeline (P0-E5-S2;
+docs/architecture/NOTIFICATION_DELIVERY.md):
+
+  domain RPC ─(same transaction)─► internal.enqueue_notification
+      → internal.notification_outbox (ids + codes only; no address or body)
+  pg_cron (every minute) ─► internal.request_notification_dispatch ─pg_net─►
+      POST /api/internal/notifications/dispatch (Bearer secret)
+      ├─ internal.claim_notifications (FOR UPDATE SKIP LOCKED, lease, token;
+      │  address read from auth.users NOW, confirmed + active members only;
+      │  template data from current records)
+      ├─ renderNotification (src/lib/notifications/templates.ts)
+      ├─ EmailSender (Resend adapter; idempotency key
+      │  chelth-notification-<outbox id>)
+      └─ internal.complete_notification (sent / retry with backoff
+         1 m, 5 m, 30 m, 2 h / failed after 5; final failures audited)
+  Status: list_notification_deliveries on /operations (failed / retrying).
+
+Shift events that ALREADY existed (worker audience):
+- worker_assigned: direct assignment (status 'assigned'; the worker then
+  accepts);
+- shift_offered: offer created;
+- assignment_cancelled: the worker's assignment cancelled;
+- shift_cancelled: the shift cancelled (worker and linked facility).
+Acceptance (accept_shift_assignment, accept_shift_offer) emails nobody;
+the worker performs it.
+
+Missing: shift changes, reminders, and durable idempotency. The only dedupe
+was "one open row per (event, subject, recipient)". After delivery, a
+replayed enqueue could have queued again.
+
+No notification preferences exist (all events are required operational
+notifications).
+
+
+2. EVENT VOCABULARY
+-------------------
+Migration 20261010150000_shift_email_vocabulary (enum values must commit
+before use) adds two values to internal.notification_event:
+  shift_changed, shift_reminder.
+Mapping to the brief:
+  SHIFT_ASSIGNED     → worker_assigned (existing)
+  SHIFT_OFFERED      → shift_offered (existing)
+  SHIFT_CHANGED      → shift_changed (new)
+  SHIFT_CANCELLED    → shift_cancelled / assignment_cancelled (existing)
+  SHIFT_REMINDER_24H → shift_reminder (new)
+TS mirror: src/lib/notifications/vocabulary.ts (category "required";
+labels "Shift updated", "Shift reminder"). The integration drift test still
+compares the lists with the database.
+
+
+3. ASSIGNMENT TRIGGER
+---------------------
+Unchanged trigger point: internal assignment creation (direct) enqueues
+worker_assigned in the same transaction. A refused assignment (e.g.
+ASSIGNMENT_ALREADY_EXISTS, ineligible) queues nothing.
+Content (updated):
+- Subject "You have a new shift"; heading the same.
+- "<Agency> has assigned you to the shift below. Open Chelth to confirm you
+  can work it."
+- Details: facility, location, date, time, timezone, role, unit.
+- "Arrival: …" (the facility's worker arrival guidance, ≤ 280 characters),
+  when present.
+- CTA "View shift".
+- Deep link /app/organisations/<org>/my-shifts/<assignmentId>. The page
+  still requires sign-in and returns "Page not found" to anyone but that
+  worker (E2E).
+Acceptance does not add a second email (pgTAP 290, integration).
+
+
+4. OFFER TRIGGER
+----------------
+Unchanged trigger: offer_shift_to_workers. Content (updated):
+- Subject "New shift available"; heading "A new shift is available".
+- "… is offering you the shift below. It is not yours until you accept it."
+- Expiry time; first-come wording; CTA "Review shift".
+- Accepting the offer creates an accepted assignment with no further email.
+
+DEFECT FOUND AND FIXED:
+- expiry() combined dateStyle / timeStyle with timeZoneName. Intl throws on
+  that combination.
+- Every real offer email (all have an expiry) therefore failed to render:
+  dispatch_error, retried, then failed.
+- It went unnoticed because the "render every event" unit test used data
+  without an expiry. There is now a regression test.
+
+
+5. CHANGE DETECTION
+-------------------
+public.shifts gains worker_change_version (integer).
+- BEFORE UPDATE trigger shifts_worker_change_version: increments when an
+  OPEN shift's start_at, end_at, facility_location_id, discipline_key or
+  unit_label changes.
+- AFTER UPDATE trigger shifts_notify_worker_change: for each active
+  assignment ('assigned' or 'accepted') it queues shift_changed (subject:
+  the assignment), keyed shift_changed:<assignment>:<version>, with detail:
+  - changes: date / time / location / role / unit;
+  - previousStartAt / previousEndAt / previousLocationId /
+    previousDisciplineKey / previousUnitLabel (≤ 60 characters).
+  The template resolves the previous location and role names (same agency
+  only) and never exposes the ids.
+- Same transaction: a refused update queues nothing (tested with the
+  existing CH409 rule).
+- Merge: another change while that email is still pending / retrying is
+  merged into it (union of fields, ORIGINAL previous values, latest current
+  values), so the worker gets one accurate net-change email. After delivery,
+  a new change is a new, versioned email.
+- Not emailed: headcount, external reference, instructions, classification,
+  internal notes, status-only changes. A cancellation keeps its own event.
+
+FINDING (documented, by design):
+- While a worker holds the shift, its date / time / location / role cannot
+  change today. shifts_transition refuses scheduling changes on open
+  shifts (CH409), and assignments carry the shift's start_at in a composite
+  foreign key (23503).
+- The real-world path is cancel + re-create, which already emails. In
+  practice the unit is the field that changes under an assigned worker.
+- The trigger already covers date / time / location / role if that rule is
+  ever relaxed. The previous → updated time rendering is unit-tested.
+
+
+6. CANCELLATION
+---------------
+Unchanged triggers (cancel_shift, cancel_shift_assignment, relationship
+suspension). Content (updated):
+- Subject "Your shift has been cancelled" (both events);
+- "<Agency> has cancelled the shift below. You do not need to attend.";
+- original date / time; CTA "View my shifts" (the list; the cancelled
+  record may no longer be shown to the worker).
+- Pending change or reminder emails for that shift are no longer delivered
+  (delivery-time guard, section 8).
+
+
+7. REMINDER SCHEDULING
+----------------------
+internal.run_shift_reminder_scan(p_now):
+- cron chelth-shift-reminder-scan, every 15 minutes; run recorded in
+  scheduled_job_runs.
+- Selects ACCEPTED assignments on OPEN shifts with start_at in (now,
+  now + 24 h]. Shift start is an absolute instant derived from the facility
+  date / time and timezone (unchanged model), so DST is already resolved.
+- Skips assignments created inside that window: the worker was just
+  notified (assignment or offer).
+- Never: cancelled, completed, declined or not-yet-accepted assignments
+  (pgTAP).
+- deliver_until = shift start: a delayed dispatch never sends after the
+  start.
+- Wording uses the FACILITY's calendar: "Reminder: your shift is tomorrow" /
+  "today" / "on <date>". Never the device or server zone; unit-tested
+  across a UTC date boundary.
+
+
+8. IDEMPOTENCY
+--------------
+- notification_outbox.dedupe_key, unique in EVERY state (not only
+  pending).
+- A BEFORE INSERT trigger assigns <event>:<subject>:<recipient> to
+  worker_assigned, shift_offered, assignment_cancelled and shift_cancelled.
+  Every existing caller (they insert with ON CONFLICT DO NOTHING) becomes
+  idempotent without code changes.
+- Explicit keys: shift_changed:<assignment>:<change version>;
+  shift_reminder:<assignment>:<start epoch> (a re-timed shift could be
+  reminded again; the same one never).
+- Dispatcher: SKIP LOCKED claims + claim tokens (no double send between
+  dispatchers); the provider idempotency key covers a crash between send
+  and record.
+- Delivery-time guards (internal.notification_template):
+  - shift_changed only while the assignment is assigned / accepted and the
+    shift is open;
+  - shift_reminder only while accepted, open and not started;
+  - a worker row renders only for that worker's own assignment.
+  Otherwise: failed subject_unavailable (never sent).
+
+
+9. RESEND INTEGRATION
+---------------------
+No new sender and no direct Resend call: every email goes outbox →
+dispatcher → template → the existing EmailSender (Resend adapter).
+
+PRODUCTION FINDING (read-only, aggregate):
+- Notification rows ever created: 2, both still pending; the oldest is
+  from 2026-10-10.
+- pg_cron jobs run (offer expiry, scans, …). The chelth-notification-kick
+  job exists, and 2 login roles are in chelth_notification_worker.
+- Vault entries chelth_notification_dispatch_url /
+  chelth_notification_dispatch_secret: 0.
+⇒ The every-minute kick is a no-op. Production has never dispatched a
+  notification email. This predates this phase. The operator setup in
+  NOTIFICATION_DELIVERY.md §7 must be completed (section 16, step 4) before
+  any shift email can arrive.
+
+
+10. FAILURE / RETRY BEHAVIOUR
+-----------------------------
+Unchanged and verified:
+- A provider failure never touches the shift: the outbox row is written in
+  the domain transaction, and sending happens later in a separate process.
+  Integration: Resend-style "provider_unavailable" ⇒ state retry, the
+  assignment stays "accepted", and the next dispatch sends.
+- Retries 1 m / 5 m / 30 m / 2 h; final after 5 attempts; permanent errors
+  immediately; final failures audited (codes only).
+- Operators see queued, retrying and failed rows with recipient name, event
+  and a plain error label (list_notification_deliveries; /operations).
+  Workers never see provider errors.
+
+
+11. VERIFIED-EMAIL BEHAVIOUR
+----------------------------
+Unchanged: the address is read at claim time from auth.users, only when
+email_confirmed_at is set, the profile is active, and the person is still an
+active member of the agency.
+- Otherwise the row fails as recipient_unavailable ("Recipient no longer
+  active"). It is never sent, and nothing is rolled back.
+- No profile or worker email field is used.
+- Existing pgTAP 140 covers the inactive recipient.
+
+
+12. SECURITY
+------------
+- Emails never contain pay or bill rates, amounts, coordinates, credentials
+  or documents, internal notes, other workers, or facility contact
+  phone / label. Unit-tested for every shift email.
+- Arrival guidance is the facility's worker-facing text (already shown to
+  assigned workers), capped at 280 characters.
+- Links carry no token: canonical routes only. Sign-in and RLS decide
+  (E2E: another worker gets "Page not found").
+- Tenant: emails are queued only by the agency's own authorised RPCs /
+  triggers. Another agency cannot change the shift (CH403), so it cannot
+  trigger the email (pgTAP). The template re-checks the agency and the
+  recipient's own assignment.
+- New internal functions are revoked from every API role. No new public
+  RPC and no new grants.
+
+
+13. TESTS
+---------
+pgTAP NEW 290_shift_email_notifications (36):
+- A: one worker_assigned, deterministic key, deep link to the assignment;
+  replay after send inserts nothing;
+- T: refused assignment ⇒ no email; refused open-shift time change (CH409)
+  ⇒ no email; times also pinned by the FK (23503);
+- acceptance ⇒ no extra email;
+- O: offer ⇒ one email; offer acceptance ⇒ no assignment email;
+- C:
+  - unit change ⇒ one email naming only the unit, versioned key;
+  - the same value again ⇒ none;
+  - a second change while pending ⇒ merged (latest value shown);
+  - after delivery ⇒ a new versioned email with the previous value;
+  - headcount / reference / instructions ⇒ none;
+- W: another agency cannot change the shift ⇒ no email; someone else's
+  assignment never renders for another recipient;
+- R:
+  - 30 h before ⇒ none; within 24 h ⇒ one; rescan ⇒ no duplicate;
+  - deliver_until = start;
+  - not accepted ⇒ none;
+  - completed ⇒ none, and a queued one resolves to nothing;
+  - cancelled ⇒ none;
+- X: cancellation ⇒ one email, links to My Shifts; pending change emails
+  are no longer delivered.
+Updated 140:
+- the worker_assigned link is now /my-shifts/<assignment>;
+- the scheduled job list includes chelth-shift-reminder-scan.
+Total: 34 files, 1,639 assertions, PASS (fresh db reset).
+
+Unit (tests/unit/lib/notifications.test.ts, +7):
+- new assignment: subject, unit, arrival, deep link;
+- offer never implies assignment (and renders with an expiry — the
+  regression);
+- change: time previous → updated; unit only;
+- cancellation copy never suggests attending;
+- reminder "tomorrow" / "today" in the facility calendar across a UTC date
+  boundary;
+- no pay, rates, coordinates, credentials or notes.
+Total: 450 passed.
+
+Integration NEW tests/integration/shift-email-notifications.test.ts (3),
+through the real least-privilege dispatcher role and a fake sender:
+- assignment ⇒ exactly one email, to the verified address, with the
+  deep link and no sensitive content; a duplicate dispatcher run sends
+  nothing;
+- acceptance ⇒ nothing; unit change ⇒ provider failure ⇒ retry, the
+  assignment still accepted; then sent "Your shift has been updated";
+- reminder in the facility calendar; cancellation ⇒ "Your shift has been
+  cancelled"; no reminder after cancellation.
+Total: 19 files, 131 passed. After db reset, the local Kong gateway kept
+returning upstream errors (AuthRetryableFetchError, an infrastructure issue
+also seen in E9-3E and E9-3F). It was fixed by restarting only that local
+container.
+
+E2E NEW tests/e2e/shift-email-deep-link.spec.ts (desktop + mobile):
+- the emailed link sends a signed-out visitor to sign in; the assigned
+  worker then sees their shift;
+- another worker gets "Page not found".
+Full run: section 13a.
+
+
+13a. VALIDATION
+---------------
+format:check PASS · lint PASS · typecheck PASS · test 450 PASS · build PASS ·
+check:bundle OK · check:migrations OK (70) · test:integration 131 PASS ·
+db reset PASS · db lint (warning; public / authz / internal) no issues ·
+test db 1,639 PASS · db:types regenerated (shifts.worker_change_version).
+npx playwright test (full run): 345 passed, 1 failed, 2 did not run,
+14 skipped (10.2 min). The failure was in the setup (beforeAll) of the
+P0-E9-3F spec on mobile: the local Auth server returned
+AuthRetryableFetchError on an MFA call. The 2 "did not run" were the same
+spec's serial tests. Rerun of that spec: 6 passed. All shift-email E2E
+(deep link) passed in the full run. Environmental, not a regression; one
+clean full run before merging is still recommended.
+
+
+14. FILES CHANGED
+-----------------
+New:
+  supabase/migrations/20261010150000_shift_email_vocabulary.sql
+  supabase/migrations/20261010150100_shift_email_notifications.sql
+  supabase/tests/security/290_shift_email_notifications.test.sql
+  tests/integration/shift-email-notifications.test.ts
+  tests/e2e/shift-email-deep-link.spec.ts
+  docs/reports/P0-E9-3G-shift-email-notifications.txt
+Changed:
+  src/lib/notifications/templates.ts (shift email content, change / reminder
+    rendering, unit / role / arrival, the expiry fix)
+  src/lib/notifications/vocabulary.ts (two events)
+  src/types/database.types.ts (generated)
+  supabase/tests/security/140_notification_delivery.test.sql
+  tests/unit/lib/notifications.test.ts
+  docs/architecture/NOTIFICATION_DELIVERY.md (§13)
+
+
+15. MIGRATIONS
+--------------
+(after 20261010140000_locale_and_display_timezone)
+20261010150000_shift_email_vocabulary:
+- two enum values.
+20261010150100_shift_email_notifications:
+- outbox.dedupe_key + unique index + BEFORE INSERT trigger;
+- internal.enqueue_worker_notification_once;
+- shifts.worker_change_version + two triggers;
+- internal.run_shift_reminder_scan + cron chelth-shift-reminder-scan;
+- internal.notification_template (replaced; same signature).
+Additive. Existing outbox rows get no key; existing shifts get version 0.
+
+
+16. DEPLOYMENT SEQUENCE (operator; NOT performed)
+-------------------------------------------------
+1. Review and commit; PR; CI green.
+2. Production restore point. Run supabase db push --dry-run and expect only
+   the not-yet-applied migrations, ending with the two above. Then push.
+   Database first is safe: the current app's dispatcher accepts the
+   templates for the old events, and it treats unknown events
+   (shift_changed / shift_reminder) as template_invalid only until the new
+   app deploys. Shortly after the push, deploy the app (step 3) so that
+   new change / reminder rows are not failed by an old dispatcher.
+3. Merge; Vercel deploys.
+4. ENABLE DELIVERY (prerequisite found in section 9; NOTIFICATION_DELIVERY.md
+   §7):
+   - Vercel: EMAIL_PROVIDER=resend, RESEND_API_KEY, EMAIL_FROM (verified
+     domain), APP_BASE_URL, NOTIFICATION_DISPATCH_SECRET (≥ 32 random
+     characters), NOTIFICATION_WORKER_DATABASE_URL (pooler URL of a login
+     role in chelth_notification_worker);
+   - Supabase Vault: chelth_notification_dispatch_url =
+     https://<app>/api/internal/notifications/dispatch, and
+     chelth_notification_dispatch_secret = the same secret.
+5. Verify:
+   - assign a test worker; within ~1 minute the outbox row becomes "sent",
+     and the email arrives with the "View shift" link;
+   - then a unit change, a cancellation, and (next day) a reminder.
+   Already-queued old rows past deliver_until fail as
+   expired_before_delivery (never sent late).
+
+
+17. REMAINING GAPS
+------------------
+- Production email delivery is not configured (section 9). No email, old or
+  new, will be sent until step 16.4 is done.
+- No notification preferences (by design for this phase). A future split
+  could make reminders optional; cancellations and changes stay required.
+- Date / time / location / role changes under an assigned worker are
+  structurally impossible today (section 5). If scheduling of open shifts
+  is ever allowed, the assignment start_at FK needs ON UPDATE handling; the
+  email path is ready.
+- Shift instructions changes do not email (not in the brief's material
+  list); they are visible in the app.
+- Delivery guards mark no-longer-relevant rows as failed
+  "subject_unavailable" ("Shift or assignment no longer available"). On
+  /operations they appear among failures although nothing went wrong. A
+  separate "skipped" state would be clearer.
+- A reminder is not sent for an assignment created within 24 hours of the
+  start (the assignment email is the notice). If the product wants both,
+  relax that rule.
+- Real Resend delivery and inbox rendering were not exercised (fake sender
+  locally; production delivery disabled).
+
+
+FINAL
+-----
+SHIFT ASSIGNMENT EMAIL:
+STATUS: COMPLETE
+
+SHIFT CHANGE EMAIL:
+STATUS: COMPLETE
+
+SHIFT CANCELLATION EMAIL:
+STATUS: COMPLETE
+
+24H REMINDER:
+STATUS: COMPLETE
+
+Production delivery: NOT ACTIVE until the operator completes §16.4 (Vault
+dispatch entries and Vercel email settings).
+
+Not deployed. No production migrations pushed.

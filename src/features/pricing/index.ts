@@ -1,5 +1,6 @@
 export { activateVersionAction, discardVersionAction, setPolicyStatusAction } from "./actions";
 export { PriceTimesheetForm, ShiftClassificationForm } from "./components/pricing-forms";
+export { TimeCalculationForm } from "./components/time-calculation-form";
 export {
   NewRateForm,
   NewVersionForm,

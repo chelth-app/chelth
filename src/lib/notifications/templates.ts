@@ -30,6 +30,15 @@ export const notificationTemplateSchema = z.object({
   periodStart: z.iso.date().nullish(),
   periodEnd: z.iso.date().nullish(),
   reopened: z.boolean().nullish(),
+  // P0-E9-3G (worker shift emails)
+  unitLabel: z.string().nullish(),
+  arrivalInstructions: z.string().max(280).nullish(),
+  changes: z.array(z.enum(["date", "time", "location", "role", "unit"])).nullish(),
+  previousStartAt: z.string().nullish(),
+  previousEndAt: z.string().nullish(),
+  previousUnitLabel: z.string().nullish(),
+  previousLocationName: z.string().nullish(),
+  previousDisciplineName: z.string().nullish(),
 });
 export type NotificationTemplateData = z.infer<typeof notificationTemplateSchema>;
 
@@ -53,8 +62,75 @@ function shiftDetails(data: NotificationTemplateData): [string, string][] {
     rows.push(["Time", formatShiftTimeRange(times)]);
     rows.push(["Timezone", data.timezone]);
   }
-  if (data.disciplineName) rows.push(["Discipline", data.disciplineName]);
+  if (data.disciplineName) rows.push(["Role", data.disciplineName]);
+  if (data.unitLabel) rows.push(["Unit", data.unitLabel]);
   return rows;
+}
+
+function timeRange(startAt: string, endAt: string, timezone: string): string {
+  return `${formatShiftDate({ startAt, timezone })}, ${formatShiftTimeRange({ startAt, endAt, timezone })}`;
+}
+
+/** P0-E9-3G: only the fields that changed, previous → updated. */
+function changeDetails(data: NotificationTemplateData): [string, string][] {
+  const rows: [string, string][] = [];
+  const changes = data.changes ?? [];
+  const tz = data.timezone;
+  if ((changes.includes("time") || changes.includes("date")) && tz) {
+    if (data.previousStartAt && data.previousEndAt) {
+      rows.push(["Previous", timeRange(data.previousStartAt, data.previousEndAt, tz)]);
+    }
+    if (data.startAt && data.endAt) rows.push(["Updated", timeRange(data.startAt, data.endAt, tz)]);
+  }
+  if (changes.includes("location")) {
+    rows.push(["Previous location", data.previousLocationName ?? "—"]);
+    rows.push(["Updated location", data.locationName ?? "—"]);
+  }
+  if (changes.includes("role")) {
+    rows.push(["Previous role", data.previousDisciplineName ?? "—"]);
+    rows.push(["Updated role", data.disciplineName ?? "—"]);
+  }
+  if (changes.includes("unit")) {
+    rows.push(["Previous unit", data.previousUnitLabel ?? "Not set"]);
+    rows.push(["Updated unit", data.unitLabel ?? "Not set"]);
+  }
+  return rows;
+}
+
+const CHANGE_LABELS: Record<string, string> = {
+  date: "date",
+  time: "time",
+  location: "location",
+  role: "role",
+  unit: "unit",
+};
+
+function changeSummary(data: NotificationTemplateData): string {
+  const changes = (data.changes ?? []).filter(
+    (change) => !(change === "date" && data.changes?.includes("time")),
+  );
+  const labels = changes.map((change) => CHANGE_LABELS[change] ?? change);
+  if (labels.length === 0) return "The shift details were updated.";
+  const list =
+    labels.length === 1 ? labels[0] : `${labels.slice(0, -1).join(", ")} and ${labels.at(-1)}`;
+  return `Shift ${list} changed.`;
+}
+
+/** "tomorrow" / "today" / "on Tue, Oct 13" in the FACILITY's calendar (never the device's). */
+function relativeDay(data: NotificationTemplateData, now: Date): string {
+  if (!data.startAt || !data.timezone) return "soon";
+  const day = (instant: Date) =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: data.timezone ?? "UTC" }).format(instant);
+  const start = day(new Date(data.startAt));
+  const today = day(now);
+  const tomorrow = day(new Date(now.getTime() + 86_400_000));
+  if (start === today) return "today";
+  if (start === tomorrow) return "tomorrow";
+  return `on ${formatShiftDate({ startAt: data.startAt, timezone: data.timezone })}`;
+}
+
+function arrival(data: NotificationTemplateData): string[] {
+  return data.arrivalInstructions ? [`Arrival: ${data.arrivalInstructions}`] : [];
 }
 
 function shortDate(data: NotificationTemplateData): string {
@@ -65,10 +141,15 @@ function shortDate(data: NotificationTemplateData): string {
 
 function expiry(data: NotificationTemplateData): string | null {
   if (!data.offerExpiresAt || !data.timezone) return null;
+  // P0-E9-3G fix: dateStyle / timeStyle cannot be combined with timeZoneName
+  // (Intl throws), which made every offer email with an expiry fail to render.
   return new Intl.DateTimeFormat("en-US", {
     timeZone: data.timezone,
-    dateStyle: "medium",
-    timeStyle: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
     timeZoneName: "short",
   }).format(new Date(data.offerExpiresAt));
 }
@@ -86,7 +167,7 @@ function period(data: NotificationTemplateData): string {
   return `${format(data.periodStart, false)} – ${format(data.periodEnd, true)}`;
 }
 
-function content(event: NotificationEvent, data: NotificationTemplateData): Content {
+function content(event: NotificationEvent, data: NotificationTemplateData, now: Date): Content {
   const agency = data.agencyName ?? "Your agency";
   const facility = data.facilityName ?? "the facility";
   const date = shortDate(data);
@@ -94,20 +175,24 @@ function content(event: NotificationEvent, data: NotificationTemplateData): Cont
   switch (event) {
     case "worker_assigned":
       return {
-        subject: `New shift assignment: ${facility}, ${date}`,
-        heading: "You have been assigned a shift",
+        subject: "You have a new shift",
+        heading: "You have a new shift",
         paragraphs: [
-          `${agency} has assigned you the shift below.`,
-          "Please sign in to CHELTH to accept or decline it.",
+          `${agency} has assigned you to the shift below.`,
+          "Open Chelth to confirm you can work it.",
+          ...arrival(data),
         ],
         details: shiftDetails(data),
-        cta: "Review assignment",
+        cta: "View shift",
       };
     case "assignment_cancelled":
       return {
-        subject: `Shift assignment cancelled: ${facility}, ${date}`,
-        heading: "Your shift assignment was cancelled",
-        paragraphs: [`${agency} has cancelled your assignment to the shift below.`],
+        subject: "Your shift has been cancelled",
+        heading: "Your shift has been cancelled",
+        paragraphs: [
+          `${agency} has cancelled your assignment to the shift below.`,
+          "You do not need to attend.",
+        ],
         details: shiftDetails(data),
         cta: "View my shifts",
       };
@@ -121,25 +206,43 @@ function content(event: NotificationEvent, data: NotificationTemplateData): Cont
             cta: "View request",
           }
         : {
-            subject: `Shift cancelled: ${facility}, ${date}`,
-            heading: "A shift you were assigned to was cancelled",
-            paragraphs: [`${agency} has cancelled the shift below. You do not need to attend.`],
+            subject: "Your shift has been cancelled",
+            heading: "Your shift has been cancelled",
+            paragraphs: [`${agency} has cancelled the shift below.`, "You do not need to attend."],
             details: shiftDetails(data),
             cta: "View my shifts",
           };
+    case "shift_changed":
+      return {
+        subject: "Your shift has been updated",
+        heading: "Your shift has been updated",
+        paragraphs: [`${agency} updated your shift at ${facility}.`, changeSummary(data)],
+        details: [...changeDetails(data), ...shiftDetails(data)],
+        cta: "Review updated shift",
+      };
+    case "shift_reminder": {
+      const when = relativeDay(data, now);
+      return {
+        subject: `Reminder: your shift is ${when}`,
+        heading: `Your shift is ${when}`,
+        paragraphs: [`A reminder of your shift at ${facility} with ${agency}.`, ...arrival(data)],
+        details: shiftDetails(data),
+        cta: "View shift",
+      };
+    }
     case "shift_offered": {
       const until = expiry(data);
       return {
-        subject: `Shift offer: ${facility}, ${date}`,
-        heading: "You have been offered a shift",
+        subject: "New shift available",
+        heading: "A new shift is available",
         paragraphs: [
-          `${agency} is offering you the shift below.`,
+          `${agency} is offering you the shift below. It is not yours until you accept it.`,
           until
-            ? `Sign in to CHELTH to accept or decline before ${until}. The shift is filled on a first-come basis.`
-            : "Sign in to CHELTH to accept or decline. The shift is filled on a first-come basis.",
+            ? `Review it in Chelth before ${until}. Shifts are filled on a first-come basis.`
+            : "Review it in Chelth. Shifts are filled on a first-come basis.",
         ],
         details: shiftDetails(data),
-        cta: "Review offer",
+        cta: "Review shift",
       };
     }
     case "assignment_declined":
@@ -351,9 +454,10 @@ const FONT = "font-family:Arial,Helvetica,sans-serif";
 export function renderNotification(
   data: NotificationTemplateData,
   baseUrl: string,
+  now: Date = new Date(),
 ): RenderedNotification {
   if (!isNotificationEvent(data.event)) throw new Error("unknown notification event");
-  const c = content(data.event, data);
+  const c = content(data.event, data, now);
   const url = `${baseUrl}${data.path}`;
   const greeting = data.recipientName ? `Hello ${data.recipientName},` : "Hello,";
 

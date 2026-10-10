@@ -19,11 +19,15 @@ describe("identity → profile", () => {
       display_name: user.displayName,
       status: "active",
     });
+    // Identity plus the person's own display preferences (P0-E9-3F); no role or organisation.
     expect(Object.keys(data?.[0] ?? {}).sort()).toEqual([
       "created_at",
       "display_name",
       "id",
+      "locale",
       "status",
+      "timezone",
+      "timezone_mode",
       "updated_at",
     ]);
   });
