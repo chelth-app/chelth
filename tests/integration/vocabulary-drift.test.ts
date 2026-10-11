@@ -29,7 +29,11 @@ describe("authorization vocabulary drift", () => {
   });
 
   it("credential types match the database", async () => {
-    const { data } = await user.client.from("credential_types").select("key");
+    // Chelth standard types only; agency custom types (P0-E9-3J) are tenant data.
+    const { data } = await user.client
+      .from("credential_types")
+      .select("key")
+      .is("owner_organisation_id", null);
     expect(data?.map((row) => row.key).sort()).toEqual([...ALL_CREDENTIAL_TYPE_KEYS].sort());
   });
 

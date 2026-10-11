@@ -109,7 +109,7 @@ export default async function CompliancePage({
   const [requirements, credentialTypes, disciplines, jurisdictions, workers, facilityList] =
     await Promise.all([
       listRequirements(organisationId),
-      listCredentialTypes(),
+      listCredentialTypes(organisationId, { includeArchived: true }),
       listDisciplines(),
       listJurisdictions(),
       canRegister ? listWorkers(organisationId) : Promise.resolve([]),
@@ -669,7 +669,8 @@ export default async function CompliancePage({
           <RequirementForm
             terms={await getRequestTerminology()}
             organisationId={organisationId}
-            credentialTypes={credentialTypes}
+            credentialTypes={credentialTypes.filter((type) => type.isActive)}
+            canCreateCustom
             disciplines={disciplines}
             jurisdictions={jurisdictions.filter(
               (jurisdiction) => jurisdiction.level === "subdivision",

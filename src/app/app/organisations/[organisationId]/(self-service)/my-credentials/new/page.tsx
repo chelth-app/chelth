@@ -30,7 +30,7 @@ export default async function AddCredentialPage({
   const worker = await getMyWorkerRecord(organisationId);
   if (!worker) notFound();
   const [credentialTypes, jurisdictions] = await Promise.all([
-    listCredentialTypes(),
+    listCredentialTypes(organisationId),
     listJurisdictions(),
   ]);
 

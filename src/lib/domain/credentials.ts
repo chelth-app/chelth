@@ -216,3 +216,45 @@ export function formatCalendarDate(date: string): string {
     new Date(`${date}T00:00:00Z`),
   );
 }
+
+/** P0-E9-3J: an agency-defined type (database-enforced key shape `custom_<32 hex>`). */
+export function isCustomCredentialTypeKey(key: string | null | undefined): boolean {
+  return typeof key === "string" && CUSTOM_CREDENTIAL_TYPE_KEY_PATTERN.test(key);
+}
+
+/** The shape of a custom type key (mirrors the database CHECK constraint). */
+export const CUSTOM_CREDENTIAL_TYPE_KEY_PATTERN = /^custom_[0-9a-f]{32}$/;
+
+/** `credential_category` enum values an agency can choose for a custom type. */
+export const CREDENTIAL_CATEGORIES = [
+  "professional_license",
+  "certification",
+  "background_screening",
+  "health_screening",
+  "training",
+  "identity_work_authorization",
+  "competency",
+  "orientation",
+  "other",
+] as const;
+export type CredentialCategory = (typeof CREDENTIAL_CATEGORIES)[number];
+
+/** American source labels; render through the workspace `spell()`. */
+export const CREDENTIAL_CATEGORY_LABELS: Readonly<Record<CredentialCategory, string>> = {
+  professional_license: "Professional license",
+  certification: "Certification",
+  background_screening: "Background screening",
+  health_screening: "Health screening",
+  training: "Training",
+  identity_work_authorization: "Identity & work authorization",
+  competency: "Competency",
+  orientation: "Orientation",
+  other: "Other",
+};
+
+export function credentialCategoryLabel(category: string): string {
+  return CREDENTIAL_CATEGORY_LABELS[category as CredentialCategory] ?? "Other";
+}
+
+/** How long a custom type stays valid once issued; `null` = no renewal interval. */
+export const RENEWAL_INTERVAL_MONTHS = [6, 12, 24, 36] as const;

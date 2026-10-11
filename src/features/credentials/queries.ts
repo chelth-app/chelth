@@ -9,7 +9,7 @@ import type {
   VerificationOutcome,
 } from "@/lib/domain/credentials";
 import { getRequestTerminology } from "@/features/localization";
-import { localizeTerms } from "@/lib/i18n/terminology";
+import { localizeTerms, typeDisplayName } from "@/lib/i18n/terminology";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 /* All reads run as the signed-in user; RLS decides visibility. */
@@ -23,28 +23,52 @@ export type CredentialTypeOption = {
   requiresExpiryDate: boolean;
   requiresCredentialNumber: boolean;
   requiresDocument: boolean;
+  /** P0-E9-3J: an agency's own type (never another agency's — RLS). */
+  custom: boolean;
+  /** Worker guidance written by the agency (custom types). */
+  instructions: string | null;
+  isActive: boolean;
 };
 
-export async function listCredentialTypes(): Promise<CredentialTypeOption[]> {
+/**
+ * Credential types for a workspace: Chelth standard types plus THIS agency's
+ * custom types (RLS already hides other agencies'; a member of two agencies
+ * sees only the URL's agency here). Standard names are reference data and are
+ * respelled for the locale; custom names are the agency's own words and are
+ * shown exactly as typed. Archived custom types only with `includeArchived`
+ * (names for history and filters, never for new requirements).
+ */
+export async function listCredentialTypes(
+  organisationId?: string,
+  options: { includeArchived?: boolean } = {},
+): Promise<CredentialTypeOption[]> {
   const terms = await getRequestTerminology();
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("credential_types")
     .select(
-      "key, name, scope, jurisdiction_rule, requires_issue_date, requires_expiry_date, requires_credential_number, requires_document",
+      "key, name, scope, jurisdiction_rule, requires_issue_date, requires_expiry_date, requires_credential_number, requires_document, owner_organisation_id, instructions, is_active",
     )
-    .eq("is_active", true)
-    .order("sort_order");
+    .order("sort_order")
+    .order("name");
+  if (!options.includeArchived) query = query.eq("is_active", true);
+  query = organisationId
+    ? query.or(`owner_organisation_id.is.null,owner_organisation_id.eq.${organisationId}`)
+    : query.is("owner_organisation_id", null);
+  const { data, error } = await query;
   if (error) throw error;
   return data.map((row) => ({
     key: row.key,
-    name: localizeTerms(row.name, terms),
+    name: row.owner_organisation_id ? row.name : localizeTerms(row.name, terms),
     scope: row.scope,
     jurisdictionRule: row.jurisdiction_rule,
     requiresIssueDate: row.requires_issue_date,
     requiresExpiryDate: row.requires_expiry_date,
     requiresCredentialNumber: row.requires_credential_number,
     requiresDocument: row.requires_document,
+    custom: row.owner_organisation_id !== null,
+    instructions: row.instructions,
+    isActive: row.is_active,
   }));
 }
 
@@ -113,7 +137,11 @@ export async function listMyCredentials(
     return {
       id: row.id,
       typeKey: row.credential_type_key,
-      typeName: localizeTerms(row.type?.name ?? row.credential_type_key, terms),
+      typeName: typeDisplayName(
+        row.type?.name ?? row.credential_type_key,
+        row.credential_type_key,
+        terms,
+      ),
       jurisdictionCode: row.jurisdiction_code,
       status: row.status,
       latestVersion: latest
@@ -229,7 +257,11 @@ export async function getCredential(credentialId: string): Promise<CredentialDet
     id: data.id,
     profileId: data.profile_id,
     typeKey: data.credential_type_key,
-    typeName: localizeTerms(data.type?.name ?? data.credential_type_key, terms),
+    typeName: typeDisplayName(
+      data.type?.name ?? data.credential_type_key,
+      data.credential_type_key,
+      terms,
+    ),
     scope: data.type?.scope ?? "person",
     requiresDocument: data.type?.requires_document ?? true,
     requiresIssueDate: data.type?.requires_issue_date ?? false,
@@ -299,7 +331,7 @@ export async function listAgencyWorkerCredentials(
   if (error) throw error;
   return data.map((row) => ({
     credentialId: row.credential_id,
-    typeName: localizeTerms(row.credential_type_name, terms),
+    typeName: typeDisplayName(row.credential_type_name, row.credential_type_key, terms),
     jurisdictionCode: row.jurisdiction_code,
     latestVersionNumber: row.latest_version_number,
     latestVersionStatus: row.latest_version_status,

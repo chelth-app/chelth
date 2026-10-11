@@ -63,6 +63,15 @@ export function CreateCredentialForm({
             ))}
           </Select>
         </FormField>
+        {type?.instructions ? (
+          <div
+            role="note"
+            aria-label="Instructions from your agency"
+            className="rounded-[10px] border border-border bg-surface-muted p-3 text-sm leading-5 whitespace-pre-line text-slate-700"
+          >
+            {type.instructions}
+          </div>
+        ) : null}
         {type && type.jurisdictionRule !== "none" ? (
           <FormField
             id="credential-jurisdiction"
