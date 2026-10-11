@@ -530,6 +530,10 @@ test.describe.serial("Operations Overview visual QA density", () => {
       "aria-current",
       "page",
     );
+    // The open places this suite creates start tomorrow (isoDay(1)…(5)); on a
+    // Sunday they all fall in next week, so open the week that holds them
+    // (the calendar shows the chosen week — that is the behaviour under test).
+    await page.goto(`${path}?view=calendar&week=${isoDay(1)}`);
     const calendar = page.getByRole("region", { name: "Weekly shift calendar" });
     await expect(calendar).toContainText("Open places");
     await expectNoA11yViolations(page);
