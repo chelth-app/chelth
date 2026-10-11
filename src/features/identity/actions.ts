@@ -6,11 +6,13 @@
  * Pattern: parseInput → (identity) → Supabase Auth / RPC → ActionResult.
  * Responses that could reveal whether an account exists are uniform.
  */
+import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { type ActionState, runAction } from "@/lib/actions/run-action";
 import { requireAuthIdentity } from "@/lib/auth/session";
+import { isValidTimeZone } from "@/lib/domain/display-timezone";
 import { AppError } from "@/lib/errors";
 import { redirectToSafePath } from "@/lib/navigation";
 import { getSafeRedirectPath } from "@/lib/security/safe-redirect";
@@ -19,6 +21,7 @@ import { formDataToObject, parseInput } from "@/lib/validation";
 
 import {
   displayNameSchema,
+  displayPreferencesSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
   signInSchema,
@@ -123,6 +126,39 @@ export async function updateDisplayNameAction(
     if (error) throw error;
     return null;
   });
+}
+
+/** Personal language and display timezone (P0-E9-3F). Own profile only. */
+export async function updateDisplayPreferencesAction(
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction("identity.updateDisplayPreferences", async () => {
+    const input = parseInput(displayPreferencesSchema, formDataToObject(formData));
+    await requireAuthIdentity();
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.rpc("set_my_display_preferences", {
+      ...(input.locale ? { p_locale: input.locale } : {}),
+      p_timezone_mode: input.timezoneMode,
+      ...(input.timezone ? { p_timezone: input.timezone } : {}),
+    });
+    if (error) throw error;
+    revalidatePath("/app", "layout");
+    return null;
+  });
+}
+
+/**
+ * Saves the device's zone in AUTOMATIC mode only (the database refuses to
+ * overwrite a manual choice). Invalid zones are ignored, never stored.
+ */
+export async function syncDeviceTimezoneAction(timezone: string): Promise<{ changed: boolean }> {
+  if (!isValidTimeZone(timezone)) return { changed: false };
+  await requireAuthIdentity();
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("sync_my_device_timezone", { p_timezone: timezone });
+  if (error) return { changed: false };
+  return { changed: data === true };
 }
 
 // -----------------------------------------------------------------------------

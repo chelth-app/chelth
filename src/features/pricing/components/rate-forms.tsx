@@ -207,7 +207,7 @@ export function RoundingPolicyForm({
       <input type="hidden" name="organisationId" value={organisationId} />
       <FormField id="rounding-mode" label="Rounding">
         <Select name="mode" defaultValue="none">
-          <option value="none">No rounding</option>
+          <option value="none">Exact minutes (no rounding)</option>
           <option value="nearest">To the nearest…</option>
         </Select>
       </FormField>

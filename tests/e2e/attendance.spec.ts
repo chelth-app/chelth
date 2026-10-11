@@ -115,6 +115,8 @@ test.describe.serial("time & attendance", () => {
       { key: "leo", name: "Leo Late", blsExpiryDays: 400 },
       { key: "gia", name: "Gia Geofence", blsExpiryDays: 400 },
       { key: "max", name: "Max Missed", blsExpiryDays: 400 },
+      { key: "pia", name: "Pia Permission", blsExpiryDays: 400 },
+      { key: "cy", name: "Cy Config", blsExpiryDays: 400 },
     ]);
     const locations = await must(
       world.admin.client
@@ -233,10 +235,12 @@ test.describe.serial("time & attendance", () => {
     await gia.context().setGeolocation({ ...FAR_AWAY, accuracy: 20 });
     await gia.getByRole("button", { name: "Check In at Mercy Rehab" }).click();
     await gia.getByRole("button", { name: "Share location and check in" }).click();
-    await expect(gia.getByRole("alert").filter({ hasText: "outside the site area" })).toBeVisible(
-      AFTER_ACTION,
-    );
-    await expect(gia.getByRole("alert").filter({ hasText: "Outside the site area" })).toBeVisible();
+    await expect(
+      gia.getByRole("alert").filter({ hasText: "outside the allowed check-in area" }),
+    ).toBeVisible(AFTER_ACTION);
+    await expect(
+      gia.getByRole("alert").filter({ hasText: "Outside the check-in area" }),
+    ).toBeVisible();
     await qaScreenshot(gia, "s6-outside-geofence");
 
     await gia.context().setGeolocation({ ...SITE, accuracy: 20 });
@@ -247,6 +251,90 @@ test.describe.serial("time & attendance", () => {
       AFTER_ACTION,
     );
     await gia.context().close();
+  });
+
+  test("Flow 3b: location permission denied — check-in is refused and nothing is recorded (P0-E9-3E)", async ({
+    browser,
+  }) => {
+    const shiftId = await acceptedShift("pia", eastLocation, -2, 180);
+    // No geolocation permission granted to this browser context.
+    const pia = await signedIn(browser, world.extra.pia?.email ?? "");
+    const card = await openShiftAttendance(pia, world.agencyId);
+    await pia.getByRole("button", { name: "Check In at Mercy Rehab" }).click();
+    await pia.getByRole("button", { name: "Share location and check in" }).click();
+    await expect(card).toContainText(
+      /Location access is required to check in\.|We couldn't determine your location\. Try again\./,
+      AFTER_ACTION,
+    );
+    await expect(card).not.toContainText("Checked in successfully");
+    const assignments = await world.admin.client
+      .from("shift_assignments")
+      .select("id")
+      .eq("shift_id", shiftId);
+    const events = await world.admin.client
+      .from("attendance_events")
+      .select("id")
+      .in(
+        "assignment_id",
+        (assignments.data ?? []).map((row) => row.id),
+      );
+    expect(events.data ?? []).toEqual([]);
+    await pia.context().close();
+  });
+
+  test("Flow 3c: geofencing required but the location is not set up — safe refusal, nothing recorded (P0-E9-3E.1)", async ({
+    browser,
+  }) => {
+    const policy = (requireGeofence: boolean) =>
+      world.admin.client.rpc("set_geofence_policy", {
+        p_organisation_id: world.agencyId,
+        p_require_geofence: requireGeofence,
+        p_default_radius_meters: 150,
+        p_default_max_accuracy_meters: 100,
+        p_default_outside_policy: "block",
+      });
+    const shiftId = await acceptedShift("cy", mainLocation, -2, 180);
+    const required = await policy(true);
+    if (required.error) throw required.error;
+    try {
+      const readiness = await must(
+        world.admin.client.rpc("list_geofence_readiness", { p_organisation_id: world.agencyId }),
+      );
+      expect(readiness.find((row) => row.location_id === mainLocation)?.readiness).toBe(
+        "not_configured",
+      );
+
+      const cy = await signedIn(browser, world.extra.cy?.email ?? "");
+      const card = await openShiftAttendance(cy, world.agencyId);
+      await cy.getByRole("button", { name: "Check In at Mercy Rehab" }).click();
+      const alert = cy.getByRole("alert").filter({ hasText: "Check-in not available yet" });
+      await expect(alert).toBeVisible(AFTER_ACTION);
+      await expect(alert).toContainText(
+        "Check-in isn't available because this location hasn't been configured yet. Contact your agency.",
+      );
+      // No technical configuration detail reaches the worker.
+      await expect(card).not.toContainText(/geofence|radius|metres|CHT/i);
+      await expect(card).not.toContainText("Clocked in");
+      await qaScreenshot(cy, "e9-3e1-check-in-not-configured");
+      await expectNoA11yViolations(cy);
+      await cy.context().close();
+
+      const assignments = await world.admin.client
+        .from("shift_assignments")
+        .select("id")
+        .eq("shift_id", shiftId);
+      const events = await world.admin.client
+        .from("attendance_events")
+        .select("id")
+        .in(
+          "assignment_id",
+          (assignments.data ?? []).map((row) => row.id),
+        );
+      expect(events.data ?? []).toEqual([]);
+    } finally {
+      const optional = await policy(false);
+      if (optional.error) throw optional.error;
+    }
   });
 
   test("Flow 4: a worker requests a correction; a reviewer approves; the worker sees the outcome", async ({

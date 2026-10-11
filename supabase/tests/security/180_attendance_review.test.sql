@@ -189,7 +189,7 @@ select throws_ok(pg_temp.as_sql((select alice from ids), format('select public.s
   'CH402', null, 'changing attendance rules needs AAL2');
 select throws_ok(pg_temp.as_sql((select alice from ids), format(
   'select public.set_location_geofence(%L, true, 40.7, -74.0, 5000, 100, ''block'')', (select mercy_main from loc)), 'aal2'),
-  '23514', null, 'geofence radius is bounded (50–2000 m)');
+  'CH400', null, 'geofence radius is bounded (50–2000 m)');
 select throws_ok(pg_temp.as_sql(null, format('select * from public.list_my_attendance(%L)', (select alpha from orgs))),
   '42501', null, 'X. anon cannot call attendance RPCs');
 

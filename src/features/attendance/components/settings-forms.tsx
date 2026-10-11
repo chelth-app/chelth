@@ -10,12 +10,19 @@ import { Select } from "@/components/ui/select";
 import {
   GEOFENCE_ACCURACY_BOUNDS,
   GEOFENCE_OUTSIDE_POLICIES,
+  GEOFENCE_POLICY_DEFAULTS,
   GEOFENCE_POLICY_LABELS,
   GEOFENCE_RADIUS_BOUNDS,
+  geofenceFormValues,
   type GeofenceOutsidePolicy,
+  type GeofencePolicy,
 } from "@/lib/domain/attendance";
 
-import { saveAttendanceSettingsAction, saveGeofenceAction } from "../actions";
+import {
+  saveAttendanceSettingsAction,
+  saveGeofenceAction,
+  saveGeofencePolicyAction,
+} from "../actions";
 
 type Rules = {
   earlyClockInMinutes: number;
@@ -113,74 +120,110 @@ type GeofenceFormProps = {
     maxAccuracyMeters: number;
     outsidePolicy: GeofenceOutsidePolicy;
   } | null;
+  /** Agency defaults: prefill a location that has no geofence yet (never overwrite a saved one). */
+  policy?: GeofencePolicy;
 };
 
-/** Optional, location-scoped geofence. Off by default: no location is requested unless enabled. */
+/** Plain-language explanations, shared by the agency defaults and each location. */
+const COPY = {
+  radius: "How close a worker must be to the facility to check in.",
+  accuracy: "How precise the worker's location reading must be.",
+  policy: "What Chelth should do when a reliable location reading is outside the allowed area.",
+} as const;
+
+/**
+ * Location-scoped geofence: the operational values clock-in uses. A location
+ * without one prefills from the agency defaults; the site centre is never
+ * defaulted and must be confirmed by the operator.
+ */
 export function GeofenceForm({
   organisationId,
   facilityId,
   locationId,
   locationName,
   current,
+  policy = GEOFENCE_POLICY_DEFAULTS,
 }: GeofenceFormProps) {
   const [state, formAction] = useActionState(saveGeofenceAction, null);
+  const values = geofenceFormValues(current, policy);
   const id = (field: string) => `geofence-${locationId}-${field}`;
   return (
-    <form action={formAction} className="grid max-w-3xl gap-3 sm:grid-cols-3" noValidate>
+    <form action={formAction} className="grid max-w-3xl gap-3 sm:grid-cols-2" noValidate>
       <input type="hidden" name="organisationId" value={organisationId} />
       <input type="hidden" name="facilityId" value={facilityId} />
       <input type="hidden" name="locationId" value={locationId} />
-      <label className="flex items-start gap-2 text-sm sm:col-span-3">
+      <label className="flex items-start gap-2 text-sm sm:col-span-2">
         <input
           type="checkbox"
           name="enabled"
-          defaultChecked={current?.enabled ?? false}
+          defaultChecked={values.enabled}
           className="mt-1 size-4"
         />
         <span>Check location at clock-in and clock-out for {locationName}</span>
       </label>
-      <FormField id={id("lat")} label="Site latitude" errors={fieldErrorsFor(state, "latitude")}>
-        <Input name="latitude" inputMode="decimal" defaultValue={current?.latitude ?? ""} />
+      {values.fromDefaults ? (
+        <p className="text-[13px] leading-5 text-slate-600 sm:col-span-2">
+          Prefilled from your agency defaults. Enter the site centre and save to set up this
+          location.
+        </p>
+      ) : null}
+      <FormField
+        id={id("lat")}
+        label="Site centre latitude"
+        description="Decimal degrees, e.g. the main entrance."
+        errors={fieldErrorsFor(state, "latitude")}
+      >
+        <Input name="latitude" inputMode="decimal" defaultValue={values.latitude ?? ""} />
       </FormField>
-      <FormField id={id("lon")} label="Site longitude" errors={fieldErrorsFor(state, "longitude")}>
-        <Input name="longitude" inputMode="decimal" defaultValue={current?.longitude ?? ""} />
+      <FormField
+        id={id("lon")}
+        label="Site centre longitude"
+        description="Decimal degrees."
+        errors={fieldErrorsFor(state, "longitude")}
+      >
+        <Input name="longitude" inputMode="decimal" defaultValue={values.longitude ?? ""} />
       </FormField>
       <FormField
         id={id("radius")}
-        label="Radius (metres)"
-        description={`${GEOFENCE_RADIUS_BOUNDS.min}–${GEOFENCE_RADIUS_BOUNDS.max} m`}
+        label="Check-in radius (metres)"
+        description={`${COPY.radius} ${GEOFENCE_RADIUS_BOUNDS.min}–${GEOFENCE_RADIUS_BOUNDS.max} m.`}
         errors={fieldErrorsFor(state, "radiusMeters")}
       >
         <Input
           name="radiusMeters"
           type="number"
           inputMode="numeric"
-          defaultValue={current?.radiusMeters ?? 200}
+          min={GEOFENCE_RADIUS_BOUNDS.min}
+          max={GEOFENCE_RADIUS_BOUNDS.max}
+          defaultValue={values.radiusMeters}
         />
       </FormField>
       <FormField
         id={id("accuracy")}
-        label="Required accuracy (metres)"
-        description={`${GEOFENCE_ACCURACY_BOUNDS.min}–${GEOFENCE_ACCURACY_BOUNDS.max} m`}
+        label="Maximum GPS uncertainty (metres)"
+        description={`${COPY.accuracy} ${GEOFENCE_ACCURACY_BOUNDS.min}–${GEOFENCE_ACCURACY_BOUNDS.max} m.`}
         errors={fieldErrorsFor(state, "maxAccuracyMeters")}
       >
         <Input
           name="maxAccuracyMeters"
           type="number"
           inputMode="numeric"
-          defaultValue={current?.maxAccuracyMeters ?? 100}
+          min={GEOFENCE_ACCURACY_BOUNDS.min}
+          max={GEOFENCE_ACCURACY_BOUNDS.max}
+          defaultValue={values.maxAccuracyMeters}
         />
       </FormField>
       <FormField
         id={id("policy")}
-        label="Outside the area"
+        label="Outside-area policy"
+        description={COPY.policy}
         errors={fieldErrorsFor(state, "outsidePolicy")}
         className="sm:col-span-2"
       >
-        <Select name="outsidePolicy" defaultValue={current?.outsidePolicy ?? "allow_with_review"}>
-          {GEOFENCE_OUTSIDE_POLICIES.map((policy) => (
-            <option key={policy} value={policy}>
-              {GEOFENCE_POLICY_LABELS[policy]}
+        <Select name="outsidePolicy" defaultValue={values.outsidePolicy}>
+          {GEOFENCE_OUTSIDE_POLICIES.map((option) => (
+            <option key={option} value={option}>
+              {GEOFENCE_POLICY_LABELS[option]}
             </option>
           ))}
         </Select>
@@ -192,7 +235,103 @@ export function GeofenceForm({
       >
         Save geofence
       </SubmitButton>
-      <FormAlert state={state} successMessage="Geofence saved." className="sm:col-span-3" />
+      <FormAlert state={state} successMessage="Geofence saved." className="sm:col-span-2" />
+    </form>
+  );
+}
+
+/**
+ * Agency geofence policy: whether worker check-in requires a configured
+ * geofence, and the defaults used to set up a location. Defaults never change
+ * an existing location's geofence.
+ */
+export function GeofencePolicyForm({
+  organisationId,
+  policy,
+}: {
+  organisationId: string;
+  policy: GeofencePolicy;
+}) {
+  const [state, formAction] = useActionState(saveGeofencePolicyAction, null);
+  return (
+    <form action={formAction} className="grid max-w-3xl gap-3 sm:grid-cols-2" noValidate>
+      <input type="hidden" name="organisationId" value={organisationId} />
+      <div className="flex items-start gap-2.5 text-sm sm:col-span-2">
+        <input
+          id="require-geofence"
+          type="checkbox"
+          name="requireGeofence"
+          defaultChecked={policy.requireGeofence}
+          className="mt-1 size-4"
+          aria-describedby="require-geofence-note"
+        />
+        <div className="flex flex-col gap-0.5">
+          <label htmlFor="require-geofence" className="font-semibold text-chelth-navy">
+            Require geofencing for worker check-in
+          </label>
+          <p id="require-geofence-note" className="text-[13px] leading-5 text-slate-600">
+            When on, workers cannot check in at a location until its geofence is set up and enabled.
+            When off, locations without a geofence check in without a location check.
+          </p>
+        </div>
+      </div>
+      <FormField
+        id="geofence-default-radius"
+        label="Default check-in radius (metres)"
+        description={`${COPY.radius} ${GEOFENCE_RADIUS_BOUNDS.min}–${GEOFENCE_RADIUS_BOUNDS.max} m.`}
+        errors={fieldErrorsFor(state, "defaultRadiusMeters")}
+      >
+        <Input
+          name="defaultRadiusMeters"
+          type="number"
+          inputMode="numeric"
+          min={GEOFENCE_RADIUS_BOUNDS.min}
+          max={GEOFENCE_RADIUS_BOUNDS.max}
+          defaultValue={policy.defaultRadiusMeters}
+        />
+      </FormField>
+      <FormField
+        id="geofence-default-accuracy"
+        label="Maximum location accuracy (metres)"
+        description={`Workers must have a sufficiently accurate location reading before check-in can be confirmed. ${GEOFENCE_ACCURACY_BOUNDS.min}–${GEOFENCE_ACCURACY_BOUNDS.max} m.`}
+        errors={fieldErrorsFor(state, "defaultMaxAccuracyMeters")}
+      >
+        <Input
+          name="defaultMaxAccuracyMeters"
+          type="number"
+          inputMode="numeric"
+          min={GEOFENCE_ACCURACY_BOUNDS.min}
+          max={GEOFENCE_ACCURACY_BOUNDS.max}
+          defaultValue={policy.defaultMaxAccuracyMeters}
+        />
+      </FormField>
+      <FormField
+        id="geofence-default-policy"
+        label="Outside-area policy"
+        description={COPY.policy}
+        errors={fieldErrorsFor(state, "defaultOutsidePolicy")}
+        className="sm:col-span-2"
+      >
+        <Select name="defaultOutsidePolicy" defaultValue={policy.defaultOutsidePolicy}>
+          {GEOFENCE_OUTSIDE_POLICIES.map((option) => (
+            <option key={option} value={option}>
+              {GEOFENCE_POLICY_LABELS[option]}
+            </option>
+          ))}
+        </Select>
+      </FormField>
+      <p className="text-[13px] leading-5 text-slate-600 sm:col-span-2">
+        These defaults are used when setting up a facility location. Each location can be adjusted
+        individually.
+      </p>
+      <SubmitButton variant="outline" className="w-fit">
+        Save geofencing settings
+      </SubmitButton>
+      <FormAlert
+        state={state}
+        successMessage="Geofencing settings saved."
+        className="sm:col-span-2"
+      />
     </form>
   );
 }

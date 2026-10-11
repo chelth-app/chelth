@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 
+import { geofencePolicySchema, geofenceSchema } from "@/features/attendance/schemas";
 import {
+  checkInBlockedByConfiguration,
   deriveAttendanceState,
   formatLocalClockTime,
+  GEOFENCE_POLICY_DEFAULTS,
+  geofenceFormValues,
   REJECTION_RESOLUTIONS,
+  summariseGeofenceReadiness,
   zonedLocalToInstant,
 } from "@/lib/domain/attendance";
 import { ERROR_CODES, normalizeError } from "@/lib/errors";
@@ -110,5 +115,154 @@ describe("attendance emails", () => {
     );
     expect(rendered.subject).toBe("Clock-in refused: Walt, Mercy Rehab, Mon, Jul 15, 2030");
     expect(rendered.text).not.toMatch(/outside|geofence|credential/i);
+  });
+});
+
+describe("geofence settings and pilot readiness (P0-E9-3E.1)", () => {
+  const policy = {
+    requireGeofence: true,
+    defaultRadiusMeters: 150,
+    defaultMaxAccuracyMeters: 100,
+    defaultOutsidePolicy: "block" as const,
+  };
+
+  it("new agencies: geofencing optional, 150 m radius, 100 m accuracy, block outside", () => {
+    expect(GEOFENCE_POLICY_DEFAULTS).toEqual({
+      requireGeofence: false,
+      defaultRadiusMeters: 150,
+      defaultMaxAccuracyMeters: 100,
+      defaultOutsidePolicy: "block",
+    });
+  });
+
+  it("a new location is prefilled from the agency defaults, never with a site centre", () => {
+    expect(geofenceFormValues(null, { ...policy, defaultRadiusMeters: 300 })).toEqual({
+      enabled: true,
+      latitude: null,
+      longitude: null,
+      radiusMeters: 300,
+      maxAccuracyMeters: 100,
+      outsidePolicy: "block",
+      fromDefaults: true,
+    });
+  });
+
+  it("a saved location geofence is never overwritten by the defaults", () => {
+    const saved = {
+      enabled: true,
+      latitude: 41.8781,
+      longitude: -87.6298,
+      radiusMeters: 75,
+      maxAccuracyMeters: 50,
+      outsidePolicy: "allow_with_review" as const,
+    };
+    expect(geofenceFormValues(saved, policy)).toEqual({ ...saved, fromDefaults: false });
+  });
+
+  it("check-in is blocked by configuration only when geofencing is required (mirrors the database)", () => {
+    for (const readiness of ["not_configured", "disabled", "invalid"] as const) {
+      expect(checkInBlockedByConfiguration(true, readiness)).toBe(true);
+      expect(checkInBlockedByConfiguration(false, readiness)).toBe(false);
+    }
+    expect(checkInBlockedByConfiguration(true, "ready")).toBe(false);
+    expect(checkInBlockedByConfiguration(true, "not_blocking")).toBe(false);
+  });
+
+  it("pilot readiness: READY only when required and every active location blocks outside", () => {
+    const rows = [
+      { locationActive: true, readiness: "ready" as const },
+      { locationActive: true, readiness: "ready" as const },
+      { locationActive: false, readiness: "not_configured" as const },
+    ];
+    expect(summariseGeofenceReadiness(rows, true)).toMatchObject({
+      activeLocations: 2,
+      blockingLocations: 2,
+      blockedLocations: 0,
+      status: "ready",
+    });
+    expect(summariseGeofenceReadiness(rows, false)).toMatchObject({
+      status: "not_ready",
+      reason: "not_required",
+    });
+    expect(
+      summariseGeofenceReadiness(
+        [...rows, { locationActive: true, readiness: "not_configured" as const }],
+        true,
+      ),
+    ).toMatchObject({
+      activeLocations: 3,
+      blockingLocations: 2,
+      blockedLocations: 1,
+      status: "not_ready",
+      reason: "locations_need_setup",
+    });
+    expect(
+      summariseGeofenceReadiness([{ locationActive: true, readiness: "not_blocking" }], true),
+    ).toMatchObject({ blockedLocations: 0, status: "not_ready" });
+    expect(summariseGeofenceReadiness([], true)).toMatchObject({ reason: "no_locations" });
+  });
+
+  it("a configuration refusal tells the worker to contact their agency, without technical detail", () => {
+    const error = normalizeError({ code: "CHT23", message: "internal detail" });
+    expect(error.code).toBe("GEOFENCE_NOT_CONFIGURED");
+    expect(ERROR_CODES.GEOFENCE_NOT_CONFIGURED.message).toBe(
+      "Check-in isn't available because this location hasn't been configured yet. Contact your agency.",
+    );
+    expect(ERROR_CODES.GEOFENCE_NOT_CONFIGURED.message).not.toMatch(/geofence|radius|CHT/i);
+  });
+});
+
+describe("geofence form validation", () => {
+  const base = {
+    organisationId: "00000000-0000-4000-8000-000000000001",
+    defaultMaxAccuracyMeters: "100",
+    defaultOutsidePolicy: "block",
+  };
+  const radius = (value: string) =>
+    geofencePolicySchema.safeParse({ ...base, defaultRadiusMeters: value }).success;
+
+  it("radius is whole metres between 50 and 2000", () => {
+    expect(radius("50")).toBe(true);
+    expect(radius("2000")).toBe(true);
+    expect(radius("49")).toBe(false);
+    expect(radius("2001")).toBe(false);
+    expect(radius("0")).toBe(false);
+    expect(radius("-150")).toBe(false);
+    expect(radius("abc")).toBe(false);
+    expect(radius("NaN")).toBe(false);
+    expect(radius("150.5")).toBe(false);
+  });
+
+  it("accuracy is between 10 and 500 metres", () => {
+    const accuracy = (value: string) =>
+      geofencePolicySchema.safeParse({
+        ...base,
+        defaultRadiusMeters: "150",
+        defaultMaxAccuracyMeters: value,
+      }).success;
+    expect(accuracy("10")).toBe(true);
+    expect(accuracy("500")).toBe(true);
+    expect(accuracy("9")).toBe(false);
+    expect(accuracy("501")).toBe(false);
+  });
+
+  it("an empty site centre is missing, never 0°", () => {
+    const location = {
+      organisationId: base.organisationId,
+      facilityId: base.organisationId,
+      locationId: base.organisationId,
+      radiusMeters: "150",
+      maxAccuracyMeters: "100",
+      outsidePolicy: "block",
+    };
+    expect(geofenceSchema.safeParse({ ...location, latitude: "", longitude: "" }).success).toBe(
+      false,
+    );
+    expect(
+      geofenceSchema.safeParse({ ...location, latitude: "NaN", longitude: "-87.6" }).success,
+    ).toBe(false);
+    expect(
+      geofenceSchema.safeParse({ ...location, latitude: "41.8781", longitude: "-87.6298" }).data,
+    ).toMatchObject({ latitude: 41.8781, longitude: -87.6298, radiusMeters: 150 });
   });
 });

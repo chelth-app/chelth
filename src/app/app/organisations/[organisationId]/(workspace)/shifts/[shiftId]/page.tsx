@@ -90,7 +90,7 @@ import {
   SHIFT_OFFER_CLOSE_REASON_LABELS,
   SHIFT_SOURCE_LABELS,
 } from "@/lib/domain/shifts";
-import { SHIFT_CLASSIFICATION_LABELS } from "@/lib/domain/pricing";
+import { shiftClassificationPhrase } from "@/lib/domain/pricing";
 
 export const metadata: Metadata = { title: "Shift" };
 
@@ -205,7 +205,7 @@ export default async function ShiftPage({
             ) : null}
             <RecordMeta>
               {SHIFT_SOURCE_LABELS[shift.source]} ·{" "}
-              {SHIFT_CLASSIFICATION_LABELS[shift.classification]} shift
+              {shiftClassificationPhrase(shift.classification)}
             </RecordMeta>
             {!relationshipActive ? (
               <StatusChip tone="warning">Relationship not active</StatusChip>

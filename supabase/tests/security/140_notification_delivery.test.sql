@@ -96,8 +96,10 @@ select ok((select bool_and(x ->> 'recipient_email' like '%@example.test') from c
   'the address is resolved at claim time from the identity');
 select is((select x -> 'template' ->> 'facilityName' from c1, jsonb_array_elements(rows) x where x ->> 'event' = 'worker_assigned'),
   'Mercy Rehab', 'template data is resolved from current records');
-select is((select x -> 'template' ->> 'path' from c1, jsonb_array_elements(rows) x where x ->> 'event' = 'worker_assigned'),
-  format('/app/organisations/%s/my-shifts', (select alpha from orgs)), 'links are canonical application routes');
+-- P0-E9-3G: a worker's assignment email links to that assignment.
+select ok((select x -> 'template' ->> 'path' from c1, jsonb_array_elements(rows) x where x ->> 'event' = 'worker_assigned')
+          ~ format('^/app/organisations/%s/my-shifts/[0-9a-f-]{36}$', (select alpha from orgs)),
+  'links are canonical application routes');
 select is((select x -> 'template' ->> 'path' from c1, jsonb_array_elements(rows) x where x ->> 'event' = 'facility_request_opened'),
   format('/app/organisations/%s/staffing-requests/%s', (select gamma from orgs), (select id from req)),
   'facility links point to the facility''s own route');
@@ -189,7 +191,7 @@ select throws_ok(pg_temp.as_sql((select bob from ids), format('select * from pub
 
 -- Scheduler wiring (no clock waits: job logic is called directly elsewhere)
 select is((select array_agg(jobname order by jobname) from cron.job where jobname like 'chelth-%'),
-  array['chelth-attendance-scan', 'chelth-document-scan-kick', 'chelth-document-scan-watchdog', 'chelth-location-evidence-purge', 'chelth-notification-kick', 'chelth-offer-expiry', 'chelth-readiness-scan'],
+  array['chelth-attendance-scan', 'chelth-document-scan-kick', 'chelth-document-scan-watchdog', 'chelth-location-evidence-purge', 'chelth-notification-kick', 'chelth-offer-expiry', 'chelth-readiness-scan', 'chelth-shift-reminder-scan'],
   'the scheduled jobs are defined by migration');
 
 select * from finish();

@@ -7,6 +7,7 @@ import { SubmitButton } from "@/components/forms/submit-button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { type Terminology, terminology } from "@/lib/i18n/terminology";
 
 import { createRequirementAction } from "../actions";
 
@@ -25,6 +26,8 @@ type RequirementFormProps = {
   defaultEffectiveFrom?: string;
   /** Shown with the field, e.g. "Mercy Rehab local date (America/New_York)". */
   effectiveFromHint: string;
+  /** Locale spelling (License / Licence); defaults to the fallback locale. */
+  terms?: Terminology;
 };
 
 export function RequirementForm({
@@ -35,6 +38,7 @@ export function RequirementForm({
   jurisdictions,
   defaultEffectiveFrom,
   effectiveFromHint,
+  terms = terminology(),
 }: RequirementFormProps) {
   const [state, formAction] = useActionState(createRequirementAction, null);
   // Facility-specific types (e.g. orientation) can only be required by a facility.
@@ -88,7 +92,7 @@ export function RequirementForm({
       </FormField>
       <FormField
         id={`${prefix}-jurisdiction`}
-        label="Jurisdiction (licences)"
+        label={`Jurisdiction (${terms.licensesLower})`}
         errors={fieldErrorsFor(state, "jurisdictionCode")}
       >
         <Select name="jurisdictionCode" defaultValue="">

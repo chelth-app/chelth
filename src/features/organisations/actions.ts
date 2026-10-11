@@ -18,11 +18,14 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { z } from "zod";
+
 import type { IssuedInviteView } from "@/components/shared/issued-invite-link";
 import { type ActionState, runAction } from "@/lib/actions/run-action";
 import { requireAuthIdentity } from "@/lib/auth/session";
 import { AppError } from "@/lib/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { SUPPORTED_LOCALES } from "@/lib/i18n/terminology";
 import { formDataToObject, parseInput } from "@/lib/validation";
 
 import {
@@ -366,6 +369,30 @@ export async function setMembershipStatusAction(
     });
     if (error) throw error;
     revalidatePath(organisationPath(input.organisationId), "layout");
+    return null;
+  });
+}
+
+const organisationLocaleSchema = z.object({
+  organisationId: z.uuid(),
+  locale: z.enum(["", ...SUPPORTED_LOCALES]).transform((value) => (value ? value : null)),
+});
+
+/** Workspace language and spelling (P0-E9-3F; organisation.manage, AAL2, audited). */
+export async function setOrganisationLocaleAction(
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction("organisations.setLocale", async () => {
+    const input = parseInput(organisationLocaleSchema, formDataToObject(formData));
+    await requireAuthIdentity();
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.rpc("set_organisation_locale", {
+      p_organisation_id: input.organisationId,
+      ...(input.locale ? { p_locale: input.locale } : {}),
+    });
+    if (error) throw error;
+    revalidatePath(`/app/organisations/${input.organisationId}`, "layout");
     return null;
   });
 }

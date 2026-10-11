@@ -7,6 +7,7 @@ import { SubmitButton } from "@/components/forms/submit-button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { type Terminology, terminology } from "@/lib/i18n/terminology";
 
 import { createCredentialAction } from "../actions";
 import type { CredentialTypeOption, JurisdictionOption } from "../queries";
@@ -16,6 +17,8 @@ type CreateCredentialFormProps = {
   organisationName: string;
   credentialTypes: CredentialTypeOption[];
   jurisdictions: JurisdictionOption[];
+  /** Locale spelling (License / Licence); defaults to the fallback locale. */
+  terms?: Terminology;
 };
 
 export function CreateCredentialForm({
@@ -23,6 +26,7 @@ export function CreateCredentialForm({
   organisationName,
   credentialTypes,
   jurisdictions,
+  terms = terminology(),
 }: CreateCredentialFormProps) {
   const [state, formAction] = useActionState(createCredentialAction, null);
   const [typeKey, setTypeKey] = useState("");
@@ -90,7 +94,7 @@ export function CreateCredentialForm({
         {type?.requiresCredentialNumber ? (
           <FormField
             id="credential-number"
-            label="Licence / certificate number"
+            label={terms.licenseNumber}
             description="Visible only to you and agency credential reviewers."
             required
             errors={errors("credentialNumber")}

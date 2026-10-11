@@ -140,6 +140,47 @@ export async function createRoundingPolicyAction(
   });
 }
 
+/**
+ * Settings → Time calculation method (P0-E9-3F): the existing versioned
+ * rounding policy, created and activated in one step. It applies to work from
+ * its effective date; priced timesheets, payroll and invoices already prepared
+ * keep the method they snapshotted. If activation is refused, the draft is
+ * discarded so no stray draft is left.
+ */
+export async function applyTimeCalculationMethodAction(
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction("pricing.applyTimeCalculation", async () => {
+    const input = parseInput(roundingPolicySchema, formDataToObject(formData));
+    await requireAuthIdentity();
+    const supabase = await createSupabaseServerClient();
+    const { data: policyId, error } = await supabase.rpc("create_rounding_policy", {
+      p_organisation_id: input.organisationId,
+      p_mode: input.mode,
+      ...(input.mode === "nearest" && input.increment
+        ? { p_increment_minutes: input.increment }
+        : {}),
+      p_effective_from: input.effectiveFrom,
+    });
+    if (error) throw error;
+    const activated = await supabase.rpc("set_pricing_policy_status", {
+      p_policy_id: policyId,
+      p_status: "active",
+    });
+    if (activated.error) {
+      await supabase.rpc("set_pricing_policy_status", {
+        p_policy_id: policyId,
+        p_status: "discarded",
+      });
+      throw activated.error;
+    }
+    revalidateRates(input.organisationId);
+    revalidatePath(`/app/organisations/${input.organisationId}/settings/rates`);
+    return null;
+  });
+}
+
 export async function createOvertimePolicyAction(
   _state: ActionState,
   formData: FormData,

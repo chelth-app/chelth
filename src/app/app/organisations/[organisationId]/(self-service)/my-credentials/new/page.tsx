@@ -1,3 +1,4 @@
+import { getRequestTerminology } from "@/features/localization";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -51,6 +52,7 @@ export default async function AddCredentialPage({
       <CredentialSteps current={1} />
       <WorkerCardSection id="details-heading" title="Credential details">
         <CreateCredentialForm
+          terms={await getRequestTerminology()}
           organisationId={organisationId}
           organisationName={organisation.name}
           credentialTypes={credentialTypes}

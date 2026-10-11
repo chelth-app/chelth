@@ -23,6 +23,7 @@ export type AttendanceCorrectionResolution = Enums["attendance_correction_resolu
 export type AttendanceCorrectionOrigin = Enums["attendance_correction_origin"];
 export type AttendanceAdjustmentReason = Enums["attendance_adjustment_reason"];
 export type LocationEvidenceState = Enums["location_evidence_state"];
+export type GeofenceReadiness = Enums["geofence_readiness"];
 
 export const GEOFENCE_OUTSIDE_POLICIES = Constants.public.Enums.geofence_outside_policy;
 export const ATTENDANCE_CORRECTION_REASONS = Constants.public.Enums.attendance_correction_reason;
@@ -117,7 +118,7 @@ export const GEOFENCE_RESULT_LABELS: Record<GeofenceResult, string> = {
 
 export const GEOFENCE_POLICY_LABELS: Record<GeofenceOutsidePolicy, string> = {
   block: "Block clock-in outside the area",
-  allow_with_review: "Allow and flag for review",
+  allow_with_review: "Allow precise readings outside the area and flag for review",
 };
 
 export const ATTENDANCE_EXCEPTION_LABELS: Record<AttendanceExceptionType, string> = {
@@ -209,6 +210,130 @@ export const ATTENDANCE_DEFAULTS = {
 
 export const GEOFENCE_RADIUS_BOUNDS = { min: 50, max: 2000 } as const;
 export const GEOFENCE_ACCURACY_BOUNDS = { min: 10, max: 500 } as const;
+
+/**
+ * Agency geofence policy (P0-E9-3E.1). The defaults only prepopulate a
+ * location's geofence form; the location's own row is what clock-in uses.
+ * Geofencing is optional for a new agency until an operator requires it.
+ */
+export type GeofencePolicy = {
+  requireGeofence: boolean;
+  defaultRadiusMeters: number;
+  defaultMaxAccuracyMeters: number;
+  defaultOutsidePolicy: GeofenceOutsidePolicy;
+};
+
+export const GEOFENCE_POLICY_DEFAULTS: GeofencePolicy = {
+  requireGeofence: false,
+  defaultRadiusMeters: 150,
+  defaultMaxAccuracyMeters: 100,
+  defaultOutsidePolicy: "block",
+};
+
+/** Compact outside-policy labels for tables and summaries. */
+export const GEOFENCE_POLICY_SHORT_LABELS: Record<GeofenceOutsidePolicy, string> = {
+  block: "Block outside",
+  allow_with_review: "Flag outside for review",
+};
+
+export const GEOFENCE_READINESS_LABELS: Record<GeofenceReadiness, string> = {
+  ready: "Enabled",
+  not_blocking: "Enabled · flags outside",
+  disabled: "Disabled",
+  not_configured: "Not configured",
+  invalid: "Needs attention",
+};
+
+/** A location's geofence counts as configured for worker check-in (mirrors clock_in_assignment). */
+export function isGeofenceConfigured(readiness: GeofenceReadiness): boolean {
+  return readiness === "ready" || readiness === "not_blocking";
+}
+
+/** Worker check-in at this location is refused because geofencing is required but not set up. */
+export function checkInBlockedByConfiguration(
+  requireGeofence: boolean,
+  readiness: GeofenceReadiness,
+): boolean {
+  return requireGeofence && !isGeofenceConfigured(readiness);
+}
+
+export type GeofenceFormValues = {
+  enabled: boolean;
+  latitude: number | null;
+  longitude: number | null;
+  radiusMeters: number;
+  maxAccuracyMeters: number;
+  outsidePolicy: GeofenceOutsidePolicy;
+  /** True when nothing is saved yet and the agency defaults were used. */
+  fromDefaults: boolean;
+};
+
+/**
+ * Initial values for a location's geofence form: the saved geofence when there
+ * is one (defaults never overwrite it), otherwise the agency defaults. The site
+ * centre is never defaulted — the operator must confirm it.
+ */
+export function geofenceFormValues(
+  current: {
+    enabled: boolean;
+    latitude: number;
+    longitude: number;
+    radiusMeters: number;
+    maxAccuracyMeters: number;
+    outsidePolicy: GeofenceOutsidePolicy;
+  } | null,
+  policy: GeofencePolicy,
+): GeofenceFormValues {
+  if (current) return { ...current, fromDefaults: false };
+  return {
+    enabled: policy.requireGeofence,
+    latitude: null,
+    longitude: null,
+    radiusMeters: policy.defaultRadiusMeters,
+    maxAccuracyMeters: policy.defaultMaxAccuracyMeters,
+    outsidePolicy: policy.defaultOutsidePolicy,
+    fromDefaults: true,
+  };
+}
+
+export type GeofenceReadinessSummary = {
+  activeLocations: number;
+  /** Active locations with an enabled, valid geofence that blocks outside check-ins. */
+  blockingLocations: number;
+  /** Active locations where worker check-in is refused until a geofence is set up. */
+  blockedLocations: number;
+  status: "ready" | "not_ready";
+  reason: "not_required" | "no_locations" | "locations_need_setup" | null;
+};
+
+/**
+ * Pilot geofence readiness: READY only when the agency requires geofencing and
+ * every active location has an enabled, valid, blocking geofence.
+ */
+export function summariseGeofenceReadiness(
+  rows: { locationActive: boolean; readiness: GeofenceReadiness }[],
+  requireGeofence: boolean,
+): GeofenceReadinessSummary {
+  const active = rows.filter((row) => row.locationActive);
+  const blockingLocations = active.filter((row) => row.readiness === "ready").length;
+  const blockedLocations = active.filter((row) =>
+    checkInBlockedByConfiguration(requireGeofence, row.readiness),
+  ).length;
+  const reason = !requireGeofence
+    ? "not_required"
+    : active.length === 0
+      ? "no_locations"
+      : blockingLocations < active.length
+        ? "locations_need_setup"
+        : null;
+  return {
+    activeLocations: active.length,
+    blockingLocations,
+    blockedLocations,
+    status: reason === null ? "ready" : "not_ready",
+    reason,
+  };
+}
 
 /**
  * Converts a wall-clock date/time in an IANA timezone to a UTC instant (ISO).

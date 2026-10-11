@@ -1,0 +1,420 @@
+P0-E9-3E.1 — GEOFENCE SETTINGS + PILOT READINESS GUARD
+=====================================================
+CHELTH — Healthcare Workforce Operations
+
+Branch: p0-e8-visual-implementation (uncommitted, on top of the uncommitted
+P0-E9-3E work). Nothing deployed, nothing pushed, no production migration.
+
+
+1. EXISTING SETTINGS ARCHITECTURE
+---------------------------------
+- Settings is one route group: /app/organisations/[id]/settings, with a
+  locked section nav (settings-sections.ts) and one page per section.
+- "Attendance & Geofencing" already existed (segment "attendance"), gated
+  by attendance.manage_settings (agency only). It held Check-In Rules and
+  Location Evidence Retention, plus a "Geofence Defaults" card that only
+  linked to Facilities (there were no defaults).
+- Location geofences were edited only on Facility → Attendance location
+  checks (GeofenceForm → set_location_geofence).
+- Per-agency attendance settings live in public.agency_attendance_settings
+  (one row per agency; defaults returned by internal.attendance_rules when
+  the row is absent).
+- facility_locations has NO coordinates (address fields only), so the
+  site centre must still be entered.
+- No pilot/activation mechanism exists anywhere (searched src and
+  migrations). The readiness guard is therefore the Settings/facility
+  surface plus server enforcement (brief §12, second branch).
+
+No new Settings architecture was created; the existing section gained new
+cards and one sub-page.
+
+
+2. ORGANISATION DEFAULTS MODEL
+------------------------------
+Reused agency_attendance_settings (additive columns, no new table):
+- default_geofence_radius_meters        integer, 150, check 50–2000
+- default_geofence_max_accuracy_meters  integer, 100, check 10–500
+- default_geofence_outside_policy       geofence_outside_policy, 'block'
+
+They never enforce attendance and never create or rewrite a location
+geofence. They only prefill the geofence form of a location that has no
+geofence row (geofenceFormValues in src/lib/domain/attendance.ts). The site
+centre is never defaulted.
+
+
+3. REQUIRE-GEOFENCING POLICY
+----------------------------
+- agency_attendance_settings.require_geofence boolean NOT NULL DEFAULT false.
+- OFF for every existing and new agency (no retroactive change). The
+  operator turns it ON for a pilot agency.
+- Set with public.set_geofence_policy(org, require, radius, accuracy,
+  policy) — attendance.manage_settings, AAL2, CH400 on any null or
+  out-of-range value, audited.
+
+
+4. SETTINGS UI (Settings → Attendance & Geofencing)
+---------------------------------------------------
+In order:
+- Geofencing Defaults: "Require geofencing for worker check-in" checkbox,
+  Default check-in radius (m), Maximum location accuracy (m), Outside-area
+  policy (Block clock-in / Allow precise readings outside the area and flag
+  for review). Copy as briefed, including "These defaults are used when
+  setting up a facility location. Each location can be adjusted
+  individually."
+- Worker Check-In Readiness: Pilot geofence readiness (Ready / Not ready),
+  Geofencing for check-in (Required / Optional), Active locations, Blocking
+  geofences set up, Locations where check-in is unavailable, and a
+  plain-language reason.
+- Facility Geofences table: Facility · Location · Status · Radius ·
+  Accuracy · Policy · [Manage | Set up geofence].
+- Then the existing Check-In Rules and Location Evidence Retention.
+Organization → Operational Preferences adds "Geofencing for worker
+check-in: Required / Optional" with a Change link.
+
+Canonical Settings parts only: locked Panel, DataTable, StatusChip,
+KeyValueList, SettingsActionLink, FormField/Input/Select. No new
+gradients, glow or colours. Teal only on the existing action/selection
+treatments. Weights: 600 for the checkbox label, as in the existing forms.
+Checked by QA screenshots at 1512 px and 412 px (no page overflow, axe
+clean).
+
+
+5. PER-LOCATION MANAGEMENT
+--------------------------
+New sub-page: /settings/attendance/geofences/[locationId]
+- Worker Check-In Readiness for that location (Geofence status, Radius,
+  GPS accuracy ≤ N m, Policy) and the blocker
+  "Geofencing must be configured before this location is ready for worker
+  check-in." when check-in would be refused.
+- Manage Geofence: facility address for context, then GeofenceForm
+  (enabled, site centre latitude and longitude, check-in radius, maximum
+  GPS uncertainty, outside-area policy).
+The Facility page keeps its existing form, now prefilled from the defaults,
+with a status chip and the same blocker per location.
+
+Map / picker (§9): there is no picker today, and facility_locations has no
+coordinates to reuse. The smallest safe option was kept: address context
+plus labelled decimal-degree fields. No map dependency was added, and there
+is no worker-facing map.
+
+The schema bug fixed on the way: an EMPTY latitude/longitude field
+previously coerced to 0° (a valid coordinate). Blank is now "Enter the
+site latitude." (test-covered).
+
+
+6. RADIUS BEHAVIOUR
+-------------------
+- Canonical unit: metres (integer), everywhere.
+- Bounds 50–2000. Enforced in three places: the Zod schema (whole metres;
+  blank, 0, negative, NaN, non-numeric and fractional are rejected), the
+  RPCs (explicit CH400), and the existing table CHECK constraints.
+- No unit conversion exists, so no conversion bug is possible. US display
+  units can be added later in the UI without changing storage.
+
+
+7. ACCURACY BEHAVIOUR
+---------------------
+- "Maximum GPS uncertainty" / "Maximum location accuracy", 10–500 m, with
+  the same three layers of validation.
+- Described separately from the radius ("How precise the worker's location
+  reading must be."). The E9-3E rule is unchanged: accuracy must be
+  ≤ least(max_accuracy, radius).
+
+
+8. OUTSIDE POLICY
+-----------------
+- Default 'block' (E9-3E column default, plus the new agency default).
+- 'allow_with_review' remains an explicit operator choice. It only affects
+  PRECISE outside readings; unknown evidence is refused under both
+  policies (E9-3E).
+- Readiness: 'block' ⇒ ready. 'allow_with_review' ⇒ "Enabled · flags
+  outside". Such a location may check in (it is configured), but it does
+  NOT count towards pilot readiness ("blocking policy where required").
+
+
+9. FACILITY SETUP INTEGRATION
+-----------------------------
+- A new location has no geofence row. When geofencing is required it shows
+  "Not configured" (danger) in Settings and on the Facility page, with the
+  blocker text and a "Set up geofence" action.
+- The form prefills radius, accuracy and policy from the agency defaults,
+  and "enabled" is pre-ticked when geofencing is required. The operator
+  must enter the site centre and save: nothing is created automatically.
+
+
+10. READINESS GUARD
+-------------------
+Single definition: internal.location_geofence_readiness(location) →
+enum public.geofence_readiness:
+  ready          enabled, valid centre/radius/accuracy, policy block
+  not_blocking   enabled, valid, allow_with_review
+  disabled       row exists, enabled = false
+  not_configured no row
+  invalid        enabled but a value is null / NaN / out of bounds
+                 (defensive: today's CHECK constraints prevent it)
+public.list_geofence_readiness(org) (facility.view; no coordinates) returns
+one row per location of every non-archived facility.
+
+Pilot geofence readiness (summariseGeofenceReadiness, unit-tested):
+  READY ⇔ require_geofence is ON
+          AND there is at least one active location
+          AND every active location (location and facility both active)
+              is 'ready'.
+The Settings card answers: active locations N, blocking geofences N,
+READY / NOT READY. This replaces the manual SQL from the E9-3E report as
+the product workflow.
+
+
+11. SERVER FAIL-CLOSED ENFORCEMENT
+----------------------------------
+public.clock_in_assignment (same signature) now runs this check before
+any location is evaluated:
+
+  if rules.require_geofence is distinct from false
+     and location_geofence_readiness(location) not in (ready, not_blocking)
+  ⇒ raise CHT23
+
+A second check after check_geofence (require ON and the geofence not
+required) also raises CHT23, as a belt-and-braces guard.
+
+So, when geofencing is required:
+- no row ⇒ CHT23;
+- disabled ⇒ CHT23;
+- invalid / missing centre / radius / accuracy ⇒ CHT23;
+- any error while reading the configuration aborts the transaction (fail
+  closed).
+UNCONFIGURED ≠ NOT_REQUIRED. The raise rolls back everything: no event, no
+evidence, no attendance projection change.
+
+When geofencing is NOT required, the documented behaviour is unchanged
+(no row ⇒ not_required).
+
+All E9-3E rules are unchanged and still tested: missing location CHT12,
+stale CHT13, weak accuracy CHT14, invalid coordinates CH400, a precise
+outside reading refused under block, inside recorded.
+
+
+12. WORKER ERROR STATE
+----------------------
+- CHT23 → GEOFENCE_NOT_CONFIGURED (normalize-error.ts).
+- Message: "Check-in isn't available because this location hasn't been
+  configured yet. Contact your agency."
+- ClockControl title: "Check-in not available yet".
+- No technical wording (geofence / radius / codes) reaches the worker
+  (unit and E2E asserted).
+- The E9-3E states (permission denied, unavailable, poor accuracy,
+  outside) are unchanged.
+- The worker projection (list_my_attendance) was not changed. The refusal
+  is shown when the worker taps Check In, before any location is
+  requested.
+
+
+13. CLOCK-OUT PROTECTION
+-----------------------
+clock_out_assignment and internal.check_geofence are not modified. Tested
+(pgTAP 270 X): with geofencing required and the location's geofence then
+disabled, clock-out is recorded. The E9-3E clock-out tests (outside, no
+location) still pass.
+
+
+14. RLS / AAL2
+--------------
+- set_geofence_policy and set_location_geofence: attendance.manage_settings
+  (a privileged capability ⇒ AAL2; AAL1 ⇒ CH402 step-up). Scheduler,
+  worker, facility admin and another agency ⇒ CH403 (tested).
+- list_geofence_readiness: facility.view in the organisation; another
+  agency and workers ⇒ CH403 (tested). Returns no coordinates.
+- The new columns sit on agency_attendance_settings under its existing RLS
+  (attendance.view, select only, no write grants).
+- internal.location_geofence_readiness: revoked from every role.
+- The Settings pages also gate in the UI (step-up notice; 404 for roles
+  without the section). The database is the authority.
+
+
+15. AUDIT
+---------
+- attendance.geofence_policy_updated: require_geofence, the three
+  defaults, and changes[] (require_geofence / default_radius /
+  default_max_accuracy / default_outside_policy).
+- attendance.geofence_updated (extended): enabled, radius_meters,
+  max_accuracy_meters, outside_policy, and changes[] (created / enabled /
+  disabled / site_centre / radius / max_accuracy / outside_policy).
+- The coordinates are never written to audit: a centre change is recorded
+  only as "site_centre" (tested: no latitude, longitude or coordinate
+  digits in any audit row).
+
+
+16. TESTS
+---------
+pgTAP NEW supabase/tests/security/270_geofence_settings_readiness.test.sql
+(52 assertions):
+- defaults load; require OFF by default; defaults save and persist;
+- radius 50 and 2000 valid; 49 / 2001 / 0 / negative rejected;
+  accuracy 10 and 500 valid, 9 / 501 rejected; null require rejected;
+- policy change; AAL1 ⇒ CH402; scheduler / worker / facility admin /
+  other agency ⇒ CH403; nothing changed by a denied call;
+- policy audit with changes and without coordinates;
+- location: radius < 50, NaN centre, missing centre ⇒ CH400; cross-tenant
+  ⇒ CH403;
+- overrides: 150 m vs 300 m / 60 m independent; no row is created by
+  defaults; changing the defaults does not rewrite an existing geofence;
+- geofence audit (created → site_centre), never coordinates;
+- readiness per location (ready / not_blocking / disabled /
+  not_configured), no coordinates, pilot counts (2 / 7), cross-tenant and
+  worker denial;
+- required: A configured ⇒ normal evaluation (inside recorded, duplicate
+  still CHT09); B no row ⇒ CHT23 (with and without a reading); C disabled
+  ⇒ CHT23; D malformed ⇒ "invalid" ⇒ CHT23; F no event and no evidence;
+  not_blocking ⇒ evaluated;
+- X: clock-out recorded after the geofence is disabled;
+- optional mode: no row ⇒ not_required.
+Updated:
+- 000 (approved public RPC allowlist: two new RPCs);
+- 180 (radius-bound test now expects the explicit CH400 rather than the
+  table's 23514 check violation).
+Total: 32 files, 1,572 assertions, PASS (on a fresh db reset).
+
+Unit (tests/unit/lib/attendance.test.ts, +9): defaults; prefill from
+defaults without a centre; a saved geofence is never overwritten;
+configuration blocking mirrors the database; pilot readiness summary
+(ready / not required / needs setup / not blocking / no locations); CHT23
+mapping and safe copy; form bounds (50 / 2000 / 49 / 2001 / 0 / negative /
+NaN / fractional; accuracy 10–500); a blank centre is missing, never 0°.
+Total: 415 passed.
+
+Integration NEW tests/integration/geofence-settings.test.ts (5): defaults
+and audit; bounds, role and tenant denial; overrides and readiness without
+coordinates; required ⇒ CHT23 with no event, and configured ⇒ inside
+recorded; optional ⇒ not_required. Total: 18 files, 128 passed.
+
+E2E:
+- attendance.spec NEW "Flow 3c": geofencing required, location not set up
+  ⇒ the worker sees "Check-in not available yet" plus the safe message, no
+  technical wording, no "Clocked in", axe clean, no attendance event;
+  policy restored to OFF afterwards.
+- settings.spec: defaults shown (150 / 100 / unticked); 49 m rejected
+  inline; save; readiness "Not ready"; Mercy Main "Not configured" ⇒ "Set
+  up geofence" ⇒ prefilled 150 m with an empty centre ⇒ a missing centre is
+  rejected ⇒ enable, set centre, 250 m ⇒ saved ⇒ back in the table:
+  Enabled · 250 m · Block outside; no coordinates on the page; axe clean.
+Full run: see section 16a.
+
+
+16a. VALIDATION
+---------------
+format:check PASS · lint PASS · typecheck PASS · test 415 PASS ·
+build PASS · check:bundle OK · check:migrations OK (67 files) ·
+test:integration 128 PASS · db reset PASS · db lint (warning, public /
+authz / internal) no issues · test db 1,572 PASS · db:types regenerated
+(src/types/database.types.ts: new enum, columns and two RPCs).
+npx playwright test: PASS — 338 passed, 14 skipped, 0 failed (9.6 min). The
+skips are the existing desktop-only and phone-only tests (unchanged from E9-3E).
+
+Note: pgTAP must run on a freshly reset database. Running it after the
+integration / E2E suites makes unrelated count-based assertions fail
+because of the extra rows (seen once, then confirmed clean after a reset).
+
+
+17. MIGRATIONS
+--------------
+NEW supabase/migrations/20261010130000_geofence_settings_readiness.sql
+(follows 20261010120000_geofence_fail_closed):
+- enum public.geofence_readiness;
+- 4 additive columns on agency_attendance_settings (all with defaults; no
+  data rewrite; existing agencies get require OFF);
+- internal.attendance_rules (defaults include the new fields);
+- internal.location_geofence_readiness (new, revoked from all roles);
+- public.clock_in_assignment (same signature; CHT23 guard added);
+- public.set_location_geofence (same signature; validation and audit);
+- public.set_geofence_policy and public.list_geofence_readiness (new;
+  authenticated only).
+location_geofences is unchanged. Production is expected to go 65 → 67.
+
+
+18. DEPLOYMENT ORDER (operator; NOT performed)
+----------------------------------------------
+1. Review and commit E9-3E and E9-3E.1 together; open a PR; CI green.
+2. Take a production restore point. Run supabase db push --dry-run and
+   expect exactly:
+     20261010120000_geofence_fail_closed
+     20261010130000_geofence_settings_readiness
+   Then push.
+3. Merge and let Vercel deploy.
+   - Database first is safe: require_geofence defaults OFF, so behaviour is
+     unchanged until an operator turns it on.
+   - The old app does not call the new RPCs.
+   - CHT23 cannot fire before the setting is enabled.
+
+
+19. PRODUCTION SETUP STEPS (pilot agency; operator, AAL2)
+--------------------------------------------------------
+1. Settings → Attendance & Geofencing → Geofencing Defaults: confirm
+   150 m / 100 m / Block clock-in. Save.
+2. Facility Geofences: for each pilot location, choose "Set up geofence".
+   Enter the site centre (the main entrance), adjust the radius (for
+   example 250 m campus, 75 m clinic), tick "Check location…", and save.
+3. Tick "Require geofencing for worker check-in" and save. Do this LAST,
+   or workers at not-yet-configured locations are refused (intended, but
+   avoid it mid-setup).
+4. Worker Check-In Readiness must read "Ready", with blocking geofences
+   equal to active locations.
+5. Run the Android and iOS device checklist from E9-3E §18.6, plus: a
+   location with its geofence disabled ⇒ "Check-in isn't available…";
+   re-enable it.
+
+
+20. REMAINING GAPS
+------------------
+- Real-device geofence certification (Android / iOS) is still
+  outstanding: not deployed, and the pilot site is not configured.
+- A CHT23 refusal rolls back, so it leaves no attendance exception, agency
+  notification or audit row. Operator visibility comes from the readiness
+  surface, not from per-attempt alerts. A committed "configuration
+  refused" exception type would need a new enum value and template.
+- The worker projection does not warn before the tap. The worker learns
+  that check-in is unavailable when attempting it.
+- No map / geocoding picker; the centre is entered as decimal degrees.
+- Archived facilities are excluded from the readiness listing; inactive
+  facilities and locations are listed but not counted as active.
+- Browser locations can still be spoofed (GEOFENCE_MODEL §5).
+
+
+FILES
+-----
+New:
+  supabase/migrations/20261010130000_geofence_settings_readiness.sql
+  supabase/tests/security/270_geofence_settings_readiness.test.sql
+  tests/integration/geofence-settings.test.ts
+  src/app/app/organisations/[organisationId]/(workspace)/settings/attendance/
+    _components/check-in-readiness.tsx
+    geofences/[locationId]/page.tsx
+  docs/reports/P0-E9-3E1-geofence-settings-readiness.txt
+Changed:
+  src/app/.../settings/attendance/page.tsx, settings/page.tsx,
+  src/app/.../facilities/[facilityId]/page.tsx
+  src/features/attendance/{actions,queries,schemas,index}.ts,
+    components/{settings-forms,badges,clock-control}.tsx
+  src/lib/domain/attendance.ts, src/lib/errors/{error-codes,normalize-error}.ts
+  src/types/database.types.ts (generated)
+  docs/architecture/GEOFENCE_MODEL.md (§3a)
+  supabase/tests/security/000_security_baseline.test.sql,
+    180_attendance_review.test.sql
+  tests/unit/lib/attendance.test.ts
+  tests/e2e/attendance.spec.ts, tests/e2e/settings.spec.ts
+
+
+FINAL STATUS
+------------
+GEOFENCE SETTINGS:
+STATUS: COMPLETE
+
+GEOFENCE READINESS GUARD:
+STATUS: COMPLETE
+
+SERVER ENFORCEMENT:
+STATUS: COMPLETE
+
+PILOT:
+STATUS: AWAITING DEPLOYMENT + REAL-DEVICE GEOFENCE CERTIFICATION
+
+Not deployed. No production migrations pushed.

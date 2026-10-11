@@ -140,7 +140,7 @@ create temp table tries as
 select pg_temp.clock_in((select wendy from ids), (select a from rl), pg_temp.site_lat() + pg_temp.lat_offset(1000), pg_temp.site_lon(), 10) ->> 'outcome' as outcome
 from generate_series(1, 10);
 select is((select string_agg(distinct outcome, ',') from tries), 'refused', 'ten outside attempts are each refused and recorded');
-select throws_ok(pg_temp.as_sql((select wendy from ids), format('select * from public.clock_in_assignment(%L, %s, %s, 10)',
+select throws_ok(pg_temp.as_sql((select wendy from ids), format('select * from public.clock_in_assignment(%L, %s, %s, 10, now())',
   (select a from rl), pg_temp.site_lat() + pg_temp.lat_offset(1000), pg_temp.site_lon())),
   'CH429', null, 'U. the eleventh refusal in 10 minutes is rate limited');
 select is((select count(*)::int from public.audit_events where action = 'attendance.clock_in_refused'), 10,

@@ -253,23 +253,28 @@ export const ERROR_CODES = {
   GEOFENCE_REQUIRED: {
     kind: "validation",
     status: 400,
-    message: "This site needs your location to record attendance.",
+    message: "Location access is required to check in.",
   },
   LOCATION_UNAVAILABLE: {
     kind: "validation",
     status: 400,
-    message: "Your location could not be determined. Check location permissions and try again.",
+    message: "We couldn't determine your location. Try again.",
   },
   LOCATION_ACCURACY_TOO_LOW: {
     kind: "validation",
     status: 400,
-    message: "Your location is not accurate enough. Move to an open area and try again.",
+    message: "We can't verify that you're at the facility yet. Move to an open area and try again.",
   },
   OUTSIDE_GEOFENCE: {
     kind: "conflict",
     status: 409,
+    message: "You appear to be outside the allowed check-in area.",
+  },
+  GEOFENCE_NOT_CONFIGURED: {
+    kind: "conflict",
+    status: 409,
     message:
-      "You appear to be outside the site area. Your agency has been told; contact them if you are on site.",
+      "Check-in isn't available because this location hasn't been configured yet. Contact your agency.",
   },
   CORRECTION_NOT_ALLOWED: {
     kind: "conflict",

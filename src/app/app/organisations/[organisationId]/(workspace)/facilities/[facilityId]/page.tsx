@@ -1,3 +1,4 @@
+import { getRequestTerminology } from "@/features/localization";
 import type { Metadata, Route } from "next";
 import Link from "next/link";
 
@@ -44,8 +45,15 @@ import {
   requireCapabilityOrNotFound,
   StepUpNotice,
 } from "@/features/organisations";
-import { GeofenceForm, listLocationGeofences } from "@/features/attendance";
+import {
+  GeofenceForm,
+  GeofenceReadinessBadge,
+  getAttendanceRules,
+  listGeofenceReadiness,
+  listLocationGeofences,
+} from "@/features/attendance";
 import { listRequirements, RequirementForm, RequirementsTable } from "@/features/compliance";
+import { checkInBlockedByConfiguration } from "@/lib/domain/attendance";
 import { localCalendarDate } from "@/lib/domain/credentials";
 import { listCredentialTypes, listDisciplines, listJurisdictions } from "@/features/credentials";
 import { CAPABILITIES } from "@/lib/authz";
@@ -99,7 +107,14 @@ export default async function FacilityPage({
     can(CAPABILITIES.FACILITY_MANAGE) === "granted" && facility.status !== "archived";
   const canManageRelationship = can(CAPABILITIES.RELATIONSHIP_MANAGE) === "granted";
   const canManageGeofences = can(CAPABILITIES.ATTENDANCE_MANAGE_SETTINGS) === "granted";
-  const geofences = canManageGeofences ? await listLocationGeofences(facility.id) : [];
+  const [geofences, attendanceRules, readiness] = canManageGeofences
+    ? await Promise.all([
+        listLocationGeofences(facility.id),
+        getAttendanceRules(organisationId),
+        listGeofenceReadiness(organisationId),
+      ])
+    : [[], null, []];
+  const geofencePolicy = attendanceRules?.geofencePolicy;
   const openRelationship = relationships.find((relationship) => relationship.status !== "ended");
   const typeName =
     facilityTypes.find((type) => type.key === facility.facilityTypeKey)?.name ??
@@ -216,6 +231,7 @@ export default async function FacilityPage({
               <FacilityImageUploader
                 organisationId={organisationId}
                 facilityId={facility.id}
+                facilityName={facility.name}
                 hasImage={Boolean(facility.imageUrl)}
               />
               {facility.imageUrl ? (
@@ -298,21 +314,47 @@ export default async function FacilityPage({
       {canManageGeofences && locations.length > 0 ? (
         <Panel titleId="geofence-heading" title={<>Attendance location checks</>}>
           <RecordNote>
-            Optional. When enabled for a location, workers share their location once when they clock
-            in or out there. Chelth never tracks workers between clock actions.
+            {geofencePolicy?.requireGeofence
+              ? "Required by your agency: workers can check in at a location only once its geofence is set up and enabled."
+              : "Optional. When enabled for a location, workers share their location once when they clock in or out there."}{" "}
+            Chelth never tracks workers between clock actions.
           </RecordNote>
-          {locations.map((location) => (
-            <div key={location.id} className="flex flex-col gap-2">
-              <h3 className="text-base font-semibold">{location.name}</h3>
-              <GeofenceForm
-                organisationId={organisationId}
-                facilityId={facility.id}
-                locationId={location.id}
-                locationName={location.name}
-                current={geofences.find((geofence) => geofence.locationId === location.id) ?? null}
-              />
-            </div>
-          ))}
+          {locations.map((location) => {
+            const status = readiness.find((row) => row.locationId === location.id)?.readiness;
+            return (
+              <div key={location.id} className="flex flex-col gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-base font-semibold">{location.name}</h3>
+                  {status && geofencePolicy ? (
+                    <GeofenceReadinessBadge
+                      readiness={status}
+                      requireGeofence={geofencePolicy.requireGeofence}
+                    />
+                  ) : null}
+                </div>
+                {status &&
+                geofencePolicy &&
+                checkInBlockedByConfiguration(geofencePolicy.requireGeofence, status) ? (
+                  <p
+                    role="note"
+                    className="text-[13.5px] leading-[21px] text-danger-soft-foreground"
+                  >
+                    Geofencing must be configured before this location is ready for worker check-in.
+                  </p>
+                ) : null}
+                <GeofenceForm
+                  organisationId={organisationId}
+                  facilityId={facility.id}
+                  locationId={location.id}
+                  locationName={location.name}
+                  current={
+                    geofences.find((geofence) => geofence.locationId === location.id) ?? null
+                  }
+                  {...(geofencePolicy ? { policy: geofencePolicy } : {})}
+                />
+              </div>
+            );
+          })}
         </Panel>
       ) : null}
 
@@ -333,6 +375,7 @@ export default async function FacilityPage({
           />
           {canManageRequirements && facility.status !== "archived" ? (
             <RequirementForm
+              terms={await getRequestTerminology()}
               organisationId={organisationId}
               facilityId={facility.id}
               credentialTypes={credentialTypes}

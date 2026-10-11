@@ -31,9 +31,10 @@ select is(
   (select display_name from public.profiles where id = '00000000-0000-4000-8000-000000000001'),
   null, 'control characters in metadata are discarded');
 
--- Identity only: no role / organisation columns on profiles.
+-- Identity only: no role / organisation columns on profiles. P0-E9-3F adds the
+-- person's own display preferences (locale, display timezone), never a role.
 select columns_are('public', 'profiles',
-  array['id', 'display_name', 'status', 'created_at', 'updated_at'],
+  array['id', 'display_name', 'status', 'created_at', 'updated_at', 'locale', 'timezone_mode', 'timezone'],
   'profiles carry identity only (no global role, no active organisation)');
 
 -- Isolation: with no shared organisation, a user sees only their own profile.

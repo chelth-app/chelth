@@ -1,0 +1,594 @@
+P0-E9-3F — LOCALIZATION, SHIFT PRICING, TIMEZONE & FACILITY PHOTO REFINEMENT
+==========================================================================
+CHELTH — Healthcare Workforce Operations
+
+Branch: p0-e8-visual-implementation (uncommitted). Nothing deployed, nothing
+pushed, no production migration. One read-only, aggregate production query
+was run (section 15); it printed no personal data.
+
+
+1. EXISTING VOCABULARY AUDIT
+----------------------------
+"Regular" has two unrelated meanings in Chelth:
+
+a) Shift classification, enum public.shift_classification
+   ('regular', 'evening', 'night', 'weekend'):
+   - stored on shifts.classification (default 'regular', fixed once the
+     shift is open), rate_cards.classification and
+     priced_timesheet_lines.classification;
+   - used only to SELECT a rate (precedence tiers 1 and 3). It is never a
+     money column.
+   - The label "Regular" came from SHIFT_CLASSIFICATION_LABELS
+     (src/lib/domain/pricing.ts). It is shown on:
+     - Rates (card list, card summary, the rate form);
+     - Pricing (queue issues, priced lines);
+     - the shift record ("Regular shift");
+     - the shift classification form.
+   - It is not in any export (payroll, invoice and adjustment CSVs carry no
+     classification).
+
+b) "Regular time" in payroll / invoices = NON-OVERTIME minutes
+   (pay_regular_minutes, total_regular_minutes, delta_regular_minutes).
+   - This is overtime vocabulary, not a shift category, and is deliberately
+     unchanged.
+
+Not shift vocabulary at all: "400 Regular" (font weight) in the brand
+guidelines.
+
+
+2. REGULAR → DAY SHIFT DECISION
+-------------------------------
+'regular' is the standard daytime category and is used by rates, shifts,
+priced lines, fixtures and tests. It is semantically safe, so the stored
+value is KEPT and only the presentation changes:
+- SHIFT_CLASSIFICATION_LABELS.regular = "Day Shift".
+- Evening, Night and Weekend are unchanged and separate. Day Shift never
+  covers them.
+- New shiftClassificationPhrase() avoids "Day Shift shift" on the shift
+  record ("Day Shift", "Night shift").
+Pricing logic, rate precedence and every identifier are unchanged.
+
+
+3. INTERNAL / DISPLAY MAPPING
+-----------------------------
+  stored 'regular' → "Day Shift"   'evening' → "Evening"
+  stored 'night'   → "Night"       'weekend' → "Weekend"
+All pickers, filters, rate cards, the pricing queue, priced lines and the
+shift record read the single label map, so option text, visible text and
+accessible names agree. Option values remain the enum keys.
+
+
+4. EXISTING DURATION / RATE CALCULATION (documented, unchanged)
+---------------------------------------------------------------
+The only pricing engine is internal.price_timesheet_revision (P0-E7-S1,
+calculation version 1, integers only). For each locked timesheet entry:
+- worked minutes come from the immutable approval snapshot (breaks are
+  already excluded; overnight shifts are a single entry of worked minutes);
+- the rounding policy is chosen by work date. It is VERSIONED and
+  effective-dated (rounding_policy_versions):
+    mode 'none'    ⇒ priced minutes = worked minutes (EXACT MINUTES);
+    mode 'nearest' ⇒ priced = round-half-up(worked / N) × N, with N in
+                     {5, 6, 10, 15};
+    no active policy ⇒ 'none';
+- amount_minor = round-half-up(rate_minor × (regular × den + overtime × num)
+  / (60 × den)), with round-half-up(a / b) = (2a + b) div 2b.
+Payroll batches and invoice drafts read the priced lines. They never
+recalculate. So pricing, payroll and invoices cannot diverge.
+
+Current Chelth behaviour for an agency that never set a policy: exact
+minutes. An agency with an active 'nearest' policy keeps it.
+
+
+5. EXACT-MINUTE IMPLEMENTATION
+------------------------------
+No new setting and no engine change: "Exact minutes" IS the existing
+rounding mode 'none'. Per §5 (extend, don't duplicate), it is now exposed
+as a product setting:
+- Settings → Rates & Billing → "Time Calculation Method":
+  - In effect today (the latest active policy on or before today; none ⇒
+    Exact minutes) and any scheduled change;
+  - a worked example, for the method in effect: "Worked 7h 37m ·
+    calculation basis 457 minutes · $30.00/hour = $228.50" (nearest 15:
+    450 minutes · $225.00);
+  - a form (rates.manage, AAL2; otherwise a step-up notice):
+    - Exact minutes, or round to the nearest 5 / 6 / 10 / 15 minutes;
+    - "Applies to work from" (default today);
+    - it creates and activates a policy version through the existing RPCs.
+      If activation is refused (for example an active policy already starts
+      that day, CHM12), the draft is discarded and the error shown.
+- Wording: describeRounding('none') is "Exact minutes" (was "No rounding")
+  on Rates, Pricing and the rounding form.
+- Explanation (§6): priced lines show Worked "7h 37m" with "457 min",
+  Priced "<n> min · calculation basis", the rate, the amounts and the
+  applied method. Pricing is pricing.view only. Workers never see
+  pay / bill internals (unchanged).
+Example check: 3000 × 457 / 60 = 22850 minor units = $228.50 exactly.
+
+
+6. DECIMAL / MONEY SAFETY
+-------------------------
+- Stored money is computed only in Postgres, on integer minor units with
+  numeric intermediates. No floating point.
+- The Settings example uses amountForMinutes() with BigInt. It is display
+  only and mirrors the engine formula (unit-tested to the same values).
+- Rates are entered with the existing exact string → minor-unit parser.
+
+
+7. FINANCIAL HISTORICAL BEHAVIOUR
+---------------------------------
+- Every priced line snapshots rounding_policy_version_id, rounding_mode,
+  rounding_increment_minutes, raw_minutes and priced_minutes, plus the
+  rate version. Priced timesheets are immutable; payroll batches and
+  invoice drafts copy priced lines, then lock and finalise.
+- A new method applies to work dated on or after its effective date, and
+  only when a timesheet revision is (re)priced. Existing priced timesheets,
+  locked or exported payroll and invoices, and adjustments are never
+  recalculated.
+- A corrected revision is priced as a new snapshot under the policy for its
+  work dates. Corrections already flow through the existing adjustment
+  workflow.
+- Verified by the existing pgTAP 220 (P/Q: the old pricing is preserved
+  after policy and rate changes; 453 → 450 under nearest-15).
+
+
+8. TERMINOLOGY / LOCALIZATION ARCHITECTURE
+------------------------------------------
+- src/lib/i18n/terminology.ts (pure):
+  - SUPPORTED_LOCALES en-US / en-GB, FALLBACK_LOCALE en-US;
+  - terminology(locale) → { license, licenses, licenseLower,
+    licensesLower, professionalLicense, licenseNumber };
+  - resolveLocale(surface, sources); localeFromAcceptLanguage();
+  - localizeTerms(text, terms): respells only the word licence / license in
+    reference-data display text (keeping case). Identifiers never pass
+    through it.
+- src/features/localization (server, request-scoped, memoised):
+  - getWorkspaceTerminology(orgId), getPersonalTerminology(),
+    getRequestTerminology();
+  - getRequestTerminology uses the workspace's terminology when the URL is
+    inside /app/organisations/<id>. The proxy passes that id as a
+    presentation hint header. It is overwritten on every request,
+    re-validated, and the organisation is re-read through RLS. It is never
+    an authorization input.
+- No component contains a country condition. Forms receive a Terminology
+  object; queries localise reference names once.
+- No i18n framework was introduced (none existed).
+
+
+9. LICENSE / LICENCE COVERAGE (all occurrences classified)
+----------------------------------------------------------
+User-facing (localized):
+- my-credentials list empty state ("Add your licenses / licences …");
+- credential evidence note ("… certificate or license / licence");
+- add credential form label ("License / Licence / certificate number");
+- requirement form label ("Jurisdiction (licenses / licences)"), on agency
+  compliance and the facility page;
+- credential type names from reference data ("Registered Nurse (RN)
+  licence", "LPN / LVN licence"), localised at the query mappers:
+  - listCredentialTypes, listMyCredentials, getCredential,
+    listAgencyWorkerCredentials;
+  - getReadiness, listSharedWorkerCompliance;
+  - so the credential list, detail, add form, worker pages, agency
+    compliance, filters and readiness items all agree.
+Unchanged by design:
+- database / identifiers: rn_license, lpn_lvn_license,
+  professional_license, column names;
+- the SQL comment and seed name text in migrations (immutable; spelling is
+  applied at display);
+- code symbols RN_LICENSE / LPN_LVN_LICENSE;
+- test fixtures (licence.pdf, licenceNumber);
+- documentation.
+Exports: no export contains credential vocabulary.
+
+
+10. LOCALE PRECEDENCE
+---------------------
+Workspace surfaces (any page under /app/organisations/<id>, including a
+worker's own credential pages there):
+  organisation locale → user locale → browser Accept-Language → en-US.
+Personal surfaces (/app, Account, Security):
+  user locale → browser → en-US.
+- Only exact en-US / en-GB tags are recognised. en-AU, en-IE, fr-FR and
+  others fall back to en-US. Nothing is guessed country by country, and
+  physical location is never used.
+- Locale and timezone are independent.
+Storage (migration): organisations.locale and profiles.locale (NULL or
+en-US / en-GB).
+- Workspace: Settings → Organization → "Language & Spelling"
+  (organisation.manage, AAL2, audited "organisation.locale_updated").
+- Personal: Account → Language.
+Existing workspaces have no locale, so they show the en-US fallback
+("License"), or a member's own en-GB preference.
+
+
+11. TIMEZONE ARCHITECTURE
+-------------------------
+Before: there was no user timezone. Operational times already used the
+shift / facility timezone. Some non-operational timestamps (audit lists,
+etc.) were formatted with no timezone, i.e. the server's zone (UTC).
+
+Now, kept strictly separate:
+- device / user (profiles.timezone_mode, profiles.timezone): personal
+  DISPLAY preference only;
+- organisation: Chelth has no organisation timezone (agency-wide dates are
+  chosen explicitly, as before);
+- facility / location: the authoritative operational calendar (unchanged);
+- shift: follows its facility location (unchanged).
+The personal zone is applied to the Settings → Security audit log (with the
+zone name shown). Other non-operational timestamp lists still use the
+server zone (section 23).
+
+
+12. AUTOMATIC TIMEZONE BEHAVIOUR
+--------------------------------
+- Detection: Intl.DateTimeFormat().resolvedOptions().timeZone, validated
+  (a real IANA zone; offsets and unknown names are rejected → null).
+- DeviceTimezoneSync (in the /app layout): on load and whenever the app
+  returns to the foreground, an AUTOMATIC profile with a changed, valid
+  zone is saved through sync_my_device_timezone.
+- The database updates only rows in automatic mode and validates against
+  pg_timezone_names. A manual choice is never overwritten (enforced
+  server-side, not only in the UI).
+- Account → Timezone:
+  - automatic: "Automatically detected · <zone>" [Change];
+  - Change opens a searchable picker (a labelled text input with the full
+    IANA list as suggestions, never a giant dropdown) → manual;
+  - manual: "Timezone · <zone>" [Use device timezone] → back to automatic.
+- No onboarding step asks for a timezone.
+
+
+13. OPERATIONAL TIMEZONE PROTECTION
+-----------------------------------
+- shiftPeriod, the shift / attendance formatters and pricing work dates take
+  the shift's own timezone and have no device or user timezone input. The
+  display timezone cannot reach them.
+- A 7:00 AM New York shift stays "7:00 AM" (New York time) on a phone in
+  London. Unit-tested.
+- No shift, attendance or pricing value is written from the device zone.
+
+
+14. TODAY / UPCOMING / PAST VERIFICATION
+----------------------------------------
+E9-3D facility-local semantics are unchanged. Unit-tested with a New York
+shift and a device effectively in London:
+- at 00:30 UTC on the shift date (01:30 in London, still the previous day in
+  New York) ⇒ Upcoming (not Today);
+- 05:00 UTC ⇒ Today;
+- the next day ⇒ Past.
+The existing worker-shift-context E2E (Today / Upcoming / Past) passes
+unchanged.
+
+
+15. FACILITY-PHOTO DEFECT REPRODUCTION
+--------------------------------------
+- Production (read-only, aggregate, linked CLI):
+  - bucket facility-images present, private, 2 MB, image/jpeg + image/png;
+  - 3 storage policies;
+  - 0 objects ever stored; 0 facilities with an image.
+  So no upload has ever reached Storage in production.
+- Local, Chromium, desktop + mobile, real file-chooser path: the button is
+  enabled, hit-testing reaches it, the signed PUT returns 200 and the image
+  attaches. The click handler itself works.
+- WebKit (installed for this check) could not keep a session on
+  http://localhost (Secure cookies on a non-HTTPS origin), so a local
+  iPhone-engine run was not possible.
+- The operator's exact device and file are not available.
+
+
+16. EXACT FACILITY-PHOTO ROOT CAUSE
+-----------------------------------
+The uploader (E9-3D-S2) still had the same client-side traps that E9-3C
+found and removed from the worker evidence uploader. Each one refuses a
+real-device file BEFORE any network call, which matches 0 objects in
+production:
+a) A strict File.type equality to "image/jpeg" or "image/png". Android
+   pickers commonly report "", "image/jpg" or application/octet-stream, or a
+   name with no extension ⇒ refused.
+b) A hard 2 MB client limit. Phone camera photos are typically 3–8 MB ⇒
+   refused.
+c) No selected state. A raw native file input sat beside an always
+   identical outline "Upload photo" button. After a refused or no-op tap,
+   nothing visibly changed beyond a small line of text, so the button read
+   as inactive.
+Permissions, Storage RLS, the bucket, the AAL2 gate and the server actions
+were verified correct (the same flow succeeds locally, and production
+configuration matches).
+Not determinable without the device: which of (a), (b) or (c) the operator
+hit. All three are removed, and real-device confirmation is listed in
+section 23.
+
+
+17. FACILITY-PHOTO FIX
+----------------------
+src/features/facilities/components/facility-image-uploader.tsx (rebuilt on
+the E9-3C pattern):
+- Empty: "Facility photo" / "Add a photo workers can use to recognise the
+  facility." / "JPG or PNG · up to 2 MB (larger photos are resized)" /
+  [Choose photo].
+- Selected: file name, size and "Ready to upload"; primary [Upload photo];
+  [Choose a different photo]. "resized for upload" is shown when that
+  applied.
+- Uploading: the button is disabled with aria-busy and a spinner. A ref
+  guard stops duplicate submits.
+- Success: the router refreshes, the page shows the preview, the control
+  offers [Replace photo], and "Facility photo updated." is announced as a
+  status.
+- Errors (role="alert"):
+  - wrong type, empty file, unreadable photo, too large even after resizing;
+  - offline; network / Storage failure ("The photo was not uploaded. Check
+    your connection and try again.");
+  - server refusals (non-image bytes; permission or AAL2 from the ticket
+    action).
+  Nothing ever reports success early.
+- checkFacilityImageFile() (unit-tested):
+  - accepts image/jpg, image/pjpeg, x-png, an empty or octet-stream type
+    with a .jpg / .png extension, and extension-less names;
+  - refuses a known extension that contradicts the declared type.
+- Photos over 2 MB are re-encoded in the browser (canvas → JPEG):
+  - long edge ≤ 2000 / 1600 / 1200 px until ≤ 2 MB;
+  - transparency is filled white;
+  - camera metadata such as GPS is dropped.
+- The native input stays in the DOM (sr-only, focusable, labelled) so Files,
+  Photos and Camera remain available. The visible control is its label.
+- Fallback (unchanged): no image ⇒ the approved Chelth facility artwork;
+  workers never see a broken image.
+
+
+18. SECURITY
+------------
+Facility photo: unchanged design.
+- facility.manage (AAL2) to manage. A scheduler does not see the control
+  (E2E).
+- One-time signed upload into <agency>/<facility>/ (Storage RLS
+  re-checks).
+- The server re-downloads and verifies size and signature (JPEG / PNG
+  magic bytes) before attaching; failing bytes are deleted.
+- Private bucket; workers get short-lived signed URLs only; no remote URLs.
+- Resizing happens before upload and does not relax any server check.
+Locale:
+- set_organisation_locale: organisation.manage (privileged ⇒ AAL2), CH400
+  for unsupported values, audited. Scheduler and cross-tenant ⇒ CH403
+  (tested).
+Timezone:
+- set_my_display_preferences and sync_my_device_timezone act on the
+  caller's own profile only; zones are validated in the database.
+- The profiles column grant is still display_name only, so there are no
+  direct writes.
+- The column CHECKs are inlined. An earlier draft called an internal
+  function from the CHECK, which broke ordinary display-name updates for
+  authenticated users; the existing pgTAP 010 caught it before completion.
+- A second regression was caught by the existing Settings E2E and fixed:
+  Intl.DateTimeFormat throws when timeZoneName is combined with dateStyle,
+  which broke the Security page. The zone is now stated in the Audit Log
+  description instead.
+Proxy hint: presentation only; never trusted for access.
+
+
+19. TESTS
+---------
+pgTAP NEW 280_localization_timezone_pricing (31):
+- M: $30 × 60 / 30 / 457 min = 3000 / 1500 / 22850; $31.25 × 457 = 23802;
+  0 min = 0; 1 min at $29.99 = 50¢; nearest-15: 457 → 450 = $225.00; every
+  priced line snapshots its method and raw vs priced minutes;
+- L: default null; set en-GB; unsupported ⇒ CH400; AAL1 ⇒ CH402; scheduler
+  and cross-tenant ⇒ CH403; clear; audited;
+- Z: automatic by default; device zone stored; invalid zone ignored; device
+  change updates automatic; manual kept against a device change; manual
+  needs a zone; an offset is not a zone; back to automatic; one person
+  never affects another;
+- K: credential type keys unchanged.
+Updated:
+- 000 (approved RPC allowlist + 3);
+- 010 (profiles now carry the three display-preference columns; still no
+  role or organisation).
+Total: 33 files, 1,603 assertions, PASS (fresh db reset).
+
+Unit NEW tests/unit/lib/localization-pricing-timezone.test.ts (28):
+- Day Shift label, key retained, Evening / Night / Weekend distinct;
+- exact minutes (60 / 30 / 457 / 0), decimal rates, overnight-with-break
+  minutes, rounding vs exact, method in effect, "7h 37m";
+- License / Licence for en-US / en-GB, case-preserving respelling,
+  identifiers untouched, workspace and personal precedence, documented
+  fallback for en-AU / en-IE / fr-FR, Accept-Language;
+- organisation hint parsing;
+- timezone validity, device detection fallbacks, automatic vs manual sync,
+  UTC fallback, DST (London GMT / BST);
+- the operational shift time and Today / Upcoming / Past are unaffected by
+  the device;
+- photo pre-check (real picker types, contradictions, empty, > 2 MB ⇒
+  resize, never enlarge).
+Updated: pricing.test ("Exact minutes").
+Total: 34 files, 443 passed.
+
+Integration: identity-and-organisations expects the new profile columns.
+Total: 18 files, 128 passed. The first run after db reset hit the known
+local Auth-container restart (AuthRetryableFetchError); it passed once
+Auth was healthy, as in E9-3E.
+
+E2E NEW tests/e2e/localization-pricing-timezone.spec.ts (desktop + mobile):
+- photo:
+  - empty state with no dead button;
+  - invalid type refused;
+  - selected state (name, Ready to upload);
+  - simulated Storage / network failure explained, nothing claimed;
+  - double tap uploads once;
+  - preview and Replace photo; axe clean;
+  - a > 2 MB photo resized and uploaded;
+  - a scheduler cannot see the control;
+- timezone:
+  - Africa/Lagos detected and saved;
+  - invalid manual value refused;
+  - manual Europe/London;
+  - a Tokyo device keeps London;
+  - Use device timezone ⇒ Asia/Tokyo; axe clean;
+- locale: fallback "Jurisdiction (licenses)"; en-GB ⇒ "Jurisdiction
+  (licences)"; option values still rn_license;
+- time calculation:
+  - Exact minutes, the 7h 37m / 457 / $228.50 example; axe clean;
+  - switch to nearest 15 ⇒ $225.00;
+- Day Shift on the shift record; no "Regular shift".
+Existing worker-shift-context (photo, Today / Upcoming / Past) passes
+unchanged.
+Full run: section 19a.
+
+
+19a. VALIDATION
+---------------
+format:check PASS · lint PASS · typecheck PASS · test 443 PASS · build
+PASS · check:bundle OK · check:migrations OK (68) · test:integration 128
+PASS · db reset PASS · db lint (warning; public / authz / internal) no
+issues · test db 1,603 PASS · db:types regenerated.
+npx playwright test: see section 19b (clean full run, P0-E9-3F.1).
+Earlier runs in this phase (kept for the record):
+- Run 1: 335 passed, 2 failed. The Settings Intl regression (fixed,
+  section 18).
+- Run 2: 327 passed, 5 failed. Desktop-only environment slowness; those
+  specs rerun 52 / 52.
+
+
+19b. CLEAN FULL-SUITE VALIDATION (P0-E9-3F.1)
+---------------------------------------------
+Environment preparation (no product or test changes):
+- supabase db reset;
+- local Kong and Auth containers restarted;
+- Auth health 200 and a real sign-up through the gateway 200;
+- fresh production build; no stale server on port 3100.
+The working tree also contains the uncommitted P0-E9-3G changes, so this run
+validates P0-E9-3F together with P0-E9-3G.
+
+Results:
+  npm run format:check      PASS
+  npm run lint              PASS
+  npm run typecheck         PASS
+  npm test                  PASS — 34 files, 450 tests
+  npm run build             PASS
+  npm run check:bundle      PASS
+  npm run check:migrations  PASS
+  npx playwright test       PASS — 362 tests: 348 passed, 14 skipped,
+                            0 failed, 0 flaky, 0 did not run (10.2 min,
+                            4 workers)
+The 14 skips are the existing desktop-only and phone-only tests.
+No failure occurred, so no reproduction or fix was needed. No product
+behaviour, test or migration was changed. The earlier failures (run 2,
+P0-E9-3G run) were local infrastructure instability, as assessed.
+
+Merge gate: CLEAN.
+
+PLAYWRIGHT FULL SUITE:
+STATUS: PASS — 348/14/0 failed
+
+20. FILES CHANGED
+-----------------
+New:
+  supabase/migrations/20261010140000_locale_and_display_timezone.sql
+  supabase/tests/security/280_localization_timezone_pricing.test.sql
+  src/lib/i18n/terminology.ts, src/lib/i18n/organisation-hint.ts
+  src/features/localization/{index,queries}.ts
+  src/lib/domain/display-timezone.ts
+  src/features/identity/components/display-preferences.tsx
+  src/features/organisations/components/organisation-locale-form.tsx
+  src/features/pricing/components/time-calculation-form.tsx
+  tests/unit/lib/localization-pricing-timezone.test.ts
+  tests/e2e/localization-pricing-timezone.spec.ts
+  docs/reports/P0-E9-3F-localization-pricing-timezone-facility-photo.txt
+Changed:
+  src/lib/domain/pricing.ts (Day Shift, phrase, Exact minutes, helpers)
+  src/lib/domain/facility-images.ts (pre-check, resize sizing)
+  src/features/facilities/components/facility-image-uploader.tsx (rebuilt)
+  src/features/pricing/{actions,index}.ts, components/rate-forms.tsx
+  src/features/identity/{actions,index,queries,schemas}.ts
+  src/features/organisations/{actions,index,queries}.ts
+  src/features/credentials/{queries.ts,components/create-credential-form.tsx}
+  src/features/compliance/{queries.ts,components/requirement-form.tsx}
+  src/proxy.ts (presentation hint header)
+  src/app/app/layout.tsx (device timezone sync)
+  src/app/app/(personal)/account/page.tsx (Timezone, Language)
+  src/app/.../settings/{page,rates/page,security/page}.tsx
+  src/app/.../(finance)/{rates/page,pricing/[pricedTimesheetId]/page}.tsx
+  src/app/.../shifts/[shiftId]/page.tsx, facilities/[facilityId]/page.tsx,
+    compliance/page.tsx, my-credentials/{page,[credentialId]/page,new/page}.tsx
+  src/types/database.types.ts (generated)
+  supabase/tests/security/{000_security_baseline,010_identity_profiles}.test.sql
+  tests/unit/lib/pricing.test.ts
+  tests/integration/identity-and-organisations.test.ts
+
+
+21. MIGRATIONS
+--------------
+NEW 20261010140000_locale_and_display_timezone (after
+20261010130000_geofence_settings_readiness):
+- internal.is_supported_locale, internal.is_valid_timezone (revoked from
+  all roles);
+- organisations.locale; profiles.locale, profiles.timezone_mode (enum,
+  default 'automatic'), profiles.timezone. Additive and nullable, with no
+  data rewrite. Existing organisations and profiles keep current behaviour.
+- public.set_organisation_locale, public.set_my_display_preferences,
+  public.sync_my_device_timezone (authenticated only).
+No pricing, payroll, invoice, shift or geofence schema change.
+
+
+22. DEPLOYMENT ORDER (operator; NOT performed)
+----------------------------------------------
+1. Review and commit; open a PR; CI green.
+2. Production restore point. Run supabase db push --dry-run and expect only
+   the migrations not yet applied in production, ending with
+   20261010140000_locale_and_display_timezone (after the E9-3E / E9-3E.1
+   migrations if those are not yet pushed). Then push.
+3. Merge; Vercel deploys.
+   - Database first is safe: the new columns are nullable / defaulted, and
+     the old app does not read them.
+   - The app requires the migration (it selects profiles.locale /
+     timezone*), so the database must be migrated before or with the app.
+4. Optional: the pilot agency admin sets Settings → Organization → Language
+   & Spelling (en-US for the US pilot) and reviews Settings → Rates &
+   Billing → Time Calculation Method (Exact minutes is already in effect
+   unless they activated rounding earlier).
+5. Real-device facility photo check (Android + iPhone, standalone PWA):
+   - camera photo > 2 MB;
+   - gallery photo;
+   - the replace flow;
+   - the worker sees the photo on the next shift.
+
+
+23. REMAINING GAPS
+------------------
+- The facility-photo root cause is established from code, the production
+  Storage evidence and local reproduction. The operator's specific device
+  path was not observed, so real-device confirmation is still needed.
+- HEIC files that the browser does not convert and cannot decode are
+  refused with "This photo can't be read" (Chrome on Android cannot decode
+  HEIC). iOS converts to JPEG when offering the photo.
+- The personal display timezone is applied to the Security audit log only.
+  Other non-operational timestamp lists (team, invoices, payroll history,
+  messages) still format in the server zone. They can adopt
+  resolveDisplayTimeZone incrementally; operational times are correct and
+  must stay facility-local.
+- Terminology covers License / Licence only. Further terms and locales can
+  be added to the TERMS map without refactoring.
+- Workspace-locale terminology is not applied to prefetch-only RSC payloads
+  that bypass the proxy (they fall back to personal terminology until the
+  page renders normally).
+- Chelth has no organisation timezone; agency-wide reporting dates remain
+  explicit choices.
+
+
+FINAL STATUS
+------------
+SHIFT VOCABULARY:
+STATUS: COMPLETE
+
+EXACT-MINUTE RATE CALCULATION:
+STATUS: COMPLETE
+
+LICENSE / LICENCE LOCALIZATION:
+STATUS: COMPLETE
+
+DEVICE TIMEZONE DEFAULT:
+STATUS: COMPLETE
+
+FACILITY PHOTO:
+STATUS: FIXED (pending real-device confirmation)
+
+P0-E9-3F:
+STATUS: READY TO COMMIT
+
+Not deployed. No production migrations pushed.

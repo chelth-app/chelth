@@ -24,12 +24,28 @@ export const SUPPORTED_CURRENCIES = ["USD", "CAD", "GBP", "EUR", "AUD", "NZD"] a
 export type SupportedCurrency = (typeof SUPPORTED_CURRENCIES)[number];
 export const CURRENCY_MINOR_DIGITS = 2;
 
+/**
+ * Shift classification labels (P0-E9-3F): the stored key `regular` is the
+ * standard daytime shift and is shown as "Day Shift". The key itself is
+ * unchanged (rates, shifts and priced lines keep `regular`). Evening, night and
+ * weekend are separate categories, never covered by Day Shift.
+ *
+ * Not to be confused with "regular time" in payroll, which means non-overtime
+ * minutes (pay_regular_minutes) and keeps its wording.
+ */
 export const SHIFT_CLASSIFICATION_LABELS: Record<ShiftClassification, string> = {
-  regular: "Regular",
+  regular: "Day Shift",
   evening: "Evening",
   night: "Night",
   weekend: "Weekend",
 };
+
+/** Standalone phrase for a shift's classification ("Day Shift", "Night shift"). */
+export function shiftClassificationPhrase(classification: ShiftClassification): string {
+  return classification === "regular"
+    ? SHIFT_CLASSIFICATION_LABELS.regular
+    : `${SHIFT_CLASSIFICATION_LABELS[classification]} shift`;
+}
 
 export const RATE_PRECEDENCE_LABELS: Record<number, string> = {
   1: "Facility + discipline + classification",
@@ -131,8 +147,12 @@ export function versionPhase(
 
 export const ROUNDING_INCREMENTS = [5, 6, 10, 15] as const;
 
+/**
+ * Time calculation method (P0-E9-3F). Mode `none` prices the exact worked
+ * minutes; `nearest` rounds each entry half-up to the increment first.
+ */
 export function describeRounding(mode: RoundingMode, increment: number | null): string {
-  return mode === "none" || increment === null ? "No rounding" : `Nearest ${increment} minutes`;
+  return mode === "none" || increment === null ? "Exact minutes" : `Nearest ${increment} minutes`;
 }
 
 export function describeOvertime(
@@ -145,4 +165,52 @@ export function describeOvertime(
   return thresholdMinutes
     ? `${multiplier}× after ${thresholdMinutes / 60} h per week`
     : `${multiplier}× overtime`;
+}
+
+/**
+ * Time calculation method in effect on `date`: the latest ACTIVE rounding
+ * policy that starts on or before it (mirrors internal.rounding_policy_for).
+ * No policy ⇒ exact minutes (Chelth's default; existing agencies unchanged).
+ */
+export function roundingInEffect<
+  T extends {
+    status: string;
+    effectiveFrom: string;
+    roundingMode?: RoundingMode;
+    increment?: number | null;
+  },
+>(policies: readonly T[], date: string): T | null {
+  return (
+    policies
+      .filter((policy) => policy.status === "active" && policy.effectiveFrom <= date)
+      .sort((a, b) => (a.effectiveFrom < b.effectiveFrom ? 1 : -1))[0] ?? null
+  );
+}
+
+/** Minutes priced under a method (calculation version 1, integers only). */
+export function pricedMinutes(
+  rawMinutes: number,
+  mode: RoundingMode,
+  increment: number | null,
+): number {
+  if (mode !== "nearest" || !increment) return rawMinutes;
+  // round-half-up(raw / N) × N, as (2a + b) div 2b
+  return Math.floor((2 * rawMinutes + increment) / (2 * increment)) * increment;
+}
+
+/**
+ * Amount in minor units for minutes at an hourly rate (minor units):
+ * round-half-up(rate × minutes / 60). BigInt: exact for any realistic input;
+ * mirrors the database engine, which remains the only source of stored money.
+ */
+export function amountForMinutes(rateMinor: number | bigint, minutes: number): bigint {
+  const numerator = BigInt(rateMinor) * BigInt(minutes);
+  return (2n * numerator + 60n) / 120n;
+}
+
+/** "7h 37m" */
+export function formatHoursMinutes(minutes: number): string {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return hours > 0 ? `${hours}h ${rest}m` : `${rest}m`;
 }

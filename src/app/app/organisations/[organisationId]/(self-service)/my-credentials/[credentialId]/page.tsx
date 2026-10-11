@@ -1,3 +1,4 @@
+import { getRequestTerminology } from "@/features/localization";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -72,6 +73,7 @@ const FULL_ACTION = "h-12 w-full rounded-[8px] text-[15px] sm:h-12";
 export default async function MyCredentialPage({
   params,
 }: PageProps<"/app/organisations/[organisationId]/my-credentials/[credentialId]">) {
+  const terms = await getRequestTerminology();
   const { organisationId: rawOrganisationId, credentialId: rawCredentialId } = await params;
   const { organisationId, organisation, userId } = await loadOrganisationPage(rawOrganisationId);
   const credentialId = credentialIdSchema.safeParse(rawCredentialId);
@@ -178,7 +180,7 @@ export default async function MyCredentialPage({
             title="Evidence"
             note={
               credential.requiresDocument
-                ? "A clear copy of your certificate or licence."
+                ? `A clear copy of your certificate or ${terms.licenseLower}.`
                 : "No document is needed for this credential."
             }
           >

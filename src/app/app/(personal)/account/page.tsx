@@ -2,7 +2,12 @@ import type { Metadata } from "next";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
-import { DisplayNameForm, getMyProfile } from "@/features/identity";
+import {
+  DisplayNameForm,
+  getMyProfile,
+  LocalePreference,
+  TimezonePreference,
+} from "@/features/identity";
 import { requireAuthIdentity } from "@/lib/auth/session";
 
 export const metadata: Metadata = { title: "Account" };
@@ -23,6 +28,20 @@ export default async function AccountPage() {
         description={<>Manage the name shown across Chelth.</>}
       >
         <DisplayNameForm displayName={profile.displayName ?? ""} />
+      </Panel>
+      <Panel
+        titleId="timezone-heading"
+        title={<>Timezone</>}
+        description={<>Detected from this device unless you choose one.</>}
+      >
+        <TimezonePreference preferences={profile} />
+      </Panel>
+      <Panel
+        titleId="language-heading"
+        title={<>Language</>}
+        description={<>Spelling used on your personal pages.</>}
+      >
+        <LocalePreference preferences={profile} />
       </Panel>
     </div>
   );

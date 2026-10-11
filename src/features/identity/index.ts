@@ -1,5 +1,10 @@
 export { AuthCard, AuthPanel } from "./components/auth-card";
 export { DisplayNameForm } from "./components/display-name-form";
+export {
+  DeviceTimezoneSync,
+  LocalePreference,
+  TimezonePreference,
+} from "./components/display-preferences";
 export { ForgotPasswordForm } from "./components/forgot-password-form";
 export { MfaChallengeForm } from "./components/mfa-challenge-form";
 export { MfaEnrollment } from "./components/mfa-enrollment";

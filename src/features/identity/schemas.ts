@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+import { isValidTimeZone } from "@/lib/domain/display-timezone";
+import { SUPPORTED_LOCALES } from "@/lib/i18n/terminology";
+
 import { emailSchema, passwordSchema } from "@/lib/validation";
 
 const nextPathSchema = z.string().max(2048).optional();
@@ -48,3 +51,30 @@ export const totpEnrollmentVerifySchema = totpCodeSchema.extend({
 });
 
 export const displayNameSchema = signUpSchema.pick({ displayName: true });
+
+/** Personal display preferences (P0-E9-3F). The database re-validates the zone. */
+export const displayPreferencesSchema = z
+  .object({
+    locale: z
+      .enum(["", ...SUPPORTED_LOCALES])
+      .optional()
+      .transform((value) => (value ? value : null)),
+    timezoneMode: z.enum(["automatic", "manual"]),
+    timezone: z
+      .string()
+      .trim()
+      .optional()
+      .transform((value) => (value ? value : null)),
+  })
+  .superRefine((input, context) => {
+    if (input.timezone !== null && !isValidTimeZone(input.timezone)) {
+      context.addIssue({
+        code: "custom",
+        path: ["timezone"],
+        message: "Choose a timezone from the list, e.g. Europe/London.",
+      });
+    }
+    if (input.timezoneMode === "manual" && input.timezone === null) {
+      context.addIssue({ code: "custom", path: ["timezone"], message: "Choose a timezone." });
+    }
+  });
