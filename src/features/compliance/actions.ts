@@ -4,14 +4,18 @@ import { revalidatePath } from "next/cache";
 
 import { type ActionState, runAction } from "@/lib/actions/run-action";
 import { requireAuthIdentity } from "@/lib/auth/session";
+import type { CredentialCategory } from "@/lib/domain/credentials";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formDataToObject, parseInput } from "@/lib/validation";
 
 import {
   complianceShareSchema,
+  createCustomTypeSchema,
   createRequirementSchema,
   disciplineSchema,
   revokeComplianceShareSchema,
+  setCustomTypeActiveSchema,
+  updateCustomTypeSchema,
   updateRequirementSchema,
 } from "./schemas";
 
@@ -118,6 +122,93 @@ export async function revokeComplianceShareAction(
     });
     if (error) throw error;
     revalidatePath(`/app/organisations/${input.organisationId}/workforce/${input.workerId}`);
+    return null;
+  });
+}
+
+/* P0-E9-3J: agency-defined requirement types. Every rule is enforced by the RPCs. */
+
+function revalidateCustomTypes(organisationId: string) {
+  revalidatePath(`/app/organisations/${organisationId}/settings/compliance`);
+  revalidatePath(`/app/organisations/${organisationId}/compliance`);
+  revalidatePath(`/app/organisations/${organisationId}/facilities`, "layout");
+}
+
+function customTypeArgs(input: {
+  name: string;
+  category: CredentialCategory;
+  requiresDocument: boolean;
+  requiresExpiryDate: boolean;
+  requiresVerification: boolean;
+  requiresCredentialNumber: boolean;
+  jurisdictionRule: "none" | "country" | "subdivision";
+  validityMonths?: number | undefined;
+  instructions?: string | undefined;
+}) {
+  return {
+    p_name: input.name,
+    p_category: input.category,
+    p_requires_document: input.requiresDocument,
+    p_requires_expiry_date: input.requiresExpiryDate,
+    p_requires_verification: input.requiresVerification,
+    p_requires_credential_number: input.requiresCredentialNumber,
+    p_jurisdiction_rule: input.jurisdictionRule,
+    ...(input.validityMonths ? { p_validity_months: input.validityMonths } : {}),
+    ...(input.instructions ? { p_instructions: input.instructions } : {}),
+  };
+}
+
+/** Returns the new type's key so the requirement form can preselect it. */
+export async function createCustomTypeAction(
+  _state: ActionState<{ key: string }>,
+  formData: FormData,
+): Promise<ActionState<{ key: string }>> {
+  return runAction("compliance.createCustomType", async () => {
+    const input = parseInput(createCustomTypeSchema, formDataToObject(formData));
+    await requireAuthIdentity();
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase.rpc("create_custom_credential_type", {
+      p_organisation_id: input.organisationId,
+      ...customTypeArgs(input),
+    });
+    if (error) throw error;
+    revalidateCustomTypes(input.organisationId);
+    return { key: data };
+  });
+}
+
+export async function updateCustomTypeAction(
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction("compliance.updateCustomType", async () => {
+    const input = parseInput(updateCustomTypeSchema, formDataToObject(formData));
+    await requireAuthIdentity();
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.rpc("update_custom_credential_type", {
+      p_key: input.key,
+      ...customTypeArgs(input),
+    });
+    if (error) throw error;
+    revalidateCustomTypes(input.organisationId);
+    return null;
+  });
+}
+
+export async function setCustomTypeActiveAction(
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction("compliance.setCustomTypeActive", async () => {
+    const input = parseInput(setCustomTypeActiveSchema, formDataToObject(formData));
+    await requireAuthIdentity();
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.rpc("set_custom_credential_type_active", {
+      p_key: input.key,
+      p_active: input.active,
+    });
+    if (error) throw error;
+    revalidateCustomTypes(input.organisationId);
     return null;
   });
 }

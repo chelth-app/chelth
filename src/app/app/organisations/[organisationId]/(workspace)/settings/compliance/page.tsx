@@ -6,7 +6,12 @@ import type { WorkspaceNavIcon as IconName } from "@/components/layout/workspace
 import { RefChip } from "@/components/reference/locked-reference";
 import { RecordNote } from "@/components/reference/record-page";
 import { Panel } from "@/components/ui/panel";
-import { listRequirements } from "@/features/compliance";
+import {
+  AddCustomTypePanel,
+  CustomTypesTable,
+  listCustomCredentialTypes,
+  listRequirements,
+} from "@/features/compliance";
 import { listCredentialTypes, listDisciplines } from "@/features/credentials";
 import { loadOrganisationPage } from "@/features/organisations";
 import { CAPABILITIES } from "@/lib/authz";
@@ -30,7 +35,8 @@ export const metadata: Metadata = { title: "Credentials & Compliance" };
  * Compliance page and facility add-ons on each facility record. This section
  * shows the active rules (same loader), explains how the readiness engine
  * uses them (its real inputs, nothing configurable here) and links to the
- * existing compliance surfaces. No editable controls.
+ * existing compliance surfaces. The one editable area is the agency's own
+ * custom requirement types (P0-E9-3J), which the requirement forms then offer.
  */
 export default async function SettingsCompliancePage({
   params,
@@ -38,11 +44,12 @@ export default async function SettingsCompliancePage({
   const context = await loadOrganisationPage((await params).organisationId);
   const { organisationId, organisation, can } = context;
   if (!canOpenSection("compliance", organisation.type, can)) notFound();
-  const [requirements, credentialTypes, disciplines] = await Promise.all([
-    can(CAPABILITIES.CREDENTIAL_REQUIREMENTS_VIEW) === "granted"
-      ? listRequirements(organisationId)
-      : Promise.resolve([]),
-    listCredentialTypes(),
+  const canViewRequirements = can(CAPABILITIES.CREDENTIAL_REQUIREMENTS_VIEW) === "granted";
+  const canManageCustom = can(CAPABILITIES.CREDENTIAL_REQUIREMENTS_MANAGE) === "granted";
+  const [requirements, customTypes, credentialTypes, disciplines] = await Promise.all([
+    canViewRequirements ? listRequirements(organisationId) : Promise.resolve([]),
+    canViewRequirements ? listCustomCredentialTypes(organisationId) : Promise.resolve([]),
+    listCredentialTypes(organisationId, { includeArchived: true }),
     listDisciplines(),
   ]);
   const typeName = new Map(credentialTypes.map((type) => [type.key, type.name]));
@@ -185,6 +192,29 @@ export default async function SettingsCompliancePage({
             </SettingsActionLink>
           ) : null}
         </SettingsActionRow>
+      </Panel>
+
+      <Panel
+        titleId="custom-types-heading"
+        title={<>Custom Credential Types</>}
+        description={
+          <>
+            Your agency&apos;s own credentials and requirements, alongside the Chelth standard list.
+            Only your agency can see or use them.
+          </>
+        }
+        action={
+          <RefChip tone="neutral" className="font-semibold">
+            {customTypes.filter((type) => type.isActive).length} active
+          </RefChip>
+        }
+      >
+        <CustomTypesTable
+          organisationId={organisationId}
+          types={customTypes}
+          canManage={canManageCustom}
+        />
+        {canManageCustom ? <AddCustomTypePanel organisationId={organisationId} /> : null}
       </Panel>
 
       <Panel

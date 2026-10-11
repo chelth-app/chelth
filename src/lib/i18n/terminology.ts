@@ -206,3 +206,16 @@ export function localizeTerms(text: string, terms: Terminology): string {
 export function suggestedCurrency(locale: SupportedLocale | null | undefined): string {
   return locale === "en-GB" ? "GBP" : "USD";
 }
+
+/**
+ * A credential type's display name: Chelth standard names are reference data
+ * (respelled for the locale); agency custom names are the agency's own words
+ * and are never changed (P0-E9-3J).
+ */
+export function typeDisplayName(
+  name: string,
+  key: string | null | undefined,
+  terms: Terminology,
+): string {
+  return typeof key === "string" && key.startsWith("custom_") ? name : localizeTerms(name, terms);
+}

@@ -1,4 +1,6 @@
 export { revokeComplianceShareAction, setDisciplineAction, shareComplianceAction } from "./actions";
+export { CustomTypeForm } from "./components/custom-type-form";
+export { AddCustomTypePanel, CustomTypesTable } from "./components/custom-types-table";
 export { ReadinessBadge } from "./components/readiness-badge";
 export { ReadinessPanel } from "./components/readiness-panel";
 export { RequirementForm } from "./components/requirement-form";

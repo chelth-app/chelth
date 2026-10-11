@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import {
   CREDENTIAL_TYPES,
+  CUSTOM_CREDENTIAL_TYPE_KEY_PATTERN,
   type DocumentMimeType,
   isAllowedDocumentMimeType,
   MAX_DOCUMENT_BYTES,
@@ -27,7 +28,10 @@ const optionalText = (max: number) =>
 
 export const createCredentialSchema = z.object({
   organisationId: uuid,
-  credentialTypeKey: z.enum(CREDENTIAL_TYPES, { error: "Choose a credential type." }),
+  credentialTypeKey: z.union(
+    [z.enum(CREDENTIAL_TYPES), z.string().regex(CUSTOM_CREDENTIAL_TYPE_KEY_PATTERN)],
+    { error: "Choose a credential type." },
+  ),
   jurisdictionCode: optionalText(10),
   issuingAuthority: optionalText(200),
   credentialNumber: optionalText(100),

@@ -1,0 +1,375 @@
+P0-E9-3J — CUSTOM CERTIFICATIONS & REQUIREMENTS
+CHELTH — Healthcare Workforce Operations
+Date: 2026-10-11
+Branch: p0-e8-visual-implementation (uncommitted; not deployed)
+
+Agencies can now create, reuse, edit and archive their own credential /
+requirement types (e.g. "Dementia Care Training", "North Wing Orientation")
+alongside Chelth's standard catalog. They work in agency baseline and facility
+requirements, the worker evidence flow, verification, readiness and shift
+eligibility with no change to the compliance engine. Isolation is enforced in
+the database. Standard types are unchanged.
+
+====================================================
+1. EXISTING CREDENTIAL ARCHITECTURE (AUDIT)
+====================================================
+
+A. Storage. Predefined types are rows in public.credential_types (reference
+   data, migration 20260930110000), keyed by a stable text `key`
+   (e.g. bls_certification). Each row carries its policy: category, scope
+   (person | facility), jurisdiction_rule, requires_issue_date,
+   requires_expiry_date, requires_credential_number, requires_document,
+   requires_verification, is_renewable, validity_months.
+B. Scope. Global; readable by every authenticated user; no tenant column.
+C. Requirements. public.credential_requirements.credential_type_key → FK to
+   credential_types(key). Agency baseline (no facility) or facility-specific
+   (agency_facility_id), optional discipline and jurisdiction.
+D. Submission. Person-owned credentials (credentials.credential_type_key FK)
+   → versions → documents via the private-bucket signed-upload pipeline
+   (MIME + magic-byte checks, malware scanner) → share to an agency → agency
+   verification (record_credential_verification).
+E. Readiness. internal.evaluate_compliance is fully type-driven: it reads the
+   type's flags (verification, validity_months) and the requirement's
+   windows. worker_readiness and assignment eligibility consume it; any
+   non-ready result blocks assignment.
+
+Conclusion: the policy already lives on the type, and every downstream
+consumer keys on `key`. Tenant-owned rows in the same table are the minimal
+safe design. No new engine, no parallel table, no polymorphic FKs.
+
+====================================================
+2. STANDARD VS CUSTOM MODEL
+====================================================
+
+One catalog, one identity (`key`):
+- owner_organisation_id IS NULL  ⇒ Chelth standard (global, unchanged rows)
+- owner_organisation_id = <agency> ⇒ that agency's custom type
+Custom keys are generated server-side: custom_<32 hex> (CHECK-enforced), so
+they can never collide with or impersonate a standard key. Custom types are
+always scope = 'person' (CHECK). Categories reuse the existing
+credential_category enum plus two additive values: orientation, other.
+
+The behaviour flags map directly onto the existing columns:
+  Evidence required        → requires_document
+  Expiry required          → requires_expiry_date
+  Verification required    → requires_verification
+  Number / certificate ID  → requires_credential_number
+  Jurisdiction required    → jurisdiction_rule (none | country | subdivision)
+  Renewal interval         → validity_months (6/12/24/36; sets requires_issue_date)
+  Instructions             → instructions (new, ≤ 1000 chars)
+Policy is not duplicated on requirements or submissions.
+
+====================================================
+3. CUSTOM TYPE OWNERSHIP
+====================================================
+
+Agency-owned. Facility organisations cannot own custom types (refused, and
+tested). Facility *records* inside an agency use the agency's custom types.
+Facility-authored custom types are documented as a follow-up (§22).
+
+====================================================
+4. CREATION UX
+====================================================
+
+Two entry points, one shared form (CustomTypeForm):
+- Compliance → Add a baseline requirement, and Facility → requirements: the
+  Credential selector is grouped "Chelth standard" / "Your custom
+  requirements", with a final "+ Create custom requirement" option. Choosing it
+  opens a compact inline form beside the requirement form (not nested in it).
+  On success, the page revalidates and the new type is preselected.
+- Settings → Credentials & Compliance → "Custom Credential Types" panel:
+  table Name | Category | Used by | Status | Actions (Edit / Archive / Restore)
+  and "+ Add custom requirement".
+Fields: Name*, Category*, Evidence rules (document, expiry date, agency
+verification, credential number), Issuing jurisdiction, Renewal interval
+(shown only when there is no expiry date, since the engine counts expiry from
+the issue date), Instructions for workers.
+Validation (client and database): trimmed, 2–120 chars, no control characters;
+case- and space-insensitive uniqueness among the agency's *active* types
+(CHC01 "A custom requirement with this name already exists."). Similar but
+distinct names are allowed.
+Copy is American source text; category labels go through the workspace
+spell() (Professional license / licence, authorization / authorisation).
+
+====================================================
+5. BASELINE REQUIREMENT INTEGRATION
+====================================================
+
+create_credential_requirement accepts a standard type or the requiring
+agency's own active custom type. Discipline and jurisdiction applicability are
+unchanged. Requirement lists and the Settings summary use archive-inclusive
+name maps, so historical requirements always render their type name.
+
+====================================================
+6. FACILITY REQUIREMENT INTEGRATION
+====================================================
+
+Same RPC with p_agency_facility_id; same selector and inline creation on the
+facility record. A custom type created on either surface is reusable on both.
+
+====================================================
+7. WORKER EXPERIENCE
+====================================================
+
+Add credential lists standard types plus the custom types of the agency whose
+workspace the worker is in. No "custom" label anywhere worker-facing (asserted
+in E2E). When the type has instructions, they appear under the type select
+("Instructions from your agency"). Credential pages, readiness and My
+Credentials use the same canonical worker design. Custom names are shown
+exactly as typed (never respelled); standard names follow the workspace
+spelling.
+
+====================================================
+8. EVIDENCE
+====================================================
+
+The existing secure pipeline is used unchanged: private bucket, signed uploads,
+MIME and magic-byte checks, malware scanner, review state, retention. No new
+pipeline. No-evidence requirements (requires_document = false) are supported
+by the existing architecture: the worker records the credential and submits
+it; the agency verifies it (e.g. "Orientation completed"). Tested in pgTAP and
+integration.
+
+====================================================
+9. EXPIRY
+====================================================
+
+requires_expiry_date ⇒ the expiry date is mandatory (database-enforced as for
+standard types). Otherwise no fake expiry is forced. A renewal interval
+derives the effective expiry from the issue date (existing engine rule). The
+same warning windows apply: EXPIRING_SOON and EXPIRED_CREDENTIAL are tested.
+
+====================================================
+10. VERIFICATION
+====================================================
+
+requires_verification ⇒ upload alone never makes the item compliant
+(UNVERIFIED_CREDENTIAL until the agency verifies). A document not yet cleared
+by the scanner still cannot be verified (CH409; tested). No global validation
+was weakened.
+
+====================================================
+11. READINESS
+====================================================
+
+No engine change. Custom requirements produce the same states as standard
+ones (all tested in pgTAP 310 E.*):
+  MISSING_CREDENTIAL → Missing
+  UNVERIFIED_CREDENTIAL → Needs review
+  MET → Up to date
+  EXPIRING_SOON → Expiring soon
+  EXPIRED_CREDENTIAL → Expired
+Compliance register filters derive type options from the loaded results, so
+custom types (including archived ones that still have records) are
+filterable with no change.
+
+====================================================
+12. SHIFT ELIGIBILITY
+====================================================
+
+A missing custom requirement blocks assignment exactly like a standard one;
+the verified custom credential clears the blocker (pgTAP 310 S.*). No bypass.
+
+====================================================
+13. LIFECYCLE / ARCHIVE
+====================================================
+
+Active ⇄ Archived (is_active + archived_at). Never deleted (FKs on delete
+restrict; tested). Archiving is refused while an active requirement uses the
+type (CHC02); deactivate the requirement first. Archived types:
+- cannot be selected for new requirements or new credentials (RPC-enforced);
+- still render on historical requirements, credentials and compliance
+  (archive-inclusive name maps; RLS lets holders read their own types);
+- can be restored (duplicate-name check reapplies).
+
+====================================================
+14. EDITING SAFEGUARDS
+====================================================
+
+Name, category and instructions are always editable; they never change
+compliance meaning. Once a type is used (any requirement or credential), the
+structural fields (document, expiry, verification, number, jurisdiction,
+renewal) are locked in the database (CHC02). The form shows them disabled with
+an explanation. Historical meaning is never reinterpreted.
+
+====================================================
+15. ACCESS / AAL2
+====================================================
+
+Create, update and archive need credential.requirements.manage, the existing
+compliance-management capability, which is privileged ⇒ AAL2 (step-up
+preserved). Listing needs credential.requirements.view. Schedulers, workers,
+other agencies and facility organisations are refused (pgTAP 310 K.* / T.*).
+Workers cannot create types.
+
+====================================================
+16. AUDIT
+====================================================
+
+credential_type.custom_created / custom_updated / custom_archived /
+custom_restored, with actor, organisation, type_key, category and, for
+updates, the changed field names (name, category, instructions,
+evidence_rules). No document contents or evidence in payloads (tested).
+
+====================================================
+17. RLS / TENANT ISOLATION
+====================================================
+
+credential_types SELECT policy: standard rows, OR the caller is a member of
+the owning organisation, OR the caller holds a credential of that type
+(history). No direct writes; all writes go through security-definer RPCs.
+Database checks:
+- create_credential: a custom type only for current, non-terminated workers of
+  the owning agency (CH400);
+- share_credential: a custom-typed credential only to the owning agency (CH403);
+- create_credential_requirement: standard, or the requiring agency's own
+  active type;
+- list_custom_credential_types: another agency ⇒ CH403.
+Agency B never sees, references, submits against or lists Agency A's types
+(pgTAP, integration and E2E).
+
+====================================================
+18. TESTS
+====================================================
+
+pgTAP  supabase/tests/security/310_custom_credential_types.test.sql (44)
+  K creation and validation · T tenant isolation · R baseline and facility ·
+  E engine states · S shift eligibility · L editing locks · X archive ·
+  A audit. 000_security_baseline: the 4 new RPCs added to the allowlist.
+Unit   tests/unit/lib/custom-credential-types.test.ts (11): key shape, schemas
+  (standard or custom keys only), names never respelled, categories match
+  the DB enum and localize, error mapping.
+Integration  tests/integration/custom-credential-types.test.ts (5): create
+  and duplicate, per-tenant names, invisibility and refusal across agencies,
+  baseline Missing → Needs review → Ready through the real upload, scan and
+  verify flow, share refused to another agency, locks, archive and audit,
+  no-document type. vocabulary-drift now compares standard types only.
+E2E    tests/e2e/custom-requirements.spec.ts (desktop + mobile, axe clean):
+  Settings create and duplicate refused → Compliance inline create
+  (preselected) → baseline requirement → facility requirement with a custom
+  type → another agency sees nothing → worker sees instructions (no "custom"
+  label), uploads, scan, submit → agency verifies in the normal review screen
+  → baseline Ready; the facility is still blocked by the missing custom
+  requirement → Settings shows usage and Archive is disabled while in use.
+
+Validation (local, clean database reset):
+  npm run format:check            PASS
+  npm run lint                    PASS
+  npm run typecheck               PASS
+  npm test                        PASS  37 files / 494 tests
+  npm run build                   PASS
+  npm run check:bundle            PASS
+  npm run check:migrations        PASS  (73 files)
+  supabase db reset               PASS
+  supabase db lint --level warning --fail-on warning   PASS (no findings)
+  supabase test db                PASS  36 files / 1706 tests
+  npm run db:types                PASS  (no drift)
+  npm run test:integration        PASS  20 files / 137 tests
+      (the first run, immediately after the Kong/Auth restart, had one
+      failure in financial.test.ts setup. It passed alone and on a full
+      rerun with no change; not related to 3J.)
+  npx playwright test             PASS  356 passed / 14 skipped / 0 failed
+
+18a. Full Playwright: 356 passed, 14 skipped (existing conditional skips),
+     0 failed, 12.6 min, desktop + mobile. After the last form change
+     (renewal interval shown only when there is no expiry date), the build,
+     bundle check, unit tests, the 3J spec and the credentials/compliance
+     spec were re-run: PASS.
+
+====================================================
+19. FILES CHANGED
+====================================================
+
+New
+  supabase/migrations/20261011110000_custom_credential_vocabulary.sql
+  supabase/migrations/20261011110100_custom_credential_types.sql
+  supabase/tests/security/310_custom_credential_types.test.sql
+  src/features/compliance/components/custom-type-form.tsx
+  src/features/compliance/components/custom-types-table.tsx
+  tests/unit/lib/custom-credential-types.test.ts
+  tests/integration/custom-credential-types.test.ts
+  tests/e2e/custom-requirements.spec.ts
+Modified
+  src/lib/domain/credentials.ts       key pattern, categories + labels, intervals
+  src/lib/i18n/terminology.ts         typeDisplayName (custom names never respelled)
+  src/lib/errors/error-codes.ts, normalize-error.ts   CHC01 / CHC02
+  src/features/credentials/queries.ts listCredentialTypes(org, {includeArchived})
+  src/features/credentials/schemas.ts standard or custom key
+  src/features/credentials/components/create-credential-form.tsx  instructions
+  src/features/compliance/{actions,queries,schemas,index}.ts  custom type CRUD
+  src/features/compliance/components/requirement-form.tsx  groups + inline create
+  app pages: compliance, facilities/[facilityId], settings/compliance,
+             my-credentials/new  (org-scoped type lists)
+  src/types/database.types.ts         regenerated
+  supabase/tests/security/000_security_baseline.test.sql
+  tests/integration/vocabulary-drift.test.ts
+Not touched: rates, pricing, payroll, invoices, currency.
+
+====================================================
+20. MIGRATIONS
+====================================================
+
+20261011110000_custom_credential_vocabulary.sql
+  Additive enum values (orientation, other). Separate file because new enum
+  values must be committed before use.
+20261011110100_custom_credential_types.sql
+  Additive columns on credential_types (all nullable or defaulted; standard
+  rows untouched), CHECKs, a partial unique name index, a new SELECT policy,
+  2 internal helpers and 4 RPCs. create_credential, share_credential and
+  create_credential_requirement are replaced with identical signatures, and
+  their standard-type behaviour is unchanged (full pgTAP suite passes).
+  No rewrite of existing records. Every standard key remains valid.
+
+====================================================
+21. DEPLOYMENT ORDER (manual; nothing deployed)
+====================================================
+
+1. Restore point / backup of production.
+2. supabase db push: 20261011110000, then 20261011110100 (in order).
+3. Spot check: select count(*) from credential_types where
+   owner_organisation_id is null; (unchanged standard count).
+4. Deploy the application build.
+5. Smoke test: Settings → Credentials & Compliance shows the Custom Credential
+   Types panel; create one, add it as a requirement, deactivate, archive.
+The application depends on the new RPCs and columns, so migrations go first.
+The old application keeps working against the new schema (additive).
+
+====================================================
+22. REMAINING GAPS / FOLLOW-UPS
+====================================================
+
+- Facility-organisation-authored custom types (scoped to a relationship) are
+  not built. Agency-owned types cover agency facility records today.
+- Facility compliance sharing (list_shared_worker_compliance) returns type
+  names only; standard names are respelled by exact match and custom names
+  are shown as typed. A key in that RPC would make this exact.
+- No hard delete for never-used types (archive only, by design).
+- Discipline-limited custom types (a type usable only for certain
+  disciplines) are not modelled; applicability stays on the requirement.
+- Attestation-style items with no worker action (agency records completion
+  directly) still require the worker to add the credential; the agency then
+  verifies. A direct agency attestation is a possible follow-up.
+
+====================================================
+FINAL
+====================================================
+
+CUSTOM CREDENTIAL TYPES:
+STATUS: COMPLETE
+
+AGENCY BASELINE INTEGRATION:
+STATUS: COMPLETE
+
+FACILITY REQUIREMENT INTEGRATION:
+STATUS: COMPLETE
+
+WORKER COMPLIANCE FLOW:
+STATUS: COMPLETE
+
+READINESS INTEGRATION:
+STATUS: COMPLETE
+
+STANDARD CREDENTIALS:
+STATUS: UNCHANGED
+
+DO NOT DEPLOY AUTOMATICALLY.

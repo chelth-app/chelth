@@ -276,6 +276,17 @@ export const ERROR_CODES = {
     message:
       "Currency can't be changed because this workspace already has rates or financial records in another currency.",
   },
+  CUSTOM_TYPE_EXISTS: {
+    kind: "conflict",
+    status: 409,
+    message: "A custom requirement with this name already exists.",
+  },
+  CUSTOM_TYPE_IN_USE: {
+    kind: "conflict",
+    status: 409,
+    message:
+      "This custom requirement is in use. Its evidence rules can't change, and it can't be archived while a requirement still uses it.",
+  },
   GEOFENCE_NOT_CONFIGURED: {
     kind: "conflict",
     status: 409,

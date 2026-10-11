@@ -107,6 +107,8 @@ const SQLSTATE_TO_CODE: Readonly<Record<string, ErrorCode>> = {
   CHY19: "ADJUSTMENT_NOT_FOUND",
   CHY21: "DOCUMENT_HAS_ADJUSTMENTS",
   CHY22: "CURRENCY_IN_USE",
+  CHC01: "CUSTOM_TYPE_EXISTS",
+  CHC02: "CUSTOM_TYPE_IN_USE",
 };
 
 /** Supabase Auth error codes (AuthError.code). */

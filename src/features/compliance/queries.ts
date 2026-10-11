@@ -7,7 +7,7 @@ import type {
   RequirementStatus,
 } from "@/lib/domain/credentials";
 import { getRequestTerminology } from "@/features/localization";
-import { localizeTerms } from "@/lib/i18n/terminology";
+import { localizeTerms, typeDisplayName } from "@/lib/i18n/terminology";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 /* The database derives compliance; nothing here computes eligibility. */
@@ -52,7 +52,7 @@ export async function getReadiness(workerId: string, facilityId?: string): Promi
       scope: item.requirement_scope,
       credentialTypeKey: item.credential_type_key,
       credentialTypeName: item.credential_type_name
-        ? localizeTerms(item.credential_type_name, terms)
+        ? typeDisplayName(item.credential_type_name, item.credential_type_key, terms)
         : item.credential_type_name,
       reason: item.reason,
       severity: item.severity,
@@ -155,10 +155,14 @@ export async function listSharedWorkerCompliance(
 ): Promise<SharedWorkerCompliance[]> {
   const terms = await getRequestTerminology();
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.rpc("list_shared_worker_compliance", {
-    p_relationship_id: relationshipId,
-  });
+  const [{ data, error }, standard] = await Promise.all([
+    supabase.rpc("list_shared_worker_compliance", { p_relationship_id: relationshipId }),
+    // The projection returns names only: respell a name only when it IS a Chelth
+    // standard name (custom names are the agency's own words — P0-E9-3J).
+    supabase.from("credential_types").select("name").is("owner_organisation_id", null),
+  ]);
   if (error) throw error;
+  const standardNames = new Set((standard.data ?? []).map((row) => row.name));
   const byWorker = new Map<string, SharedWorkerCompliance>();
   for (const row of data) {
     const entry = byWorker.get(row.agency_worker_id) ?? {
@@ -168,7 +172,9 @@ export async function listSharedWorkerCompliance(
       items: [],
     };
     entry.items.push({
-      credentialTypeName: localizeTerms(row.credential_type_name, terms),
+      credentialTypeName: standardNames.has(row.credential_type_name)
+        ? localizeTerms(row.credential_type_name, terms)
+        : row.credential_type_name,
       reason: row.reason,
       severity: row.severity,
       effectiveExpiryDate: row.effective_expiry_date,
@@ -176,4 +182,49 @@ export async function listSharedWorkerCompliance(
     byWorker.set(row.agency_worker_id, entry);
   }
   return [...byWorker.values()];
+}
+
+/** P0-E9-3J: an agency-defined requirement type, with what currently uses it. */
+export type CustomCredentialType = {
+  key: string;
+  name: string;
+  category: string;
+  requiresDocument: boolean;
+  requiresExpiryDate: boolean;
+  requiresVerification: boolean;
+  requiresCredentialNumber: boolean;
+  jurisdictionRule: "none" | "country" | "subdivision";
+  validityMonths: number | null;
+  instructions: string | null;
+  isActive: boolean;
+  requirementCount: number;
+  activeRequirementCount: number;
+  credentialCount: number;
+};
+
+/** The agency's own custom types (active and archived). Names are shown exactly as typed. */
+export async function listCustomCredentialTypes(
+  organisationId: string,
+): Promise<CustomCredentialType[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("list_custom_credential_types", {
+    p_organisation_id: organisationId,
+  });
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    key: row.key,
+    name: row.name,
+    category: row.category,
+    requiresDocument: row.requires_document,
+    requiresExpiryDate: row.requires_expiry_date,
+    requiresVerification: row.requires_verification,
+    requiresCredentialNumber: row.requires_credential_number,
+    jurisdictionRule: row.jurisdiction_rule,
+    validityMonths: row.validity_months ?? null,
+    instructions: row.instructions ?? null,
+    isActive: row.is_active,
+    requirementCount: row.requirement_count,
+    activeRequirementCount: row.active_requirement_count,
+    credentialCount: row.credential_count,
+  }));
 }

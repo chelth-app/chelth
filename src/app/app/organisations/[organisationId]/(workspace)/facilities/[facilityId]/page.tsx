@@ -101,7 +101,9 @@ export default async function FacilityPage({
       : Promise.resolve([]),
     listFacilityTypes(),
     canViewRequirements ? listRequirements(organisationId, facility.id) : Promise.resolve([]),
-    canViewRequirements ? listCredentialTypes() : Promise.resolve([]),
+    canViewRequirements
+      ? listCredentialTypes(organisationId, { includeArchived: true })
+      : Promise.resolve([]),
     canViewRequirements ? listDisciplines() : Promise.resolve([]),
     canManageRequirements ? listJurisdictions() : Promise.resolve([]),
   ]);
@@ -380,7 +382,8 @@ export default async function FacilityPage({
               terms={await getRequestTerminology()}
               organisationId={organisationId}
               facilityId={facility.id}
-              credentialTypes={credentialTypes}
+              credentialTypes={credentialTypes.filter((type) => type.isActive)}
+              canCreateCustom
               disciplines={disciplines}
               jurisdictions={jurisdictions.filter(
                 (jurisdiction) => jurisdiction.level === "subdivision",

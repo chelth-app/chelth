@@ -1534,13 +1534,17 @@ export type Database = {
       }
       credential_types: {
         Row: {
+          archived_at: string | null
           category: Database["public"]["Enums"]["credential_category"]
           created_at: string
+          created_by_profile_id: string | null
+          instructions: string | null
           is_active: boolean
           is_renewable: boolean
           jurisdiction_rule: Database["public"]["Enums"]["credential_jurisdiction_rule"]
           key: string
           name: string
+          owner_organisation_id: string | null
           requires_credential_number: boolean
           requires_document: boolean
           requires_expiry_date: boolean
@@ -1548,16 +1552,21 @@ export type Database = {
           requires_verification: boolean
           scope: Database["public"]["Enums"]["credential_scope"]
           sort_order: number
+          updated_at: string
           validity_months: number | null
         }
         Insert: {
+          archived_at?: string | null
           category: Database["public"]["Enums"]["credential_category"]
           created_at?: string
+          created_by_profile_id?: string | null
+          instructions?: string | null
           is_active?: boolean
           is_renewable?: boolean
           jurisdiction_rule?: Database["public"]["Enums"]["credential_jurisdiction_rule"]
           key: string
           name: string
+          owner_organisation_id?: string | null
           requires_credential_number?: boolean
           requires_document?: boolean
           requires_expiry_date?: boolean
@@ -1565,16 +1574,21 @@ export type Database = {
           requires_verification?: boolean
           scope?: Database["public"]["Enums"]["credential_scope"]
           sort_order: number
+          updated_at?: string
           validity_months?: number | null
         }
         Update: {
+          archived_at?: string | null
           category?: Database["public"]["Enums"]["credential_category"]
           created_at?: string
+          created_by_profile_id?: string | null
+          instructions?: string | null
           is_active?: boolean
           is_renewable?: boolean
           jurisdiction_rule?: Database["public"]["Enums"]["credential_jurisdiction_rule"]
           key?: string
           name?: string
+          owner_organisation_id?: string | null
           requires_credential_number?: boolean
           requires_document?: boolean
           requires_expiry_date?: boolean
@@ -1582,9 +1596,25 @@ export type Database = {
           requires_verification?: boolean
           scope?: Database["public"]["Enums"]["credential_scope"]
           sort_order?: number
+          updated_at?: string
           validity_months?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "credential_types_created_by_profile_id_fkey"
+            columns: ["created_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credential_types_owner_organisation_id_fkey"
+            columns: ["owner_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       credential_verifications: {
         Row: {
@@ -6793,6 +6823,21 @@ export type Database = {
         }
         Returns: string
       }
+      create_custom_credential_type: {
+        Args: {
+          p_category: Database["public"]["Enums"]["credential_category"]
+          p_instructions?: string
+          p_jurisdiction_rule?: Database["public"]["Enums"]["credential_jurisdiction_rule"]
+          p_name: string
+          p_organisation_id: string
+          p_requires_credential_number: boolean
+          p_requires_document: boolean
+          p_requires_expiry_date: boolean
+          p_requires_verification: boolean
+          p_validity_months?: number
+        }
+        Returns: string
+      }
       create_facility_location: {
         Args: {
           p_address_line1?: string
@@ -7449,6 +7494,26 @@ export type Database = {
           total_bill_minor: number
           total_priced_minutes: number
           worker_count: number
+        }[]
+      }
+      list_custom_credential_types: {
+        Args: { p_organisation_id: string }
+        Returns: {
+          active_requirement_count: number
+          category: Database["public"]["Enums"]["credential_category"]
+          credential_count: number
+          instructions: string
+          is_active: boolean
+          jurisdiction_rule: Database["public"]["Enums"]["credential_jurisdiction_rule"]
+          key: string
+          name: string
+          requirement_count: number
+          requires_credential_number: boolean
+          requires_document: boolean
+          requires_expiry_date: boolean
+          requires_verification: boolean
+          updated_at: string
+          validity_months: number
         }[]
       }
       list_facility_request_options: {
@@ -8565,6 +8630,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_custom_credential_type_active: {
+        Args: { p_active: boolean; p_key: string }
+        Returns: undefined
+      }
       set_facility_image: {
         Args: { p_facility_id: string; p_image_path?: string }
         Returns: string
@@ -8726,6 +8795,21 @@ export type Database = {
           p_must_be_verified: boolean
           p_requirement_id: string
           p_status: Database["public"]["Enums"]["requirement_status"]
+        }
+        Returns: undefined
+      }
+      update_custom_credential_type: {
+        Args: {
+          p_category: Database["public"]["Enums"]["credential_category"]
+          p_instructions?: string
+          p_jurisdiction_rule?: Database["public"]["Enums"]["credential_jurisdiction_rule"]
+          p_key: string
+          p_name: string
+          p_requires_credential_number: boolean
+          p_requires_document: boolean
+          p_requires_expiry_date: boolean
+          p_requires_verification: boolean
+          p_validity_months?: number
         }
         Returns: undefined
       }
@@ -8913,6 +8997,8 @@ export type Database = {
         | "training"
         | "identity_work_authorization"
         | "competency"
+        | "orientation"
+        | "other"
       credential_jurisdiction_rule: "none" | "country" | "subdivision"
       credential_scope: "person" | "facility"
       credential_share_status: "active" | "revoked"
@@ -9308,6 +9394,8 @@ export const Constants = {
         "training",
         "identity_work_authorization",
         "competency",
+        "orientation",
+        "other",
       ],
       credential_jurisdiction_rule: ["none", "country", "subdivision"],
       credential_scope: ["person", "facility"],
