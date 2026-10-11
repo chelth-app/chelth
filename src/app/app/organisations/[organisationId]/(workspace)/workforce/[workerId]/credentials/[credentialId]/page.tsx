@@ -41,10 +41,11 @@ import {
 } from "@/lib/domain/credentials";
 
 import { complianceTone } from "../../../../compliance/_components/compliance-tones";
+import { requestDateFormat } from "@/lib/i18n/request-terms";
 
 export const metadata: Metadata = { title: "Credential review" };
 
-const dateTime = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" });
+const dateTime = requestDateFormat({ dateStyle: "medium", timeStyle: "short" });
 
 /**
  * Credential record (canonical record arrangement, CHELTH-LOCKED-VISUAL-

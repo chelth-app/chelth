@@ -37,7 +37,7 @@ test.describe("authentication", () => {
     const email = uniqueEmail("e2e-signup");
     await signUpAndConfirm(page, "Sam Signup", email);
     await expect(page.getByRole("heading", { name: "Welcome, Sam Signup" })).toBeVisible();
-    await expect(page.getByText("You are not a member of any organisation yet.")).toBeVisible();
+    await expect(page.getByText("You are not a member of any organization yet.")).toBeVisible();
 
     await createAgency(page, "Signup Agency");
     await expect(page.getByRole("banner").getByText("Agency Admin", { exact: true })).toBeVisible();

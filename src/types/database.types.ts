@@ -3513,6 +3513,7 @@ export type Database = {
         Row: {
           created_at: string
           created_by_profile_id: string | null
+          default_currency: string | null
           id: string
           locale: string | null
           name: string
@@ -3524,6 +3525,7 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by_profile_id?: string | null
+          default_currency?: string | null
           id?: string
           locale?: string | null
           name: string
@@ -3535,6 +3537,7 @@ export type Database = {
         Update: {
           created_at?: string
           created_by_profile_id?: string | null
+          default_currency?: string | null
           id?: string
           locale?: string | null
           name?: string
@@ -3550,6 +3553,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organisations_default_currency_fkey"
+            columns: ["default_currency"]
+            isOneToOne: false
+            referencedRelation: "currencies"
+            referencedColumns: ["code"]
           },
         ]
       }
@@ -7070,6 +7080,13 @@ export type Database = {
           voided_by_name: string
         }[]
       }
+      get_organisation_currency: {
+        Args: { p_organisation_id: string }
+        Returns: {
+          currencies_in_use: string[]
+          default_currency: string
+        }[]
+      }
       get_payroll_adjustment: {
         Args: { p_adjustment_id: string }
         Returns: {
@@ -8602,6 +8619,10 @@ export type Database = {
           p_timezone?: string
           p_timezone_mode: Database["public"]["Enums"]["timezone_mode"]
         }
+        Returns: undefined
+      }
+      set_organisation_currency: {
+        Args: { p_currency: string; p_organisation_id: string }
         Returns: undefined
       }
       set_organisation_locale: {

@@ -18,8 +18,13 @@ import {
   selectOrganisationAction,
   workerOnlyAgencies,
 } from "@/features/organisations";
+import { getRequestTerminology, spell } from "@/features/localization";
+import { localizeTerms } from "@/lib/i18n/terminology";
 
-export const metadata: Metadata = { title: "Your organisations" };
+export async function generateMetadata(): Promise<Metadata> {
+  // P0-E9-3I: the person's own spelling.
+  return { title: localizeTerms("Your organizations", await getRequestTerminology()) };
+}
 
 const NOTICES: Record<string, string> = {
   "password-updated": "Your password has been updated.",
@@ -42,7 +47,8 @@ function roleSummary(names: string[]): string {
 export default async function AppHomePage({ searchParams }: PageProps<"/app">) {
   const [profile, memberships, preferredOrganisationId, pendingInvite, { notice }] =
     await Promise.all([
-      getMyProfile(),
+      // getRequestTerminology() resolves first in this request (spell() below).
+      getRequestTerminology().then(() => getMyProfile()),
       listMyMemberships(),
       readActiveOrganisationPreference(),
       readPendingInviteToken(),
@@ -91,7 +97,7 @@ export default async function AppHomePage({ searchParams }: PageProps<"/app">) {
       <PageHeader
         variant="reference"
         title={`Welcome${profile.displayName ? `, ${profile.displayName}` : ""}`}
-        description={<p>Choose an organisation to continue.</p>}
+        description={<p>{spell("Choose an organization to continue.")}</p>}
       />
 
       {noticeText ? (
@@ -125,7 +131,7 @@ export default async function AppHomePage({ searchParams }: PageProps<"/app">) {
               id="organisations-heading"
               className="font-display text-[20px] leading-[26px] font-semibold tracking-[-0.02em] text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)]"
             >
-              Your organisations
+              {spell("Your organizations")}
             </h2>
             {ordered.length === 0 ? (
               // Canonical system empty state: tile, short heading, one line; the real
@@ -134,7 +140,7 @@ export default async function AppHomePage({ searchParams }: PageProps<"/app">) {
                 <StateIcon name="empty" />
                 <div className="flex flex-col gap-0.5">
                   <h3 className="text-[15px] leading-5 font-semibold text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)]">
-                    You are not a member of any organisation yet.
+                    {spell("You are not a member of any organization yet.")}
                   </h3>
                   <p className="text-[13.5px] leading-5 text-slate-600">
                     Ask an administrator to invite you, or create an agency below.
@@ -143,7 +149,7 @@ export default async function AppHomePage({ searchParams }: PageProps<"/app">) {
               </div>
             ) : (
               <ul
-                aria-label="Your organisations"
+                aria-label={spell("Your organizations")}
                 className={cn(
                   "grid gap-4 sm:grid-cols-2",
                   // Desktop (A1.4): a single workspace gets one comfortable card, not half the column.

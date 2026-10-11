@@ -42,6 +42,7 @@ import { cn } from "@/lib/utils/cn";
 
 import { HeaderAddAction, LockedFilterSelect } from "../(finance)/_components/finance-locked";
 import { RequestDetailsPanel } from "./_components/request-details-panel";
+import { spell } from "@/features/localization";
 
 export const metadata: Metadata = { title: "Staffing requests" };
 
@@ -192,7 +193,7 @@ export default async function StaffingRequestsPage({
             <option value="">All statuses</option>
             {SHIFT_STATUSES.map((status) => (
               <option key={status} value={status}>
-                {SHIFT_STATUS_LABELS[status]}
+                {spell(SHIFT_STATUS_LABELS[status])}
               </option>
             ))}
           </LockedFilterSelect>
@@ -303,7 +304,7 @@ export default async function StaffingRequestsPage({
                         <td>{formatShiftTimeRange(shift)}</td>
                         <td>
                           <RefChip tone={SHIFT_TONE[shift.status]} className="font-normal">
-                            {SHIFT_STATUS_LABELS[shift.status]}
+                            {spell(SHIFT_STATUS_LABELS[shift.status])}
                           </RefChip>
                         </td>
                         <td>

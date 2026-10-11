@@ -14,12 +14,12 @@ import {
   readPendingInviteToken,
 } from "@/features/organisations";
 import { getAuthIdentity } from "@/lib/auth/session";
+import { getDeviceTerminology } from "@/lib/i18n/request-terms";
+import { localizeTerms } from "@/lib/i18n/terminology";
 import { ROLES } from "@/lib/authz";
 import { ERROR_CODES } from "@/lib/errors/error-codes";
 
 export const metadata: Metadata = { title: "Invitation" };
-
-const expiry = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" });
 
 /**
  * Invitation landing and review.
@@ -34,6 +34,12 @@ const expiry = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle
  * the "Invited email", which is the caller's own email — belong to this user.
  */
 export default async function InvitePage() {
+  // P0-E9-3I: signed-out page — the browser's language (en-US fallback) for display.
+  const deviceTerms = await getDeviceTerminology();
+  const expiry = new Intl.DateTimeFormat(deviceTerms.locale, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
   const [identity, token] = await Promise.all([getAuthIdentity(), readPendingInviteToken()]);
 
   if (!identity) {
@@ -110,7 +116,10 @@ export default async function InvitePage() {
       <p className="text-sm text-slate-600">
         {isWorkerInvite
           ? "Accepting adds this agency to your account. You can work with more than one agency and switch between them at any time."
-          : "Accepting adds this role to your account. You can switch between your organisations at any time."}
+          : localizeTerms(
+              "Accepting adds this role to your account. You can switch between your organizations at any time.",
+              deviceTerms,
+            )}
       </p>
       <AcceptInviteForm />
       <form action={dismissInviteAction}>

@@ -42,6 +42,7 @@ import { formatPeriod, formatWorkedMinutes } from "@/lib/domain/timesheets";
 
 import { LockedNotice } from "../../_components/finance-locked";
 import { attentionTone, INVOICE_TONE } from "../_components/invoice-tones";
+import { spell } from "@/features/localization";
 
 export const metadata: Metadata = { title: "Invoice draft" };
 
@@ -127,7 +128,7 @@ export default async function InvoiceDraftPage({
         meta={
           <>
             <RefChip tone={INVOICE_TONE[draft.status]} className="font-semibold">
-              {INVOICE_DRAFT_STATUS_LABELS[draft.status]}
+              {spell(INVOICE_DRAFT_STATUS_LABELS[draft.status])}
             </RefChip>
             {attention && draft.attention ? (
               <RefChip tone={attentionTone(draft.attention)} className="font-semibold">

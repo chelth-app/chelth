@@ -39,10 +39,12 @@ import {
 
 import { AttentionDetailsPanel } from "./_components/attention-details-panel";
 import { AttentionHeader, AttentionRow, relativeTime } from "./_components/attention-row";
+import { spell } from "@/features/localization";
+import { requestDateFormat } from "@/lib/i18n/request-terms";
 
 export const metadata: Metadata = { title: "Operations" };
 
-const dateTime = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" });
+const dateTime = requestDateFormat({ dateStyle: "medium", timeStyle: "short" });
 
 function stateLabel(state: string): string {
   const known = NOTIFICATION_STATES.find((value) => value === state);
@@ -354,7 +356,7 @@ export default async function OperationsPage({
                     icon="requests"
                     title={
                       isNotificationEvent(delivery.event)
-                        ? NOTIFICATION_EVENT_LABELS[delivery.event]
+                        ? spell(NOTIFICATION_EVENT_LABELS[delivery.event])
                         : delivery.event
                     }
                     explanation={
@@ -401,7 +403,7 @@ export default async function OperationsPage({
                             {" "}
                             for{" "}
                             {isNotificationEvent(delivery.event)
-                              ? NOTIFICATION_EVENT_LABELS[delivery.event]
+                              ? spell(NOTIFICATION_EVENT_LABELS[delivery.event])
                               : delivery.event}
                           </span>
                         </Link>

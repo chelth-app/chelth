@@ -18,6 +18,7 @@ import { loadOrganisationPage, requireCapabilityOrNotFound } from "@/features/or
 import { CAPABILITIES } from "@/lib/authz";
 import { formatShiftDate } from "@/lib/domain/shifts";
 import { cn } from "@/lib/utils/cn";
+import { spell } from "@/features/localization";
 
 export const metadata: Metadata = { title: "Messages" };
 
@@ -63,7 +64,9 @@ export default async function ConversationsPage({
         title="Messages"
         description={
           <p>
-            Conversations with workers and partner organisations about their shifts and requests.
+            {spell(
+              "Conversations with workers and partner organizations about their shifts and requests.",
+            )}
           </p>
         }
       />

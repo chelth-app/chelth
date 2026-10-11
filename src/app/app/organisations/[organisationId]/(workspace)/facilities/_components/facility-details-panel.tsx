@@ -25,6 +25,7 @@ import { FACILITY_STATUS_LABELS, RELATIONSHIP_STATUS_LABELS } from "@/lib/domain
 import { cn } from "@/lib/utils/cn";
 
 import { DetailsTabs } from "@/components/reference/details-tabs";
+import { spell } from "@/features/localization";
 
 /*
  * Facility Details — the canonical Chelth drawer (docs/ui-reference/
@@ -42,7 +43,7 @@ function shiftChip(shift: AgencyShiftSummary): { tone: StatusTone; label: string
       ? { tone: "danger", label: "Open" }
       : { tone: FILL_TONE[shift.fillState], label: FILL_STATE_LABELS[shift.fillState] };
   }
-  return { tone: SHIFT_TONE[shift.status], label: SHIFT_STATUS_LABELS[shift.status] };
+  return { tone: SHIFT_TONE[shift.status], label: spell(SHIFT_STATUS_LABELS[shift.status]) };
 }
 
 function Section({
@@ -476,11 +477,11 @@ export function FacilityDetailsPanel({
             : []),
           {
             key: "linked",
-            label: "Chelth organisation",
+            label: spell("Chelth organization"),
             icon: <WorkspaceNavIcon name="overview" strokeWidth={2.1} />,
             value: facility.linked
-              ? "Linked to a CHELTH facility organisation"
-              : "Not linked to a CHELTH organisation",
+              ? spell("Linked to a CHELTH facility organization")
+              : spell("Not linked to a CHELTH organization"),
           },
         ].map((row) => (
           <div key={row.key} className="flex min-h-7 items-center gap-3">

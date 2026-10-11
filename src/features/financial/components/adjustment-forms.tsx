@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 
 import { cancelPayrollAdjustmentAction, voidInvoiceAdjustmentAction } from "../adjustment-actions";
 import { setMakerCheckerAction } from "../actions";
+import { useSpell } from "@/lib/i18n/terminology-context";
 
 /** Before lock only: releases the revision transition for a fresh adjustment. */
 export function CancelPayrollAdjustmentForm({
@@ -18,6 +19,7 @@ export function CancelPayrollAdjustmentForm({
   organisationId: string;
   adjustmentId: string;
 }) {
+  const spell = useSpell();
   const [state, formAction] = useActionState(cancelPayrollAdjustmentAction, null);
   return (
     <details className="text-sm">
@@ -27,7 +29,7 @@ export function CancelPayrollAdjustmentForm({
         <input type="hidden" name="adjustmentId" value={adjustmentId} />
         <FormField
           id={`cancel-adjustment-${adjustmentId}`}
-          label="Reason for cancelling"
+          label={spell("Reason for canceling")}
           required
           errors={fieldErrorsFor(state, "reason")}
         >

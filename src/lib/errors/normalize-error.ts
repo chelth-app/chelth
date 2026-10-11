@@ -106,6 +106,7 @@ const SQLSTATE_TO_CODE: Readonly<Record<string, ErrorCode>> = {
   CHY18: "ADJUSTMENT_ZERO_DELTA",
   CHY19: "ADJUSTMENT_NOT_FOUND",
   CHY21: "DOCUMENT_HAS_ADJUSTMENTS",
+  CHY22: "CURRENCY_IN_USE",
 };
 
 /** Supabase Auth error codes (AuthError.code). */

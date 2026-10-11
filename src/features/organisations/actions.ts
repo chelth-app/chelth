@@ -396,3 +396,30 @@ export async function setOrganisationLocaleAction(
     return null;
   });
 }
+
+const organisationCurrencySchema = z.object({
+  organisationId: z.uuid(),
+  currency: z.string().regex(/^[A-Z]{3}$/, "Choose a currency."),
+});
+
+/**
+ * Workspace default currency (P0-E9-3I; organisation.manage, AAL2, audited).
+ * Never converts money; refused (CHY22) when records use another currency.
+ */
+export async function setOrganisationCurrencyAction(
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction("organisations.setCurrency", async () => {
+    const input = parseInput(organisationCurrencySchema, formDataToObject(formData));
+    await requireAuthIdentity();
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.rpc("set_organisation_currency", {
+      p_organisation_id: input.organisationId,
+      p_currency: input.currency,
+    });
+    if (error) throw error;
+    revalidatePath(`/app/organisations/${input.organisationId}`, "layout");
+    return null;
+  });
+}

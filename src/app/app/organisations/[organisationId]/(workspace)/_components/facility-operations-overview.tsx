@@ -29,6 +29,7 @@ import { formatWorkedMinutes } from "@/lib/domain/timesheets";
 import { cn } from "@/lib/utils/cn";
 
 import { LockedEmpty } from "../(finance)/_components/finance-locked";
+import { spell } from "@/features/localization";
 
 const PANEL_ROWS = 8;
 
@@ -195,7 +196,7 @@ export async function FacilityOperationsOverview({
                         <td>{formatShiftTimeRange(shift)}</td>
                         <td>
                           <RefChip tone={SHIFT_TONE[shift.status]} className="font-normal">
-                            {SHIFT_STATUS_LABELS[shift.status]}
+                            {spell(SHIFT_STATUS_LABELS[shift.status])}
                           </RefChip>
                         </td>
                         <td>

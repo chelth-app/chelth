@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 
 import { AuthCard, SignUpForm } from "@/features/identity";
 import { getAuthIdentity } from "@/lib/auth/session";
+import { getDeviceTerminology } from "@/lib/i18n/request-terms";
+import { localizeTerms } from "@/lib/i18n/terminology";
 
 export const metadata: Metadata = { title: "Create account" };
 
@@ -14,10 +16,15 @@ export const metadata: Metadata = { title: "Create account" };
  */
 export default async function SignUpPage() {
   if (await getAuthIdentity()) redirect("/app");
+  // P0-E9-3I: signed out — the browser's language (en-US fallback).
+  const terms = await getDeviceTerminology();
   return (
     <AuthCard
       title="Create your account"
-      description="Your account is personal to you. You can join organisations by invitation."
+      description={localizeTerms(
+        "Your account is personal to you. You can join organizations by invitation.",
+        terms,
+      )}
       footer={
         <p>
           Already have an account?{" "}

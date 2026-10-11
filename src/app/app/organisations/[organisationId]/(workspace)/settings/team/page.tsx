@@ -37,10 +37,12 @@ import {
   SettingsExplanationList,
   SettingsExplanationRow,
 } from "../_components/settings-ui";
+import { spell } from "@/features/localization";
+import { requestDateFormat } from "@/lib/i18n/request-terms";
 
 export const metadata: Metadata = { title: "Team & Permissions" };
 
-const dateTime = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" });
+const dateTime = requestDateFormat({ dateStyle: "medium", timeStyle: "short" });
 
 /**
  * Settings → Team & Permissions. The same member, role and invitation
@@ -196,8 +198,8 @@ export default async function SettingsTeamPage({
                                     membershipId: member.membershipId,
                                     status: "revoked",
                                   }}
-                                  label="Remove from organisation"
-                                  accessibleLabel={`Remove ${name} from organisation`}
+                                  label={spell("Remove from organization")}
+                                  accessibleLabel={spell(`Remove ${name} from organization`)}
                                   variant="danger"
                                 />
                               </div>

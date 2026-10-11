@@ -1,0 +1,290 @@
+P0-E9-3H — RATE & PRICING UX CLARITY
+====================================
+CHELTH — Healthcare Workforce Operations
+
+Branch: p0-e8-visual-implementation. Presentation and copy only. Nothing
+deployed.
+
+
+1. CONFUSION REPRODUCED
+-----------------------
+Rates → a draft rate card → Rate Details (drawer):
+- The header chip read "Draft". The Overview showed "v1 · Draft" and, as the
+  primary note, "No rate in force today" (warning). It said nothing about
+  the draft being the cause.
+- The only Activate control was inside the Versions tab (Versions table →
+  "Activate"), so an operator who stayed on the Overview had no visible next
+  action.
+- Elsewhere:
+  - "Rounding and Overtime" sat directly under the rate cards with its own
+    "Active" badges, which read as "the rate card is active";
+  - the Draft Versions KPI said "Waiting to be activated";
+  - Pricing explained matching with "No fallback to a broader rate";
+  - status words mixed "Current", "Upcoming", "Starts later", "Not in force"
+    and "in force".
+
+
+2. RATE ACTIVATION WORKFLOW AUDIT (unchanged)
+---------------------------------------------
+- Server action: activateVersionAction (src/features/pricing/actions.ts)
+  → RPC public.activate_rate_version.
+  - rates.manage, which is privileged (AAL2; AAL1 ⇒ CH402 step-up);
+  - only a draft can be activated;
+  - overlapping active periods are refused (CHM12), invalid periods
+    rejected;
+  - audited.
+- UI: InlineActionForm, which shows the normalised error under its button
+  (permission, step-up, overlap, validation) — never a silent no-op.
+- The Versions tab keeps Activate / Discard / New version unchanged.
+- No new activation code path was added: the Overview and the table row
+  render the same InlineActionForm with the same action and fields
+  { organisationId, versionId }.
+
+
+3. OVERVIEW ACTIVATION SURFACING
+--------------------------------
+Rate Details → Overview now leads with a "Status" section (status card),
+then Rate Details, then Matching Rule.
+- The status is derived by rateStatusCard()
+  (rates/_components/rate-card-summary.ts, pure, unit-tested) from the
+  card's versions — the same phase rules as before.
+- Draft: primary [Activate rate]. It is full width on phones (44 px), so
+  it is easy to tap and sits directly under the explanation, not below a
+  blank area.
+- Active / scheduled with a further draft: a secondary
+  "Draft vN (from <date>) is not active yet. [Activate vN]".
+- Activate appears only when the caller holds rates.manage (granted). The
+  database re-checks on submit.
+- Rates table: a draft row also shows a compact outline "Activate" under
+  its Draft chip (rates.manage only), with the accessible name
+  "Activate rate: <scope>". The ⋮ control still opens Rate Details; the row
+  is not otherwise changed.
+- Mobile drawer: tabs, the CTA and View Pricing Queue (still secondary, at
+  the bottom) are unchanged in structure. Checked at 412 px and 1280 px
+  (screenshots); no page overflow (E2E).
+
+
+4. STATE-SPECIFIC COPY
+----------------------
+Draft:
+- Title: "Rate not active yet"
+- Body: "This rate is still a draft. Activate it before Chelth can use it
+  for pricing."
+- Action: [Activate rate]
+
+Active:
+- Title: "Rate active"
+- Body: "This rate is currently available for matching shifts and
+  timesheets."
+- Secondary when a later version is scheduled: "A new version is scheduled
+  to start on <date>. The current version remains in force until then."
+
+Scheduled (activated, future):
+- Title: "Rate scheduled"
+- Body: "This rate will start on <date>."
+- Secondary: "No rate is active for this matching level until <date>."
+- No Activate action.
+
+Ended:
+- Title: "Rate ended"
+- Body: "This rate stopped being active on <date>."
+- Secondary: the review line below.
+
+No applicable version (never activated, or discarded):
+- Title: "No active rate"
+- Body: "There is no active rate for this matching level on the selected
+  work date."
+- Secondary: "Timesheets that require this rate will wait for review until
+  an applicable rate is active."
+
+"No rate in force today" is no longer used anywhere as the primary draft
+explanation.
+
+Each state has its own glyph and title text, so meaning is never carried by
+colour alone. The group is labelled "Rate status: <title>".
+
+Vocabulary (operator-facing):
+- versions: Draft · Active · Scheduled · Ended · Replaced · Discarded;
+- cards: Draft · Active · Scheduled · Ended · No active rate.
+- "in force" remains only in secondary explanations ("The current version
+  remains in force until then").
+
+
+5. MATCHING-RULE CLARIFICATION
+------------------------------
+Rate Details → "Matching Rule" section:
+- "Matching rule: Level N · <level>", with the level wording
+  "Facility + discipline + shift type" (the engine's order is unchanged;
+  RATE_PRECEDENCE_LABELS now uses shift-type wording in the same order).
+- Note "Exact rate required": "When a specific rate card matches the shift,
+  Chelth uses an active version from that card. If none is active for the
+  work date, the timesheet waits for review instead of using a
+  less-specific rate. Priced timesheets keep the rates they were priced
+  with."
+- No "fallback", "tier", "precedence resolution" or "lookup failure"
+  wording reaches the operator.
+
+
+6. RATES PAGE — POLICY RENAME AND RATE / POLICY DISTINCTION
+-----------------------------------------------------------
+- "Rounding and Overtime" → "Time & Overtime Policies". Intro: "Choose how
+  worked time is calculated for pricing and when overtime applies. These
+  policies are separate from your rate cards." Secondary: "Exact minutes
+  prices the recorded worked time without rounding. Overtime rules are
+  applied separately for pay and bill. Policy versions take effect from
+  their start date; an 'Active' policy here is not a rate card." The
+  legal-advice sentence was removed from this intro.
+- "Current Rate Cards" gains: "Rate cards set the hourly pay and bill
+  amounts for a facility, discipline and shift type. Each card has
+  versions: a draft is not used until it is activated."
+- KPI copy (structure and counts unchanged):
+  - Active Rate Cards: "Active today";
+  - Needs Attention: "No active rate today";
+  - Draft Versions: "Not active for pricing" / "Activate a version before
+    Chelth can use it";
+  - Upcoming Changes: unchanged.
+- Status filter labels: "Active", "Needs attention (no active rate)".
+
+
+7. PRICING PAGE EXPLANATION
+---------------------------
+"How Rates Are Matched": the hierarchy is unchanged (4 levels, same
+order, same counts).
+- Body: "For each worked shift, Chelth checks these levels in order. The
+  first matching rate card determines which rate card must supply an
+  active version." It no longer suggests falling through to level 2 when
+  level 1 exists.
+- Note "Exact rate required": "Once a matching rate card is found, Chelth
+  requires an active version from that card for the work date. If none is
+  active, the timesheet waits in Needs Attention instead of using a
+  less-specific rate. Priced timesheets keep the rates they were priced
+  with."
+- KPI supporting copy (labels, counts and queries unchanged):
+  - Needs Attention: "Cannot be priced yet";
+  - Ready for Pricing: "Approved work waiting to be priced" (footer "Locked
+    after approval");
+  - Priced: "Pricing snapshot created";
+  - Rate Cards in Force: "Active today · of N", footer "N with no active
+    rate".
+- An intermediate, longer footer caused page-level horizontal overflow at
+  one width. It was caught by the existing pricing E2E overflow guard and
+  shortened before completion.
+
+
+8. PERMISSIONS
+--------------
+- Activate is rendered only for rates.manage = granted.
+- A holder pending step-up sees the existing step-up notice on Rates, not
+  the action.
+- rates.view-only roles (e.g. agency operations manager) see the full
+  state and copy but no Activate, in the row or the drawer (E2E).
+- The RPC re-checks rates.manage + AAL2 on every submit. Errors are shown
+  next to the button by the existing form.
+
+
+9. TESTS
+--------
+Unit NEW tests/unit/app/rate-status.test.ts (9):
+- draft ⇒ "Rate not active yet", with the draft to activate, and not "No
+  rate in force today";
+- active ⇒ "Rate active", nothing to activate;
+- active + scheduled ⇒ "The current version remains in force until then";
+- active + further draft ⇒ a secondary activation;
+- scheduled ⇒ "Rate scheduled", no Activate;
+- ended ⇒ "Rate ended" with its last day;
+- no applicable version ⇒ "No active rate" + review line;
+- vocabulary (no "in force / live / published" status labels);
+- matching levels in the engine's order.
+Total unit: 35 files, 459 passed.
+
+E2E tests/e2e/pricing.spec.ts (desktop + mobile):
+- Flow 1:
+  - a saved draft shows "Rate not active yet" and the draft copy on the
+    Overview;
+  - "Exact rate required" and "Matching rule" appear; no "No rate in force
+    today";
+  - axe clean;
+  - Activate rate is activated from the KEYBOARD (focus + Enter) ⇒ the
+    status becomes "Rate active", and the action disappears;
+  - Versions shows v1 "Active".
+- Flow 4: a future version is "Scheduled" and v1 "Active". The Overview
+  says "The current version remains in force until then", with no
+  Activate.
+- NEW: an operations manager (rates.view only) sees the Draft state in the
+  row and the drawer, with no Activate anywhere; no overflow; axe clean.
+- F1 visual (1512 / 1280 / 768):
+  - "Matching rule" and "Rate active" in the drawer;
+  - "Time & Overtime Policies" with "These policies are separate from your
+    rate cards." ("Rounding and Overtime" gone);
+  - Pricing: 4 matching levels in the same order, "Exact rate required",
+    the clarified sentence, and no "fallback" / "precedence";
+  - no overflow, axe clean.
+  - The quick-filter assertion now checks that the active card is filtered
+    out of Needs Attention, instead of expecting an empty list. The new
+    permission test legitimately adds a draft card to the shared world.
+Engine, queues and counts: covered unchanged by the existing pgTAP 220
+pricing suite and integration tests (no code there changed).
+
+
+10. FILES CHANGED
+-----------------
+  src/app/.../(finance)/rates/_components/rate-card-summary.ts
+    (states, labels, rateStatusCard)
+  src/app/.../(finance)/rates/_components/rate-details-panel.tsx
+    (Overview status card + Activate, Matching Rule)
+  src/app/.../(finance)/rates/page.tsx
+    (KPI copy, row Activate, rate-card intro, Time & Overtime Policies)
+  src/app/.../(finance)/pricing/page.tsx (matching copy, KPI copy)
+  src/lib/domain/pricing.ts
+    (VERSION_PHASE_LABELS, RATE_PRECEDENCE_LABELS wording)
+  tests/unit/app/rate-status.test.ts (new)
+  tests/e2e/pricing.spec.ts
+  docs/reports/P0-E9-3H-rate-pricing-ux-clarity.txt (new)
+
+
+11. MIGRATION STATUS
+--------------------
+No migration and no database change. The pricing engine, matching order,
+versioning, activation rules, rounding, overtime and the pricing queue are
+untouched.
+
+
+12. REMAINING GAPS
+------------------
+- The ⋮ row control opens Rate Details rather than a menu. Activation is
+  discoverable from both the row and the drawer, so a separate menu was not
+  added.
+- "Selected work date" in the No active rate copy is evaluated for today
+  (the drawer has no work-date picker).
+- The Settings → Rates & Billing card (P0-E9-3F) still links to Rates for
+  rate cards. Its wording already separates time calculation from rate
+  cards.
+
+
+VALIDATION
+----------
+format:check PASS · lint PASS · typecheck PASS · test 459 PASS · build PASS ·
+check:bundle OK · check:migrations OK (70, unchanged).
+npx playwright test: PASS — 364 tests: 350 passed, 14 skipped, 0 failed
+(11.4 min, 4 workers; fresh db reset, healthy Auth, no concurrent runs).
+The run covers P0-E9-3F + 3G + 3H together.
+
+
+FINAL
+-----
+RATE ACTIVATION DISCOVERABILITY:
+STATUS: COMPLETE
+
+RATE/POLICY DISTINCTION:
+STATUS: COMPLETE
+
+PRICING MATCHING COPY:
+STATUS: COMPLETE
+
+PRICING ENGINE:
+STATUS: UNCHANGED
+
+DATABASE:
+STATUS: UNCHANGED
+
+Not deployed.

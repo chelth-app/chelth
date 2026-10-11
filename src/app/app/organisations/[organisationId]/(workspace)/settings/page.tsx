@@ -8,9 +8,12 @@ import { getAttendanceRules } from "@/features/attendance";
 import { listRequirements } from "@/features/compliance";
 import { getFinancialSettings } from "@/features/financial";
 import {
+  getOrganisationCurrency,
+  listCurrencies,
   listMyMemberships,
   listRoles,
   loadOrganisationPage,
+  OrganisationCurrencyForm,
   OrganisationLocaleForm,
 } from "@/features/organisations";
 import { getTimesheetWeekStart } from "@/features/timesheets";
@@ -19,6 +22,7 @@ import { PAYROLL_PERIOD_TYPE_LABELS } from "@/lib/domain/financial";
 import { WEEKDAY_LABELS } from "@/lib/domain/timesheets";
 
 import { settingsHref } from "./_components/settings-sections";
+import { spell } from "@/features/localization";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -50,6 +54,16 @@ export default async function SettingsOrganizationPage({
     canPayroll ? getFinancialSettings(organisationId) : Promise.resolve(null),
     canRequirements ? listRequirements(organisationId) : Promise.resolve(null),
   ]);
+  // P0-E9-3I Language & Region: organisation.manage (AAL2). Currency applies to agencies.
+  const languageRegion =
+    can(CAPABILITIES.ORGANISATION_MANAGE) === "granted"
+      ? {
+          currency: agency
+            ? await getOrganisationCurrency(organisationId, organisation.locale)
+            : null,
+          currencies: agency ? await listCurrencies() : [],
+        }
+      : null;
   const roleName = new Map(roles.map((role) => [role.key, role.name]));
   const myRoles =
     memberships
@@ -145,7 +159,7 @@ export default async function SettingsOrganizationPage({
       <Panel
         titleId="workspace-details-heading"
         title={<>Workspace Details</>}
-        description={<>Basic information about your organisation and workspace.</>}
+        description={<>{spell("Basic information about your organization and workspace.")}</>}
       >
         <KeyValueList
           className="max-w-3xl"
@@ -173,13 +187,30 @@ export default async function SettingsOrganizationPage({
         </p>
       </Panel>
 
-      {can(CAPABILITIES.ORGANISATION_MANAGE) === "granted" ? (
+      {languageRegion ? (
         <Panel
           titleId="workspace-language-heading"
-          title={<>Language &amp; Spelling</>}
-          description={<>Wording only. Stored records and identifiers never change.</>}
+          title={<>Language &amp; Region</>}
+          description={
+            <>Wording and money settings. Stored records and identifiers never change.</>
+          }
         >
-          <OrganisationLocaleForm organisationId={organisationId} locale={organisation.locale} />
+          <div className="flex flex-col gap-1">
+            <h3 className="text-[15px] font-semibold text-chelth-navy">
+              Language &amp; terminology
+            </h3>
+            <OrganisationLocaleForm organisationId={organisationId} locale={organisation.locale} />
+          </div>
+          {languageRegion.currency ? (
+            <div className="flex flex-col gap-1 border-t border-[rgba(18,107,103,0.12)] pt-4">
+              <h3 className="text-[15px] font-semibold text-chelth-navy">Regional finance</h3>
+              <OrganisationCurrencyForm
+                organisationId={organisationId}
+                currency={languageRegion.currency}
+                currencies={languageRegion.currencies}
+              />
+            </div>
+          ) : null}
         </Panel>
       ) : null}
 

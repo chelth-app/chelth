@@ -349,7 +349,7 @@ test.describe.serial("Operations Overview visual QA density", () => {
     await table.getByRole("button", { name: "Details for Mercy Rehab" }).click();
     const drawer = page.getByRole("dialog", { name: "Facility Details" });
     await expect(drawer).toContainText("Mercy Rehab");
-    await expect(drawer).toContainText("Linked to a CHELTH facility organisation");
+    await expect(drawer).toContainText("Linked to a CHELTH facility organization");
     await qaScreenshot(page, "fcqa-facility-drawer");
     await drawer.getByRole("tab", { name: "Requests" }).click();
     await expect(drawer.getByRole("tabpanel")).toContainText("Requested");
@@ -530,6 +530,10 @@ test.describe.serial("Operations Overview visual QA density", () => {
       "aria-current",
       "page",
     );
+    // The open places this suite creates start tomorrow (isoDay(1)…(5)); on a
+    // Sunday they all fall in next week, so open the week that holds them
+    // (the calendar shows the chosen week — that is the behaviour under test).
+    await page.goto(`${path}?view=calendar&week=${isoDay(1)}`);
     const calendar = page.getByRole("region", { name: "Weekly shift calendar" });
     await expect(calendar).toContainText("Open places");
     await expectNoA11yViolations(page);

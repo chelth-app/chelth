@@ -153,7 +153,7 @@ test.describe.serial("workspace shell", () => {
     await expectNoA11yViolations(page);
 
     // P0-E8-S2 Overview cleanup: the section link grid no longer repeats the sidebar.
-    await expect(page.getByRole("navigation", { name: "Organisation sections" })).toHaveCount(0);
+    await expect(page.getByRole("navigation", { name: "Organization sections" })).toHaveCount(0);
     for (const label of AGENCY_ADMIN_NAV.slice(1)) {
       await expect(
         page.getByRole("main").getByRole("link", { name: label, exact: true }),
@@ -448,7 +448,7 @@ test.describe.serial("workspace shell", () => {
     await expect(page).toHaveURL(/\/app$/);
     await expect(page.getByRole("heading", { level: 1, name: /^Welcome/ })).toBeVisible();
     await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
-    const list = page.getByRole("list", { name: "Your organisations" });
+    const list = page.getByRole("list", { name: "Your organizations" });
     const agency = list.getByRole("article", { name: world.agencyName });
     const facility = list.getByRole("article", { name: world.facilityOrgName });
     await expect(agency).toContainText("Agency");
@@ -463,7 +463,7 @@ test.describe.serial("workspace shell", () => {
     await expect(page.getByRole("region", { name: "Create a new agency" })).toBeVisible();
     // P0-E8-A1.3 / A1.4: from lg the gateway puts workspaces (primary, ~64%) beside the create
     // panel with a 24 px gap, tops aligned; below lg it stacks organisations above Create.
-    const orgsBox = await page.getByRole("region", { name: "Your organisations" }).boundingBox();
+    const orgsBox = await page.getByRole("region", { name: "Your organizations" }).boundingBox();
     const createBox = await page.getByRole("region", { name: "Create a new agency" }).boundingBox();
     const agencyBox = await agency.boundingBox();
     const facilityBox = await facility.boundingBox();
@@ -489,7 +489,7 @@ test.describe.serial("workspace shell", () => {
 
     // Personal frame: compact account navigation with the current destination marked.
     const nav = page.getByRole("navigation", { name: "Account" });
-    await expect(nav.getByRole("link", { name: "Organisations" })).toHaveAttribute(
+    await expect(nav.getByRole("link", { name: "Organizations" })).toHaveAttribute(
       "aria-current",
       "page",
     );
@@ -535,12 +535,12 @@ test.describe.serial("workspace shell", () => {
     // card on desktop rather than half the column; below lg it keeps the stacked full width.
     const single = await signedIn(browser, supervisor.email);
     await single.goto("/app");
-    const singleList = single.getByRole("list", { name: "Your organisations" });
+    const singleList = single.getByRole("list", { name: "Your organizations" });
     await expect(singleList.getByRole("article")).toHaveCount(1);
     const card = await singleList
       .getByRole("article", { name: world.facilityOrgName })
       .boundingBox();
-    const column = await single.getByRole("region", { name: "Your organisations" }).boundingBox();
+    const column = await single.getByRole("region", { name: "Your organizations" }).boundingBox();
     const create = await single.getByRole("region", { name: "Create a new agency" }).boundingBox();
     if (!card || !column || !create) throw new Error("single-organisation gateway missing");
     if (isMobile(testInfo)) {

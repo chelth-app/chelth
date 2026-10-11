@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils/cn";
 
 import { INK } from "../../_components/finance-locked";
 import { attentionTone, PAYROLL_TONE } from "./payroll-tones";
+import { spell } from "@/features/localization";
 
 /*
  * Payroll Batch Details — the canonical Chelth drawer (CHELTH-LOCKED-VISUAL-
@@ -121,7 +122,7 @@ export function BatchDetailsPanel({
               label: "Status",
               value: (
                 <RefChip tone={PAYROLL_TONE[batch.status]} className="font-semibold">
-                  {PAYROLL_BATCH_STATUS_LABELS[batch.status]}
+                  {spell(PAYROLL_BATCH_STATUS_LABELS[batch.status])}
                 </RefChip>
               ),
             },
@@ -258,7 +259,7 @@ export function BatchDetailsPanel({
               tone={PAYROLL_TONE[batch.status]}
               className="h-7 px-3 text-[12.5px] font-semibold"
             >
-              {PAYROLL_BATCH_STATUS_LABELS[batch.status]}
+              {spell(PAYROLL_BATCH_STATUS_LABELS[batch.status])}
             </RefChip>
           </div>
         </div>

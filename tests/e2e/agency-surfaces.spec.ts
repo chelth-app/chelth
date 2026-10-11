@@ -258,7 +258,7 @@ test.describe.serial("agency operational surfaces", () => {
     const trigger = table.getByRole("button", { name: "Details for Mercy Rehab" });
     const drawer = await expectDrawerRoundTrip(admin, trigger, "Facility Details");
     await expect(drawer).toContainText("Mercy Rehab");
-    await expect(drawer).toContainText("Linked to a CHELTH facility organisation");
+    await expect(drawer).toContainText("Linked to a CHELTH facility organization");
     await qaScreenshot(admin, "s3-facility-drawer-open");
     await expectNoA11yViolations(admin);
     await admin.keyboard.press("Escape");

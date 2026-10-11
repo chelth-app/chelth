@@ -230,7 +230,7 @@ describe("shift email notifications (P0-E9-3G)", () => {
     await onlyDue(cancelled.map((row) => row.id));
     const cancelSender = recordingSender(ok);
     await dispatchNotifications({ store, sender: cancelSender, baseUrl: BASE });
-    expect(cancelSender.messages[0]?.subject).toBe("Your shift has been cancelled");
+    expect(cancelSender.messages[0]?.subject).toBe("Your shift has been canceled");
     expect(cancelSender.messages[0]?.text).toContain("You do not need to attend.");
 
     await ownerQuery(

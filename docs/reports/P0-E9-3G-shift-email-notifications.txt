@@ -320,6 +320,60 @@ spec's serial tests. Rerun of that spec: 6 passed. All shift-email E2E
 clean full run before merging is still recommended.
 
 
+13b. P0-E9-3G.1 — FINAL VALIDATION
+----------------------------------
+Two non-product test defects were found and fixed (root cause, not
+retries-until-green):
+
+a) Parallel MFA step-up race in test setup.
+   - Local Supabase Auth (GoTrue) keeps a UNIQUE index on
+     mfa_factors.last_challenged_at. Two workers challenging in the same
+     instant get "duplicate key … mfa_factors_last_challenged_at_key"
+     (HTTP 500 / AuthRetryableFetchError). Read from the Auth server log.
+   - This caused the earlier intermittent beforeAll failures.
+   - Fix: tests/e2e/staffing-fixture.ts retries ONLY that retryable error,
+     at most 4 attempts with jitter. Any other error (e.g. a wrong code)
+     still fails immediately.
+   - Product code is unchanged.
+b) Date-dependent calendar test (fails on Sundays).
+   - tests/e2e/overview-fidelity.spec.ts created its "open places" shifts
+     at isoDay(1…5) but asserted on the current week. On a Sunday all of
+     them fall in next week.
+   - Fix: open the week that holds the test's data. The calendar's
+     behaviour is unchanged and correct.
+Also observed: a second, user-started Playwright run in parallel (shared
+test-results/, port and Auth) produced artifact ENOENT errors. The clean
+run below was taken with no concurrent run.
+
+Clean full suite (fresh db reset; Kong + Auth restarted; Auth health and a
+real sign-up 200; fresh build; no other Playwright process):
+  PLAYWRIGHT FULL SUITE: PASS — 364 tests: 350 passed, 14 skipped,
+  0 failed (11.4 min). The tree also contained P0-E9-3F and P0-E9-3H.
+format:check / lint / typecheck / test (459) / build / check:bundle /
+check:migrations: PASS.
+
+Production state (read-only):
+- migrations 70 / 70 applied (E9-3E, E9-3E.1, E9-3F, both 3G) — the user
+  had pushed them;
+- the reminder scan is running (chelth-shift-reminder-scan);
+- outbox: 2 pending, 0 sent;
+- Vault dispatch entries: 0. Delivery is still OFF.
+- Production main still runs the older app. The new app must deploy BEFORE
+  delivery is enabled. Otherwise the old dispatcher fails shift_changed /
+  shift_reminder rows as template_invalid.
+
+Remaining operator steps (owner: user; per decision "You do all of it"):
+  restore point; merge / deploy; Vercel EMAIL_PROVIDER=resend,
+  RESEND_API_KEY, EMAIL_FROM, APP_BASE_URL, NOTIFICATION_DISPATCH_SECRET,
+  NOTIFICATION_WORKER_DATABASE_URL; Vault
+  chelth_notification_dispatch_url / chelth_notification_dispatch_secret;
+  then the real-device test (assign → email → View shift link; unit change;
+  cancel; reminder next day). Real production delivery evidence: NOT YET
+  AVAILABLE.
+
+P0-E9-3G:
+STATUS: READY TO COMMIT
+
 14. FILES CHANGED
 -----------------
 New:

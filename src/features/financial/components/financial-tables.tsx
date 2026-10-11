@@ -37,6 +37,7 @@ import type {
   FinancialIssueRow,
   ReconciliationRow,
 } from "../queries";
+import { spell } from "@/features/localization";
 
 const when = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" });
 
@@ -47,13 +48,15 @@ function chipTone(status: PayrollBatchStatus | InvoiceDraftStatus): StatusTone {
 }
 
 export function PayrollStatusBadge({ status }: { status: PayrollBatchStatus }) {
-  return <StatusChip tone={chipTone(status)}>{PAYROLL_BATCH_STATUS_LABELS[status]}</StatusChip>;
+  return (
+    <StatusChip tone={chipTone(status)}>{spell(PAYROLL_BATCH_STATUS_LABELS[status])}</StatusChip>
+  );
 }
 
 export function InvoiceStatusBadge({ status }: { status: InvoiceDraftStatus }) {
   return (
     <StatusChip tone={status === "voided" ? "neutral" : chipTone(status)}>
-      {INVOICE_DRAFT_STATUS_LABELS[status]}
+      {spell(INVOICE_DRAFT_STATUS_LABELS[status])}
     </StatusChip>
   );
 }
@@ -176,7 +179,7 @@ const HISTORY_LABELS: Record<string, string> = {
   approved: "Approved",
   locked: "Locked",
   exported: "Exported",
-  cancelled: "Cancelled",
+  cancelled: "Canceled",
   voided: "Voided",
 };
 
@@ -199,7 +202,7 @@ export function HistoryList({ rows, label }: { rows: DocumentHistoryRow[]; label
       items={rows.map((row, index) => ({
         id: `${row.occurredAt}-${index}`,
         tone: HISTORY_TONE[row.action] ?? "neutral",
-        title: HISTORY_LABELS[row.action] ?? row.action,
+        title: spell(HISTORY_LABELS[row.action] ?? row.action),
         meta: (
           <>
             {when.format(new Date(row.occurredAt))} · {row.actorName ?? "a former member"}

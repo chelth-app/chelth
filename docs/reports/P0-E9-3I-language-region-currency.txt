@@ -1,0 +1,467 @@
+P0-E9-3I — APP-WIDE LANGUAGE, SPELLING & REGIONAL CURRENCY
+==========================================================
+CHELTH — Healthcare Workforce Operations
+
+Branch: p0-e8-visual-implementation (uncommitted; the tree also holds the
+uncommitted P0-E9-3H work). Nothing deployed or pushed.
+
+
+1. EXISTING LOCALIZATION ARCHITECTURE (P0-E9-3F)
+-----------------------------------------------
+- src/lib/i18n/terminology.ts:
+  - en-US / en-GB, fallback en-US;
+  - resolveLocale(workspace | personal);
+  - terminology() covered License / Licence only;
+  - localizeTerms() respelled one word family.
+- features/localization:
+  - request-scoped resolver (organisation → user → Accept-Language →
+    en-US for workspace pages; user → device for personal pages);
+  - proxy organisation hint.
+- organisations.locale and profiles.locale: NULL ⇒ the fallback chain.
+- Settings → Organization → "Language & Spelling"; Account → Language.
+- Gap reported by operators: most copy was written in British English
+  ("Organisation suspended", "Cancelled", "site centre", "metres") and
+  never localised, so US workspaces saw British spellings.
+
+
+2. FULL SPELLING AUDIT
+----------------------
+Scanned src/ for: organisation(s), licence(s), authoris*, unauthoris*,
+labour, centre(s), programme, optimis*, colour, favour(ite), behaviour,
+cancelled, cancelling, travelling, fulfil(ment), enrol(ment), catalogue,
+grey, plus recognise, summarise, normalise, realise, metre(s), e-mail,
+defence, and others.
+
+Raw hits:
+- organisation ≈ 3,240 (almost all identifiers);
+- cancelled 167 (mostly enum values);
+- enrol 29 (MFA code: MfaEnrollment);
+- colour 20 (comments);
+- centre 17; licence 16; authoris 14; summaris 12 (summarise()
+  functions); metre 14; and a few others.
+
+A word-level extraction that excluded identifiers, routes, enum tokens and
+comments left about 110 candidates. Classified (section 3), about 40 were
+user-facing copy.
+
+No user-facing occurrences in Chelth of: labour, programme, optimise,
+colour, favour, behaviour, fulfil, enrol, catalogue, grey. The dictionary
+covers them for future copy (section 4), but none were introduced.
+
+
+3. PRESENTATION VS INTERNAL IDENTIFIER CLASSIFICATION
+-----------------------------------------------------
+A. User-facing copy (localised):
+   - personal home ("Your organizations", "Choose an organization…",
+     "You are not a member of any organization yet.");
+   - personal nav "Organizations";
+   - workspace overview "Organization suspended", "All organizations";
+   - Settings "Basic information about your organization and workspace.";
+   - Team "Remove from organization";
+   - facilities "Linked to a CHELTH facility organization" / "Chelth
+     organization";
+   - conversations "partner organizations";
+   - every "Cancelled" status label, legend and notice ("Canceled", "Shift
+     canceled", "Canceled by the facility", payroll / adjustment "Canceled
+     by …");
+   - "Reason for canceling"; "Invitation canceled.";
+   - geofence "Site center latitude / longitude", "Check-in radius
+     (meters)", "Maximum GPS uncertainty (meters)", "Default check-in radius
+     (meters)", "Maximum location accuracy (meters)", "Enter whole meters.";
+   - facility photo "recognize";
+   - audit labels ("Organization created", "Shift canceled", …);
+   - notification event labels;
+   - error copy ("… a member of this organization.", "This shift has been
+     canceled.");
+   - sign-up and invitation copy;
+   - email subjects and bodies ("Your shift has been canceled", "email"
+     instead of "e-mail").
+B. Code identifiers: organisationId, organisation (variables / types),
+   loadOrganisationPage, OrganisationLocaleForm, summarise(),
+   summariseGeofenceReadiness, MfaEnrollment, organisations.* action names.
+C. Routes: /app/organisations/… (unchanged).
+D. Database: organisations, organisation_id, enum value 'cancelled',
+   shift_cancellation_reason 'facility_cancelled', columns *_cancelled_at.
+E. API / RPC / capability / audit keys: organisation.manage,
+   organisation.created, shift.cancelled, set_organisation_locale, …
+F. Test fixtures and comments.
+G. Historical migrations (immutable).
+H. Documentation (unchanged).
+Only A changed. B–H are unchanged.
+
+
+4. TERMINOLOGY EXPANSION
+------------------------
+One central dictionary (SPELLING_PAIRS, [en-US, en-GB]) in
+terminology.ts:
+  organization(s)/organisation(s), license(s)/licence(s),
+  canceled/cancelled, canceling/cancelling, center(s)/centre(s),
+  meter(s)/metre(s), authorized/authorised, unauthorized/unauthorised,
+  authorization/authorisation, recognize/recognise, behavior/behaviour,
+  labor/labour, color/colour, fulfillment/fulfilment,
+  enrollment/enrolment, catalog/catalogue, gray/grey.
+
+Matching rules:
+- whole words, case kept (organization / Organization / ORGANIZATION);
+- a word touching / _ - or a letter is never treated as prose, nor is a dot
+  followed by a letter, so routes, URLs and keys (/app/organisations/…,
+  organisation.manage, organisationId) are never respelled. Sentence
+  punctuation ("…the organization.") is prose.
+
+Context: "license" is used in Chelth only as a NOUN (a professional
+credential), so the pair is noun-only. UK "license" (verb) does not occur.
+If it is ever needed, it gets explicit copy, not a pair. "program"
+(software) is deliberately not paired.
+
+Explicit terms for components: terms.organization, terms.organizations,
+terms.canceled, plus the License / Licence terms from 3F.
+
+How it is applied, with no locale conditions in components:
+- Source copy is written in AMERICAN English, the fallback / pilot
+  locale. Anything not wrapped therefore defaults to American, never
+  British.
+- Server components: spell("…") reads the request's terminology, which is
+  resolved once per request in src/lib/i18n/request-terms.ts. Every
+  workspace page awaits it first via loadOrganisationPage(); the overview
+  and personal pages await it explicitly.
+- Shared label maps (shift / assignment / payroll / invoice statuses,
+  cancellation reasons, audit and notification labels) are respelled at
+  their 23 server render sites: spell(MAP[key]). Module-level constants are
+  never spelled at import time (checked; the calendar legend applies spell
+  at render).
+- Client components: <TerminologyProvider> in the workspace, self-service
+  and personal layouts, and useSpell() (src/lib/i18n/terminology-context.tsx;
+  no server code in client bundles — the build verifies this).
+- Signed-out pages (sign-up, invitation): the browser language
+  (getDeviceTerminology), else en-US.
+
+
+5. EN-US BEHAVIOUR
+------------------
+Workspace locale en-US, or not set (all existing workspaces), shows:
+Organization(s), License(s), Canceled / Canceling, Center, Meters,
+Recognize, Authorized, and US date order on the workspace timestamp
+lists ("Oct 11, 2026, 2:45 AM").
+E2E verified this on the facility page, Settings, Compliance and Rates.
+
+
+6. EN-GB BEHAVIOUR
+------------------
+Workspace locale en-GB shows: Organisation(s), Licence(s) (noun),
+Cancelled / Cancelling, Centre, Metres, Recognise, Authorised, and UK date
+order ("11 Oct 2026, 02:45").
+Switching back to en-US leaves no mixed spelling: E2E checks that the page
+does not contain the other locale's word.
+
+
+7. WORKSPACE / PERSONAL PRECEDENCE (unchanged)
+---------------------------------------------
+- Workspace: organisation locale → user → Accept-Language → en-US.
+- Personal: user → Accept-Language → en-US.
+- Never GPS or physical location.
+- An American workspace stays American for a British user, including one
+  abroad (unit test).
+- A person whose own language is en-GB sees "Organisations" in their
+  personal Account navigation, and no British spelling inside a US
+  workspace (E2E).
+
+
+8. EMAIL LOCALIZATION
+---------------------
+- internal.notification_template returns the recipient workspace's
+  `locale` (the audience organisation; NULL ⇒ en-US).
+- renderNotification uses one template set with a literal-only localizer:
+  tagged templates respell ONLY Chelth's own words, never interpolated
+  names. An agency called "Center Staffing Organization" keeps its name
+  in en-GB email (unit-tested).
+- Links and identifiers are never touched.
+- The invitation email has no locale-sensitive words, so it is unchanged.
+
+
+9. ERROR LOCALIZATION
+---------------------
+- runAction (the Server Action error layer) respells the public message
+  and field errors with the request's terminology.
+- Codes are unchanged; there are no locale-specific database codes.
+- SQL / internal text is never exposed (existing normalisation).
+- Error source copy is American.
+
+
+10. EXISTING CURRENCY MODEL (audit)
+-----------------------------------
+- There was no organisation currency.
+- Currency (ISO 4217, FK to public.currencies: USD, CAD, GBP, EUR, AUD,
+  NZD) is stored per RATE VERSION and snapshotted on priced timesheets,
+  payroll batches, invoice drafts and both adjustment types.
+- The pricing engine refuses mixed currencies in a timesheet
+  (RATE_CURRENCY_MISMATCH).
+- Money is integer minor units, formatted through Intl.NumberFormat by
+  currency code (formatMoney). There is no symbol concatenation anywhere.
+- The rate form defaulted its currency select to "USD".
+
+
+11. ORGANISATION CURRENCY IMPLEMENTATION
+----------------------------------------
+Migration 20261011100000_organisation_currency (additive):
+- organisations.default_currency (FK to currencies; NULL ⇒ not set);
+- internal.organisation_currencies_in_use(org): distinct currencies of
+  non-discarded rate versions, priced timesheets, payroll batches, invoice
+  drafts and adjustments;
+- public.get_organisation_currency(org) (organisation.view):
+  default_currency + currencies_in_use;
+- public.set_organisation_currency(org, code): organisation.manage
+  (privileged ⇒ AAL2), CH400 for unknown codes or symbols, CHY22 when
+  records use another currency, audited.
+Effective currency, used to preselect new rates: the default, else the
+single currency in use, else the language's suggestion.
+App: getOrganisationCurrency / listCurrencies /
+setOrganisationCurrencyAction; CHY22 ⇒ CURRENCY_IN_USE ("Currency can't be
+changed because this workspace already has rates or financial records in
+another currency.").
+Rate and version forms preselect the workspace currency and say:
+"Workspace currency: <code>. Rates are stored in the currency chosen here
+and never converted." Amounts are still parsed by the existing exact
+minor-unit parser.
+
+
+12. LOCALE → CURRENCY SUGGESTION
+--------------------------------
+suggestedCurrency(): en-GB ⇒ GBP, otherwise USD. It is used only while a
+workspace has no default and no financial records, and the form says
+"Suggested from the workspace language. Save to confirm it."
+Language and currency are separate columns, RPCs and saves:
+- changing the language never changes the currency;
+- changing the currency never changes the language (pgTAP).
+- en-GB + USD and en-US + GBP are valid (pgTAP / E2E).
+
+
+13. CURRENCY-CHANGE SAFEGUARDS
+------------------------------
+A. No financial records ⇒ the default may change freely.
+B. Draft rate versions: a non-discarded draft counts as "in use", because
+   activating it would create mixed currencies, which the engine cannot
+   price. Discarding the draft frees the currency (pgTAP).
+C. Active rates, priced, payroll, invoice or adjustment records ⇒ only
+   that currency may be the default. Anything else is refused by the
+   DATABASE (CHY22), not just the UI. The UI explains it plainly.
+No FX: nothing is converted, fetched or recalculated (§10 — not
+implemented, not required).
+
+
+14. HISTORICAL FINANCIAL PROTECTION (verified)
+----------------------------------------------
+- pgTAP 300: after a refused switch, the USD rate still reads
+  USD:3000:4200 ($30.00 never becomes £30.00). Neither setting function
+  can write any financial table (checked from the function source).
+- Integration (financial.test.ts, real priced timesheets, a payroll batch
+  and an invoice draft):
+  - per-currency totals of priced (pay / bill), payroll and invoice are
+    identical before and after switching the language en-GB → en-US;
+  - switching the currency to GBP is refused (CHY22);
+  - confirming USD changes nothing.
+
+
+15. MONEY FORMATTING
+--------------------
+Centralised in formatMoney(minor, currency) via Intl.NumberFormat with the
+currency CODE: USD $1,250.00, GBP £1,250.00, EUR €1,250.00 (unit-tested).
+Amounts are always the stored minor units. The number pattern is the
+en-US pattern for all workspaces, which is identical to en-GB for these
+currencies. See gaps for the en-GB "US$" disambiguation.
+
+
+16. SETTINGS UX
+---------------
+Settings → Organization → "Language & Region" (renamed from
+"Language & Spelling"), shown with organisation.manage:
+- "Language & terminology": Language [English (United States) / English
+  (United Kingdom)]; "Controls spelling and terminology across this
+  workspace."; [Save language].
+- "Regional finance" (agencies): Currency [US dollar (USD) …]; "Used as the
+  default currency for new rates and financial records. Amounts are never
+  converted."; a plain lock note when records exist; [Save currency].
+Existing locked Settings components only (Panel, FormField, Select,
+SubmitButton). Account → Language is unchanged (personal pages only).
+
+
+17. ACCESS / AAL2
+-----------------
+- Locale and currency: organisation.manage (privileged ⇒ AAL2; AAL1 ⇒
+  CH402 step-up).
+- Scheduler and other agencies ⇒ CH403 (pgTAP).
+- Reading the currency: organisation.view; another agency ⇒ CH403.
+
+
+18. AUDIT
+---------
+- organisation.locale_updated (3F): {from, to}.
+- organisation.currency_updated (new): {from, to} as codes only, and only
+  on a real change (confirming the same value is not audited).
+- No financial record contents (pgTAP).
+
+
+19. TESTS
+---------
+Unit:
+- tests/unit/lib/language-region.test.ts (NEW, 30+): every pair in both
+  directions, case, whole words, punctuation vs keys, routes and
+  identifiers untouched, explicit terms, workspace precedence for a
+  traveller, currency suggestion, Intl money formatting for USD / GBP /
+  EUR, the CHY22 message;
+- notifications.test.ts: en-US / unset / en-GB email from one template, and
+  names never respelled.
+Total: 36 files, 483 passed.
+
+pgTAP NEW 300_organisation_currency (23):
+- free changes without records; ISO codes; symbol / unknown refused;
+- "in use" detection; switch away refused (CHY22); amounts and currency
+  unchanged; confirming allowed; discarded draft frees it;
+- language ⇄ currency independence; no setting writes finance tables;
+- AAL1 / role / cross-tenant denial; audit codes only;
+- email template carries the workspace locale.
+Updated 000 (RPC allowlist).
+Total: 35 files, 1,662 PASS.
+
+Integration: financial.test.ts + historical-safety test.
+Total: 19 files, 132 passed. The first run right after an Auth restart had
+one warm-up failure; the file passes alone (7 / 7) and the full rerun is
+clean.
+
+E2E NEW tests/e2e/language-region.spec.ts (desktop + mobile):
+- en-US default on the facility page and Settings; currency suggested
+  USD; axe clean;
+- GBP saved separately;
+- en-GB ⇒ "organisation" on Settings and the facility page, "Jurisdiction
+  (licences)"; currency still GBP; the rate form preselects GBP with
+  "Workspace currency: GBP"; axe clean;
+- back to en-US ⇒ "organization" / "Jurisdiction (licenses)" with no
+  British leftovers;
+- a person with en-GB sees "Organisations" on Account; no British spelling
+  inside the US workspace.
+Updated assertions for the American source copy in identity, settings,
+workspace-shell, worker-app-entry, overview-fidelity, agency-surfaces,
+workforce-facilities, localization-pricing-timezone and shift-email specs.
+Full run: section 19a.
+
+
+19a. VALIDATION
+---------------
+format:check PASS · lint PASS · typecheck PASS · test 483 PASS · build PASS ·
+check:bundle OK · check:migrations OK (71) · db reset PASS · db lint
+(warning; public / authz / internal) clean · test db 1,662 PASS ·
+db:types regenerated · test:integration 132 PASS.
+npx playwright test:
+- First full run: 326 passed, 8 failed, 20 did not run.
+  - All 8 failures were test assertions still expecting the old British
+    copy or accessible names: "Your organisations" (list / region names),
+    the "Organisations" nav link, and "Linked to a CHELTH facility
+    organisation". The pages rendered correctly in American English.
+  - The 20 were serial tests after those failures.
+  - Assertions updated; the 4 affected specs rerun: 56 passed.
+- Clean full run (fresh db reset; Kong + Auth restarted; Auth health and a
+  real sign-up 200; no concurrent runs): 368 tests: 354 passed, 14 skipped,
+  0 failed (9.8 min).
+PLAYWRIGHT FULL SUITE: PASS — 354/14/0 failed
+(The tree also contains the uncommitted P0-E9-3H work.)
+
+
+20. FILES CHANGED
+-----------------
+New:
+  supabase/migrations/20261011100000_organisation_currency.sql
+  supabase/tests/security/300_organisation_currency.test.sql
+  src/lib/i18n/request-terms.ts (resolver moved from the feature; spell,
+    requestDateFormat)
+  src/lib/i18n/terminology-context.tsx (client provider / useSpell)
+  tests/unit/lib/language-region.test.ts
+  tests/e2e/language-region.spec.ts
+  docs/reports/P0-E9-3I-language-region-currency.txt
+Changed (main):
+  src/lib/i18n/terminology.ts (dictionary, terms, suggestion, matcher)
+  src/features/localization/{index,queries}.ts (re-exports)
+  src/lib/actions/run-action.ts (error copy localisation)
+  src/lib/notifications/templates.ts (literal-only localizer, locale field,
+    American source)
+  src/lib/errors/{error-codes,normalize-error}.ts (CURRENCY_IN_USE / CHY22;
+    American copy)
+  src/lib/domain/{shifts,financial}.ts, src/lib/authz/vocabulary.ts,
+    src/lib/notifications/vocabulary.ts (American labels)
+  src/features/organisations/{actions,queries,index,page-context}.ts,
+    components/organisation-locale-form.tsx (Language & Region, currency)
+  src/features/pricing/components/rate-forms.tsx (workspace currency)
+  layouts: (workspace), (self-service), (personal) (TerminologyProvider)
+  about 35 page / panel / component files: copy in American + spell()
+  9 workspace pages: requestDateFormat (timestamp locale);
+    invite / sign-up: browser locale
+  src/types/database.types.ts (generated)
+  tests: updated assertions (see section 19)
+
+
+21. MIGRATIONS
+--------------
+20261011100000_organisation_currency (after
+20261010150100_shift_email_notifications):
+- organisations.default_currency (nullable FK; no data rewrite);
+- internal.organisation_currencies_in_use;
+- public.get_organisation_currency / set_organisation_currency;
+- internal.notification_template replaced (same signature; one extra field,
+  locale).
+No change to any financial table, column or amount. Existing workspaces:
+locale NULL ⇒ en-US; default_currency NULL ⇒ the currency in use or the
+suggestion.
+
+
+22. DEPLOYMENT ORDER (operator; NOT performed)
+----------------------------------------------
+1. Commit (separately from P0-E9-3H); PR; CI green.
+2. Production restore point. Run supabase db push --dry-run and expect only
+   20261011100000_organisation_currency. Then push. Database first is
+   safe: additive column and new functions. The old app ignores the
+   template's extra locale field (the zod schema strips unknown keys).
+3. Merge; Vercel deploys.
+4. Pilot agency admin (AAL2): Settings → Organization → Language & Region →
+   confirm English (United States) and US dollar (USD); save both.
+
+
+23. REMAINING GAPS
+------------------
+- Money uses the en-US number pattern for every workspace. For en-GB +
+  USD, Intl would print "US$" under en-GB; Chelth shows "$". Threading the
+  locale into the ~40 formatMoney call sites is a follow-up (the formatter
+  is already central).
+- Date / number formatting follows the workspace language on the nine
+  workspace timestamp lists, the Security audit log and the invitation.
+  Other screens keep their existing en-US formatters (operational shift
+  times are unchanged by design).
+- en-GB coverage is complete for the audited copy, label maps, errors and
+  emails. Newly added copy must be written in American English and use
+  spell() / useSpell() for words in the dictionary. American is the safe
+  default if that is forgotten.
+- Reference data stored with British spelling (credential type names) is
+  respelled at the query layer (3F). Facility, agency and other names
+  people type are never respelled.
+- Static <title> metadata on most pages has no spelling-sensitive words;
+  only "Your organizations" is localised.
+
+
+FINAL
+-----
+APP-WIDE US/UK SPELLING:
+STATUS: COMPLETE
+
+LANGUAGE & REGION SETTINGS:
+STATUS: COMPLETE
+
+ORGANISATION CURRENCY:
+STATUS: COMPLETE
+
+HISTORICAL FINANCIAL SAFETY:
+STATUS: VERIFIED
+
+INTERNAL IDENTIFIERS:
+STATUS: UNCHANGED
+
+FX CONVERSION:
+STATUS: NOT IMPLEMENTED / NOT REQUIRED
+
+Not deployed.

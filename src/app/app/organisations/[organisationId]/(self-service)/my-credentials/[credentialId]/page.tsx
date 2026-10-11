@@ -40,10 +40,11 @@ import {
   WorkerCardSection,
 } from "../_components/credential-view";
 import { RefreshWhileChecking } from "../_components/refresh-while-checking";
+import { requestDateFormat } from "@/lib/i18n/request-terms";
 
 export const metadata: Metadata = { title: "Credential" };
 
-const dateTime = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" });
+const dateTime = requestDateFormat({ dateStyle: "medium", timeStyle: "short" });
 
 const VERSION_STATUS = {
   draft: { label: "Draft", tone: "neutral" },

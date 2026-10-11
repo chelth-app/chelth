@@ -45,6 +45,7 @@ import {
 } from "@/lib/domain/shifts";
 import { WORKER_STATUS_LABELS, type WorkerStatus } from "@/lib/domain/vocabulary";
 import { cn } from "@/lib/utils/cn";
+import { spell } from "@/features/localization";
 
 /** Locked P2: five rows per panel table; the header action opens the full list. */
 const PANEL_ROWS = 5;
@@ -74,7 +75,7 @@ function shiftChip(shift: AgencyShiftSummary): { tone: StatusTone; label: string
       ? { tone: "danger", label: "Open" }
       : { tone: FILL_TONE[shift.fillState], label: FILL_STATE_LABELS[shift.fillState] };
   }
-  return { tone: SHIFT_TONE[shift.status], label: SHIFT_STATUS_LABELS[shift.status] };
+  return { tone: SHIFT_TONE[shift.status], label: spell(SHIFT_STATUS_LABELS[shift.status]) };
 }
 
 /**

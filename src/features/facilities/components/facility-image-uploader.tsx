@@ -17,6 +17,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { cn } from "@/lib/utils/cn";
 
 import { completeFacilityImageAction, startFacilityImageUploadAction } from "../actions";
+import { useSpell } from "@/lib/i18n/terminology-context";
 
 /*
  * Facility photo (P0-E9-3D-S2; rebuilt P0-E9-3F). The previous control was a
@@ -92,6 +93,7 @@ export function FacilityImageUploader({
   facilityName: string;
   hasImage: boolean;
 }) {
+  const spell = useSpell();
   const router = useRouter();
   const inputId = useId();
   const hintId = useId();
@@ -222,7 +224,7 @@ export function FacilityImageUploader({
           <p className="text-[13px] leading-[18px] text-slate-600">
             {hasImage
               ? `Workers see this photo of ${facilityName} on their shift.`
-              : "Add a photo workers can use to recognise the facility."}
+              : spell("Add a photo workers can use to recognize the facility.")}
           </p>
           <p id={hintId} className="text-[13px] leading-[18px] text-slate-600">
             JPG or PNG · up to 2 MB (larger photos are resized)

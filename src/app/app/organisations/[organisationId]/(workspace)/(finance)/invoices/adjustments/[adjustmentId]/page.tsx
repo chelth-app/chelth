@@ -49,6 +49,7 @@ import { formatPeriod, formatWorkedMinutes } from "@/lib/domain/timesheets";
 
 import { LockedNotice } from "../../../_components/finance-locked";
 import { attentionTone, INVOICE_TONE } from "../../_components/invoice-tones";
+import { spell } from "@/features/localization";
 
 export const metadata: Metadata = { title: "Invoice adjustment draft" };
 
@@ -129,7 +130,7 @@ export default async function InvoiceAdjustmentPage({
         meta={
           <>
             <RefChip tone={INVOICE_TONE[adjustment.status]} className="font-semibold">
-              {INVOICE_DRAFT_STATUS_LABELS[adjustment.status]}
+              {spell(INVOICE_DRAFT_STATUS_LABELS[adjustment.status])}
             </RefChip>
             {attention && adjustment.attention ? (
               <RefChip tone={attentionTone(adjustment.attention)} className="font-semibold">

@@ -9,6 +9,7 @@ import {
   type ShiftOfferStatus,
   type ShiftStatus,
 } from "@/lib/domain/shifts";
+import { spell } from "@/features/localization";
 
 type Tone = StatusTone;
 
@@ -35,7 +36,7 @@ const ASSIGNMENT_TONE: Record<AssignmentStatus, Tone> = {
 };
 
 export function ShiftStatusBadge({ status }: { status: ShiftStatus }) {
-  return <StatusChip tone={SHIFT_TONE[status]}>{SHIFT_STATUS_LABELS[status]}</StatusChip>;
+  return <StatusChip tone={SHIFT_TONE[status]}>{spell(SHIFT_STATUS_LABELS[status])}</StatusChip>;
 }
 
 /** Derived fill progress, e.g. "Partially filled · 1 of 2". */
@@ -56,7 +57,11 @@ export function FillBadge({
 }
 
 export function AssignmentStatusBadge({ status }: { status: AssignmentStatus }) {
-  return <StatusChip tone={ASSIGNMENT_TONE[status]}>{ASSIGNMENT_STATUS_LABELS[status]}</StatusChip>;
+  return (
+    <StatusChip tone={ASSIGNMENT_TONE[status]}>
+      {spell(ASSIGNMENT_STATUS_LABELS[status])}
+    </StatusChip>
+  );
 }
 
 const OFFER_TONE: Record<ShiftOfferStatus, Tone> = {

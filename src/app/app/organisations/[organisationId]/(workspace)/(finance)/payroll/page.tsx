@@ -53,6 +53,7 @@ import { cn } from "@/lib/utils/cn";
 import { HeaderAddAction, LockedEmpty, LockedFilterSelect } from "../_components/finance-locked";
 import { type BatchDetails, BatchDetailsPanel } from "./_components/batch-details-panel";
 import { attentionTone, NEXT_STEP_LABEL, PAYROLL_TONE } from "./_components/payroll-tones";
+import { spell } from "@/features/localization";
 
 export const metadata: Metadata = { title: "Payroll" };
 
@@ -280,7 +281,7 @@ export default async function PayrollPage({
               <option value="">All statuses</option>
               {PAYROLL_BATCH_STATUSES.map((status) => (
                 <option key={status} value={status}>
-                  {PAYROLL_BATCH_STATUS_LABELS[status]}
+                  {spell(PAYROLL_BATCH_STATUS_LABELS[status])}
                 </option>
               ))}
             </LockedFilterSelect>
@@ -392,7 +393,7 @@ export default async function PayrollPage({
                         <td>
                           <span className="flex flex-wrap items-center gap-1.5 py-2">
                             <RefChip tone={PAYROLL_TONE[batch.status]} className="font-normal">
-                              {PAYROLL_BATCH_STATUS_LABELS[batch.status]}
+                              {spell(PAYROLL_BATCH_STATUS_LABELS[batch.status])}
                             </RefChip>
                             {attention && batch.attention ? (
                               <RefChip

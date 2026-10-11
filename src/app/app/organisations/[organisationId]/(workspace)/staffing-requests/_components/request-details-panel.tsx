@@ -20,6 +20,7 @@ import { RELATIONSHIP_STATUS_LABELS } from "@/lib/domain/vocabulary";
 import { cn } from "@/lib/utils/cn";
 
 import { INK } from "../../(finance)/_components/finance-locked";
+import { spell } from "@/features/localization";
 
 /** A row of the facility's own shift projection (no worker names, pay or coordinates). */
 export type FacilityRequest = Awaited<ReturnType<typeof listFacilityShifts>>[number];
@@ -78,8 +79,8 @@ export function RequestDetailsPanel({ shift, href }: { shift: FacilityRequest; h
           ...(shift.cancellationReason
             ? [
                 {
-                  label: "Cancelled",
-                  value: SHIFT_CANCELLATION_REASON_LABELS[shift.cancellationReason],
+                  label: spell("Canceled"),
+                  value: spell(SHIFT_CANCELLATION_REASON_LABELS[shift.cancellationReason]),
                 },
               ]
             : []),
@@ -98,7 +99,7 @@ export function RequestDetailsPanel({ shift, href }: { shift: FacilityRequest; h
               label: "Status",
               value: (
                 <RefChip tone={SHIFT_TONE[shift.status]} className="font-semibold">
-                  {SHIFT_STATUS_LABELS[shift.status]}
+                  {spell(SHIFT_STATUS_LABELS[shift.status])}
                 </RefChip>
               ),
             },
@@ -182,7 +183,7 @@ export function RequestDetailsPanel({ shift, href }: { shift: FacilityRequest; h
                 tone={SHIFT_TONE[shift.status]}
                 className="h-7 px-3 text-[12.5px] font-semibold"
               >
-                {SHIFT_STATUS_LABELS[shift.status]}
+                {spell(SHIFT_STATUS_LABELS[shift.status])}
               </RefChip>
             )}
           </div>

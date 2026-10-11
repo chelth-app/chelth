@@ -54,10 +54,11 @@ import { CAPABILITIES } from "@/lib/authz";
 import { formatCalendarDate } from "@/lib/domain/credentials";
 import { cn } from "@/lib/utils/cn";
 import { WORKER_STATUS_LABELS, WORKER_STATUS_TRANSITIONS } from "@/lib/domain/vocabulary";
+import { requestDateFormat } from "@/lib/i18n/request-terms";
 
 export const metadata: Metadata = { title: "Worker" };
 
-const dateTime = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" });
+const dateTime = requestDateFormat({ dateStyle: "medium", timeStyle: "short" });
 
 export default async function WorkerPage({
   params,

@@ -61,6 +61,7 @@ import {
   WORKER_PRIMARY_CTA,
   WORKER_SECONDARY_CTA,
 } from "../_components/worker-cards";
+import { spell } from "@/features/localization";
 
 export const metadata: Metadata = { title: "Shift Details" };
 
@@ -332,9 +333,9 @@ export default async function ShiftDetailsPage({
       ) : null}
 
       {assignment.cancellationReason ? (
-        <StatePanel tone="warning" title="Shift cancelled">
+        <StatePanel tone="warning" title={spell("Shift canceled")}>
           <p className="text-slate-700">
-            {ASSIGNMENT_CANCELLATION_REASON_LABELS[assignment.cancellationReason]}
+            {spell(ASSIGNMENT_CANCELLATION_REASON_LABELS[assignment.cancellationReason])}
           </p>
         </StatePanel>
       ) : null}

@@ -163,7 +163,7 @@ test.describe("workforce", () => {
       .getByRole("listitem")
       .filter({ hasText: cancelEmail });
     await cancelRow.getByRole("button", { name: `Cancel invite to ${cancelEmail}` }).click();
-    await expect(page.getByText("Invitation cancelled.")).toBeVisible();
+    await expect(page.getByText("Invitation canceled.")).toBeVisible();
     await qaScreenshot(page, "e93a-invitation-cancelled");
     await page.reload();
     await expect(page.getByText(cancelEmail)).toHaveCount(0);

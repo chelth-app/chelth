@@ -47,11 +47,12 @@ export function shiftClassificationPhrase(classification: ShiftClassification): 
     : `${SHIFT_CLASSIFICATION_LABELS[classification]} shift`;
 }
 
+/** Matching levels in the engine's order (P0-E9-3H operator wording; order unchanged). */
 export const RATE_PRECEDENCE_LABELS: Record<number, string> = {
-  1: "Facility + discipline + classification",
-  2: "Facility + discipline",
-  3: "All facilities + discipline + classification",
-  4: "All facilities + discipline",
+  1: "Facility + discipline + shift type",
+  2: "Facility + discipline, any shift type",
+  3: "All facilities + discipline + shift type",
+  4: "All facilities + discipline, any shift type",
 };
 
 export const PRICING_ISSUE_LABELS: Record<string, string> = {
@@ -116,12 +117,13 @@ export function marginMinor(billMinor: number, payMinor: number): number {
 
 export type VersionPhase = "draft" | "discarded" | "upcoming" | "current" | "superseded" | "ended";
 
+/** Operator vocabulary (P0-E9-3H): Draft · Active · Scheduled · Ended. */
 export const VERSION_PHASE_LABELS: Record<VersionPhase, string> = {
   draft: "Draft",
   discarded: "Discarded",
-  upcoming: "Upcoming",
-  current: "Current",
-  superseded: "Superseded",
+  upcoming: "Scheduled",
+  current: "Active",
+  superseded: "Replaced",
   ended: "Ended",
 };
 

@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils/cn";
 
 import { INK } from "../../_components/finance-locked";
 import { attentionTone, INVOICE_TONE } from "./invoice-tones";
+import { spell } from "@/features/localization";
 
 /*
  * Invoice Details — the canonical Chelth drawer (CHELTH-LOCKED-VISUAL-SYSTEM.md,
@@ -136,7 +137,7 @@ export function InvoiceDetailsPanel({
               label: "Status",
               value: (
                 <RefChip tone={INVOICE_TONE[draft.status]} className="font-semibold">
-                  {INVOICE_DRAFT_STATUS_LABELS[draft.status]}
+                  {spell(INVOICE_DRAFT_STATUS_LABELS[draft.status])}
                 </RefChip>
               ),
             },
@@ -260,7 +261,7 @@ export function InvoiceDetailsPanel({
               tone={INVOICE_TONE[draft.status]}
               className="h-7 px-3 text-[12.5px] font-semibold"
             >
-              {INVOICE_DRAFT_STATUS_LABELS[draft.status]}
+              {spell(INVOICE_DRAFT_STATUS_LABELS[draft.status])}
             </RefChip>
           </div>
         </div>

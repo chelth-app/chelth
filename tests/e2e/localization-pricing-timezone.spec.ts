@@ -108,7 +108,7 @@ test.describe.serial("P0-E9-3F localization, pricing, timezone and facility phot
     const panel = page.getByRole("region", { name: "For workers" });
 
     // Empty state: no upload button until a photo is chosen (nothing that looks dead).
-    await expect(group).toContainText("Add a photo workers can use to recognise the facility.");
+    await expect(group).toContainText("Add a photo workers can use to recognize the facility.");
     await expect(group).toContainText("JPG or PNG · up to 2 MB");
     await expect(group.getByRole("button", { name: /Upload photo/ })).toHaveCount(0);
     await expect(panel.locator("img")).toHaveCount(0);
@@ -220,8 +220,11 @@ test.describe.serial("P0-E9-3F localization, pricing, timezone and facility phot
 
     // Workspace set to en-GB: Licence; identifiers are untouched.
     await page.goto(settings);
-    await page.getByLabel("Language and spelling").selectOption("en-GB");
-    await page.getByRole("button", { name: "Save workspace language" }).click();
+    await page
+      .getByRole("region", { name: "Language & Region" })
+      .getByLabel("Language")
+      .selectOption("en-GB");
+    await page.getByRole("button", { name: "Save language" }).click();
     await expect(page.getByText("Workspace language saved.")).toBeVisible(AFTER_ACTION);
     await page.goto(`/app/organisations/${world.agencyId}/compliance`);
     await expect(page.getByLabel("Jurisdiction (licences)").first()).toBeVisible();

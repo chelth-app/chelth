@@ -484,4 +484,46 @@ describe("payroll preparation & invoice drafting (P0-E7-S2)", () => {
     );
     expect(files[0]?.ok).toBe(true);
   });
+
+  it("P0-E9-3I: language changes presentation only; the currency cannot be switched under existing money", async () => {
+    const snapshot = async () =>
+      ownerQuery(
+        (sql) => sql<{ kind: string; currency: string; total: string }[]>`
+          select 'priced' as kind, currency, sum(total_pay_minor)::text || '/' || sum(total_bill_minor)::text as total
+            from public.priced_timesheets where agency_organisation_id = ${alphaId}::uuid group by currency
+          union all
+          select 'payroll', currency, sum(total_pay_minor)::text from public.payroll_batches
+            where agency_organisation_id = ${alphaId}::uuid group by currency
+          union all
+          select 'invoice', currency, sum(total_bill_minor)::text from public.invoice_drafts
+            where agency_organisation_id = ${alphaId}::uuid group by currency
+          order by 1, 2`,
+      );
+    const before = await snapshot();
+    expect(before.map((row) => row.kind)).toEqual(["invoice", "payroll", "priced"]);
+
+    for (const locale of ["en-GB", "en-US"] as const) {
+      await run(
+        admin.client.rpc("set_organisation_locale", {
+          p_organisation_id: alphaId,
+          p_locale: locale,
+        }),
+      );
+      expect(await snapshot()).toEqual(before);
+    }
+
+    // The workspace's records are in USD: switching the default to GBP is refused by the database.
+    const switched = await admin.client.rpc("set_organisation_currency", {
+      p_organisation_id: alphaId,
+      p_currency: "GBP",
+    });
+    expect(switched.error?.code).toBe("CHY22");
+    await run(
+      admin.client.rpc("set_organisation_currency", {
+        p_organisation_id: alphaId,
+        p_currency: "USD",
+      }),
+    );
+    expect(await snapshot()).toEqual(before);
+  });
 });

@@ -55,7 +55,7 @@ export const SHIFT_STATUS_LABELS: Record<ShiftStatus, string> = {
   draft: "Draft",
   submitted: "Requested",
   open: "Open",
-  cancelled: "Cancelled",
+  cancelled: "Canceled",
   completed: "Completed",
 };
 
@@ -73,7 +73,7 @@ export const SHIFT_STATUS_TRANSITIONS: Record<ShiftStatus, readonly ShiftStatus[
 };
 
 export const SHIFT_CANCELLATION_REASON_LABELS: Record<ShiftCancellationReason, string> = {
-  facility_cancelled: "Cancelled by the facility",
+  facility_cancelled: "Canceled by the facility",
   staffing_no_longer_needed: "Staffing no longer needed",
   entered_in_error: "Entered in error",
   relationship_suspended: "Relationship suspended",
@@ -85,11 +85,11 @@ export const ASSIGNMENT_STATUS_LABELS: Record<AssignmentStatus, string> = {
   assigned: "Awaiting response",
   accepted: "Accepted",
   declined: "Declined",
-  cancelled: "Cancelled",
+  cancelled: "Canceled",
 };
 
 export const ASSIGNMENT_CANCELLATION_REASON_LABELS: Record<AssignmentCancellationReason, string> = {
-  shift_cancelled: "Shift cancelled",
+  shift_cancelled: "Shift canceled",
   worker_unavailable: "Worker unavailable",
   compliance_change: "Compliance changed",
   entered_in_error: "Entered in error",
@@ -244,7 +244,7 @@ export const SHIFT_OFFER_STATUS_LABELS: Record<ShiftOfferStatus, string> = {
 
 export const SHIFT_OFFER_CLOSE_REASON_LABELS: Record<ShiftOfferCloseReason, string> = {
   shift_filled: "Shift filled",
-  shift_cancelled: "Shift cancelled",
+  shift_cancelled: "Shift canceled",
   shift_closed: "Shift closed",
   withdrawn: "Withdrawn",
   relationship_not_active: "Relationship not active",

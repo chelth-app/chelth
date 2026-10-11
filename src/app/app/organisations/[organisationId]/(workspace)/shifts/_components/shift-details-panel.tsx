@@ -30,6 +30,8 @@ import {
 } from "@/lib/domain/shifts";
 import { RELATIONSHIP_STATUS_LABELS } from "@/lib/domain/vocabulary";
 import { cn } from "@/lib/utils/cn";
+import { spell } from "@/features/localization";
+import { requestDateFormat } from "@/lib/i18n/request-terms";
 
 /** A row of the shift list (summary plus open issue count). */
 export type ShiftListItem = AgencyShiftSummary & { openIssueCount: number };
@@ -42,7 +44,7 @@ const READINESS_TONE: Record<ReadinessStatus, StatusTone> = {
   not_eligible: "danger",
 };
 
-const dateTime = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" });
+const dateTime = requestDateFormat({ dateStyle: "medium", timeStyle: "short" });
 
 function durationLabel(shift: ShiftListItem): string {
   const hours = Math.round(shiftDurationHours(shift) * 10) / 10;
@@ -55,7 +57,11 @@ function statusLine(shift: ShiftListItem): {
   note: string | null;
 } {
   if (shift.status !== "open") {
-    return { tone: SHIFT_TONE[shift.status], label: SHIFT_STATUS_LABELS[shift.status], note: null };
+    return {
+      tone: SHIFT_TONE[shift.status],
+      label: spell(SHIFT_STATUS_LABELS[shift.status]),
+      note: null,
+    };
   }
   const toFill = Math.max(shift.requestedHeadcount - shift.activeCount, 0);
   const note = toFill === 0 ? "Every place is filled." : "This shift needs coverage.";
@@ -320,7 +326,7 @@ export function ShiftDetailsPanel({
                 {assignments.length > 1 ? ` +${assignments.length - 1}` : ""}
               </span>
               <span className="text-[12.5px] leading-[18px] text-slate-600">
-                {role.code ?? role.name} · {ASSIGNMENT_STATUS_LABELS[lead.status]}
+                {role.code ?? role.name} · {spell(ASSIGNMENT_STATUS_LABELS[lead.status])}
               </span>
               <span className="text-[12.5px] leading-[18px] text-slate-600">
                 {shift.activeCount} of {shift.requestedHeadcount} assigned · {shift.acceptedCount}{" "}

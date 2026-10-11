@@ -10,6 +10,11 @@ import {
   organisationIdSchema,
   selectOrganisationAction,
 } from "@/features/organisations";
+import {
+  getPersonalTerminology,
+  getWorkspaceTerminology,
+  TerminologyProvider,
+} from "@/features/localization";
 import { getMyWorkerRecord } from "@/features/workforce";
 import { requireAuthIdentity } from "@/lib/auth/session";
 import { capabilityState } from "@/lib/authz";
@@ -34,19 +39,37 @@ export default async function WorkspaceLayout({
 }: LayoutProps<"/app/organisations/[organisationId]">) {
   const { organisationId: rawId } = await params;
   const parsedId = organisationIdSchema.safeParse(rawId);
-  if (!parsedId.success) return <PersonalFrame>{children}</PersonalFrame>;
+  if (!parsedId.success) {
+    return (
+      <TerminologyProvider terms={await getPersonalTerminology()}>
+        <PersonalFrame>{children}</PersonalFrame>
+      </TerminologyProvider>
+    );
+  }
   const organisationId = parsedId.data;
 
   const [identity, organisation] = await Promise.all([
     requireAuthIdentity(),
     getOrganisation(organisationId),
   ]);
-  if (!organisation) return <PersonalFrame>{children}</PersonalFrame>;
+  if (!organisation) {
+    return (
+      <TerminologyProvider terms={await getPersonalTerminology()}>
+        <PersonalFrame>{children}</PersonalFrame>
+      </TerminologyProvider>
+    );
+  }
+  // P0-E9-3I: the workspace's spelling for client components in this shell.
+  const terms = await getWorkspaceTerminology(organisationId);
 
   const grants = await getMyCapabilities(organisationId);
   if (!isWorkspaceStaff(grants.map((grant) => grant.capabilityKey))) {
     // Self-service-only members (workers): the P7 worker frame (P0-E8-S6).
-    return <WorkerFrame rawOrganisationId={organisationId}>{children}</WorkerFrame>;
+    return (
+      <TerminologyProvider terms={terms}>
+        <WorkerFrame rawOrganisationId={organisationId}>{children}</WorkerFrame>
+      </TerminologyProvider>
+    );
   }
 
   const [profile, memberships, roles, myWorkerRecord] = await Promise.all([
@@ -76,21 +99,23 @@ export default async function WorkspaceLayout({
   });
 
   return (
-    <AppShell
-      navigation={navigation}
-      workspace={{
-        id: organisationId,
-        name: organisation.name,
-        typeLabel: TYPE_LABEL[organisation.type],
-        roleLabel,
-        suspended: organisation.status !== "active",
-      }}
-      user={{ displayName: profile.displayName, email: identity.email }}
-      otherWorkspaces={otherWorkspaces}
-      selectWorkspaceAction={selectOrganisationAction}
-      signOutAction={signOutAction}
-    >
-      {children}
-    </AppShell>
+    <TerminologyProvider terms={terms}>
+      <AppShell
+        navigation={navigation}
+        workspace={{
+          id: organisationId,
+          name: organisation.name,
+          typeLabel: TYPE_LABEL[organisation.type],
+          roleLabel,
+          suspended: organisation.status !== "active",
+        }}
+        user={{ displayName: profile.displayName, email: identity.email }}
+        otherWorkspaces={otherWorkspaces}
+        selectWorkspaceAction={selectOrganisationAction}
+        signOutAction={signOutAction}
+      >
+        {children}
+      </AppShell>
+    </TerminologyProvider>
   );
 }
