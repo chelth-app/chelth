@@ -57,6 +57,7 @@ import {
   VERIFICATION_TONE,
 } from "./_components/compliance-tones";
 import { CredentialDetailsPanel, expiryNote } from "./_components/credential-details-panel";
+import { FacilityCompliance } from "./_components/facility-compliance";
 
 export const metadata: Metadata = { title: "Compliance" };
 
@@ -97,6 +98,18 @@ export default async function CompliancePage({
   searchParams,
 }: PageProps<"/app/organisations/[organisationId]/compliance">) {
   const context = await loadOrganisationPage((await params).organisationId);
+  // P0-E9-3K: a facility sees the compliance its partner agencies share with it
+  // (credential.view + relationship.view; the facility projection only).
+  if (context.organisation.type === "facility") {
+    requireCapabilityOrNotFound(context, CAPABILITIES.CREDENTIAL_VIEW);
+    requireCapabilityOrNotFound(context, CAPABILITIES.RELATIONSHIP_VIEW);
+    return (
+      <FacilityCompliance
+        organisationId={context.organisationId}
+        organisationName={context.organisation.name}
+      />
+    );
+  }
   requireCapabilityOrNotFound(context, CAPABILITIES.CREDENTIAL_REQUIREMENTS_VIEW);
   const { organisationId, organisation, can } = context;
   const manage = can(CAPABILITIES.CREDENTIAL_REQUIREMENTS_MANAGE);

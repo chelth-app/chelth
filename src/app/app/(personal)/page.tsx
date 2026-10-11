@@ -11,6 +11,7 @@ import { getMyProfile } from "@/features/identity";
 import { cn } from "@/lib/utils/cn";
 import {
   CreateOrganisationForm,
+  facilityOnlyOrganisations,
   listMyMemberships,
   listRoles,
   readActiveOrganisationPreference,
@@ -77,6 +78,16 @@ export default async function AppHomePage({ searchParams }: PageProps<"/app">) {
     );
   }
 
+  // Facility-first entry (P0-E9-3K): a facility-only account opens its
+  // facility's Overview (one facility), or chooses among its facilities with
+  // no agency-creation panel. Agency, mixed and new users keep the gateway.
+  const facilityOnly = facilityOnlyOrganisations(visible);
+  const [onlyFacility] = facilityOnly ?? [];
+  if (facilityOnly?.length === 1 && onlyFacility && !pendingInvite && !noticeText) {
+    redirect(`/app/organisations/${onlyFacility.id}` as Route);
+  }
+  const offerCreateAgency = facilityOnly === null;
+
   // The preference only reorders the list; nothing is selected automatically.
   const ordered = [...visible].sort(
     (a, b) =>
@@ -124,7 +135,13 @@ export default async function AppHomePage({ searchParams }: PageProps<"/app">) {
         </div>
       ) : null}
 
-      <div className="grid gap-7 lg:grid-cols-[minmax(0,1.8fr)_minmax(320px,1fr)] lg:items-start lg:gap-6">
+      <div
+        className={cn(
+          "grid gap-7",
+          offerCreateAgency &&
+            "lg:grid-cols-[minmax(0,1.8fr)_minmax(320px,1fr)] lg:items-start lg:gap-6",
+        )}
+      >
         <div className="flex min-w-0 flex-col gap-7">
           <section aria-labelledby="organisations-heading" className="flex flex-col gap-3">
             <h2
@@ -220,25 +237,27 @@ export default async function AppHomePage({ searchParams }: PageProps<"/app">) {
           </section>
         </div>
 
-        <section
-          aria-labelledby="create-heading"
-          className="flex flex-col gap-4 rounded-[14px] border border-[rgba(18,107,103,0.10)] bg-white/80 p-5 shadow-[0_1px_2px_rgba(13,47,66,0.04)] sm:p-6"
-        >
-          <div className="flex flex-col gap-1">
-            <h2
-              id="create-heading"
-              className="font-display text-[18px] leading-6 font-semibold text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)]"
-            >
-              Create a new agency
-            </h2>
-            <p className="text-[14px] leading-5 text-slate-600">
-              Use Chelth for a separate staffing organisation.
-            </p>
-          </div>
-          <div className="chelth-locked">
-            <CreateOrganisationForm />
-          </div>
-        </section>
+        {offerCreateAgency ? (
+          <section
+            aria-labelledby="create-heading"
+            className="flex flex-col gap-4 rounded-[14px] border border-[rgba(18,107,103,0.10)] bg-white/80 p-5 shadow-[0_1px_2px_rgba(13,47,66,0.04)] sm:p-6"
+          >
+            <div className="flex flex-col gap-1">
+              <h2
+                id="create-heading"
+                className="font-display text-[18px] leading-6 font-semibold text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)]"
+              >
+                Create a new agency
+              </h2>
+              <p className="text-[14px] leading-5 text-slate-600">
+                Use Chelth for a separate staffing organisation.
+              </p>
+            </div>
+            <div className="chelth-locked">
+              <CreateOrganisationForm />
+            </div>
+          </section>
+        ) : null}
       </div>
     </div>
   );

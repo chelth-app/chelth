@@ -35,6 +35,7 @@ export {
 } from "./page-context";
 export {
   buildWorkspaceNavigation,
+  facilityOnlyOrganisations,
   type FinanceArea,
   financeAreas,
   isWorkspaceStaff,

@@ -132,13 +132,17 @@ test.describe.serial("worker-first app entry", () => {
     await mixed.context().close();
   });
 
-  test("6. a facility admin keeps the existing workspace gateway", async ({ browser }) => {
+  test("6. a facility-only admin opens their facility, never the worker entry", async ({
+    browser,
+  }) => {
+    // P0-E9-3K: one facility ⇒ its Overview directly (no worker chooser, no gateway).
     const page = await signedInPage(browser, world.facilityAdmin.email);
-    await expect(page).toHaveURL(/\/app$/, AFTER_ACTION);
+    await expect(page).toHaveURL(
+      new RegExp(`/app/organisations/${world.facilityOrgId}$`),
+      AFTER_ACTION,
+    );
     await expect(
-      page
-        .getByRole("list", { name: "Your organizations" })
-        .getByRole("article", { name: world.facilityOrgName }),
+      page.getByRole("heading", { level: 1, name: world.facilityOrgName }),
     ).toBeVisible();
     await expect(page.getByRole("list", { name: "Your agencies" })).toHaveCount(0);
     await page.context().close();

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { isNavItemActive } from "@/components/layout/workspace-navigation-model";
 import {
   buildWorkspaceNavigation,
+  facilityOnlyOrganisations,
   financeAreas,
   isWorkspaceStaff,
   workerOnlyAgencies,
@@ -168,29 +169,39 @@ describe("buildWorkspaceNavigation", () => {
     ]);
   });
 
-  it("gives a facility admin requests, timesheet sign-off and messages only", () => {
+  // P0-E9-3K: the facility workspace — requests, coverage, attendance and
+  // shared compliance, each by its own capability.
+  it("gives a facility admin the full facility workspace", () => {
     expect(navFor("facility.admin", "facility").labels).toEqual([
       "Overview",
       "Staffing requests",
+      "Coverage",
+      "Attendance",
+      "Compliance",
       "Sign-off",
       "Messages",
       "Settings",
     ]);
   });
 
-  it("gives a facility scheduler requests and messages without sign-off", () => {
+  it("gives a facility scheduler staffing, coverage, compliance and messages without sign-off", () => {
     expect(navFor("facility.scheduler", "facility").labels).toEqual([
       "Overview",
       "Staffing requests",
+      "Coverage",
+      "Attendance",
+      "Compliance",
       "Messages",
       "Settings",
     ]);
   });
 
-  it("gives a facility supervisor view routes only", () => {
+  it("gives a facility supervisor view routes and sign-off only (no compliance, no messages)", () => {
     expect(navFor("facility.supervisor", "facility").labels).toEqual([
       "Overview",
       "Staffing requests",
+      "Coverage",
+      "Attendance",
       "Sign-off",
       "Settings",
     ]);
@@ -198,7 +209,19 @@ describe("buildWorkspaceNavigation", () => {
 
   it("never lists agency routes in a facility workspace, even with every capability", () => {
     const { labels } = navFor("agency.admin", "facility");
-    expect(labels).toEqual(["Overview", "Staffing requests", "Sign-off", "Messages", "Settings"]);
+    expect(labels).toEqual([
+      "Overview",
+      "Staffing requests",
+      "Coverage",
+      "Attendance",
+      "Compliance",
+      "Sign-off",
+      "Messages",
+      "Settings",
+    ]);
+    for (const agencyOnly of ["Operations", "Shifts", "Workforce", "Facilities", "Finance"]) {
+      expect(labels).not.toContain(agencyOnly);
+    }
   });
 
   it("lists capabilities pending MFA step-up (the page renders a step-up notice)", () => {
@@ -439,5 +462,43 @@ describe("workerOnlyAgencies (P0-E9-3B app entry)", () => {
     ["only hidden memberships", [{ organisation: null, roleKeys: [WORKER] }]],
   ])("keeps the general gateway for %s", (_label, memberships) => {
     expect(workerOnlyAgencies(memberships)).toBeNull();
+  });
+});
+
+describe("facilityOnlyOrganisations (P0-E9-3K app entry)", () => {
+  const facility = (id: string) => ({ id, name: `Facility ${id}`, type: "facility" as const });
+  const agency = { id: "a", name: "Agency a", type: "agency" as const };
+
+  it("returns the one facility of a facility-only account (opened directly)", () => {
+    expect(
+      facilityOnlyOrganisations([{ organisation: facility("f"), roleKeys: ["facility.admin"] }]),
+    ).toEqual([{ id: "f", name: "Facility f" }]);
+  });
+
+  it("returns every facility for a member of several facilities (facility chooser)", () => {
+    expect(
+      facilityOnlyOrganisations([
+        { organisation: facility("f"), roleKeys: ["facility.scheduler"] },
+        { organisation: facility("g"), roleKeys: ["facility.supervisor"] },
+      ]),
+    ).toEqual([
+      { id: "f", name: "Facility f" },
+      { id: "g", name: "Facility g" },
+    ]);
+  });
+
+  it.each([
+    [
+      "a mixed agency + facility member (keeps the general gateway)",
+      [
+        { organisation: agency, roleKeys: ["agency.scheduler"] },
+        { organisation: facility("f"), roleKeys: ["facility.admin"] },
+      ],
+    ],
+    ["an agency member", [{ organisation: agency, roleKeys: ["agency.admin"] }]],
+    ["a facility membership without roles", [{ organisation: facility("f"), roleKeys: [] }]],
+    ["no memberships", []],
+  ])("returns null for %s", (_label, memberships) => {
+    expect(facilityOnlyOrganisations(memberships)).toBeNull();
   });
 });

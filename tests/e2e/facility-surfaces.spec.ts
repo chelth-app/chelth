@@ -354,7 +354,11 @@ test.describe.serial("facility workspace surfaces", () => {
   test("facility users never reach agency-only routes", async ({ browser }) => {
     const page = await signedIn(browser, world.facilityAdmin.email);
     for (const path of ["shifts", "workforce", "attendance", "operations", "payroll", "pricing"]) {
-      for (const organisationId of [world.agencyId, world.facilityOrgId]) {
+      // P0-E9-3K: Attendance is also a facility route (its own shifts only), so it
+      // is checked against the agency workspace alone.
+      const organisations =
+        path === "attendance" ? [world.agencyId] : [world.agencyId, world.facilityOrgId];
+      for (const organisationId of organisations) {
         const response = await page.goto(`/app/organisations/${organisationId}/${path}`);
         expect(response?.status(), `${organisationId}/${path}`).toBe(404);
       }
@@ -365,6 +369,9 @@ test.describe.serial("facility workspace surfaces", () => {
       await expect(nav.getByRole("link")).toHaveText([
         "Overview",
         "Staffing requests",
+        "Coverage",
+        "Attendance",
+        "Compliance",
         "Sign-off",
         "Messages",
         "Settings",

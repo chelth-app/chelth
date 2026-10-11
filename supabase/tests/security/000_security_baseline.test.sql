@@ -195,6 +195,7 @@ select is(
     'list_attendance_location_evidence(uuid)',
     'list_billable_work(uuid)',
     'list_custom_credential_types(uuid)',
+    'list_facility_coverage(uuid,date,date)',
     'list_facility_request_options(uuid)',
     'list_facility_shift_assignments(uuid)',
     'list_facility_shift_attendance(uuid)',

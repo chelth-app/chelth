@@ -1,0 +1,454 @@
+P0-E9-3K — FACILITY WORKSPACE AUDIT & COMPLETION
+CHELTH — Healthcare Workforce Operations
+Date: 2026-10-11
+Branch: p0-e8-visual-implementation (uncommitted; not deployed)
+
+Summary
+-------
+Audit verdict: facility users already had a real facility-oriented workspace
+(option A, not an agency workspace with items hidden), built in P0-E8-S4 and
+QA-F1. It had its own nav, Overview, Staffing requests, request detail with
+"who is coming" and per-shift attendance, Sign-off, Messages, and facility
+projections in the database. The gaps were:
+- entry: a facility-only user saw the general gateway, including "Create a new
+  agency";
+- no facility view of the workers serving the facility across shifts;
+- no facility Attendance page;
+- no facility Compliance page (shared compliance was a long list buried in the
+  Overview);
+- an incomplete Overview: no "Request staff" action and no today/attention
+  counts.
+This phase closes those gaps with one new audited database projection and
+three facility pages. It reuses every existing model; no second request,
+compliance or attendance model was created.
+
+====================================================
+INTERNAL AUDIT TABLE (§27)
+====================================================
+
+Surface | Current behaviour | Desired | Gap | Action
+Entry (/app) | general gateway + "Create a new agency" for everyone | facility-only → own facility; several → facility chooser | yes | facility-only redirect / chooser without agency creation
+Navigation | Overview, Staffing requests, Sign-off, Messages, Settings | + Coverage, Attendance, Compliance by capability | yes | added 3 items
+Overview | requests KPIs, upcoming, sign-off, relationships + long shared-compliance list | Request staff; today's coverage, attention, unread | partial | Request staff action; "Today at your facility" KPIs; compliance list → link
+Staffing requests | create (shift.request), list, filters, drawer, detail, withdraw | same | none | unchanged
+Shifts | requests ARE the facility's shifts (same projection) | facility-scoped shifts | none | unchanged (agency /shifts stays 404)
+Workers / Coverage | only per request ("Who is coming") | workers serving the facility | yes | new /coverage + list_facility_coverage
+Compliance | per-relationship shared compliance on the Overview | dedicated page | yes | new facility branch of /compliance
+Attendance | per request only (list_facility_shift_attendance) | today's attendance | yes | new facility branch of /attendance
+Timesheets | Sign-off: sign off / dispute (existing model) | surface clearly | none | unchanged ("Sign-off" label kept: locked, tested)
+Messages | agency ↔ facility threads, unread, request context | same | none | unchanged; unread count added to Overview
+Settings | Organization, Team & Permissions, Security | facility-relevant only | none | unchanged (agency sections already hidden)
+Notifications | request opened, shift cancelled, sign-off required | document | doc | §23 / §24 follow-ups
+Empty states | agency-neutral on existing pages | facility copy | new pages | facility copy on new pages
+
+====================================================
+1. CURRENT FACILITY ENTRY BEHAVIOUR
+====================================================
+
+Before: sign-in → /app gateway for all non-worker accounts. A facility-only
+user saw an organisation card plus a "Create a new agency" panel, and the
+facility Overview linked back to it.
+Now (facilityOnlyOrganisations):
+- one facility (every visible membership is a facility membership with a
+  role) → /app redirects to that facility's Overview, and the Overview hides
+  "All organizations" (there is nothing to go back to);
+- several facilities → the gateway lists them, with no agency-creation panel;
+- agency, mixed agency + facility, role-less or new users → unchanged
+  gateway (mixed users keep the switcher and chooser);
+- a pending invitation or a notice still shows the gateway first.
+Presentation only; every page keeps its own server gate.
+
+====================================================
+2. CURRENT NAVIGATION
+====================================================
+
+Facility nav (buildWorkspaceNavigation, capability-driven, same predicate as
+each page gate):
+  Overview · Staffing requests (shift.view) · Coverage (shift.view) ·
+  Attendance (attendance.view) · Compliance (credential.view) ·
+  Sign-off (timesheet.facility_signoff) · Messages (message.view) · Settings
+Agency items (Operations, Shifts, Workforce, Facilities, Finance) are never
+listed in a facility workspace, even with every capability (unit-tested), and
+their routes 404 for facility organisations (E2E).
+"Sign-off" is kept rather than "Timesheets": it is the approved, tested
+label, and it is the facility's whole timesheet role.
+
+====================================================
+3. ROLE / CAPABILITY MATRIX
+====================================================
+
+Capabilities (database, unchanged):
+  facility.admin       attendance.view audit.view credential.view membership.invite
+                       membership.manage membership.view message.send message.view
+                       organisation.manage organisation.view relationship.view
+                       role.assign shift.request shift.view timesheet.facility_signoff
+  facility.scheduler   attendance.view credential.view membership.view message.send
+                       message.view organisation.view relationship.view shift.request
+                       shift.view
+  facility.supervisor  attendance.view membership.view organisation.view shift.view
+                       timesheet.facility_signoff
+
+Feature                               | Admin | Scheduler | Supervisor
+Overview                              |  yes  |    yes    |    yes
+Request staff / withdraw request      |  yes  |    yes    |    no
+View staffing requests                |  yes  |    yes    |    yes
+Coverage (workers serving facility)   |  yes  |    yes    |    yes
+Attendance (derived states)           |  yes  |    yes    |    yes
+Compliance (shared by agencies)       |  yes  |    yes    |    no
+Timesheet sign-off / dispute          |  yes  |    no     |    yes
+Messages (view / send)                |  yes  |    yes    |    no
+Settings: Organization, Security      |  yes  |    yes    |    yes
+Settings: Team (view)                 |  yes  |    yes    |    yes
+Invite members / assign roles (AAL2)  |  yes  |    no     |    no
+Edit organisation (AAL2)              |  yes  |    no     |    no
+Audit view (AAL2)                     |  yes  |    no     |    no
+Agency workforce / finance / settings |  no   |    no     |    no
+No role meanings were changed or invented.
+
+====================================================
+4. OVERVIEW / DASHBOARD AUDIT
+====================================================
+
+Existing, kept: Awaiting agency, Open requests (not fully staffed), Workers
+expected today, Timesheets to sign off, Today and upcoming, Awaiting sign-off,
+and Agency relationships.
+Added:
+- "Request staff" primary action (shift.request), opening the existing form;
+- "Today at your facility", each card behind its own gate:
+    Checked in now and Attendance attention (shift.view + attendance.view;
+      one audited coverage read),
+    Compliance attention (credential.view; shared workers not ready, from the
+      projection the page already loaded),
+    Unread messages (message.view; existing unread_message_count).
+- The long per-worker shared-compliance list moved to the Compliance page; the
+  Overview keeps a count and a link.
+Every number is a count of existing projections; no invented metrics.
+
+====================================================
+5. STAFFING REQUEST FLOW
+====================================================
+
+Audited and unchanged: submit_facility_shift_request (relationship, location,
+discipline, local date, start/end, headcount, instructions, reference),
+facility list with status and fill filters, drawer, detail, withdraw. Status
+labels: Requested (submitted), Open with Unfilled / Partially filled / Filled,
+Canceled / Cancelled (workspace spelling), Completed. Lifecycle E2E: facility
+submits in the UI → agency opens and assigns → worker accepts → facility
+Coverage shows the worker as Accepted.
+Unit: not part of the facility request (the agency sets it on the shift);
+see §24.
+
+====================================================
+6. SHIFT VISIBILITY
+====================================================
+
+Facility "shifts" are its staffing requests: the same facility projection
+(list_facility_shifts / _page), scoped by the linked facility organisation,
+relationship capability, non-ended relationship and non-draft shifts. Fields:
+date, start/end, role, location, agency, status, fill, instructions. Workers
+and attendance appear on each request and now on Coverage and Attendance. No
+pay, bill or pricing fields exist in any facility projection (pgTAP F check).
+
+====================================================
+7. WORKERS / COVERAGE
+====================================================
+
+New /coverage (facility only, shift.view) with views Today / Next 14 days /
+Last 7 days, backed by public.list_facility_coverage (§22). Rows: worker
+display name, role, shift date and time (facility local), location, agency,
+response (Awaiting response / Accepted), readiness for this facility when not
+ready (upcoming only), and attendance state with attendance.view. Each row
+links to its staffing request. Only workers assigned to this facility's own
+shifts; never other facilities, pay, contact details or agency notes. Empty
+states: "Workers assigned to this facility will appear here. Request coverage
+when you need additional staff."
+
+====================================================
+8. COMPLIANCE
+====================================================
+
+New facility branch of /compliance (credential.view + relationship.view):
+- per active agency relationship, the workers that agency has shared
+  (list_shared_worker_compliance, the existing audited projection evaluated by
+  the one engine against this facility's requirements);
+- readiness, each requirement's status and "valid to" date;
+- KPIs: shared, ready, needs attention.
+No documents, credential numbers or unshared workers. Facility users still
+cannot manage requirements: facility roles do not hold
+credential.requirements.manage, and requirements live on the agency's facility
+record. Supervisors (no credential.view) get a 404.
+
+====================================================
+9. ATTENDANCE
+====================================================
+
+New facility branch of /attendance (attendance.view): today's workers at the
+facility's own shifts, including overnight shifts still running. Each shows
+Not started / Clocked in / On break / Completed / Needs review, plus "Not
+checked in" when an accepted worker has not clocked in after the start. KPIs:
+Scheduled today, Checked in (on break), Completed, Needs attention.
+Derived states only: no coordinates, accuracy, distance or geofence evidence,
+and no review or correction tools (agency-only). The agency attendance page
+and its record/evidence routes still 404 for facilities.
+
+====================================================
+10. TIMESHEETS
+====================================================
+
+Audited: facilities sign off or dispute agency-approved entries
+(facility_decide_timesheet_entry; timesheet.facility_signoff: Admin and
+Supervisor). Surfaced as "Sign-off" in the nav, an Overview KPI and a panel.
+No pay, margin, pricing or payroll data (existing NO_LEAKS E2E checks). No new
+approval semantics.
+
+====================================================
+11. MESSAGING
+====================================================
+
+Unchanged model: agency ↔ facility threads per relationship and shift; worker
+↔ agency only; no worker ↔ facility thread. Admin and Scheduler hold
+message.view/send; Supervisor does not (nav hidden, route 404, tested).
+Added: unread count on the Overview.
+
+====================================================
+12. SETTINGS
+====================================================
+
+Facility Settings = Organization (profile; organisation.manage to edit),
+Team & Permissions (view; invite/roles for Admin), Security. Agency sections
+(Attendance & Geofencing, Payroll, Rates, Compliance) are refused for facility
+organisations (canOpenSection; E2E 404 for settings/rates, payroll,
+compliance). Locations, arrival guidance, worker contact and facility photo
+are agency-maintained on the agency's facility record today (§24).
+
+====================================================
+13. CUSTOM REQUIREMENT INTEGRATION (P0-E9-3J)
+====================================================
+
+Agency-owned custom types are used in facility-specific requirements on the
+agency's facility record (3J; tested). Facility users see custom requirements
+in their Compliance view by name, exactly like standard ones (same engine,
+same projection). Facility users do not select or create types: they hold no
+requirement-management capability, and the relationship model gives them no
+requirement authorship. Facility-owned custom types are a later feature (§24).
+
+====================================================
+14. PRIVACY BOUNDARIES
+====================================================
+
+Facility-facing fields (all pages): worker display name, role, shift times,
+location, agency name, response, readiness, derived attendance state,
+requirement name/status/valid-to, and sign-off entries (worked time).
+Never: home address, personal email or phone, pay or bill rates, payroll,
+margins, pricing, raw geolocation or geofence evidence, credential documents
+or numbers, internal notes, other facilities or other agency relationships.
+Enforced in the projections (pgTAP F: no coordinate/pay/contact/note columns)
+and asserted in E2E (NO_LEAKS pattern on every new page).
+
+====================================================
+15. TENANT ISOLATION
+====================================================
+
+list_facility_coverage scopes every row by: the caller's facility organisation
+is the shift's linked facility, the relationship is not ended, the caller
+holds shift.view on that relationship (authz.has_relationship_capability), the
+shift is not a draft. Attendance columns need attendance.view on the same
+relationship. Agency organisations, workers and other facilities get CH403.
+Tested:
+- pgTAP 320: Gamma sees only Mercy; Delta only Beta Client; the unlinked
+  Riverside never appears; cross-facility, agency and worker calls → CH403;
+- E2E: a second facility admin gets 404 on every facility route of the first
+  facility (overview, requests, coverage, attendance, compliance, messages,
+  sign-off) and CH403 from the RPC directly.
+
+====================================================
+16. MOBILE
+====================================================
+
+The existing responsive shell (overlay navigation), not the worker PWA. The
+new pages use the locked KPI grid (2 columns on phones) and table regions
+that scroll inside their region. The E2E suite runs every 3K test at 412 px
+(Pixel 7): nav, Overview, Coverage, Attendance, Compliance, axe clean, no page
+overflow.
+
+====================================================
+17. LIFECYCLE E2E
+====================================================
+
+Covered across specs:
+- request → agency opens → assigned → worker accepts → facility Coverage
+  (facility-workspace);
+- request → open → assign → "Who is coming" Ready (shifts-assignments);
+- worker clocked in → facility Attendance "Clocked in" (facility-workspace,
+  Admin and Supervisor);
+- agency-approved time → facility sign-off / dispute (timesheets,
+  facility-surfaces);
+- history retained (Last 7 days coverage; request records keep their states).
+Compliance flow: the facility requirement exists → the worker is shared → the
+facility sees readiness (Ready, with requirement detail). The submit → verify
+→ update path is the agency flow (3J/credentials specs); the facility view
+reads the same engine, so it updates on the next load.
+Missing handoffs: see §18.
+
+====================================================
+18. GAPS FOUND
+====================================================
+
+Fixed in this phase: entry routing; Coverage; facility Attendance; facility
+Compliance; Overview action and counts; agency-creation panel for
+facility-only users.
+Found, not fixed (outside scope or needs product decisions; §24):
+- the facility is not notified when a request is filled or a worker assigned,
+  for agency messages, shift changes, relationship suspension/end, or
+  late/missed check-in;
+- unit is not visible to the facility;
+- the facility cannot maintain its own locations, arrival guidance or photo;
+- facility-authored requirements and custom types.
+
+====================================================
+19. FIXES IMPLEMENTED
+====================================================
+
+- Database: public.list_facility_coverage (one audited, relationship-scoped
+  projection).
+- Entry: facilityOnlyOrganisations; /app redirect or facility chooser; no
+  "Create a new agency" for facility-only users; Overview back link hidden for
+  single-facility users.
+- Nav: Coverage, Attendance, Compliance (facility, by capability).
+- Pages: /coverage (new); facility branches of /attendance and /compliance.
+- Overview: Request staff; "Today at your facility"; compliance detail moved
+  to a link.
+- Shared table: FacilityCoverageTable + coverageNeedsAttention.
+- Audit vocabulary: coverage.viewed_by_facility.
+
+====================================================
+20. TESTS
+====================================================
+
+pgTAP 320_facility_coverage (18): V visibility (admin, supervisor, window,
+  attendance, readiness, unlinked facility excluded) · I isolation (cross
+  facility both ways, agency, worker, suspended keeps history) · F fields (no
+  coordinates/pay/contact/notes; no drafts) · W window bounds · A audit once
+  per 15 min per person. 000 baseline allowlist updated.
+Unit: workspace-navigation (per-role facility nav, never agency items,
+  facilityOnlyOrganisations: one / several / mixed / agency / role-less /
+  none). 500 unit tests pass.
+E2E tests/e2e/facility-workspace.spec.ts (desktop + mobile, axe):
+  Admin lands on the facility, nav, Overview KPIs, Request staff → request →
+  agency fills → Coverage, Attendance, Compliance, 11 agency/finance routes
+  404 · Scheduler nav, Request staff, Compliance, no sign-off / invite ·
+  Supervisor nav, attendance, compliance/messages 404, no request form ·
+  Isolation (second facility: 7 routes 404, RPC CH403).
+Updated for the intended changes: workspace-shell (facility navs;
+  facility-only entry; the single-card gateway check now uses a single-agency
+  user), facility-surfaces (attendance is a facility route; nav),
+  worker-app-entry (facility admin opens the facility), support
+  SIGNED_IN_LANDING.
+
+Validation (local, clean database reset):
+  npm run format:check   PASS
+  npm run lint           PASS
+  npm run typecheck      PASS
+  npm test               PASS  500
+  npm run build          PASS
+  npm run check:bundle   PASS
+  npm run check:migrations PASS (74)
+  supabase db reset      PASS
+  supabase db lint --level warning --fail-on warning  PASS
+  supabase test db       PASS  37 files / 1724
+  npm run db:types       PASS  (no drift)
+  npm run test:integration PASS 20 files / 137
+  npx playwright test    PASS  364 passed / 14 skipped / 0 failed (11.7 min, desktop + mobile)
+
+====================================================
+21. FILES CHANGED
+====================================================
+
+New
+  supabase/migrations/20261011120000_facility_coverage.sql
+  supabase/tests/security/320_facility_coverage.test.sql
+  src/app/app/organisations/[organisationId]/(workspace)/coverage/page.tsx
+  src/app/app/organisations/[organisationId]/(workspace)/_components/facility-coverage-table.tsx
+  src/app/app/organisations/[organisationId]/(workspace)/attendance/_components/facility-attendance.tsx
+  src/app/app/organisations/[organisationId]/(workspace)/compliance/_components/facility-compliance.tsx
+  tests/e2e/facility-workspace.spec.ts
+Modified
+  src/app/app/(personal)/page.tsx                        facility-only entry
+  src/app/app/organisations/[organisationId]/(workspace)/page.tsx   Request staff, KPIs, back link
+  .../(workspace)/_components/facility-operations-overview.tsx      Today at your facility
+  .../(workspace)/attendance/page.tsx, compliance/page.tsx          facility branches
+  src/features/organisations/workspace-navigation.ts, index.ts      nav + entry helper
+  src/features/shifts/queries.ts                          listFacilityCoverage
+  src/lib/authz/vocabulary.ts                             audit action
+  src/types/database.types.ts                             regenerated
+  supabase/tests/security/000_security_baseline.test.sql
+  tests/unit/lib/workspace-navigation.test.ts
+  tests/e2e/{support,workspace-shell,facility-surfaces,worker-app-entry}.spec/ts
+No finance, pricing or agency workflow code changed.
+
+====================================================
+22. MIGRATIONS
+====================================================
+
+20261011120000_facility_coverage.sql — additive: one security-definer
+function, public.list_facility_coverage(uuid, date, date), with execute
+revoked from public/anon and granted to authenticated. No table, policy or data
+change. It exposes nothing beyond list_facility_shift_assignments and
+list_facility_shift_attendance (same scoping helpers), for many shifts in one
+audited read.
+
+====================================================
+23. DEPLOYMENT ORDER (manual; nothing deployed)
+====================================================
+
+Pending before 3K: 3J (20261011110000, 20261011110100), if not yet pushed.
+1. Restore point.
+2. supabase db push (adds 20261011120000).
+3. Deploy the application.
+4. Smoke test as a facility admin: /app opens the facility; Coverage,
+   Attendance and Compliance load; agency routes 404.
+The app depends on the new function (Coverage, facility Attendance, Overview
+counts), so the migration goes first. It is additive, so the old app keeps
+working.
+
+====================================================
+24. REMAINING GAPS (FOLLOW-UPS)
+====================================================
+
+Notifications. Facilities currently receive facility_request_opened,
+shift_cancelled and timesheet_facility_signoff_required. Missing: request
+filled / worker assigned, agency message received (in-app unread works),
+shift changed, relationship suspended/ended, late or missed check-in.
+Other follow-ups:
+- unit on the facility request and views;
+- facility-maintained locations, arrival guidance, worker contact and photo
+  (agency-owned today);
+- facility-authored requirements and facility-owned custom types (needs a
+  relationship-scoped ownership model; not built per §9/§11);
+- staffing preferences (no model exists);
+- Attendance history beyond today on the facility page (Coverage
+  "Last 7 days" shows recent attendance states).
+
+====================================================
+FINAL
+====================================================
+
+FACILITY WORKSPACE:
+STATUS: COMPLETE
+
+FACILITY ROLE SCOPING:
+STATUS: COMPLETE
+
+STAFFING REQUEST FLOW:
+STATUS: COMPLETE
+
+FACILITY COMPLIANCE:
+STATUS: COMPLETE
+
+FACILITY MESSAGING:
+STATUS: COMPLETE
+
+CROSS-FACILITY ISOLATION:
+STATUS: VERIFIED
+
+DO NOT DEPLOY AUTOMATICALLY.
