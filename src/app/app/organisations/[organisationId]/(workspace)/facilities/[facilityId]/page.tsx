@@ -58,16 +58,18 @@ import { localCalendarDate } from "@/lib/domain/credentials";
 import { listCredentialTypes, listDisciplines, listJurisdictions } from "@/features/credentials";
 import { CAPABILITIES } from "@/lib/authz";
 import { cn } from "@/lib/utils/cn";
+import { spell } from "@/features/localization";
 import {
   FACILITY_STATUS_LABELS,
   FACILITY_STATUS_TRANSITIONS,
   RELATIONSHIP_STATUS_LABELS,
   RELATIONSHIP_STATUS_TRANSITIONS,
 } from "@/lib/domain/vocabulary";
+import { requestDateFormat } from "@/lib/i18n/request-terms";
 
 export const metadata: Metadata = { title: "Facility" };
 
-const date = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" });
+const date = requestDateFormat({ dateStyle: "medium" });
 
 export default async function FacilityPage({
   params,
@@ -143,7 +145,7 @@ export default async function FacilityPage({
           <>
             <FacilityStatusBadge status={facility.status} />
             {facility.linked ? (
-              <RecordMeta>Linked to a CHELTH facility organisation</RecordMeta>
+              <RecordMeta>{spell("Linked to a CHELTH facility organization")}</RecordMeta>
             ) : null}
           </>
         }

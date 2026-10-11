@@ -17,6 +17,8 @@ import { auditActionLabel, CAPABILITIES } from "@/lib/authz";
 
 import { settingsHref } from "../_components/settings-sections";
 import { SettingsActionLink, SettingsActionRow } from "../_components/settings-ui";
+import { spell } from "@/features/localization";
+import { currentTerms } from "@/lib/i18n/request-terms";
 
 export const metadata: Metadata = { title: "Security" };
 
@@ -33,7 +35,7 @@ export default async function SettingsSecurityPage({
 }: PageProps<"/app/organisations/[organisationId]/settings/security">) {
   // Audit times are personal display (P0-E9-3F): the person's own timezone.
   const displayTimeZone = resolveDisplayTimeZone(await getMyProfile());
-  const dateTime = new Intl.DateTimeFormat("en-GB", {
+  const dateTime = new Intl.DateTimeFormat(currentTerms().locale, {
     dateStyle: "medium",
     timeStyle: "short",
     timeZone: displayTimeZone,
@@ -120,7 +122,7 @@ export default async function SettingsSecurityPage({
               label="Recent activity"
               items={audit.map((event) => ({
                 id: event.id,
-                title: auditActionLabel(event.action),
+                title: spell(auditActionLabel(event.action)),
                 meta: (
                   <>
                     by{" "}

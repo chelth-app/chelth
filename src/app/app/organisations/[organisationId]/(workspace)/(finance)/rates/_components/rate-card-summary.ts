@@ -9,20 +9,25 @@ import { SHIFT_CLASSIFICATION_LABELS, type VersionPhase, versionPhase } from "@/
  * matching work; there is no fallback to a broader card).
  */
 
-/** Today's standing of the card as a whole. */
-export type CardState = "active" | "upcoming" | "draft" | "inactive";
+/**
+ * Today's standing of the card as a whole. Operator vocabulary (P0-E9-3H):
+ * Draft · Active · Scheduled · Ended (and "No active rate" when nothing ever applied).
+ */
+export type CardState = "active" | "upcoming" | "draft" | "ended" | "inactive";
 
 export const CARD_STATE_LABELS: Record<CardState, string> = {
   active: "Active",
-  upcoming: "Starts later",
+  upcoming: "Scheduled",
   draft: "Draft",
-  inactive: "Not in force",
+  ended: "Ended",
+  inactive: "No active rate",
 };
 
 export const CARD_STATE_TONE: Record<CardState, StatusTone> = {
   active: "success",
   upcoming: "info",
   draft: "warning",
+  ended: "neutral",
   inactive: "danger",
 };
 
@@ -40,8 +45,8 @@ export const CARD_FILTERS = ["active", "attention", "draft", "upcoming"] as cons
 export type CardFilter = (typeof CARD_FILTERS)[number];
 
 export const CARD_FILTER_LABELS: Record<CardFilter, string> = {
-  active: "Active (rate in force)",
-  attention: "Needs attention (no rate in force)",
+  active: "Active",
+  attention: "Needs attention (no active rate)",
   draft: "With a draft version",
   upcoming: "With an upcoming version",
 };
@@ -76,7 +81,9 @@ export function summarise(card: RateCardRow, today: string): RateCardSummary {
       ? "upcoming"
       : draft
         ? "draft"
-        : "inactive";
+        : phases.some((phase) => phase === "ended" || phase === "superseded")
+          ? "ended"
+          : "inactive";
   const facility = card.facilityName ?? "All facilities";
   const shiftType = card.classification
     ? SHIFT_CLASSIFICATION_LABELS[card.classification]
@@ -123,4 +130,96 @@ export function addIsoDays(value: string, days: number): string {
   const date = new Date(`${value}T00:00:00Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
+}
+
+/**
+ * The Overview status card (P0-E9-3H): what is true today and the next
+ * action. Presentation only — activation itself is the existing action, and
+ * the database decides whether a version may be activated.
+ */
+export type RateStatusCard = {
+  kind: "draft" | "active" | "scheduled" | "ended" | "none";
+  title: string;
+  body: string;
+  secondary: string | null;
+  /** The draft version the primary "Activate rate" action would activate. */
+  activate: RateVersionRow | null;
+  /** A further draft next to an active / scheduled version (secondary action). */
+  pendingDraft: RateVersionRow | null;
+};
+
+export function rateStatusCard(summary: RateCardSummary, today: string): RateStatusCard {
+  const phased = summary.card.versions.map((version) => ({
+    version,
+    phase: versionPhase(version, today),
+  }));
+  const newestDraft =
+    phased
+      .filter((item) => item.phase === "draft")
+      .map((item) => item.version)
+      .sort((a, b) => b.version - a.version)[0] ?? null;
+  const nextScheduled =
+    phased
+      .filter((item) => item.phase === "upcoming")
+      .map((item) => item.version)
+      .sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom))[0] ?? null;
+
+  switch (summary.state) {
+    case "draft":
+      return {
+        kind: "draft",
+        title: "Rate not active yet",
+        body: "This rate is still a draft. Activate it before Chelth can use it for pricing.",
+        secondary: null,
+        activate: newestDraft,
+        pendingDraft: null,
+      };
+    case "active":
+      return {
+        kind: "active",
+        title: "Rate active",
+        body: "This rate is currently available for matching shifts and timesheets.",
+        secondary: nextScheduled
+          ? `A new version is scheduled to start on ${rateDay(nextScheduled.effectiveFrom)}. The current version remains in force until then.`
+          : null,
+        activate: null,
+        pendingDraft: newestDraft,
+      };
+    case "upcoming":
+      return {
+        kind: "scheduled",
+        title: "Rate scheduled",
+        body: `This rate will start on ${rateDay(nextScheduled?.effectiveFrom ?? null, "a later date")}.`,
+        secondary: `No rate is active for this matching level until ${rateDay(nextScheduled?.effectiveFrom ?? null, "then")}.`,
+        activate: null,
+        pendingDraft: newestDraft,
+      };
+    case "ended": {
+      const lastEnd = phased
+        .filter((item) => item.phase === "ended" || item.phase === "superseded")
+        .map((item) => item.version.periodEnd ?? item.version.effectiveTo)
+        .filter((value): value is string => Boolean(value))
+        .sort()
+        .at(-1);
+      return {
+        kind: "ended",
+        title: "Rate ended",
+        body: `This rate stopped being active on ${rateDay(lastEnd ?? null, "an earlier date")}.`,
+        secondary:
+          "Timesheets that require this rate will wait for review until an applicable rate is active.",
+        activate: null,
+        pendingDraft: null,
+      };
+    }
+    case "inactive":
+      return {
+        kind: "none",
+        title: "No active rate",
+        body: "There is no active rate for this matching level on the selected work date.",
+        secondary:
+          "Timesheets that require this rate will wait for review until an applicable rate is active.",
+        activate: null,
+        pendingDraft: null,
+      };
+  }
 }

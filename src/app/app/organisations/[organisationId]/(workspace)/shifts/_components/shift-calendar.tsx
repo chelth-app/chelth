@@ -16,6 +16,7 @@ import {
 import { cn } from "@/lib/utils/cn";
 
 import type { ShiftListItem } from "./shift-details-panel";
+import { spell } from "@/features/localization";
 
 /*
  * Locked Shifts reference — Calendar view (week). Rows are the agency's
@@ -56,7 +57,7 @@ const BLOCK: Record<BlockTone, { surface: string; dot: string; label: string }> 
   cancelled: {
     surface: "border-[rgba(13,47,66,0.10)] bg-surface-muted",
     dot: "bg-neutral-indicator",
-    label: "Cancelled",
+    label: "Canceled",
   },
 };
 
@@ -152,7 +153,7 @@ function Block({
           </span>
         </span>
       }
-      triggerAccessibleLabel={`Details for ${shift.facilityName} · ${shift.disciplineName} · ${formatShiftDate(shift)}${worker ? ` · ${worker}` : ""} · ${style.label}`}
+      triggerAccessibleLabel={`Details for ${shift.facilityName} · ${shift.disciplineName} · ${formatShiftDate(shift)}${worker ? ` · ${worker}` : ""} · ${spell(style.label)}`}
       triggerClassName={cn(
         "w-full rounded-[8px] border px-2 py-1.5 no-underline transition-[filter] hover:brightness-[0.97] sm:min-h-0",
         style.surface,
@@ -448,7 +449,7 @@ export function ShiftCalendar({
         {(["confirmed", "pending", "open", "requested", "done"] as const).map((tone) => (
           <li key={tone} className="flex items-center gap-1.5">
             <span aria-hidden="true" className={cn("size-2 rounded-full", BLOCK[tone].dot)} />
-            {BLOCK[tone].label}
+            {spell(BLOCK[tone].label)}
           </li>
         ))}
       </ul>

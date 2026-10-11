@@ -18,6 +18,7 @@ import {
   saveFinancialSettingsAction,
   voidInvoiceDraftAction,
 } from "../actions";
+import { useSpell } from "@/lib/i18n/terminology-context";
 
 /** Payroll period + reference prefixes. Dates only: no timezone is involved. */
 export function FinancialSettingsForm({
@@ -94,6 +95,7 @@ export function CancelPayrollBatchForm({
   organisationId: string;
   batchId: string;
 }) {
+  const spell = useSpell();
   const [state, formAction] = useActionState(cancelPayrollBatchAction, null);
   return (
     <details className="text-sm">
@@ -103,7 +105,7 @@ export function CancelPayrollBatchForm({
         <input type="hidden" name="batchId" value={batchId} />
         <FormField
           id={`cancel-${batchId}`}
-          label="Reason for cancelling"
+          label={spell("Reason for canceling")}
           required
           errors={fieldErrorsFor(state, "reason")}
         >

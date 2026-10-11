@@ -22,10 +22,12 @@ import {
   cancelShiftAction,
   updateShiftDetailsAction,
 } from "../actions";
+import { useSpell } from "@/lib/i18n/terminology-context";
 
 type ShiftRef = { organisationId: string; shiftId: string };
 
 export function CancelShiftForm({ organisationId, shiftId }: ShiftRef) {
+  const spell = useSpell();
   const [state, formAction] = useActionState(cancelShiftAction, null);
   return (
     <form
@@ -47,7 +49,7 @@ export function CancelShiftForm({ organisationId, shiftId }: ShiftRef) {
           </option>
           {SHIFT_CANCELLATION_REASONS.map((reason) => (
             <option key={reason} value={reason}>
-              {SHIFT_CANCELLATION_REASON_LABELS[reason]}
+              {spell(SHIFT_CANCELLATION_REASON_LABELS[reason])}
             </option>
           ))}
         </Select>
@@ -55,7 +57,7 @@ export function CancelShiftForm({ organisationId, shiftId }: ShiftRef) {
       <SubmitButton variant="outline" className="w-fit">
         Cancel shift
       </SubmitButton>
-      <FormAlert state={state} successMessage="Shift cancelled." />
+      <FormAlert state={state} successMessage={spell("Shift canceled.")} />
     </form>
   );
 }
@@ -66,6 +68,7 @@ export function CancelAssignmentForm({
   assignmentId,
   workerName,
 }: ShiftRef & { assignmentId: string; workerName: string }) {
+  const spell = useSpell();
   const [state, formAction] = useActionState(cancelAssignmentAction, null);
   const id = `cancel-assignment-${assignmentId}`;
   return (
@@ -84,7 +87,7 @@ export function CancelAssignmentForm({
           </option>
           {ASSIGNMENT_CANCELLATION_REASONS.map((reason) => (
             <option key={reason} value={reason}>
-              {ASSIGNMENT_CANCELLATION_REASON_LABELS[reason]}
+              {spell(ASSIGNMENT_CANCELLATION_REASON_LABELS[reason])}
             </option>
           ))}
         </Select>

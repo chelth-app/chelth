@@ -41,6 +41,7 @@ import {
 import { cn } from "@/lib/utils/cn";
 
 import { LockedEmpty } from "../../(finance)/_components/finance-locked";
+import { spell } from "@/features/localization";
 
 export const metadata: Metadata = { title: "Staffing request" };
 
@@ -159,8 +160,8 @@ export default async function StaffingRequestPage({
             ...(shift.cancellationReason
               ? [
                   {
-                    label: "Cancelled",
-                    value: SHIFT_CANCELLATION_REASON_LABELS[shift.cancellationReason],
+                    label: spell("Canceled"),
+                    value: spell(SHIFT_CANCELLATION_REASON_LABELS[shift.cancellationReason]),
                   },
                 ]
               : []),

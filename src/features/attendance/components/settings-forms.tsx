@@ -23,6 +23,7 @@ import {
   saveGeofenceAction,
   saveGeofencePolicyAction,
 } from "../actions";
+import { useSpell } from "@/lib/i18n/terminology-context";
 
 type Rules = {
   earlyClockInMinutes: number;
@@ -144,6 +145,7 @@ export function GeofenceForm({
   current,
   policy = GEOFENCE_POLICY_DEFAULTS,
 }: GeofenceFormProps) {
+  const spell = useSpell();
   const [state, formAction] = useActionState(saveGeofenceAction, null);
   const values = geofenceFormValues(current, policy);
   const id = (field: string) => `geofence-${locationId}-${field}`;
@@ -163,13 +165,14 @@ export function GeofenceForm({
       </label>
       {values.fromDefaults ? (
         <p className="text-[13px] leading-5 text-slate-600 sm:col-span-2">
-          Prefilled from your agency defaults. Enter the site centre and save to set up this
-          location.
+          {spell(
+            "Prefilled from your agency defaults. Enter the site center and save to set up this location.",
+          )}
         </p>
       ) : null}
       <FormField
         id={id("lat")}
-        label="Site centre latitude"
+        label={spell("Site center latitude")}
         description="Decimal degrees, e.g. the main entrance."
         errors={fieldErrorsFor(state, "latitude")}
       >
@@ -177,7 +180,7 @@ export function GeofenceForm({
       </FormField>
       <FormField
         id={id("lon")}
-        label="Site centre longitude"
+        label={spell("Site center longitude")}
         description="Decimal degrees."
         errors={fieldErrorsFor(state, "longitude")}
       >
@@ -185,7 +188,7 @@ export function GeofenceForm({
       </FormField>
       <FormField
         id={id("radius")}
-        label="Check-in radius (metres)"
+        label={spell("Check-in radius (meters)")}
         description={`${COPY.radius} ${GEOFENCE_RADIUS_BOUNDS.min}–${GEOFENCE_RADIUS_BOUNDS.max} m.`}
         errors={fieldErrorsFor(state, "radiusMeters")}
       >
@@ -200,7 +203,7 @@ export function GeofenceForm({
       </FormField>
       <FormField
         id={id("accuracy")}
-        label="Maximum GPS uncertainty (metres)"
+        label={spell("Maximum GPS uncertainty (meters)")}
         description={`${COPY.accuracy} ${GEOFENCE_ACCURACY_BOUNDS.min}–${GEOFENCE_ACCURACY_BOUNDS.max} m.`}
         errors={fieldErrorsFor(state, "maxAccuracyMeters")}
       >
@@ -252,6 +255,7 @@ export function GeofencePolicyForm({
   organisationId: string;
   policy: GeofencePolicy;
 }) {
+  const spell = useSpell();
   const [state, formAction] = useActionState(saveGeofencePolicyAction, null);
   return (
     <form action={formAction} className="grid max-w-3xl gap-3 sm:grid-cols-2" noValidate>
@@ -277,7 +281,7 @@ export function GeofencePolicyForm({
       </div>
       <FormField
         id="geofence-default-radius"
-        label="Default check-in radius (metres)"
+        label={spell("Default check-in radius (meters)")}
         description={`${COPY.radius} ${GEOFENCE_RADIUS_BOUNDS.min}–${GEOFENCE_RADIUS_BOUNDS.max} m.`}
         errors={fieldErrorsFor(state, "defaultRadiusMeters")}
       >
@@ -292,7 +296,7 @@ export function GeofencePolicyForm({
       </FormField>
       <FormField
         id="geofence-default-accuracy"
-        label="Maximum location accuracy (metres)"
+        label={spell("Maximum location accuracy (meters)")}
         description={`Workers must have a sufficiently accurate location reading before check-in can be confirmed. ${GEOFENCE_ACCURACY_BOUNDS.min}–${GEOFENCE_ACCURACY_BOUNDS.max} m.`}
         errors={fieldErrorsFor(state, "defaultMaxAccuracyMeters")}
       >

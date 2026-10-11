@@ -84,7 +84,7 @@ test.describe.serial("worker-first app entry", () => {
     // Worker-only: no agency creation and no staff workspace gateway.
     await expect(page.getByRole("region", { name: "Create a new agency" })).toHaveCount(0);
     await expect(page.getByText("Create a new agency")).toHaveCount(0);
-    await expect(page.getByRole("list", { name: "Your organisations" })).toHaveCount(0);
+    await expect(page.getByRole("list", { name: "Your organizations" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /^Open workspace/ })).toHaveCount(0);
     await qaScreenshot(page, "e9-3b-worker-agency-chooser");
     await expectNoA11yViolations(page);
@@ -104,7 +104,7 @@ test.describe.serial("worker-first app entry", () => {
     await expect(page.getByRole("heading", { level: 1, name: /^Welcome/ })).toBeVisible();
     await expect(
       page
-        .getByRole("list", { name: "Your organisations" })
+        .getByRole("list", { name: "Your organizations" })
         .getByRole("button", { name: `Open workspace ${world.agencyName}` }),
     ).toBeVisible();
     await expect(page.getByRole("region", { name: "Create a new agency" })).toBeVisible();
@@ -116,7 +116,7 @@ test.describe.serial("worker-first app entry", () => {
     // Admin of one agency and worker of another.
     const owner = await signedInPage(browser, world.betaAdmin.email);
     await expect(owner).toHaveURL(/\/app$/, AFTER_ACTION);
-    const ownerList = owner.getByRole("list", { name: "Your organisations" });
+    const ownerList = owner.getByRole("list", { name: "Your organizations" });
     await expect(ownerList.getByRole("article")).toHaveCount(2);
     await expect(owner.getByRole("region", { name: "Create a new agency" })).toBeVisible();
     await expect(owner.getByRole("list", { name: "Your agencies" })).toHaveCount(0);
@@ -125,7 +125,7 @@ test.describe.serial("worker-first app entry", () => {
     // Worker of the agency and supervisor at the facility.
     const mixed = await signedInPage(browser, workerAndSupervisor.email);
     await expect(mixed).toHaveURL(/\/app$/, AFTER_ACTION);
-    const mixedList = mixed.getByRole("list", { name: "Your organisations" });
+    const mixedList = mixed.getByRole("list", { name: "Your organizations" });
     await expect(mixedList.getByRole("article", { name: world.agencyName })).toBeVisible();
     await expect(mixedList.getByRole("article", { name: world.facilityOrgName })).toBeVisible();
     await expect(mixed.getByRole("list", { name: "Your agencies" })).toHaveCount(0);
@@ -137,7 +137,7 @@ test.describe.serial("worker-first app entry", () => {
     await expect(page).toHaveURL(/\/app$/, AFTER_ACTION);
     await expect(
       page
-        .getByRole("list", { name: "Your organisations" })
+        .getByRole("list", { name: "Your organizations" })
         .getByRole("article", { name: world.facilityOrgName }),
     ).toBeVisible();
     await expect(page.getByRole("list", { name: "Your agencies" })).toHaveCount(0);

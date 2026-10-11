@@ -25,6 +25,8 @@ import {
   PHASE_TONE,
   type RateCardSummary,
   rateDay,
+  type RateStatusCard,
+  rateStatusCard,
 } from "./rate-card-summary";
 
 /*
@@ -33,6 +35,10 @@ import {
  * are a new draft version that is activated from its start date. The
  * activate / discard / new-version controls are the existing forms; the
  * database re-checks rates.manage (and step-up) on every one.
+ *
+ * P0-E9-3H: Overview leads with the card's status and next action (the same
+ * activateVersionAction as the Versions tab — no second implementation);
+ * Versions keeps the full history and advanced controls.
  */
 
 function Section({
@@ -62,50 +68,63 @@ function Section({
   );
 }
 
-/** Reference status note (as Timesheet Details "Attendance Verification"). */
-function RuleNote({
-  tone,
-  title,
-  note,
-}: {
-  tone: "success" | "warning";
-  title: string;
-  note: string;
-}) {
+const STATUS_STYLE: Record<RateStatusCard["kind"], { box: string; dot: string }> = {
+  draft: { box: "border-[rgba(180,120,20,0.14)] bg-warning-soft/40", dot: "bg-warning-indicator" },
+  active: { box: "border-[rgba(18,107,103,0.10)] bg-[#f8fcfb]", dot: "bg-success-indicator" },
+  scheduled: { box: "border-[rgba(37,99,235,0.12)] bg-info-soft/40", dot: "bg-info-indicator" },
+  ended: { box: "border-[rgba(15,23,42,0.08)] bg-surface-muted/60", dot: "bg-neutral-indicator" },
+  none: { box: "border-[rgba(180,35,24,0.14)] bg-danger-soft/40", dot: "bg-danger-indicator" },
+};
+
+/**
+ * Overview status card (P0-E9-3H): the state in words (never colour alone) and
+ * the next action. The glyph differs per state; the title carries the meaning.
+ */
+function StatusCard({ status, children }: { status: RateStatusCard; children?: ReactNode }) {
+  const style = STATUS_STYLE[status.kind];
   return (
     <div
-      className={cn(
-        "flex items-start gap-3 rounded-[10px] border px-3.5 py-3",
-        tone === "success"
-          ? "border-[rgba(18,107,103,0.07)] bg-[#f8fcfb]"
-          : "border-[rgba(180,120,20,0.10)] bg-warning-soft/40",
-      )}
+      role="group"
+      aria-label={`Rate status: ${status.title}`}
+      className={cn("flex flex-col gap-3 rounded-[10px] border px-3.5 py-3", style.box)}
     >
-      <span
-        aria-hidden="true"
-        className={cn(
-          "mt-0.5 inline-flex size-[22px] shrink-0 items-center justify-center rounded-full text-white",
-          tone === "success" ? "bg-success-indicator" : "bg-warning-indicator",
-        )}
-      >
-        <svg
-          viewBox="0 0 16 16"
-          className="size-3"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2.4}
-        >
-          {tone === "success" ? (
-            <path d="m4 8.5 2.5 2.5L12 5.5" strokeLinecap="round" strokeLinejoin="round" />
-          ) : (
-            <path d="M8 4.5v4.5M8 11.5v.01" strokeLinecap="round" />
+      <div className="flex items-start gap-3">
+        <span
+          aria-hidden="true"
+          className={cn(
+            "mt-0.5 inline-flex size-[22px] shrink-0 items-center justify-center rounded-full text-white",
+            style.dot,
           )}
-        </svg>
-      </span>
-      <span className="flex flex-col">
-        <span className="text-[14px] leading-5 font-medium text-chelth-navy">{title}</span>
-        <span className="text-[12.5px] leading-[18px] text-slate-600">{note}</span>
-      </span>
+        >
+          <svg
+            viewBox="0 0 16 16"
+            className="size-3"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2.4}
+          >
+            {status.kind === "active" ? (
+              <path d="m4 8.5 2.5 2.5L12 5.5" strokeLinecap="round" strokeLinejoin="round" />
+            ) : status.kind === "scheduled" ? (
+              <path d="M8 4.5V8l2.5 1.5" strokeLinecap="round" strokeLinejoin="round" />
+            ) : status.kind === "ended" ? (
+              <path d="M4.5 8h7" strokeLinecap="round" />
+            ) : (
+              <path d="M8 4.5v4.5M8 11.5v.01" strokeLinecap="round" />
+            )}
+          </svg>
+        </span>
+        <span className="flex min-w-0 flex-col gap-0.5">
+          <span className="text-[14.5px] leading-5 font-semibold text-chelth-navy">
+            {status.title}
+          </span>
+          <span className="text-[13px] leading-[19px] text-slate-700">{status.body}</span>
+          {status.secondary ? (
+            <span className="text-[12.5px] leading-[18px] text-slate-600">{status.secondary}</span>
+          ) : null}
+        </span>
+      </div>
+      {children}
     </div>
   );
 }
@@ -116,6 +135,7 @@ export function RateDetailsPanel({
   today,
   canManage,
   pricingHref,
+  currency = "USD",
 }: {
   summary: RateCardSummary;
   organisationId: string;
@@ -123,14 +143,48 @@ export function RateDetailsPanel({
   canManage: boolean;
   /** The pricing queue (pricing.view holders only). */
   pricingHref: Route | null;
+  /** Workspace currency for new versions (P0-E9-3I). */
+  currency?: string;
 }) {
   const { card, scope, facility, shiftType, state, shown, tier } = summary;
   const id = `rate-${card.id}`;
   const versions = [...card.versions].sort((a, b) => b.version - a.version);
 
+  const status = rateStatusCard(summary, today);
+
   const details = (
     <div className="flex flex-col">
-      <Section id={`${id}-details`} title="Rate Details" divided={false}>
+      <Section id={`${id}-status`} title="Status" divided={false}>
+        <StatusCard status={status}>
+          {canManage && status.activate ? (
+            <InlineActionForm
+              action={activateVersionAction}
+              fields={{ organisationId, versionId: status.activate.id }}
+              label="Activate rate"
+              accessibleLabel={`Activate rate: ${scope}`}
+              variant="primary"
+              buttonClassName="h-11 w-full px-5 text-[14px] sm:h-10 sm:w-fit"
+            />
+          ) : null}
+          {canManage && status.pendingDraft ? (
+            <div className="flex flex-col gap-2 border-t border-[rgba(15,23,42,0.06)] pt-2.5">
+              <span className="text-[12.5px] leading-[18px] text-slate-600">
+                Draft v{status.pendingDraft.version} (from{" "}
+                {rateDay(status.pendingDraft.effectiveFrom)}) is not active yet.
+              </span>
+              <InlineActionForm
+                action={activateVersionAction}
+                fields={{ organisationId, versionId: status.pendingDraft.id }}
+                label={`Activate v${status.pendingDraft.version}`}
+                accessibleLabel={`Activate v${status.pendingDraft.version}: ${scope}`}
+                variant="outline"
+                buttonClassName="h-11 w-full sm:h-9 sm:w-fit"
+              />
+            </div>
+          ) : null}
+        </StatusCard>
+      </Section>
+      <Section id={`${id}-details`} title="Rate Details">
         <KeyValueList
           className="sm:grid-cols-[minmax(8rem,auto)_minmax(0,1fr)] sm:gap-x-5"
           items={[
@@ -166,24 +220,26 @@ export function RateDetailsPanel({
               label: "Effective to",
               value: shown ? rateDay(shown.periodEnd ?? shown.effectiveTo) : "—",
             },
-            { label: "Matching level", value: `${tier} · ${RATE_PRECEDENCE_LABELS[tier]}` },
           ]}
         />
       </Section>
-      <Section id={`${id}-rule`} title="Pricing Rule">
-        {state === "active" ? (
-          <RuleNote
-            tone="success"
-            title="Prices matching work"
-            note="Work at this level is priced with the version in force on each work date. Priced timesheets keep the rates they were priced with."
-          />
-        ) : (
-          <RuleNote
-            tone="warning"
-            title="No rate in force today"
-            note="Matching work cannot be priced until a version is in force on its work date. Chelth does not fall back to a broader rate card."
-          />
-        )}
+      <Section id={`${id}-rule`} title="Matching Rule">
+        <KeyValueList
+          className="sm:grid-cols-[minmax(8rem,auto)_minmax(0,1fr)] sm:gap-x-5"
+          items={[
+            { label: "Matching rule", value: `Level ${tier} · ${RATE_PRECEDENCE_LABELS[tier]}` },
+          ]}
+        />
+        <div className="flex flex-col gap-0.5 rounded-[10px] border border-[rgba(18,107,103,0.07)] bg-[#f8fcfb] px-3.5 py-3">
+          <span className="text-[14px] leading-5 font-medium text-chelth-navy">
+            Exact rate required
+          </span>
+          <span className="text-[12.5px] leading-[18px] text-slate-600">
+            When a specific rate card matches the shift, Chelth uses an active version from that
+            card. If none is active for the work date, the timesheet waits for review instead of
+            using a less-specific rate. Priced timesheets keep the rates they were priced with.
+          </span>
+        </div>
       </Section>
     </div>
   );
@@ -261,6 +317,7 @@ export function RateDetailsPanel({
           rateCardId={card.id}
           label={scope}
           today={today}
+          currency={currency}
           stacked
         />
       ) : (

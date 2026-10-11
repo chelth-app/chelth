@@ -105,7 +105,7 @@ describe("shift emails (P0-E9-3G)", () => {
   it("cancellation: clear, and never suggests attending", () => {
     for (const event of ["shift_cancelled", "assignment_cancelled"] as const) {
       const rendered = renderNotification(template({ event }), BASE);
-      expect(rendered.subject).toBe("Your shift has been cancelled");
+      expect(rendered.subject).toBe("Your shift has been canceled");
       expect(rendered.text).toContain("You do not need to attend.");
       expect(rendered.text).not.toMatch(/arrive|attend the shift|see you/i);
     }
@@ -137,6 +137,34 @@ describe("shift emails (P0-E9-3G)", () => {
       const text = renderNotification(worker({ event }), BASE).text;
       expect(text).not.toMatch(/\$|rate|latitude|longitude|credential|note:/i);
     }
+  });
+});
+
+describe("email spelling follows the workspace (P0-E9-3I)", () => {
+  it("en-US (or unset) ⇒ American; en-GB ⇒ British — one template, no duplicates", () => {
+    const us = renderNotification(template({ event: "shift_cancelled" }), BASE);
+    const unset = renderNotification(template({ event: "shift_cancelled", locale: null }), BASE);
+    const gb = renderNotification(template({ event: "shift_cancelled", locale: "en-GB" }), BASE);
+    expect(us.subject).toBe("Your shift has been canceled");
+    expect(unset.subject).toBe("Your shift has been canceled");
+    expect(gb.subject).toBe("Your shift has been cancelled");
+    expect(gb.text).toContain("has cancelled the shift below.");
+  });
+
+  it("names are never respelled — only Chelth's own words", () => {
+    const gb = renderNotification(
+      template({
+        event: "shift_cancelled",
+        locale: "en-GB",
+        agencyName: "Center Staffing Organization",
+        facilityName: "Riverside Care Center",
+      }),
+      BASE,
+    );
+    expect(gb.text).toContain("Center Staffing Organization has cancelled the shift below.");
+    expect(gb.text).toContain("Facility: Riverside Care Center");
+    // Links and identifiers are untouched.
+    expect(gb.text).toContain(`${BASE}/app/organisations/${ORG}/my-shifts`);
   });
 });
 

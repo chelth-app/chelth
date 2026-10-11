@@ -175,8 +175,8 @@ export const attendanceSettingsSchema = z.object({
 /** Whole metres within bounds; a blank, zero, negative or non-numeric value is rejected. */
 function wholeMetres(bounds: { min: number; max: number }) {
   return z.coerce
-    .number({ error: "Enter a number of metres." })
-    .int("Enter whole metres.")
+    .number({ error: "Enter a number of meters." })
+    .int("Enter whole meters.")
     .min(bounds.min, `At least ${bounds.min} m.`)
     .max(bounds.max, `At most ${bounds.max} m.`);
 }

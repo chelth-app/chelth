@@ -349,7 +349,7 @@ test.describe.serial("Operations Overview visual QA density", () => {
     await table.getByRole("button", { name: "Details for Mercy Rehab" }).click();
     const drawer = page.getByRole("dialog", { name: "Facility Details" });
     await expect(drawer).toContainText("Mercy Rehab");
-    await expect(drawer).toContainText("Linked to a CHELTH facility organisation");
+    await expect(drawer).toContainText("Linked to a CHELTH facility organization");
     await qaScreenshot(page, "fcqa-facility-drawer");
     await drawer.getByRole("tab", { name: "Requests" }).click();
     await expect(drawer.getByRole("tabpanel")).toContainText("Requested");

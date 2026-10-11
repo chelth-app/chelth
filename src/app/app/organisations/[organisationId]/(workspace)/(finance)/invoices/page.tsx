@@ -52,6 +52,7 @@ import { cn } from "@/lib/utils/cn";
 import { HeaderAddAction, LockedEmpty, LockedFilterSelect } from "../_components/finance-locked";
 import { type InvoiceDetails, InvoiceDetailsPanel } from "./_components/invoice-details-panel";
 import { attentionTone, INVOICE_TONE, NEXT_STEP_LABEL } from "./_components/invoice-tones";
+import { spell } from "@/features/localization";
 
 export const metadata: Metadata = { title: "Invoices" };
 
@@ -272,7 +273,7 @@ export default async function InvoicesPage({
               <option value="">All statuses</option>
               {INVOICE_DRAFT_STATUSES.map((status) => (
                 <option key={status} value={status}>
-                  {INVOICE_DRAFT_STATUS_LABELS[status]}
+                  {spell(INVOICE_DRAFT_STATUS_LABELS[status])}
                 </option>
               ))}
             </LockedFilterSelect>
@@ -395,7 +396,7 @@ export default async function InvoicesPage({
                         <td>
                           <span className="flex flex-wrap items-center gap-1.5 py-2">
                             <RefChip tone={INVOICE_TONE[draft.status]} className="font-normal">
-                              {INVOICE_DRAFT_STATUS_LABELS[draft.status]}
+                              {spell(INVOICE_DRAFT_STATUS_LABELS[draft.status])}
                             </RefChip>
                             {attention && draft.attention ? (
                               <RefChip

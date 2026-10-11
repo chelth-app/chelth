@@ -30,7 +30,7 @@ export const PAYROLL_BATCH_STATUS_LABELS: Record<PayrollBatchStatus, string> = {
   approved: "Approved",
   locked: "Locked",
   exported: "Exported",
-  cancelled: "Cancelled",
+  cancelled: "Canceled",
 };
 
 export const INVOICE_DRAFT_STATUS_LABELS: Record<InvoiceDraftStatus, string> = {

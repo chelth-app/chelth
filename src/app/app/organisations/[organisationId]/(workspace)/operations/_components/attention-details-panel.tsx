@@ -15,6 +15,8 @@ import {
 import { cn } from "@/lib/utils/cn";
 
 import { AttentionIcon, relativeTime } from "./attention-row";
+import { spell } from "@/features/localization";
+import { requestDateFormat } from "@/lib/i18n/request-terms";
 
 /*
  * Attention Details — the canonical Chelth drawer (CHELTH-LOCKED-VISUAL-
@@ -24,7 +26,7 @@ import { AttentionIcon, relativeTime } from "./attention-row";
  */
 
 const INK = "text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)]";
-const dateTime = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" });
+const dateTime = requestDateFormat({ dateStyle: "medium", timeStyle: "short" });
 
 function Section({
   id,
@@ -97,7 +99,7 @@ export function AttentionDetailsPanel({
             {worker}
           </span>
           <span className="truncate text-[13px] text-slate-600">
-            {ASSIGNMENT_STATUS_LABELS[issue.assignmentStatus]}
+            {spell(ASSIGNMENT_STATUS_LABELS[issue.assignmentStatus])}
           </span>
         </span>
       </div>
@@ -108,7 +110,7 @@ export function AttentionDetailsPanel({
           items={[
             { label: "Facility", value: issue.facilityName },
             { label: "Shift", value: `${formatShiftDate(issue)} · ${formatShiftTimeRange(issue)}` },
-            { label: "Assignment", value: ASSIGNMENT_STATUS_LABELS[issue.assignmentStatus] },
+            { label: "Assignment", value: spell(ASSIGNMENT_STATUS_LABELS[issue.assignmentStatus]) },
             { label: "Opened", value: dateTime.format(new Date(issue.openedAt)) },
             { label: "Last checked", value: dateTime.format(new Date(issue.lastEvaluatedAt)) },
           ]}

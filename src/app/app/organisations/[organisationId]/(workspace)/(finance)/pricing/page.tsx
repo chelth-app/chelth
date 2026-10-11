@@ -183,8 +183,8 @@ export default async function PricingPage({
         <RefKpiCard
           label="Ready for Pricing"
           value={capped(ready.length)}
-          supporting="Locked after approval"
-          footer={<KpiNote tone="warning">Waiting to be priced</KpiNote>}
+          supporting="Approved work waiting to be priced"
+          footer={<KpiNote tone="warning">Locked after approval</KpiNote>}
           glyph="clock"
           icon={<WorkspaceNavIcon name="timesheets" strokeWidth={2.25} duotone />}
           tone="warning"
@@ -193,7 +193,7 @@ export default async function PricingPage({
         <RefKpiCard
           label="Priced"
           value={capped(priced.length)}
-          supporting="Snapshots kept unchanged"
+          supporting="Pricing snapshot created"
           footer={<KpiNote tone="info">{superseded} superseded by a revision</KpiNote>}
           glyph="document"
           icon={<WorkspaceNavIcon name="pricing" strokeWidth={2.25} duotone />}
@@ -204,12 +204,10 @@ export default async function PricingPage({
           <RefKpiCard
             label="Rate Cards in Force"
             value={inForce}
-            supporting={
-              summaries.length === 1 ? "Of 1 rate card" : `Of ${summaries.length} rate cards`
-            }
+            supporting={`Active today · of ${summaries.length}`}
             footer={
               <KpiNote tone={notInForce > 0 ? "warning" : "success"}>
-                {notInForce} with no rate in force
+                {notInForce} with no active rate
               </KpiNote>
             }
             glyph="document"
@@ -226,8 +224,8 @@ export default async function PricingPage({
         title={<>How Rates Are Matched</>}
         description={
           <>
-            For each worked shift, Chelth checks these levels in order. The first level with a
-            matching rate card decides the rate.
+            For each worked shift, Chelth checks these levels in order. The first matching rate card
+            determines which rate card must supply an active version.
           </>
         }
         action={
@@ -281,12 +279,12 @@ export default async function PricingPage({
           </span>
           <span className="flex flex-col">
             <span className="text-[14px] leading-5 font-medium text-chelth-navy">
-              No fallback to a broader rate
+              Exact rate required
             </span>
             <span className="text-[12.5px] leading-[18px] text-slate-600">
-              If the first matching rate card has no version in force on the work date, the
-              timesheet waits in Needs attention. Priced timesheets keep the rates they were priced
-              with.
+              Once a matching rate card is found, Chelth requires an active version from that card
+              for the work date. If none is active, the timesheet waits in Needs Attention instead
+              of using a less-specific rate. Priced timesheets keep the rates they were priced with.
             </span>
           </span>
         </div>

@@ -27,10 +27,13 @@ function TermsFields({
   state,
   idPrefix,
   today,
+  currency,
 }: {
   state: State;
   idPrefix: string;
   today: string;
+  /** The workspace's currency (P0-E9-3I): preselected; amounts are never converted. */
+  currency: string;
 }) {
   const id = (field: string) => `${idPrefix}-${field}`;
   return (
@@ -38,10 +41,11 @@ function TermsFields({
       <FormField
         id={id("currency")}
         label="Currency"
+        description={`Workspace currency: ${currency}. Rates are stored in the currency chosen here and never converted.`}
         required
         errors={fieldErrorsFor(state, "currency")}
       >
-        <Select name="currency" defaultValue="USD">
+        <Select name="currency" defaultValue={currency}>
           {SUPPORTED_CURRENCIES.map((code) => (
             <option key={code} value={code}>
               {code}
@@ -93,11 +97,14 @@ export function NewRateForm({
   disciplines,
   relationships,
   today,
+  currency = "USD",
 }: {
   organisationId: string;
   disciplines: { key: string; name: string }[];
   relationships: { id: string; facilityName: string }[];
   today: string;
+  /** Workspace currency (P0-E9-3I). */
+  currency?: string;
 }) {
   const [state, formAction] = useActionState(createRateAction, null);
   return (
@@ -148,7 +155,7 @@ export function NewRateForm({
           ))}
         </Select>
       </FormField>
-      <TermsFields state={state} idPrefix="rate" today={today} />
+      <TermsFields state={state} idPrefix="rate" today={today} currency={currency} />
       <SubmitButton className="w-fit">Save draft rate</SubmitButton>
       <FormAlert
         state={state}
@@ -165,6 +172,7 @@ export function NewVersionForm({
   label,
   today,
   stacked = false,
+  currency = "USD",
 }: {
   organisationId: string;
   rateCardId: string;
@@ -172,6 +180,8 @@ export function NewVersionForm({
   today: string;
   /** One column (narrow surfaces such as the Rate Details drawer). */
   stacked?: boolean;
+  /** Workspace currency (P0-E9-3I). */
+  currency?: string;
 }) {
   const [state, formAction] = useActionState(createVersionAction, null);
   return (
@@ -184,7 +194,12 @@ export function NewVersionForm({
       >
         <input type="hidden" name="organisationId" value={organisationId} />
         <input type="hidden" name="rateCardId" value={rateCardId} />
-        <TermsFields state={state} idPrefix={`version-${rateCardId}`} today={today} />
+        <TermsFields
+          state={state}
+          idPrefix={`version-${rateCardId}`}
+          today={today}
+          currency={currency}
+        />
         <SubmitButton variant="outline" className="w-fit">
           Save draft version
         </SubmitButton>

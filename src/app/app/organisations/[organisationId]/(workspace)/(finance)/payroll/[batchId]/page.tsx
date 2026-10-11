@@ -47,6 +47,7 @@ import { formatPeriod, formatWorkedMinutes } from "@/lib/domain/timesheets";
 
 import { LockedNotice } from "../../_components/finance-locked";
 import { attentionTone, PAYROLL_TONE } from "../_components/payroll-tones";
+import { spell } from "@/features/localization";
 
 export const metadata: Metadata = { title: "Payroll batch" };
 
@@ -129,7 +130,7 @@ export default async function PayrollBatchPage({
         meta={
           <>
             <RefChip tone={PAYROLL_TONE[batch.status]} className="font-semibold">
-              {PAYROLL_BATCH_STATUS_LABELS[batch.status]}
+              {spell(PAYROLL_BATCH_STATUS_LABELS[batch.status])}
             </RefChip>
             {attention && batch.attention ? (
               <RefChip tone={attentionTone(batch.attention)} className="font-semibold">
@@ -273,9 +274,9 @@ export default async function PayrollBatchPage({
           ) : null}
         </Panel>
       ) : (
-        <LockedNotice tone="info" title="Cancelled">
-          Cancelled by {batch.cancelledByName ?? "a former member"}: “{batch.cancelReason}”. Its
-          work was released for a new batch.
+        <LockedNotice tone="info" title={spell("Canceled")}>
+          {spell("Canceled")} by {batch.cancelledByName ?? "a former member"}: “{batch.cancelReason}
+          ”. Its work was released for a new batch.
         </LockedNotice>
       )}
 

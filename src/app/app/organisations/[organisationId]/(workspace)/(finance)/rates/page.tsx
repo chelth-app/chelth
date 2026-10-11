@@ -19,11 +19,13 @@ import { DetailDrawerTrigger } from "@/components/ui/detail-drawer";
 import { LocationPin } from "@/components/ui/location-pin";
 import { PageHeader } from "@/components/ui/page-header";
 import {
+  getOrganisationCurrency,
   loadOrganisationPage,
   requireCapabilityOrNotFound,
   StepUpNotice,
 } from "@/features/organisations";
 import {
+  activateVersionAction,
   listPricingPolicies,
   listRateCards,
   listRateScopeOptions,
@@ -99,6 +101,8 @@ export default async function RatesPage({
     canManage ? listRateScopeOptions(organisationId) : Promise.resolve(null),
   ]);
   const today = todayIsoDate();
+  // P0-E9-3I: the workspace currency preselects new rates (never converts existing ones).
+  const currency = await getOrganisationCurrency(organisationId, organisation.locale);
   const in30 = addIsoDays(today, 30);
   const last = cards.at(-1);
   const summaries = cards.map((card) => summarise(card, today));
@@ -206,6 +210,7 @@ export default async function RatesPage({
             </a>
           </div>
           <NewRateForm
+            currency={currency.effectiveCurrency}
             organisationId={organisationId}
             disciplines={options.disciplines}
             relationships={options.relationships}
@@ -223,7 +228,7 @@ export default async function RatesPage({
           <RefKpiCard
             label="Active Rate Cards"
             value={countOf("active")}
-            supporting="Rate in force today"
+            supporting="Active today"
             footer={
               <KpiNote tone="success">
                 {activeDisciplines === 1 ? "1 discipline" : `${activeDisciplines} disciplines`}{" "}
@@ -238,7 +243,7 @@ export default async function RatesPage({
           <RefKpiCard
             label="Needs Attention"
             value={countOf("attention")}
-            supporting="No rate in force today"
+            supporting="No active rate today"
             footer={<KpiNote tone="danger">Blocks matching work</KpiNote>}
             glyph="alert"
             icon={<WorkspaceNavIcon name="requests" strokeWidth={2.25} duotone />}
@@ -248,8 +253,8 @@ export default async function RatesPage({
           <RefKpiCard
             label="Draft Versions"
             value={countOf("draft")}
-            supporting="Waiting to be activated"
-            footer={<KpiNote tone="warning">Not used for pricing</KpiNote>}
+            supporting="Not active for pricing"
+            footer={<KpiNote tone="warning">Activate a version before Chelth can use it</KpiNote>}
             glyph="document"
             icon={<WorkspaceNavIcon name="timesheets" strokeWidth={2.25} duotone />}
             tone="warning"
@@ -364,6 +369,10 @@ export default async function RatesPage({
             </span>
           }
         >
+          <RecordNote className="max-w-3xl px-[5px] pt-1">
+            Rate cards set the hourly pay and bill amounts for a facility, discipline and shift
+            type. Each card has versions: a draft is not used until it is activated.
+          </RecordNote>
           {cards.length === 0 ? (
             <LockedEmpty
               icon="rates"
@@ -472,6 +481,16 @@ export default async function RatesPage({
                                 {flags.join(" · ")}
                               </span>
                             ) : null}
+                            {canManage && state === "draft" && version ? (
+                              // P0-E9-3H: the next action, visible in the row (the existing action).
+                              <InlineActionForm
+                                action={activateVersionAction}
+                                fields={{ organisationId, versionId: version.id }}
+                                label="Activate"
+                                accessibleLabel={`Activate rate: ${scope}`}
+                                variant="outline"
+                              />
+                            ) : null}
                           </span>
                         </td>
                         <td className="text-right">
@@ -488,6 +507,7 @@ export default async function RatesPage({
                               today={today}
                               canManage={canManage}
                               pricingHref={pricingHref}
+                              currency={currency.effectiveCurrency}
                             />
                           </DetailDrawerTrigger>
                         </td>
@@ -508,13 +528,18 @@ export default async function RatesPage({
           ) : null}
         </RefPanel>
 
-        <RefPanel title="Rounding and Overtime" titleId="policies-heading">
-          <RecordNote className="max-w-3xl px-[5px] pt-1 pb-2">
-            Without a policy, worked time is priced in exact minutes and there is no overtime.
-            Rounding applies per timesheet entry and never changes recorded time. Overtime is a
-            weekly threshold per timesheet week, set separately for pay and bill. These are
-            calculations you configure, not legal advice.
-          </RecordNote>
+        <RefPanel title="Time & Overtime Policies" titleId="policies-heading">
+          <div className="flex max-w-3xl flex-col gap-1 px-[5px] pt-1 pb-2">
+            <RecordNote>
+              Choose how worked time is calculated for pricing and when overtime applies. These
+              policies are separate from your rate cards.
+            </RecordNote>
+            <p className="text-[12.5px] leading-[18px] text-slate-600">
+              Exact minutes prices the recorded worked time without rounding. Overtime rules are
+              applied separately for pay and bill. Policy versions take effect from their start
+              date; an &ldquo;Active&rdquo; policy here is not a rate card.
+            </p>
+          </div>
           {policyRows.length === 0 ? (
             <LockedEmpty
               icon="pricing"

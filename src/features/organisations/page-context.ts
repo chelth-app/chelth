@@ -2,6 +2,7 @@ import "server-only";
 
 import { notFound } from "next/navigation";
 
+import { getRequestTerminology } from "@/features/localization";
 import { requireAuthIdentity } from "@/lib/auth/session";
 import { type CapabilityKey, capabilityState, type CapabilityState } from "@/lib/authz";
 
@@ -31,6 +32,9 @@ export async function loadOrganisationPage(
   const [identity, organisation] = await Promise.all([
     requireAuthIdentity(),
     getOrganisation(organisationId),
+    // P0-E9-3I: resolve the workspace's spelling before the page renders, so
+    // synchronous spell() calls in pages and panels use it.
+    getRequestTerminology(),
   ]);
   if (!organisation) notFound();
 

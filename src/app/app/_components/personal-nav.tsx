@@ -5,15 +5,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { cn } from "@/lib/utils/cn";
+import { useSpell } from "@/lib/i18n/terminology-context";
 
 const ITEMS = [
-  { label: "Organisations", href: "/app", exact: true },
+  { label: "Organizations", href: "/app", exact: true },
   { label: "Security", href: "/app/security", exact: false },
   { label: "Account", href: "/app/account", exact: false },
 ] as const;
 
 /** Compact account navigation; the current destination is marked (aria-current). */
 export function PersonalNav() {
+  const spell = useSpell();
   const pathname = usePathname();
   return (
     <>
@@ -33,7 +35,7 @@ export function PersonalNav() {
                 : "font-medium text-slate-600 hover:bg-surface-muted hover:text-chelth-navy",
             )}
           >
-            {item.label}
+            {spell(item.label)}
           </Link>
         );
       })}

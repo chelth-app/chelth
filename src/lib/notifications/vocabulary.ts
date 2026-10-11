@@ -87,11 +87,11 @@ export const NOTIFICATION_CATEGORY: Record<NotificationEvent, "required" | "opti
 
 export const NOTIFICATION_EVENT_LABELS: Record<NotificationEvent, string> = {
   worker_assigned: "Worker assigned",
-  assignment_cancelled: "Assignment cancelled",
+  assignment_cancelled: "Assignment canceled",
   assignment_declined: "Assignment declined",
   facility_request_submitted: "Staffing request submitted",
   facility_request_opened: "Staffing request opened",
-  shift_cancelled: "Shift cancelled",
+  shift_cancelled: "Shift canceled",
   assignment_non_compliant: "Assignment needs attention",
   shift_offered: "Shift offered",
   relationship_suspended: "Relationship suspended",

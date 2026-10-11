@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils/cn";
 import { AgencyOperationsOverview } from "./_components/agency-operations-overview";
 import { FacilityOperationsOverview } from "./_components/facility-operations-overview";
 import { FacilityStepUpNotice } from "./_components/facility-step-up-notice";
+import { getRequestTerminology, spell } from "@/features/localization";
 
 export const metadata: Metadata = { title: "Overview" };
 
@@ -46,6 +47,7 @@ export default async function OrganisationPage({
   const [, organisation] = await Promise.all([
     requireAuthIdentity(),
     getOrganisation(organisationId),
+    getRequestTerminology(), // P0-E9-3I: spell() below uses the workspace's spelling
   ]);
   // RLS returns nothing for non-members: indistinguishable from "does not exist".
   if (!organisation) notFound();
@@ -105,7 +107,7 @@ export default async function OrganisationPage({
           description={<p>Here&apos;s what&apos;s happening across your facilities today.</p>}
           meta={
             organisation.status !== "active" ? (
-              <StatusChip tone="warning">Organisation suspended</StatusChip>
+              <StatusChip tone="warning">{spell("Organization suspended")}</StatusChip>
             ) : undefined
           }
         />
@@ -119,14 +121,14 @@ export default async function OrganisationPage({
           }
           back={
             <Link href="/app" className="text-primary underline underline-offset-4">
-              All organisations
+              {spell("All organizations")}
             </Link>
           }
           meta={
             <>
               <RefChip tone="info">Facility</RefChip>
               {organisation.status !== "active" ? (
-                <RefChip tone="warning">Organisation suspended</RefChip>
+                <RefChip tone="warning">{spell("Organization suspended")}</RefChip>
               ) : null}
               {me?.roleKeys.map((key) => (
                 <RefChip key={key} tone="neutral">
@@ -150,14 +152,14 @@ export default async function OrganisationPage({
           }
           back={
             <Link href="/app" className="text-primary underline underline-offset-4">
-              All organisations
+              {spell("All organizations")}
             </Link>
           }
           meta={
             <>
               <Badge tone="brand">{organisation.type === "agency" ? "Agency" : "Facility"}</Badge>
               {organisation.status !== "active" ? (
-                <StatusChip tone="warning">Organisation suspended</StatusChip>
+                <StatusChip tone="warning">{spell("Organization suspended")}</StatusChip>
               ) : null}
               {me?.roleKeys.map((key) => (
                 <Badge key={key} tone="info">

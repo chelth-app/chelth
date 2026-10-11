@@ -21,6 +21,7 @@ import {
 } from "@/lib/domain/attendance";
 
 import { canOpenSection, settingsHref } from "../../../_components/settings-sections";
+import { spell } from "@/features/localization";
 
 export const metadata: Metadata = { title: "Location Geofence" };
 
@@ -137,7 +138,8 @@ export default async function LocationGeofencePage({
         title={<>Manage Geofence</>}
         description={
           <>
-            {address ? `${address}. ` : ""}Set the site centre (for example the main entrance) and
+            {address ? `${address}. ` : ""}
+            {spell("Set the site center (for example the main entrance) and")}
             how close and how precise a worker&apos;s reading must be. Workers never see these
             values.
           </>

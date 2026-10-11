@@ -8,6 +8,7 @@ import type { ActionState } from "@/lib/actions/run-action";
 
 import { revokeInviteAction } from "../actions";
 import { useInviteNotice } from "./invite-notice";
+import { useSpell } from "@/lib/i18n/terminology-context";
 
 /**
  * "Cancel invite" for a pending invitation: the existing revoke semantics
@@ -24,17 +25,18 @@ export function CancelInviteForm({
   inviteId: string;
   email: string;
 }) {
+  const spell = useSpell();
   const notify = useInviteNotice();
   const [state, formAction] = useActionState(async (previous: ActionState, formData: FormData) => {
     const result = await revokeInviteAction(previous, formData);
     if (result?.ok)
-      notify?.(`Invitation cancelled. ${email} can no longer use the invitation link.`);
+      notify?.(spell(`Invitation canceled. ${email} can no longer use the invitation link.`));
     return result;
   }, null);
   if (state?.ok && !notify) {
     return (
       <p role="status" className="text-sm font-medium text-success-soft-foreground">
-        Invitation cancelled.
+        Invitation canceled.
       </p>
     );
   }

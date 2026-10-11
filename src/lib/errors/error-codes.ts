@@ -102,7 +102,7 @@ export const ERROR_CODES = {
   ALREADY_A_MEMBER: {
     kind: "conflict",
     status: 409,
-    message: "This person is already a member of this organisation.",
+    message: "This person is already a member of this organization.",
   },
   INVITE_INVALID: {
     kind: "not_found",
@@ -223,7 +223,7 @@ export const ERROR_CODES = {
   SHIFT_CANCELLED: {
     kind: "conflict",
     status: 409,
-    message: "This shift has been cancelled.",
+    message: "This shift has been canceled.",
   },
   TOO_EARLY_TO_CLOCK_IN: {
     kind: "conflict",
@@ -269,6 +269,12 @@ export const ERROR_CODES = {
     kind: "conflict",
     status: 409,
     message: "You appear to be outside the allowed check-in area.",
+  },
+  CURRENCY_IN_USE: {
+    kind: "conflict",
+    status: 409,
+    message:
+      "Currency can't be changed because this workspace already has rates or financial records in another currency.",
   },
   GEOFENCE_NOT_CONFIGURED: {
     kind: "conflict",

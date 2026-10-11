@@ -10,6 +10,7 @@ import type {
   OrganisationStatus,
   OrganisationType,
 } from "@/lib/authz";
+import { suggestedCurrency, supportedLocaleOf } from "@/lib/i18n/terminology";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 /*
@@ -231,3 +232,55 @@ export async function previewInvite(token: string): Promise<InvitePreview | null
     expiresAt: row.invite_expires_at,
   };
 }
+
+export type OrganisationCurrency = {
+  /** The configured default (ISO 4217), or null when never set. */
+  defaultCurrency: string | null;
+  /** Currencies already used by this workspace's rates and financial records. */
+  currenciesInUse: string[];
+  /** What new rates use: the default, else the currency in use, else the locale's suggestion. */
+  effectiveCurrency: string;
+  /** True when financial records exist (the default can only stay their currency). */
+  locked: boolean;
+};
+
+/**
+ * P0-E9-3I: the organisation's currency. Configuration and formatting only —
+ * existing money is never converted; the database refuses a change that would
+ * contradict existing records (CHY22).
+ */
+export const getOrganisationCurrency = cache(
+  async (organisationId: string, locale: string | null): Promise<OrganisationCurrency> => {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase.rpc("get_organisation_currency", {
+      p_organisation_id: organisationId,
+    });
+    if (error) throw error;
+    const row = data[0];
+    const inUse = row?.currencies_in_use ?? [];
+    const defaultCurrency = row?.default_currency ?? null;
+    return {
+      defaultCurrency,
+      currenciesInUse: inUse,
+      effectiveCurrency:
+        defaultCurrency ??
+        (inUse.length === 1 ? inUse[0] : null) ??
+        suggestedCurrency(supportedLocaleOf(locale)),
+      locked: inUse.length > 0,
+    };
+  },
+);
+
+export type CurrencyOption = { code: string; name: string };
+
+/** Active ISO 4217 currencies Chelth's pricing supports (reference data). */
+export const listCurrencies = cache(async (): Promise<CurrencyOption[]> => {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("currencies")
+    .select("code, name")
+    .eq("active", true)
+    .order("code");
+  if (error) throw error;
+  return data;
+});

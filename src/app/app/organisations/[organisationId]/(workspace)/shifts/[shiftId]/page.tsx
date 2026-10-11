@@ -90,11 +90,13 @@ import {
   SHIFT_OFFER_CLOSE_REASON_LABELS,
   SHIFT_SOURCE_LABELS,
 } from "@/lib/domain/shifts";
+import { requestDateFormat } from "@/lib/i18n/request-terms";
+import { spell } from "@/features/localization";
 import { shiftClassificationPhrase } from "@/lib/domain/pricing";
 
 export const metadata: Metadata = { title: "Shift" };
 
-const dateTime = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" });
+const dateTime = requestDateFormat({ dateStyle: "medium", timeStyle: "short" });
 
 export default async function ShiftPage({
   params,
@@ -275,8 +277,8 @@ export default async function ShiftPage({
             ...(shift.cancellationReason
               ? [
                   {
-                    label: "Cancelled",
-                    value: SHIFT_CANCELLATION_REASON_LABELS[shift.cancellationReason],
+                    label: spell("Canceled"),
+                    value: spell(SHIFT_CANCELLATION_REASON_LABELS[shift.cancellationReason]),
                   },
                 ]
               : []),
@@ -402,7 +404,7 @@ export default async function ShiftPage({
                   <li key={assignment.id} className="flex flex-wrap items-center gap-2">
                     {assignment.workerName} <AssignmentStatusBadge status={assignment.status} />
                     {assignment.cancellationReason
-                      ? ASSIGNMENT_CANCELLATION_REASON_LABELS[assignment.cancellationReason]
+                      ? spell(ASSIGNMENT_CANCELLATION_REASON_LABELS[assignment.cancellationReason])
                       : null}
                   </li>
                 ))}
@@ -608,7 +610,7 @@ export default async function ShiftPage({
                   <OfferStatusBadge status={offer.status} />
                   {offer.closeReason ? (
                     <span className={RECORD_ROW_META}>
-                      {SHIFT_OFFER_CLOSE_REASON_LABELS[offer.closeReason]}
+                      {spell(SHIFT_OFFER_CLOSE_REASON_LABELS[offer.closeReason])}
                     </span>
                   ) : null}
                   {offer.status === "offered" ? (

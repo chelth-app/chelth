@@ -86,7 +86,7 @@ export function OrganisationSections({
     return null;
   return (
     <nav
-      aria-label={selfServiceOnly ? "My work" : "Organisation sections"}
+      aria-label={selfServiceOnly ? "My work" : "Organization sections"}
       className="flex flex-wrap gap-2"
     >
       {showShifts ? (

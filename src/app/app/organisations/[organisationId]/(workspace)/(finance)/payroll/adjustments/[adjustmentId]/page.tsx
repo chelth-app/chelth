@@ -48,6 +48,7 @@ import { formatPeriod, formatWorkedMinutes } from "@/lib/domain/timesheets";
 
 import { LockedNotice } from "../../../_components/finance-locked";
 import { attentionTone, PAYROLL_TONE } from "../../_components/payroll-tones";
+import { spell } from "@/features/localization";
 
 export const metadata: Metadata = { title: "Payroll adjustment" };
 
@@ -130,7 +131,7 @@ export default async function PayrollAdjustmentPage({
         meta={
           <>
             <RefChip tone={PAYROLL_TONE[adjustment.status]} className="font-semibold">
-              {PAYROLL_BATCH_STATUS_LABELS[adjustment.status]}
+              {spell(PAYROLL_BATCH_STATUS_LABELS[adjustment.status])}
             </RefChip>
             {attention && adjustment.attention ? (
               <RefChip tone={attentionTone(adjustment.attention)} className="font-semibold">
@@ -347,8 +348,9 @@ export default async function PayrollAdjustmentPage({
           ) : null}
         </Panel>
       ) : (
-        <LockedNotice tone="info" title="Cancelled">
-          Cancelled by {adjustment.cancelledByName ?? "a former member"}: “{adjustment.cancelReason}
+        <LockedNotice tone="info" title={spell("Canceled")}>
+          {spell("Canceled")} by {adjustment.cancelledByName ?? "a former member"}: “
+          {adjustment.cancelReason}
           ”. The revision change can be adjusted again.
         </LockedNotice>
       )}

@@ -56,6 +56,7 @@ import { cn } from "@/lib/utils/cn";
 
 import { addDaysIso, ShiftCalendar, weekStartOf } from "./_components/shift-calendar";
 import { type ShiftListItem, ShiftDetailsPanel } from "./_components/shift-details-panel";
+import { spell } from "@/features/localization";
 
 export const metadata: Metadata = { title: "Shifts" };
 
@@ -314,7 +315,7 @@ export default async function ShiftsPage({
               <option value="">All statuses</option>
               {SHIFT_STATUSES.map((status) => (
                 <option key={status} value={status}>
-                  {SHIFT_STATUS_LABELS[status]}
+                  {spell(SHIFT_STATUS_LABELS[status])}
                 </option>
               ))}
             </select>
@@ -682,7 +683,7 @@ function coverageChip(shift: AgencyShiftSummary): { tone: StatusTone; label: str
       ? { tone: "danger", label: "Open" }
       : { tone: FILL_TONE[shift.fillState], label: FILL_STATE_LABELS[shift.fillState] };
   }
-  return { tone: SHIFT_TONE[shift.status], label: SHIFT_STATUS_LABELS[shift.status] };
+  return { tone: SHIFT_TONE[shift.status], label: spell(SHIFT_STATUS_LABELS[shift.status]) };
 }
 
 /** Confirmation (P3): has every assignee accepted? */

@@ -4,7 +4,12 @@ import { type Browser, expect, type Page, test } from "@playwright/test";
 import { zonedLocalToInstant } from "@/lib/domain/attendance";
 
 import { generateTotp } from "../support/totp";
-import { arrangePastWork, createStaffingWorld, type StaffingWorld } from "./staffing-fixture";
+import {
+  agencyMember,
+  arrangePastWork,
+  createStaffingWorld,
+  type StaffingWorld,
+} from "./staffing-fixture";
 import {
   expectNoPageOverflow,
   expectNoPaymentVocabulary,
@@ -200,12 +205,30 @@ test.describe.serial("pay & bill rates and pricing", () => {
     const scope = "Riverside Clinic · Certified Nursing Assistant (CNA) · Any shift type";
     await admin.getByRole("button", { name: `Rate details for ${scope}` }).click(AFTER_ACTION);
     const drawer = admin.getByRole("dialog", { name: "Rate Details" });
+    // P0-E9-3H: the Overview states the draft plainly and offers the next action.
+    const status = drawer.getByRole("group", { name: /^Rate status:/ });
+    await expect(status).toContainText("Rate not active yet", AFTER_ACTION);
+    await expect(status).toContainText(
+      "This rate is still a draft. Activate it before Chelth can use it for pricing.",
+    );
+    await expect(drawer).not.toContainText("No rate in force today");
+    await expect(drawer).toContainText("Exact rate required");
+    await expect(drawer).toContainText("Matching rule");
+    await expectNoA11yViolations(admin);
+    await qaScreenshot(admin, "e9-3h-rate-draft-overview");
+    // The same activation as the Versions tab (existing action, keyboard reachable).
+    const activate = status.getByRole("button", { name: `Activate rate: ${scope}` });
+    await activate.focus();
+    await admin.keyboard.press("Enter");
+    await expect(drawer.getByRole("group", { name: /^Rate status:/ })).toContainText(
+      "Rate active",
+      AFTER_ACTION,
+    );
+    await expect(drawer.getByRole("button", { name: `Activate rate: ${scope}` })).toHaveCount(0);
     await drawer.getByRole("tab", { name: "Versions" }).click();
     const versions = drawer.getByRole("region", { name: `Versions: ${scope}` });
-    await expect(versions).toContainText("Draft", AFTER_ACTION);
-    await versions.getByRole("button", { name: /^Activate v1/ }).click();
     // P0-E8-S5: rate version status renders as a text chip; Rates | Pricing mode switch.
-    await expect(versions.getByRole("row", { name: /v1/ })).toContainText("Current", AFTER_ACTION);
+    await expect(versions.getByRole("row", { name: /v1/ })).toContainText("Active", AFTER_ACTION);
     await expect(versions).toContainText("$42.50/h");
     await expect(versions).toContainText("$58.00/h");
     await expectNoA11yViolations(admin);
@@ -309,6 +332,52 @@ test.describe.serial("pay & bill rates and pricing", () => {
     await again.context().close();
   });
 
+  test("P0-E9-3H: a draft shows its state to every viewer, but Activate only to rates.manage", async ({
+    browser,
+  }, testInfo) => {
+    // An agency-wide CNA card for the night shift type, saved as a draft (never activated here).
+    const cardId = await must(
+      world.admin.client.rpc("create_rate_card", {
+        p_organisation_id: world.agencyId,
+        p_discipline_key: "cna",
+        p_classification: "night",
+      }),
+    );
+    await must(
+      world.admin.client.rpc("create_rate_version", {
+        p_rate_card_id: cardId,
+        p_currency: "USD",
+        p_pay_rate_minor: 4600,
+        p_bill_rate_minor: 6400,
+        p_effective_from: new Date().toISOString().slice(0, 10),
+      }),
+    );
+    const scope = "All facilities · Certified Nursing Assistant (CNA) · Night";
+    const manager = await agencyMember(
+      world,
+      `e2e-ops-${testInfo.project.name.split("-")[0]}`,
+      "Olive Operations",
+      "agency.operations_manager",
+    );
+    const page = await signedIn(browser, manager.email);
+    await page.goto(`/app/organisations/${world.agencyId}/rates`);
+    const row = page
+      .getByRole("region", { name: "Rate cards table" })
+      .getByRole("row", { name: /Night/ });
+    await expect(row).toContainText("Draft");
+    await expect(row.getByRole("button", { name: /^Activate/ })).toHaveCount(0);
+    await page.getByRole("button", { name: `Rate details for ${scope}` }).click();
+    const drawer = page.getByRole("dialog", { name: "Rate Details" });
+    await expect(drawer.getByRole("group", { name: /^Rate status:/ })).toContainText(
+      "Rate not active yet",
+    );
+    await expect(drawer.getByRole("button", { name: /^Activate/ })).toHaveCount(0);
+    await expectNoPageOverflow(page);
+    await expectNoA11yViolations(page);
+    await qaScreenshot(page, "e9-3h-rate-draft-read-only");
+    await page.context().close();
+  });
+
   test("Flow 4: a future version is shown as upcoming; the current one stays", async ({
     browser,
   }) => {
@@ -327,9 +396,18 @@ test.describe.serial("pay & bill rates and pricing", () => {
     await card.getByRole("button", { name: "Save draft version" }).click();
     const versions = card.getByRole("region", { name: `Versions: ${scope}` });
     await versions.getByRole("button", { name: /^Activate v2/ }).click();
-    await expect(versions.getByRole("row", { name: /v2/ })).toContainText("Upcoming", AFTER_ACTION);
-    await expect(versions.getByRole("row", { name: /v1/ })).toContainText("Current");
+    await expect(versions.getByRole("row", { name: /v2/ })).toContainText(
+      "Scheduled",
+      AFTER_ACTION,
+    );
+    await expect(versions.getByRole("row", { name: /v1/ })).toContainText("Active");
     await expect(versions.getByRole("row", { name: /v1/ })).toContainText("$42.50/h");
+    // P0-E9-3H: the Overview says the current version stays until the scheduled one starts.
+    await card.getByRole("tab", { name: "Overview" }).click();
+    const status = card.getByRole("group", { name: /^Rate status:/ });
+    await expect(status).toContainText("Rate active");
+    await expect(status).toContainText("The current version remains in force until then.");
+    await expect(status.getByRole("button", { name: /^Activate/ })).toHaveCount(0);
     await admin.context().close();
   });
 
@@ -356,20 +434,31 @@ test.describe.serial("pay & bill rates and pricing", () => {
         .getByRole("region", { name: "Rate cards table" })
         .getByRole("row", { name: /Riverside Clinic/ });
       await expect(row).toContainText("Active");
+      // P0-E9-3H: policies are named and explained apart from rate cards.
+      const policies = admin.getByRole("region", { name: "Time & Overtime Policies" });
+      await expect(policies).toContainText("These policies are separate from your rate cards.");
+      await expect(admin.getByText("Rounding and Overtime")).toHaveCount(0);
       await expectNoPageOverflow(admin);
       await expectNoA11yViolations(admin);
       await qaScreenshot(admin, "f1-rates");
       await admin.getByRole("button", { name: `Rate details for ${scope}` }).click();
       const drawer = admin.getByRole("dialog", { name: "Rate Details" });
-      await expect(drawer).toContainText("Matching level");
-      await expect(drawer).toContainText("Prices matching work");
+      await expect(drawer).toContainText("Matching rule");
+      await expect(drawer).toContainText("Rate active");
       await expectNoA11yViolations(admin);
       await qaScreenshot(admin, "f1-rates-drawer");
       await admin.keyboard.press("Escape");
       await expect(drawer).toBeHidden();
       // Quick filter: no card is without a rate in force here.
       await summary.getByRole("link", { name: /Needs Attention/ }).click();
-      await expect(admin.getByText("No rate cards match these filters.")).toBeVisible();
+      // Only cards without an active rate remain (the active Riverside card is filtered out;
+      // other specs in this world may add draft cards).
+      await expect(admin).toHaveURL(/status=attention/);
+      await expect(
+        admin
+          .getByRole("region", { name: "Rate cards table" })
+          .getByRole("row", { name: /Riverside Clinic/ }),
+      ).toHaveCount(0);
 
       // Pricing: queue KPIs, the engine's matching order (no fallback) and the queue.
       await admin.goto(`${base}/pricing?state=priced`);
@@ -379,7 +468,11 @@ test.describe.serial("pay & bill rates and pricing", () => {
       await expect(matching.getByRole("listitem").first()).toContainText(
         "Facility + discipline + shift type",
       );
-      await expect(matching).toContainText("No fallback to a broader rate");
+      await expect(matching).toContainText("Exact rate required");
+      await expect(matching).toContainText(
+        "Once a matching rate card is found, Chelth requires an active version from that card",
+      );
+      await expect(matching).not.toContainText(/fallback|precedence/i);
       await expect(
         admin
           .getByRole("region", { name: "Priced table" })
