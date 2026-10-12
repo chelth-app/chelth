@@ -8,9 +8,11 @@ export const PASSWORD = "E2e-Test-Passw0rd-1";
 /**
  * Where a successful sign-in lands: the gateway, or — for a worker-only account
  * with one agency (P0-E9-3B) — that agency's My Shifts, or — for a
- * facility-only account with one facility (P0-E9-3K) — that facility's Overview.
+ * facility-only account with one facility (P0-E9-3K) — that facility's Overview,
+ * or — for a platform admin with no memberships (P0-E9-4A) — /platform.
  */
-export const SIGNED_IN_LANDING = /\/app(?:\/organisations\/[0-9a-f-]{36}(?:\/my-shifts)?)?$/;
+export const SIGNED_IN_LANDING =
+  /\/(?:app(?:\/organisations\/[0-9a-f-]{36}(?:\/my-shifts)?)?|platform)$/;
 
 export { uniqueEmail };
 

@@ -1,0 +1,361 @@
+P0-E9-4A — CHELTH PLATFORM CONTROL PLANE & CUSTOMER ADMINISTRATION
+CHELTH — Healthcare Workforce Operations
+Date: 2026-10-12
+Branch: p0-e8-visual-implementation (uncommitted; not deployed)
+
+Summary
+-------
+Chelth operators get a control plane at /platform for customers,
+provisioning, facility links, commercial accounts and plans, system health,
+platform admins (read-only) and platform activity. It runs on narrow,
+audited, AAL2-gated RPCs. The platform-admin boundary is unchanged: no tenant
+membership, no tenant capability and no tenant row access. There is no
+impersonation, and no payment provider is connected (commercial state is
+managed by hand).
+
+====================================================
+1. PREVIOUS PLATFORM ADMIN ARCHITECTURE (AUDIT)
+====================================================
+
+- public.platform_admins: grant history (granted_by/reason, revoked_*), one
+  active grant per profile; users can see only their own row.
+- authz.is_platform_admin(): an active grant, an active profile and an AAL2
+  session. internal.require_platform_admin() raises CH402 (step up) or
+  CH403.
+- RPCs: platform_list_organisations, platform_create_organisation (the
+  operator is never a member; the owner is invited with issued_by_platform),
+  platform_set_organisation_status, platform_set_profile_status,
+  platform_link_agency_facility (explicit; a link is immutable, CHF09).
+- Every call, reads included, was audited. Grants are
+  internal.grant_platform_admin / revoke_platform_admin, executable only by
+  the database owner.
+- Invitations: platform-issued invitations can already be resent, revoked
+  and delivery-recorded by a platform admin (require_invite_authority).
+- App: no platform UI at all. A platform admin with no memberships saw
+  "You are not a member of any organization yet."
+- Commercial/billing: nothing existed. Payment provider: none (no Stripe or
+  equivalent).
+
+====================================================
+2. RETAINED SECURITY BOUNDARIES
+====================================================
+
+Unchanged:
+- a platform admin is not a tenant role and not a member;
+- tenant capabilities are unaffected;
+- tenant RLS gives the platform no rows;
+- AAL2 is required for every platform call;
+- grants are DB-owner procedures;
+- every platform action is audited.
+Tested in pgTAP 330 U.* and 050, integration, and E2E (tenant routes 404 for
+a platform admin; a platform admin who is also a scheduler keeps scheduler
+authority only).
+
+====================================================
+3. PLATFORM ROUTE ARCHITECTURE
+====================================================
+
+src/app/platform (outside /app and every tenant):
+  /platform                         overview
+  /platform/organisations           directory (+ create organisation)
+  /platform/organisations/[id]      detail (identity, commercial, invites,
+                                    links, access, system, events)
+  /platform/billing                 agency accounts + plans
+  /platform/system                  health
+  /platform/admins                  grants (read-only)
+  /platform/activity                platform events
+/platform/customers was consolidated into /platform/organisations (one
+directory with commercial columns). The frame shows "CHELTH PLATFORM —
+Platform administration", the operator's name, "Your organizations" and
+Sign out, with section tabs. It uses no tenant sidebar.
+Layout gate: no active grant ⇒ 404; grant at AAL1 ⇒ step-up notice
+(/app/security/verify?next=/platform); grant at AAL2 ⇒ pages. The gate is
+presentation; the RPCs re-check.
+
+====================================================
+4. PLATFORM ENTRY BEHAVIOUR
+====================================================
+
+/app (getPlatformAccess):
+- a platform admin with no memberships → redirect to /platform (unless a
+  pending invitation or notice must be seen first);
+- a platform admin with memberships → the chooser shows a "Platform
+  administration" section (separate from "Your organizations"). The
+  worker-only and facility-only auto-entry is skipped, so no tenant is entered
+  silently.
+- Context is explicit: inside /platform the grant decides; inside a workspace
+  the membership decides. Authority is never merged.
+
+====================================================
+5–6. ORGANISATION DIRECTORY · CUSTOMER DETAIL
+====================================================
+
+Directory (platform_list_customers):
+- columns: name, type, status, created, commercial status (or "Commercial
+  setup required"), plan, seats, facility links, owner invitation pending;
+- filters: All / Agencies / Facility organizations / Suspended / Commercial
+  setup required / On trial.
+Detail (platform_get_customer):
+- identity: slug, language, currency, created, members, seats, workers,
+  facility records;
+- commercial account;
+- platform-issued owner invitations (status, sends, expiry, email delivery
+  status);
+- facility links: agency, record, facility organisation, relationship
+  status;
+- organisation access (lifecycle);
+- system: failed notifications (30 days) and stuck scans;
+- the latest platform events.
+Never shown: payroll, rates, invoices, messages, documents, attendance
+evidence, locations, worker contact data or notes.
+
+====================================================
+7–10. COMMERCIAL ACCOUNT · PLANS · BILLING MODEL · LIFECYCLE
+====================================================
+
+public.customer_accounts (one per AGENCY):
+- status (trial | active | past_due | suspended | cancelled), plan_key,
+  billing_name, billing_email;
+- provider = 'manual' (CHECK), plus provider_customer_id and
+  provider_subscription_id (provider-ready, unused);
+- trial_started_at, trial_ends_on, subscription_started_at,
+  current_period_ends_on, cancel_at_period_end, suspended_at, updated_by;
+- no card, bank or payment credentials.
+public.subscription_plans: key, name, status (active | retired),
+  monthly_price_minor + currency (both or neither), included_seats,
+  included_facilities. Seeded: one neutral "pilot" plan with no price. No
+  pricing was invented.
+Both tables: RLS on, no policies, no table grants (RPC access only).
+Separation: Agency → Chelth only. No shared tables or concepts with rate
+cards, pricing, payroll, facility invoices or worker pay (pgTAP 330 F.*: no
+platform function reads those tables).
+Lifecycle: one RPC (platform_save_customer_account) creates or updates the
+account with a required reason. It audits:
+  platform.customer_account_created, platform.plan_changed,
+  platform.trial_changed, platform.subscription_changed (changed fields),
+  platform.billing_contact_changed.
+Entitlements: none enforced. Plans hold included seats and facilities for
+reporting only; no product feature is gated (no approved commercial policy).
+Seat = an active membership with at least one active role other than
+Healthcare Worker (workers are never seats). Facilities (commercial) = the
+agency's facility records (agency_facilities); facility organisations are
+counted separately as links, never double-counted.
+
+====================================================
+11–13. FACILITY PROVISIONING · LINKING · OWNER INVITATION
+====================================================
+
+Provisioning: /platform/organisations → Create an organization (facility or
+agency; name; owner email) → the existing platform_create_organisation → the
+owner invitation email via the existing post-commit delivery
+(deliverInvitation, recorded on the invite). If the email is not sent, the
+link is shown once for the operator to share. The operator never becomes a
+member (tested).
+Language and currency are left to the owner (Settings → Language & Region);
+the existing RPC has no locale input.
+Linking: facility organisation → Facility links → choose agency → that
+agency's facility records (platform_list_agency_facility_records) → choose
+record → confirm → the existing platform_link_agency_facility. Explicit,
+audited on both sides, immutable (CHF09). Nothing is auto-linked by name or
+email. After linking, the page confirms "Facility linked: agency · record ↔
+facility organization".
+Owner invitation: status, resend (token rotation, existing limit of 5) and
+revoke through the existing invite architecture; the platform authority for
+platform-issued invites is unchanged.
+
+====================================================
+14. PLATFORM ADMIN MANAGEMENT
+====================================================
+
+/platform/admins: name, email, granted, granted by, status (read-only).
+Grant and revoke stay DB-owner operator procedures (unchanged, deliberately):
+an app session can never mint or remove a platform admin. Documented
+bootstrap: PILOT_OPERATIONS.md §10. "Keep at least one active admin" is an
+operator rule (an in-app last-admin guard is moot without in-app revocation).
+
+====================================================
+15–17. SYSTEM HEALTH · ACTIVITY · SUPPORT MODEL
+====================================================
+
+System (platform_get_system_health):
+- database time;
+- notification queue by state, failures by event and code (30 days), oldest
+  waiting;
+- scanner (scanning, stuck, cleared, last upload);
+- cron jobs (schedule, last run, last success, failures in 24 h);
+- storage buckets (public/private, size limit).
+No secrets, Vault values, URLs or recipients (pgTAP P check, E2E assertion).
+Activity (platform_list_activity): an explicit allow-list:
+- always listed: platform.* changes and organisation.created;
+- listed when performed through the platform: organisation.status_changed,
+  facility.linked, invite.created/resent/revoked, profile.status_changed.
+Only safe metadata keys (from/to/type/via/cause/reason/changes/status/plan
+key/role key/operator) are shown. Tenant operational audit is never listed
+(tested).
+Support: metadata and diagnostics only. There is no impersonation, no "log in
+as", and no reading of messages, documents, locations or pay.
+
+====================================================
+18–21. RLS / DATA BOUNDARIES · FINANCIAL SEPARATION · PRIVACY · AAL2
+====================================================
+
+Every new function:
+- security definer with a pinned search_path;
+- internal.require_platform_admin (identity + active grant + AAL2);
+- PUBLIC/anon revoked, EXECUTE granted to authenticated only;
+- audited (reads de-duplicated per operator per 15 minutes; writes audited
+  with a reason).
+The 000 baseline allowlist is updated. No broad SELECT for platform admins
+was added.
+Proven (pgTAP 330 / integration):
+- platform admin without membership: 0 rows of rate cards, rate versions,
+  priced timesheets, payroll batches and invoice drafts;
+- tenant finance RPCs refuse it (CH403);
+- projections carry no contact, location, pay, document or message fields;
+- customer detail contains no member emails, locations, rates, storage paths
+  or message bodies;
+- the agency itself cannot read customer_accounts.
+
+====================================================
+22. TESTS
+====================================================
+
+pgTAP 330_platform_control_plane (48):
+  U authority (agency admin, facility admin and worker CH403; AAL1 CH402;
+    AAL2 ok; no tenant rows or authority; never a member; a revoked admin
+    loses access at once; grant not callable)
+  P privacy (structural; RLS/no-grant)
+  F tenant-finance separation
+  C commercial (no automatic accounts; reason required; agencies only; a
+    tenant cannot self-change; trial → active; audit with reason; no payment
+    data)
+  S one suspension authority (commercial suspend ⇒ organisation suspended;
+    the lifecycle path cannot reactivate; resume reactivates)
+  L lifecycle reason audited
+  K provisioning via the existing RPC (pending invite visible) + link
+  A activity allow-list
+  H health
+000 baseline: 11 new RPCs allow-listed.
+Integration platform-control-plane (5): ordinary users refused; facility
+  provisioning → invite → owner accepts → facility.admin, operator never a
+  member; Agency B cannot link or see Agency A records; explicit link,
+  second link CHF09; facility sees the agency, an outsider CH403; commercial
+  trial → active; the tenant cannot read accounts; finance invisible.
+Unit platform-control-plane (5): provisioning, explicit link, account, lifecycle
+  and plan schemas.
+E2E platform-control-plane.spec (desktop + mobile, axe):
+  operator /app → /platform, step-up, header/nav, no tenant sidebar;
+  directory; create a facility organisation + invite; explicit link; agency
+  commercial setup (Trial, Pilot); billing ("not connected", no charge
+  actions); system without secrets; admins; activity; 5 tenant routes 404 ·
+  agency admin, facility admin and worker /platform 404 · a platform admin
+  who is also a scheduler sees both contexts in the chooser, and inside the
+  agency has scheduler authority only (rates, payroll and settings/rates 404).
+Defects found and fixed while testing:
+  - array append in platform_save_customer_account (pgTAP);
+  - the link confirmation disappeared with the form; it now redirects with a
+    persistent status (E2E);
+  - an activity link was colour-only (axe link-in-text-block); it is now
+    underlined.
+
+Validation (local, clean database reset):
+  npm run format:check        PASS
+  npm run lint                PASS
+  npm run typecheck           PASS
+  npm test                    PASS  38 files / 505 tests
+  npm run build               PASS
+  npm run check:bundle        PASS  (78 browser files, no secrets)
+  npm run check:migrations    PASS  (75)
+  supabase db reset           PASS
+  supabase db lint --level warning --fail-on warning --schema public,authz,internal
+                              PASS  (no findings; the first run flagged an implicit
+                              text→text[] cast in platform_save_customer_account,
+                              fixed with an explicit cast. A CLI analytics timeout
+                              can make the CLI exit 1 with zero findings; the
+                              verdict was re-run with telemetry disabled: exit 0.)
+  supabase test db            PASS  38 files / 1772 tests
+  npm run db:types            PASS  (no drift after regeneration)
+  npm run test:integration    PASS  21 files / 142 tests
+  npx playwright test         PASS  370 passed / 14 skipped / 0 failed (19.8 min,
+                              TZ=UTC, desktop + mobile, one clean run)
+
+====================================================
+23. MIGRATIONS
+====================================================
+
+20261012100000_platform_control_plane.sql. Additive:
+- enum customer_account_status;
+- tables subscription_plans (seeded: "pilot", unpriced) and customer_accounts
+  (RLS on, no policies, no grants);
+- 3 internal helpers and 11 public RPCs.
+No change to organisations, memberships, invites or tenant tables. No
+backfill: existing agencies have no account and show "Commercial setup
+required" (production has 5 agencies; none is assigned a plan or status).
+
+====================================================
+24. DEPLOYMENT ORDER (manual; nothing deployed)
+====================================================
+
+1. Backup (PILOT_OPERATIONS.md §9).
+2. supabase db push (20261012100000).
+3. Deploy the app (main after merge).
+4. Grant a named operator platform admin (§10 SQL) if not done.
+5. Smoke test: the operator signs in → /platform → verify → directory lists
+   the 5 agencies as "Commercial setup required".
+
+====================================================
+25. PILOT IMPACT
+====================================================
+
+This closes the P0-E9-4 blocker "facility access not provisionable" once a
+platform admin is granted. The operator can now:
+1. sign in to /platform;
+2. create a facility organisation;
+3. invite its admin;
+4. link it to an agency facility;
+5. inspect setup state;
+6. record commercial metadata;
+7. return to pilot certification.
+No raw SQL is needed except the one-time platform-admin grant.
+
+====================================================
+26. DEFERRED: PROVIDER BILLING
+====================================================
+
+P0-E9-4B — SUBSCRIPTION BILLING PROVIDER (later):
+- payment provider integration (customer and subscription IDs, webhooks
+  driving status);
+- invoices for Chelth subscriptions;
+- dunning;
+- agency self-service billing contact;
+- plan entitlement enforcement once a commercial policy is approved.
+The lack of automated card billing does not block the controlled pilot.
+
+PLATFORM CONTROL PLANE:
+STATUS: COMPLETE
+
+CUSTOMER ADMINISTRATION:
+STATUS: COMPLETE
+
+FACILITY PROVISIONING:
+STATUS: COMPLETE
+
+FACILITY LINKING:
+STATUS: COMPLETE
+
+COMMERCIAL ACCOUNT MODEL:
+STATUS: COMPLETE
+
+PLATFORM BILLING METADATA:
+STATUS: COMPLETE
+
+TENANT DATA BOUNDARY:
+STATUS: VERIFIED
+
+IMPERSONATION:
+STATUS: NOT IMPLEMENTED
+
+PAYMENT PROVIDER:
+STATUS: NOT CONNECTED
+
+DO NOT DEPLOY AUTOMATICALLY.

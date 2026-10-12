@@ -227,16 +227,36 @@ Recovery from a bad migration: fix forward (new migration). Restore from a
 backup only for data loss, and only after an explicit decision, because a
 restore discards every write since the backup.
 
-## 10. Granting platform administration (facility linking)
+## 10. Platform administration (control plane)
 
-Linking a facility organisation to an agency's facility record
-(`public.platform_link_agency_facility`) needs a platform administrator
-enrolled with the authenticator app. There is no UI for granting the role. It
-is a one-off **WRITE**, run with the owner connection, for a named operator
-account:
+Chelth's own operators use `https://app.chelth.com/platform` (P0-E9-4A). A
+platform admin is not a member of any customer and gets no access inside a
+customer's workspace. The control plane needs the authenticator app (AAL2).
+
+| Task                                                                                   | Where                                                                         |
+| -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| See customers, setup state and health                                                  | `/platform`                                                                   |
+| Create a facility organization and invite its owner                                    | `/platform/organisations` → Create an organization                            |
+| Resend or revoke the owner invitation                                                  | the organization → Owner invitations                                          |
+| Link an agency facility record to a facility organization                              | the facility organization → Facility links → choose agency → record → confirm |
+| Set up or change an agency's commercial account (plan, status, billing contact, trial) | the agency → Commercial account (a reason is required)                        |
+| Suspend or reactivate an organization                                                  | the organization → Organization access (a reason is required)                 |
+| Plans                                                                                  | `/platform/billing` → Plans (no prices until approved)                        |
+| Background services                                                                    | `/platform/system`                                                            |
+| What platform admins changed                                                           | `/platform/activity`                                                          |
+
+The payment provider is not connected: commercial statuses are records, not
+charges. A commercial suspension also suspends the organization's access.
+
+**Granting or revoking platform administration** stays an operator procedure.
+There is no UI for it, by design. Run it as a one-off **WRITE** with the owner
+connection, for a named person who already has an account with the
+authenticator app enrolled:
 
 ```sql
 select internal.grant_platform_admin('<operator-profile-uuid>'::uuid, '<Operator name>', '<reason>');
+select internal.revoke_platform_admin('<operator-profile-uuid>'::uuid, '<Operator name>', '<reason>');
 ```
 
-The grant is audited. Revoke it after pilot setup if it is not needed day to day.
+Both are audited. Keep at least one active platform admin. Revoking takes
+effect on that person's next request.

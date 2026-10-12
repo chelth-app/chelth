@@ -314,6 +314,30 @@ stale-issuer cases are indistinguishable to the caller.
   DATABASE_MIGRATION_POLICY.md §11.
 - No service-role key is used anywhere.
 
+### 8.1 Control plane (P0-E9-4A)
+
+- `/platform` is a separate app context (its own frame, no tenant sidebar).
+  It exists only for an active grant (404 otherwise) and asks an AAL1 session
+  to step up. `/app` sends a platform admin with no memberships to
+  `/platform`. With memberships, the chooser lists "Platform administration"
+  apart from the organisations; no tenant is entered automatically and no
+  authority is merged.
+- Further narrow, audited RPCs (reads de-duplicated per operator per 15
+  minutes): `platform_get_overview`, `platform_list_customers`,
+  `platform_get_customer`, `platform_list_agency_facility_records`,
+  `platform_list_plans`, `platform_save_plan`,
+  `platform_save_customer_account`, `platform_set_organisation_lifecycle`,
+  `platform_get_system_health`, `platform_list_admins`,
+  `platform_list_activity` (an explicit event allow-list).
+- Commercial data (`customer_accounts`, `subscription_plans`) is Agency →
+  Chelth only. It has RLS with no policies and no table grants (RPC-only), and
+  it is separate from tenant finance. `organisations.status` is the single
+  access authority: a commercial suspension suspends the organisation, and
+  the lifecycle RPC will not reactivate a commercially suspended agency.
+- Granting and revoking platform admins remain operator procedures; the UI
+  only lists grants.
+- No impersonation exists.
+
 ## 9. MFA / AAL2 policy
 
 | Question                           | Answer                                                                                                                                                                                                                                                                                                                                                                                  |
