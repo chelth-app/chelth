@@ -27,8 +27,9 @@ supabase/.temp/
 supabase/.branches/
 supabase/.env
 
-# Test artifacts
-coverage/
+# Test artifacts (root only: an unanchored "coverage/" also ignored the
+# facility Coverage route, src/app/.../(workspace)/coverage — P0-E9-3K.1)
+/coverage/
 playwright-report/
 test-results/
 blob-report/

@@ -452,3 +452,92 @@ CROSS-FACILITY ISOLATION:
 STATUS: VERIFIED
 
 DO NOT DEPLOY AUTOMATICALLY.
+
+====================================================
+P0-E9-3K.1 — CI CLOSURE
+====================================================
+
+Date: 2026-10-12
+
+Exact CI failure
+----------------
+GitHub Actions run 38185176811 (PR #35, 2026-10-11 23:40–23:56 UTC):
+354 passed, 14 skipped, 4 failed, 6 did not run. Two tests, each on desktop
+and mobile:
+1. facility-workspace.spec.ts:131. First failing assertion, line 200:
+   expect(table "Coverage: Next 14 days" → row /Wendy Ready/).toContainText
+   ("Accepted"): element not found. Snapshot: the root "Page not found".
+   Trace network: every /coverage request (document and RSC prefetch)
+   returned 404, while /staffing-requests, /attendance and /compliance
+   returned 200. The 6 "did not run" were the rest of that serial describe.
+2. overview-fidelity.spec.ts:497. First failing assertion, line 579:
+   list "Weekly shift agenda" not visible at a width under 1024 px.
+   Snapshot: calendar heading "Oct 5 – Oct 11, 2026", "No shifts this week".
+
+Root cause — facility-workspace (genuine defect, not a race)
+-------------------------------------------------------------
+The route file src/app/app/organisations/[organisationId]/(workspace)/
+coverage/page.tsx was never committed. .gitignore line 31 "coverage/" (meant
+for Vitest's root coverage report) is unanchored, so it matched the route
+directory (workspace)/coverage/. `git check-ignore` confirmed it, and
+`git ls-files` showed only facility-coverage-table.tsx. CI builds from the
+checkout, so /coverage did not exist there. A production deploy of #35 as
+pushed would also have shipped without the Coverage page. Local runs passed
+because the file existed on disk.
+Not a projection race, fixture collision or date issue: the request,
+assignment and acceptance all succeeded (200s in the trace) before the 404.
+
+Root cause — overview-fidelity (test date dependency)
+------------------------------------------------------
+The suite's open places are created from isoDay(1) (UTC tomorrow). The earlier
+Sunday fix (09dcb73) changed only the first calendar visit to
+week=isoDay(1). The viewport loop (line 576) and the phone-sheet step
+(line 583) still opened "?view=calendar" with no week, which means the
+server's current week. CI ran at 23:48 UTC on a Sunday: the current week
+(Oct 5–11) held none of the fixture shifts (Oct 12 onwards), so the agenda
+list was not rendered. Locally the clock was already Monday (UTC+2), so the
+current week contained the shifts and the bug was hidden.
+
+Changes
+-------
+Product code: no change. The page is the same 3K Coverage page, now tracked
+  in git.
+Repository config: .gitignore "coverage/" → "/coverage/" (root-anchored,
+  with a comment). Vitest coverage output at the repo root is still ignored
+  (verified with git check-ignore on a root coverage/ file).
+Test code: overview-fidelity.spec.ts uses one `fixtureWeek` URL
+  (week=isoDay(1)) for every calendar visit. No assertion was removed or
+  weakened, and no retries, skips, soft asserts or timeout increases were
+  added. facility-workspace.spec.ts is unchanged.
+No migration.
+
+Why the fix is deterministic
+----------------------------
+- Coverage: the route is in the repository, so every checkout (CI, Vercel)
+  builds it; it no longer depends on files left on a developer disk.
+- Calendar: every visit opens the week containing isoDay(1). The fixture's
+  first open places are created on isoDay(1), so that week holds them on any
+  weekday, at any hour, in any server or runner timezone. Nothing depends on
+  the "current week" any more.
+
+Targeted rerun (TZ=UTC, as in CI; desktop + mobile; both specs together)
+------------------------------------------------------------------------
+run 1: 20 passed · run 2: 20 passed · run 3: 20 passed (0 failed).
+The exact Sunday 23:48 UTC condition cannot be replayed on demand. The fixed
+spec no longer has a code path that reads the current week.
+
+Validation
+----------
+format:check PASS · lint PASS · typecheck PASS · unit 500/500 PASS ·
+build PASS · check:bundle PASS · check:migrations PASS (74).
+Full Playwright (TZ=UTC, clean run): 364 passed / 14 skipped / 0 failed /
+0 did not run (17.3 min).
+
+Action for CI: commit .gitignore, the Coverage page and the spec change,
+push to PR #35, and confirm the GitHub Actions run is green before merging.
+
+3K CI:
+STATUS: PASS
+
+PLAYWRIGHT:
+STATUS: PASS — 364 passed / 14 skipped / 0 failed

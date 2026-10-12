@@ -530,10 +530,12 @@ test.describe.serial("Operations Overview visual QA density", () => {
       "aria-current",
       "page",
     );
-    // The open places this suite creates start tomorrow (isoDay(1)…(5)); on a
-    // Sunday they all fall in next week, so open the week that holds them
-    // (the calendar shows the chosen week — that is the behaviour under test).
-    await page.goto(`${path}?view=calendar&week=${isoDay(1)}`);
+    // The open places this suite creates start tomorrow (isoDay(1)…(5), UTC
+    // dates); on a Sunday they all fall in next week, so every calendar visit
+    // opens the week that holds them — never the server's "current" week,
+    // which depends on the wall clock (P0-E9-3K.1: CI at 23:48 UTC on a Sunday).
+    const fixtureWeek = `${path}?view=calendar&week=${isoDay(1)}`;
+    await page.goto(fixtureWeek);
     const calendar = page.getByRole("region", { name: "Weekly shift calendar" });
     await expect(calendar).toContainText("Open places");
     await expectNoA11yViolations(page);
@@ -573,7 +575,7 @@ test.describe.serial("Operations Overview visual QA density", () => {
       await page.goto(path);
       await expectNoPageOverflow(page);
       await qaScreenshot(page, "shqa-shifts-list");
-      await page.goto(`${path}?view=calendar`);
+      await page.goto(fixtureWeek);
       await expectNoPageOverflow(page);
       if (width < 1024) {
         await expect(page.getByRole("list", { name: "Weekly shift agenda" })).toBeVisible();
@@ -582,7 +584,7 @@ test.describe.serial("Operations Overview visual QA density", () => {
     }
     // Phone: the drawer becomes the canonical sheet.
     await page.setViewportSize({ width: 412, height: 915 });
-    await page.goto(`${path}?view=calendar`);
+    await page.goto(fixtureWeek);
     await page
       .getByRole("list", { name: "Weekly shift agenda" })
       .getByRole("button", { name: /^Details for / })
