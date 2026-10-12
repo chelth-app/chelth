@@ -21,14 +21,19 @@ import {
   organisationIdSchema,
 } from "@/features/organisations";
 import { RelationshipStatusBadge, listPartnerRelationships } from "@/features/facilities";
-import { listSharedWorkerCompliance, ReadinessBadge } from "@/features/compliance";
-import { isWorkspaceStaff, OrganisationSections, StepUpNotice } from "@/features/organisations";
-import { COMPLIANCE_REASON_LABELS, formatCalendarDate } from "@/lib/domain/credentials";
+import { listSharedWorkerCompliance } from "@/features/compliance";
+import {
+  facilityOnlyOrganisations,
+  isWorkspaceStaff,
+  OrganisationSections,
+  StepUpNotice,
+} from "@/features/organisations";
 import { getMyWorkerRecord, WorkerStatusBadge } from "@/features/workforce";
 import { requireAuthIdentity } from "@/lib/auth/session";
 import { CAPABILITIES, capabilityState, type CapabilityGrant } from "@/lib/authz";
 import { cn } from "@/lib/utils/cn";
 
+import { HeaderAddAction } from "./(finance)/_components/finance-locked";
 import { AgencyOperationsOverview } from "./_components/agency-operations-overview";
 import { FacilityOperationsOverview } from "./_components/facility-operations-overview";
 import { FacilityStepUpNotice } from "./_components/facility-step-up-notice";
@@ -77,6 +82,7 @@ export default async function OrganisationPage({
   ]);
   const roleName = new Map(roles.map((role) => [role.key, role.name]));
   const me = memberships.find((membership) => membership.organisation?.id === organisationId);
+  const singleFacility = facilityOnlyOrganisations(memberships)?.length === 1;
   const [myWorkerRecord, partnerRelationships] = await Promise.all([
     organisation.type === "agency" ? getMyWorkerRecord(organisationId) : Promise.resolve(null),
     organisation.type === "facility" && can(CAPABILITIES.RELATIONSHIP_VIEW) === "granted"
@@ -119,10 +125,22 @@ export default async function OrganisationPage({
           description={
             <p>Your staffing requests, who is expected and the timesheets waiting for sign-off.</p>
           }
+          // A single-facility account has no chooser to go back to (P0-E9-3K entry).
           back={
-            <Link href="/app" className="text-primary underline underline-offset-4">
-              {spell("All organizations")}
-            </Link>
+            singleFacility ? undefined : (
+              <Link href="/app" className="text-primary underline underline-offset-4">
+                {spell("All organizations")}
+              </Link>
+            )
+          }
+          primaryAction={
+            can(CAPABILITIES.SHIFT_REQUEST) === "granted" ? (
+              <HeaderAddAction
+                href={`/app/organisations/${organisationId}/staffing-requests#request-staff`}
+              >
+                Request staff
+              </HeaderAddAction>
+            ) : undefined
           }
           meta={
             <>
@@ -183,7 +201,17 @@ export default async function OrganisationPage({
         <AgencyOperationsOverview organisationId={organisationId} can={can} />
       ) : null}
       {facilityOverview ? (
-        <FacilityOperationsOverview organisationId={organisationId} can={can} />
+        <FacilityOperationsOverview
+          organisationId={organisationId}
+          can={can}
+          complianceAttention={
+            organisation.type === "facility" && can(CAPABILITIES.CREDENTIAL_VIEW) === "granted"
+              ? sharedCompliance
+                  .flatMap(({ workers }) => workers)
+                  .filter((worker) => worker.readiness !== "ready").length
+              : null
+          }
+        />
       ) : null}
 
       {/*
@@ -253,37 +281,22 @@ export default async function OrganisationPage({
               </li>
             ))}
           </RecordList>
-          {sharedCompliance.map(({ relationship, workers }) => (
-            <div key={relationship.relationshipId} className="flex flex-col gap-2">
-              <h3 className={RECORD_ROW_TITLE}>Workers shared by {relationship.agencyName}</h3>
-              {workers.length === 0 ? (
-                <p className={RECORD_ROW_META}>No workers shared yet.</p>
-              ) : (
-                <RecordList>
-                  {workers.map((sharedWorker) => (
-                    <li key={sharedWorker.workerId} className={cn(RECORD_ROW, "items-start")}>
-                      <span className="flex min-w-0 flex-1 flex-col gap-1">
-                        <span className={RECORD_ROW_TITLE}>
-                          {sharedWorker.workerName ?? "Worker"}
-                        </span>
-                        <ul className={cn("flex flex-col gap-0.5", RECORD_ROW_META)}>
-                          {sharedWorker.items.map((item, index) => (
-                            <li key={`${item.credentialTypeName}-${index}`}>
-                              {item.credentialTypeName}: {COMPLIANCE_REASON_LABELS[item.reason]}
-                              {item.effectiveExpiryDate
-                                ? ` (valid to ${formatCalendarDate(item.effectiveExpiryDate)})`
-                                : ""}
-                            </li>
-                          ))}
-                        </ul>
-                      </span>
-                      <ReadinessBadge status={sharedWorker.readiness} />
-                    </li>
-                  ))}
-                </RecordList>
-              )}
-            </div>
-          ))}
+          {sharedCompliance.length > 0 ? (
+            // P0-E9-3K: the per-worker detail lives on the facility Compliance page.
+            <p className={RECORD_ROW_META}>
+              {sharedCompliance.reduce((sum, { workers }) => sum + workers.length, 0)} shared{" "}
+              {sharedCompliance.reduce((sum, { workers }) => sum + workers.length, 0) === 1
+                ? "worker"
+                : "workers"}
+              .{" "}
+              <Link
+                href={`/app/organisations/${organisationId}/compliance` as Route}
+                className="text-primary underline underline-offset-4"
+              >
+                View compliance
+              </Link>
+            </p>
+          ) : null}
         </Panel>
       ) : null}
     </div>

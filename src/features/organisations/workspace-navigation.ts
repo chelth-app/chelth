@@ -104,6 +104,11 @@ export function buildWorkspaceNavigation({
           overview,
           has(CAPABILITIES.SHIFT_VIEW) &&
             item("Staffing requests", "staffing-requests", "requests"),
+          // P0-E9-3K: the workers serving this facility, their attendance and
+          // the compliance agencies share — facility projections only.
+          has(CAPABILITIES.SHIFT_VIEW) && item("Coverage", "coverage", "workforce"),
+          has(CAPABILITIES.ATTENDANCE_VIEW) && item("Attendance", "attendance", "attendance"),
+          has(CAPABILITIES.CREDENTIAL_VIEW) && item("Compliance", "compliance", "compliance"),
           has(CAPABILITIES.TIMESHEET_FACILITY_SIGNOFF) &&
             item("Sign-off", "timesheets", "timesheets"),
           has(CAPABILITIES.MESSAGE_VIEW) && item("Messages", "conversations", "messages"),
@@ -190,6 +195,29 @@ export function workerOnlyAgencies(
       roleKeys.every((key) => key === ROLES.AGENCY_HEALTHCARE_WORKER),
   );
   if (!workerOnly) return null;
+  return visible.flatMap(({ organisation }) =>
+    organisation ? [{ id: organisation.id, name: organisation.name }] : [],
+  );
+}
+
+/**
+ * Facility-only app entry (P0-E9-3K). Returns the facility organisations when
+ * EVERY visible membership is a facility membership with at least one active
+ * role. One ⇒ the app entry opens that facility's Overview; several ⇒ a
+ * facility chooser without "Create a new agency" (a facility user is not
+ * setting up a staffing agency). Returns null for agency, mixed, role-less or
+ * new users, who keep the general gateway. Presentation only: every page
+ * still applies its own gate.
+ */
+export function facilityOnlyOrganisations(
+  memberships: readonly EntryMembership[],
+): { id: string; name: string }[] | null {
+  const visible = memberships.filter((membership) => membership.organisation !== null);
+  if (visible.length === 0) return null;
+  const facilityOnly = visible.every(
+    ({ organisation, roleKeys }) => organisation?.type === "facility" && roleKeys.length > 0,
+  );
+  if (!facilityOnly) return null;
   return visible.flatMap(({ organisation }) =>
     organisation ? [{ id: organisation.id, name: organisation.name }] : [],
   );

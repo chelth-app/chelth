@@ -1,6 +1,7 @@
 import "server-only";
 import type { ShiftClassification } from "@/lib/domain/pricing";
 
+import type { AttendanceClockState } from "@/lib/domain/attendance";
 import type { ComplianceReason, ReadinessStatus } from "@/lib/domain/credentials";
 import {
   type AssignmentBlockReason,
@@ -488,6 +489,69 @@ export async function listFacilityShifts(
     externalReference: row.external_reference,
     cancellationReason: row.cancellation_reason,
     relationshipStatus: row.relationship_status,
+  }));
+}
+
+/**
+ * P0-E9-3K: one worker serving the facility on one shift (the Coverage and
+ * facility Attendance pages). The same fields as the per-shift facility
+ * projections; attendance is null unless the caller holds attendance.view.
+ */
+export type FacilityCoverageRow = {
+  assignmentId: string;
+  shiftId: string;
+  agencyName: string;
+  locationName: string;
+  disciplineName: string;
+  startAt: string;
+  endAt: string;
+  timezone: string;
+  shiftStatus: ShiftStatus;
+  workerName: string | null;
+  assignmentStatus: AssignmentStatus;
+  readiness: ReadinessStatus | null;
+  attendance: {
+    clockState: AttendanceClockState;
+    clockInAt: string | null;
+    clockOutAt: string | null;
+    needsReview: boolean;
+  } | null;
+};
+
+/** Workers serving a facility over shift local dates `from`..`to` (≤ 31 days; audited). */
+export async function listFacilityCoverage(
+  facilityOrganisationId: string,
+  from: string,
+  to: string,
+): Promise<FacilityCoverageRow[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("list_facility_coverage", {
+    p_facility_organisation_id: facilityOrganisationId,
+    p_from: from,
+    p_to: to,
+  });
+  if (error) throw error;
+  return data.map((row) => ({
+    assignmentId: row.assignment_id,
+    shiftId: row.shift_id,
+    agencyName: row.agency_name,
+    locationName: row.location_name,
+    disciplineName: row.discipline_name,
+    startAt: row.start_at,
+    endAt: row.end_at,
+    timezone: row.timezone,
+    shiftStatus: row.shift_status,
+    workerName: row.worker_display_name ?? null,
+    assignmentStatus: row.assignment_status,
+    readiness: row.readiness ?? null,
+    attendance: row.attendance_visible
+      ? {
+          clockState: row.clock_state,
+          clockInAt: row.clock_in_at ?? null,
+          clockOutAt: row.clock_out_at ?? null,
+          needsReview: row.has_open_exception ?? false,
+        }
+      : null,
   }));
 }
 

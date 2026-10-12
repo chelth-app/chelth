@@ -14,7 +14,8 @@ import {
   RefPanelAction,
 } from "@/components/reference/locked-reference";
 import { DataTableRegion } from "@/components/ui/data-table";
-import { FILL_TONE, listFacilityShifts, SHIFT_TONE } from "@/features/shifts";
+import { unreadMessageCount } from "@/features/messaging";
+import { FILL_TONE, listFacilityCoverage, listFacilityShifts, SHIFT_TONE } from "@/features/shifts";
 import { listFacilityTimesheetEntries } from "@/features/timesheets";
 import { CAPABILITIES, type CapabilityKey, type CapabilityState } from "@/lib/authz";
 import {
@@ -29,9 +30,14 @@ import { formatWorkedMinutes } from "@/lib/domain/timesheets";
 import { cn } from "@/lib/utils/cn";
 
 import { LockedEmpty } from "../(finance)/_components/finance-locked";
+import { coverageNeedsAttention } from "./facility-coverage-table";
 import { spell } from "@/features/localization";
 
 const PANEL_ROWS = 8;
+
+function isoDay(days: number): string {
+  return new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+}
 
 /**
  * Facility Operations Overview (P2, facility scope). Uses ONLY the facility's
@@ -44,23 +50,38 @@ const PANEL_ROWS = 8;
  * reads are individually audited; they are deliberately not fanned out here.
  * No agency-internal issues, pay, pricing, coordinates or audit data.
  *
+ * P0-E9-3K adds "Today at your facility": checked in / needs attention from
+ * the one audited coverage read (attendance.view), workers not ready from the
+ * shared-compliance projection the page already loads (credential.view), and
+ * unread agency messages (message.view). Each is shown only with its gate.
+ *
  * Presentation (P0-E8-QA-F1): the locked Overview family — RefKpiCard, RefPanel
  * and REF_TABLE — with the same facility data and gates as before.
  */
 export async function FacilityOperationsOverview({
   organisationId,
   can,
+  complianceAttention,
 }: {
   organisationId: string;
   can: (capability: CapabilityKey) => CapabilityState;
+  /** Shared workers not ready for this facility; null when compliance is not visible. */
+  complianceAttention: number | null;
 }) {
   const showRequests = can(CAPABILITIES.SHIFT_VIEW) !== "not_held";
   const showSignoff = can(CAPABILITIES.TIMESHEET_FACILITY_SIGNOFF) === "granted";
+  const showAttendance =
+    can(CAPABILITIES.SHIFT_VIEW) === "granted" && can(CAPABILITIES.ATTENDANCE_VIEW) === "granted";
+  const showMessages = can(CAPABILITIES.MESSAGE_VIEW) === "granted";
   if (!showRequests && !showSignoff) return null;
 
-  const [shifts, entries] = await Promise.all([
+  const [shifts, entries, coverage, unread] = await Promise.all([
     showRequests ? listFacilityShifts(organisationId) : Promise.resolve([]),
     showSignoff ? listFacilityTimesheetEntries(organisationId) : Promise.resolve([]),
+    showAttendance
+      ? listFacilityCoverage(organisationId, isoDay(-1), isoDay(1))
+      : Promise.resolve([]),
+    showMessages ? unreadMessageCount(organisationId) : Promise.resolve(0),
   ]);
 
   const base = `/app/organisations/${organisationId}`;
@@ -78,6 +99,13 @@ export async function FacilityOperationsOverview({
   );
   const expectedToday = today.reduce((sum, shift) => sum + shift.acceptedCount, 0);
   const pending = entries.filter((entry) => entry.facilityState === "pending");
+  const nowDate = new Date();
+  const onShiftNow = coverage.filter(
+    (row) =>
+      row.attendance?.clockState === "clocked_in" || row.attendance?.clockState === "on_break",
+  ).length;
+  const attendanceAttention = coverage.filter((row) => coverageNeedsAttention(row, nowDate)).length;
+  const showToday = showAttendance || complianceAttention !== null || showMessages;
 
   return (
     <div className="flex flex-col gap-[13px]">
@@ -134,6 +162,65 @@ export async function FacilityOperationsOverview({
           />
         ) : null}
       </section>
+
+      {showToday ? (
+        <section
+          aria-label="Today at your facility"
+          className="grid grid-cols-2 gap-3 xl:grid-cols-4 xl:gap-[13px]"
+        >
+          {showAttendance ? (
+            <>
+              <RefKpiCard
+                label="Checked In Now"
+                value={onShiftNow}
+                supporting="On shift at your facility"
+                footer={<KpiAction>View attendance</KpiAction>}
+                glyph="clock"
+                icon={<WorkspaceNavIcon name="attendance" strokeWidth={2.4} duotone />}
+                tone="teal"
+                href={`${base}/attendance` as Route}
+              />
+              <RefKpiCard
+                label="Attendance Attention"
+                value={attendanceAttention}
+                supporting="Not checked in, or under review"
+                footer={
+                  <KpiNote tone={attendanceAttention > 0 ? "warning" : "success"}>
+                    {attendanceAttention > 0 ? "Your agency follows up" : "All on track"}
+                  </KpiNote>
+                }
+                glyph="alert"
+                tone={attendanceAttention > 0 ? "warning" : "info"}
+                href={`${base}/attendance` as Route}
+              />
+            </>
+          ) : null}
+          {complianceAttention !== null ? (
+            <RefKpiCard
+              label="Compliance Attention"
+              value={complianceAttention}
+              supporting="Shared workers not ready here"
+              footer={<KpiAction>View compliance</KpiAction>}
+              glyph="document"
+              icon={<WorkspaceNavIcon name="compliance" strokeWidth={2.4} duotone />}
+              tone={complianceAttention > 0 ? "warning" : "info"}
+              href={`${base}/compliance` as Route}
+            />
+          ) : null}
+          {showMessages ? (
+            <RefKpiCard
+              label="Unread Messages"
+              value={unread}
+              supporting="From your agencies"
+              footer={<KpiAction>Open messages</KpiAction>}
+              glyph="document"
+              icon={<WorkspaceNavIcon name="messages" strokeWidth={2.4} duotone />}
+              tone="info"
+              href={`${base}/conversations` as Route}
+            />
+          ) : null}
+        </section>
+      ) : null}
 
       <div
         className={cn(

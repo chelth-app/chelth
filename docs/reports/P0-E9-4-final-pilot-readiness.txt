@@ -1,0 +1,432 @@
+P0-E9-4 — FINAL PILOT READINESS & PRODUCTION CERTIFICATION
+CHELTH — Healthcare Workforce Operations
+Date: 2026-10-12 (production checks run 2026-10-11 23:4x–23:59 UTC)
+Prepared from: read-only production queries (supabase db query --linked),
+GitHub deployment records, public HTTP checks, and the full automated suite.
+No production data was created, changed or deleted. Nothing was deployed.
+
+Bottom line
+-----------
+The software is pilot-ready: every automated gate passes, production
+infrastructure is healthy, migrations are aligned, and the scanner and email
+are proven in production. The production pilot environment is not ready:
+- the facility workspace build (3K) is not yet deployed;
+- there is no facility organisation and no platform administrator to create
+  one;
+- no geofence is configured, and geofencing is not required anywhere;
+- the real-device certifications (geofence, PWA, facility photo) have not been
+  performed.
+Those are setup and certification tasks, not code defects. Decision: NO-GO
+until the blockers in §28 are closed. Most can be closed in one working
+session.
+
+====================================================
+1. PRODUCTION BASELINE
+====================================================
+
+Domain           https://app.chelth.com (Vercel, region iad1)
+Health           GET /api/health → 200 {"status":"ok"}
+Auth gate        /app → 307 /sign-in?next=%2Fapp
+Headers          CSP (nonce, strict-dynamic), HSTS 2y, X-Frame-Options DENY,
+                 nosniff, strict-origin-when-cross-origin, Permissions-Policy
+                 geolocation=(self) camera=() microphone=() payment=()
+PWA manifest     /manifest.webmanifest → 200
+Supabase         linked production project (region us-west-1)
+Storage          credential-documents (private, 10 MB), facility-images
+                 (private, 2 MB; the client resizes before upload)
+Vault            chelth_notification_dispatch_url/secret,
+                 chelth_document_scan_url/secret (names verified; values not read)
+DB roles         chelth_notifier (login) → chelth_notification_worker (no login)
+pg_cron          8 jobs, all active: notification-kick (1 min),
+                 document-scan-kick (1 min), document-scan-watchdog (15 min),
+                 attendance-scan (15 min), shift-reminder-scan (15 min),
+                 offer-expiry (5 min), readiness-scan (hourly),
+                 location-evidence-purge (daily). 24 h: every run succeeded;
+                 7 days: 0 failed runs; last run under 1 minute before the check.
+Notification     outbox: 3 sent (Resend), 1 failed (shift_offered,
+                 expired_before_delivery: expected for an offer that expired
+                 before delivery); 0 pending or retrying.
+Scanner          3 documents scanned clean (2026-10-10 → 10-11); 0 stuck.
+Env vars         Vercel environment values are not readable from this machine
+                 (no Vercel CLI). Configuration is inferred from behaviour:
+                 Resend sends; the scanner clears documents; local_test can
+                 never run in production.
+
+Production data (counts only)
+  organisations: 5 agencies (3 test-named), 0 facility organisations
+  memberships: 5 agency admins, 2 healthcare workers; no other roles
+  agency facilities: 2 (0 linked to a facility organisation); locations: 1
+  geofences: 0; agencies requiring geofencing: 0
+  shifts 3 · assignments 2 · attendance 2 · timesheets 1
+  active rate versions 1 · custom credential types 0 · facility photos 1
+  platform administrators: 0
+
+====================================================
+2. MIGRATIONS
+====================================================
+
+Local 74 = production 74, identical versions, no local-only and no
+remote-only migration. The recent chain is present: 20261010120000
+(geofence fail-closed), 20261010130000 (geofence settings/readiness),
+20261010140000 (locale/display timezone), 20261010150000/150100 (shift email
+vocabulary/notifications), 20261011100000 (organisation currency),
+20261011110000/110100 (custom credential vocabulary/types), 20261011120000
+(facility coverage).
+Migration alignment: PASS.
+
+====================================================
+3. DEPLOYMENT STATE
+====================================================
+
+Production deployment: commit 8f90c77 (merge of PR #34, 3J custom
+certifications), state success, 2026-10-11 20:28 UTC.
+Not deployed: PR #35 "feat: complete facility workspace experience" (3K,
+ef4cc06), OPEN; preview only. Production has the 3K database function, but not
+the pages (signed-out /coverage returns 404, not a sign-in redirect). This is
+additive and safe, but the facility workspace cannot be certified until #35 is
+merged and deployed.
+Backups: PITR off; no provider backups listed. The latest manual logical
+backup is ~/chelth-backups/prod-pre-e9-3d-20261010, taken before the 3E–3K
+migrations. A new pre-pilot backup is needed (§25).
+
+====================================================
+4. PERSONA MATRIX
+====================================================
+
+Persona                          | Production account | Automated coverage
+Agency Admin                     | exists (5)         | yes
+Dispatcher / Scheduler           | NONE               | yes
+Credentialing / compliance user  | NONE               | yes
+Finance user                     | NONE               | yes
+Facility Admin                   | NONE (no facility org) | yes
+Facility Scheduler               | NONE               | yes
+Facility Supervisor              | NONE               | yes
+Worker compliant                 | 2 workers exist (state not certified) | yes
+Worker missing credential        | NONE               | yes
+Worker expiring credential       | NONE               | yes
+Creating production test personas sends real invitation emails and creates
+production records, so it was not done without explicit approval. The setup
+steps are in docs/runbooks/PILOT_SETUP_CHECKLIST.md.
+
+====================================================
+5–7. WORKSPACE CERTIFICATION
+====================================================
+
+5. Agency workspace. Automated (desktop + 412 px, axe): every route, actions,
+   permissions, US/UK terminology, currency, timezone (agency-surfaces,
+   workspace-shell, settings, pricing, language-region and more). Production:
+   health and auth gate only; no persona walkthrough. Result: PASS (automated);
+   production walkthrough pending as part of the smoke test.
+6. Facility workspace. Automated: PASS (facility-workspace, facility-surfaces,
+   workspace-shell: landing, nav per role, request → coverage, attendance,
+   compliance, sign-off, messages, settings, agency routes 404, cross-facility
+   404/CH403). Production: NOT POSSIBLE (3K not deployed; no facility
+   organisation; no platform administrator). Result: FAIL for production
+   readiness.
+7. Worker PWA. Automated (Pixel 7 emulation): sign-in entry, My Shifts
+   Today/Upcoming/Past, shift details, photo/fallback, arrival guidance,
+   messages, credentials, add credential, upload, check-in/out, offline
+   recovery. Real Android Chrome/standalone and iOS Safari/standalone: NOT
+   PERFORMED (requires physical devices). Result: PASS (automated), real
+   devices pending.
+
+====================================================
+8–9. ANDROID / iOS GEOFENCE (hard gate)
+====================================================
+
+Production configuration: 0 geofences on 1 location; no agency requires
+geofencing ⇒ readiness cannot be READY for any pilot location.
+Automated coverage: pgTAP 210/270 (fail-closed, readiness, outside policy,
+accuracy, stale readings, clock-out never blocked), attendance E2E.
+Physical scenarios A–H: not performed.
+ANDROID GEOFENCE: NOT YET CERTIFIED. IOS GEOFENCE: NOT YET CERTIFIED.
+
+====================================================
+10. FACILITY PHOTO
+====================================================
+
+Production: 1 facility photo stored in the private bucket. Automated: upload,
+resize, preview, replace, fallback and worker display (3F specs). Real
+Android/iOS camera and library upload above 2 MB: not performed.
+NOT YET CERTIFIED.
+
+====================================================
+11. NOTIFICATIONS / EMAIL
+====================================================
+
+Infrastructure: cron kick healthy, Vault entries present, worker role present,
+Resend delivering. Delivered in production: worker_assigned,
+message_received, attendance_missed_clock_in (3/3 sent, no duplicates, no
+retries). Not yet observed in production: shift_offered (the only one expired
+before delivery), shift_cancelled, shift_changed, shift_reminder. Content,
+CTAs, privacy (no message text) and dedupe are covered by pgTAP 140/290 and
+unit/E2E. Operator queries for queued/retrying/failed/sent:
+PILOT_OPERATIONS.md §3.
+EMAIL DELIVERY: PASS (pipeline proven); certify the remaining event types in
+the smoke test (P1).
+
+====================================================
+12. SCANNER
+====================================================
+
+Production: 3 uploads scanned clean by the configured provider (local_test is
+refused in production; with no provider, documents would stay "scanning"
+forever). 0 documents stuck; the watchdog runs every 15 minutes and succeeds.
+Unsafe-file refusal: covered by pgTAP 260 and E2E (magic-byte refusal); not
+re-run in production. Stuck handling: PILOT_OPERATIONS.md §4.
+SCANNER: PASS.
+
+====================================================
+13. CUSTOM REQUIREMENTS
+====================================================
+
+Deployed (3J in production; migrations present). Production: 0 custom types
+(not exercised). Automated: pgTAP 310 (44), integration (5), E2E desktop +
+mobile (create, inline create, baseline, facility, worker evidence, verify,
+readiness, isolation, archive). CUSTOM REQUIREMENTS: PASS (automated);
+production exercise is in the setup checklist.
+
+====================================================
+14. COMPLIANCE
+====================================================
+
+Missing / Needs review / Up to date / Expiring soon / Expired, the facility
+view, worker view, assignment blocking, expiry and verification are covered by
+pgTAP 100/230/310 and E2E. Unauthorised facility users get no documents
+(compliance projection has none; E2E asserts). COMPLIANCE: PASS.
+
+====================================================
+15. STAFFING LIFECYCLE
+====================================================
+
+Automated end to end: facility requests → agency opens → assigns → worker
+email → accepts → facility Coverage → check-in → facility Attendance →
+check-out → timesheet → facility sign-off/dispute → pricing (specs:
+facility-workspace, shifts-assignments, attendance, timesheets, pricing).
+Production: never run with a facility (no facility organisation). Pending: the
+smoke test once §28 items 1–3 are done.
+
+====================================================
+16–17. ATTENDANCE / TIMESHEETS
+====================================================
+
+Attendance: agency list, exceptions, breaks, corrections; facility derived
+states only (no coordinates); clock-out never blocked; direct writes refused
+(RLS, pgTAP 170/180/200/210). ATTENDANCE: PASS (automated); on-site devices
+pending under §8–9.
+Timesheets: creation from attendance, agency review, facility sign-off,
+dispute and correction, locked state, history retained, no pay data to the
+facility (pgTAP 190, timesheets E2E). TIMESHEETS: PASS.
+
+====================================================
+18–20. RATES / PRICING · LOCALE / CURRENCY · TIMEZONE
+====================================================
+
+Pricing: draft → active, Day/Evening/Night/Weekend classes, exact minutes
+($30/h × 457 min = $228.50), nearest rounding, matching hierarchy, no
+unintended fallback, history immutable after policy change (pgTAP 210/220/280,
+unit pricing, pricing E2E). PRICING: PASS.
+Locale/currency: en-US Organization/License/Canceled/Center/Meters, en-GB
+Organisation/Licence/Cancelled/Centre/Metres; language never changes currency;
+USD records cannot become GBP (CHY22, pgTAP 300; language-region E2E). PASS.
+Timezone: device auto, manual override, "Use device timezone"; facility time is
+authoritative; Today/Upcoming/Past are facility-local (pgTAP 280, E2E). PASS.
+
+====================================================
+21. MESSAGING
+====================================================
+
+worker ↔ agency, agency ↔ facility, unread counts, email (proven in
+production), shift context, history, pagination, no worker ↔ facility thread,
+no cross-tenant access (pgTAP 160, messaging E2E). PASS (automated);
+agency ↔ facility in production waits on a facility organisation.
+
+====================================================
+22–23. AUTH / ACCESS · PRIVACY
+====================================================
+
+Invite, sign-in, logout, password reset, AAL2 step-up, expired/reused/
+wrong-email invites, terminated members, cross-tenant URLs, worker vs agency vs
+facility routes (pgTAP 010–050, identity/worker-invitations/facility specs).
+No escalation found. Privacy: facilities never see pay, payroll, margins,
+coordinates, documents or contact data (projection field checks, NO_LEAKS E2E
+assertions). TENANT ISOLATION: PASS.
+
+====================================================
+24. OBSERVABILITY
+====================================================
+
+Existing: structured JSON logs with request IDs (Vercel runtime logs);
+/api/health; cron.job_run_details; notification outbox states; document
+statuses; audit_events. No Sentry or equivalent; none was added (per §23). How
+operators detect each failure class: PILOT_OPERATIONS.md §1–§4 and §7.
+Gap (P2): no alerting. Failures are found by the runbook checks, not
+pushed. Recommended: a daily runbook check during the pilot.
+
+====================================================
+25. BACKUP / RECOVERY
+====================================================
+
+PITR: disabled. Provider backups: none listed. Manual logical backups exist up
+to 2026-10-10 (pre-3D); none covers the current schema. App rollback: Vercel
+"Promote/Instant Rollback" (stateless). Migrations are forward-only and
+additive (DATABASE_MIGRATION_POLICY.md §8). Procedure: PILOT_OPERATIONS.md §9.
+Required before the pilot: a fresh backup (P1); enabling PITR is recommended.
+
+====================================================
+26–27. RUNBOOKS · SMOKE TEST
+====================================================
+
+Created:
+- docs/runbooks/PILOT_OPERATIONS.md: app health, cron, notification health and
+  failed email, scanner and stuck credentials, geofence readiness, attendance
+  issues, triage, app rollback, backup/recovery, platform-admin grant;
+- docs/runbooks/PILOT_SETUP_CHECKLIST.md: per-agency checklist (§26 items);
+- docs/runbooks/PILOT_SMOKE_TEST.md: 13 steps, about 15–20 minutes, covering
+  every item in §27, plus geofence, upload and finance add-ons.
+No secrets or recipient addresses in any of them.
+
+====================================================
+28. BLOCKERS
+====================================================
+
+P0 (must resolve before pilot):
+1. Facility workspace not deployed: merge PR #35 and deploy to Production
+   (its migration is already applied). Note (P0-E9-3K.1): as first pushed,
+   #35 did not contain the Coverage page (an unanchored ".gitignore"
+   "coverage/" rule hid it). Push the 3K.1 fix (.gitignore + the page) and
+   wait for green CI before merging.
+2. Facility access not provisionable: 0 platform administrators and 0 facility
+   organisations, so a facility cannot request coverage. Grant platform admin
+   to a named operator (PILOT_OPERATIONS.md §10), create and link each pilot
+   facility organisation, and invite facility users.
+3. Geofencing not configured: 0 geofences, "Require geofencing" off, and no
+   real-device certification. Configure each pilot location (READY), switch
+   requirement ON, and run scenarios A–H on Android and iPhone.
+
+P1 (before pilot):
+4. No fresh production backup since 2026-10-10: take one before pilot start
+   (PITR recommended).
+5. Pilot personas absent: create the controlled test accounts (§4) and run the
+   production smoke test end to end, including offer, cancellation, change and
+   reminder emails.
+6. Real-device certification of the worker PWA (Android and iOS standalone)
+   and facility photo upload above 2 MB from phones.
+
+No code defect at P0 or P1 level was found, so no code was changed in this
+phase.
+
+====================================================
+29. DEFERRED (P2 / P3, not fixed)
+====================================================
+
+P2: alerting/error tracking (no Sentry); facility notifications (fill/assign,
+messages, shift change, relationship change, late check-in); no replay for a
+failed email; unit on facility views; facility-maintained locations, arrival
+guidance and photo.
+P3: facility-owned custom requirement types; staffing preferences; facility
+attendance history beyond today.
+
+====================================================
+30. AUTOMATED VALIDATION (clean run, committed tree = main + 3K)
+====================================================
+
+npm run format:check       PASS (re-run after the runbooks and this report were added)
+npm run lint               PASS
+npm run typecheck          PASS
+npm test                   PASS  37 files / 500 tests
+npm run build              PASS
+npm run check:bundle       PASS  (77 browser files, no secrets)
+npm run check:migrations   PASS  (74)
+supabase db reset          PASS
+supabase db lint --level warning --fail-on warning --schema public,authz,internal  PASS (no findings)
+supabase test db           PASS  37 files / 1724 tests
+npm run db:types           PASS  (no drift)
+npm run test:integration   PASS  20 files / 137 tests
+npx playwright test        PASS  364 passed / 14 skipped / 0 failed (17.1 min,
+                           desktop + mobile; one clean run, no retries)
+
+====================================================
+31. PRODUCTION VALIDATION
+====================================================
+
+Non-destructive only: health, auth gate, headers, manifest, migration list,
+cron/outbox/scanner/storage/Vault/role/backup and data inventory queries
+(select-only, counts and names; no personal data or secrets read). No
+deployment was approved in this phase, so no post-deployment smoke test was
+run.
+
+====================================================
+32. FINAL RECOMMENDATION
+====================================================
+
+NO-GO for today. The product is ready; the production pilot environment is
+not. Close P0 1–3 and P1 4–6 in this order:
+deploy #35 → backup → platform admin → facility organisation(s) and personas →
+geofences + Require → smoke test → real-device geofence, PWA and photo
+certification. Then re-issue the decision. No further code work is needed
+for the pilot unless those checks surface a defect.
+
+AGENCY WORKSPACE:
+PASS
+
+FACILITY WORKSPACE:
+FAIL
+
+WORKER PWA:
+PASS
+
+ANDROID GEOFENCE:
+NOT YET CERTIFIED
+
+IOS GEOFENCE:
+NOT YET CERTIFIED
+
+FACILITY PHOTO:
+NOT YET CERTIFIED
+
+EMAIL DELIVERY:
+PASS
+
+SCANNER:
+PASS
+
+COMPLIANCE:
+PASS
+
+CUSTOM REQUIREMENTS:
+PASS
+
+ATTENDANCE:
+PASS
+
+TIMESHEETS:
+PASS
+
+PRICING:
+PASS
+
+TENANT ISOLATION:
+PASS
+
+PRODUCTION OPERATIONS:
+PASS
+
+P0 BLOCKERS:
+3
+
+P1 BLOCKERS:
+3
+
+PILOT DECISION:
+NO-GO
+
+Blockers to resolve before pilot:
+1. Deploy PR #35 (facility workspace) to Production.
+2. Grant a platform administrator; create and link pilot facility organisations and users.
+3. Configure geofences (READY), switch "Require geofencing" ON, and certify Android and iOS on device.
+4. Take a fresh production backup (PITR recommended).
+5. Create the pilot personas and pass the production smoke test, including offer, cancellation, change and reminder emails.
+6. Certify the worker PWA and facility photo upload on real Android and iOS devices.
+
+DO NOT DEPLOY AUTOMATICALLY.

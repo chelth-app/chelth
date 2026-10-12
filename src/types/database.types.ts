@@ -7516,6 +7516,32 @@ export type Database = {
           validity_months: number
         }[]
       }
+      list_facility_coverage: {
+        Args: {
+          p_facility_organisation_id: string
+          p_from: string
+          p_to: string
+        }
+        Returns: {
+          agency_name: string
+          assignment_id: string
+          assignment_status: Database["public"]["Enums"]["assignment_status"]
+          attendance_visible: boolean
+          clock_in_at: string
+          clock_out_at: string
+          clock_state: Database["public"]["Enums"]["attendance_clock_state"]
+          discipline_name: string
+          end_at: string
+          has_open_exception: boolean
+          location_name: string
+          readiness: Database["public"]["Enums"]["readiness_status"]
+          shift_id: string
+          shift_status: Database["public"]["Enums"]["shift_status"]
+          start_at: string
+          timezone: string
+          worker_display_name: string
+        }[]
+      }
       list_facility_request_options: {
         Args: { p_relationship_id: string }
         Returns: {

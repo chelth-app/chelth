@@ -298,6 +298,9 @@ test.describe.serial("workspace shell", () => {
     expect(await navLabels(facilityNav)).toEqual([
       "Overview",
       "Staffing requests",
+      "Coverage",
+      "Attendance",
+      "Compliance",
       "Messages",
       "Settings",
     ]);
@@ -312,6 +315,9 @@ test.describe.serial("workspace shell", () => {
     expect(await navLabels(nav)).toEqual([
       "Overview",
       "Staffing requests",
+      "Coverage",
+      "Attendance",
+      "Compliance",
       "Sign-off",
       "Messages",
       "Settings",
@@ -334,7 +340,14 @@ test.describe.serial("workspace shell", () => {
     await page.goto(`/app/organisations/${world.facilityOrgId}`);
 
     const nav = await openWorkspaceNav(page, testInfo);
-    expect(await navLabels(nav)).toEqual(["Overview", "Staffing requests", "Sign-off", "Settings"]);
+    expect(await navLabels(nav)).toEqual([
+      "Overview",
+      "Staffing requests",
+      "Coverage",
+      "Attendance",
+      "Sign-off",
+      "Settings",
+    ]);
     await closeWorkspaceNav(page, testInfo);
     await expect(page.getByRole("button", { name: "Create invitation" })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Invitations" })).toHaveCount(0);
@@ -531,15 +544,20 @@ test.describe.serial("workspace shell", () => {
     await expect(page).toHaveURL(new RegExp(`/app/organisations/${world.agencyId}$`));
     await page.context().close();
 
-    // P0-E8-A1.4: a single workspace (Sue belongs only to the facility) gets one comfortable
+    // P0-E9-3K: a facility-only account (Sue) is not shown the gateway: /app opens
+    // her facility's Overview directly.
+    const facilityOnly = await signedIn(browser, supervisor.email);
+    await facilityOnly.goto("/app");
+    await expect(facilityOnly).toHaveURL(new RegExp(`/app/organisations/${world.facilityOrgId}$`));
+    await facilityOnly.context().close();
+
+    // P0-E8-A1.4: a single workspace (the Beta admin belongs only to Beta) gets one comfortable
     // card on desktop rather than half the column; below lg it keeps the stacked full width.
-    const single = await signedIn(browser, supervisor.email);
+    const single = await signedIn(browser, world.betaAdmin.email);
     await single.goto("/app");
     const singleList = single.getByRole("list", { name: "Your organizations" });
     await expect(singleList.getByRole("article")).toHaveCount(1);
-    const card = await singleList
-      .getByRole("article", { name: world.facilityOrgName })
-      .boundingBox();
+    const card = await singleList.getByRole("article").boundingBox();
     const column = await single.getByRole("region", { name: "Your organizations" }).boundingBox();
     const create = await single.getByRole("region", { name: "Create a new agency" }).boundingBox();
     if (!card || !column || !create) throw new Error("single-organisation gateway missing");

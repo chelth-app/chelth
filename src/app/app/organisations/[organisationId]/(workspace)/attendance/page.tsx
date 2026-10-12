@@ -48,6 +48,7 @@ import { cn } from "@/lib/utils/cn";
 
 import { AttendanceDetailsPanel } from "./_components/attendance-details-panel";
 import { ATTENDANCE_TONE, GEOFENCE_TONE } from "./_components/attendance-tones";
+import { FacilityAttendance } from "./_components/facility-attendance";
 
 const LOCATION_ISSUES: readonly AttendanceExceptionType[] = [
   "outside_geofence",
@@ -80,6 +81,13 @@ export default async function AttendancePage({
   const context = await loadOrganisationPage((await params).organisationId);
   requireCapabilityOrNotFound(context, CAPABILITIES.ATTENDANCE_VIEW);
   const { organisationId, organisation, can } = context;
+  // P0-E9-3K: a facility sees today's attendance for its own shifts only
+  // (derived states from the facility projection; no review tools or evidence).
+  if (organisation.type === "facility") {
+    return (
+      <FacilityAttendance organisationId={organisationId} organisationName={organisation.name} />
+    );
+  }
   if (organisation.type !== "agency") notFound();
 
   const raw = await searchParams;
