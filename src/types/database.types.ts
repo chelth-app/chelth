@@ -1809,6 +1809,91 @@ export type Database = {
         }
         Relationships: []
       }
+      customer_accounts: {
+        Row: {
+          billing_email: string | null
+          billing_name: string | null
+          cancel_at_period_end: boolean
+          created_at: string
+          current_period_ends_on: string | null
+          id: string
+          organisation_id: string
+          plan_key: string | null
+          provider: string
+          provider_customer_id: string | null
+          provider_subscription_id: string | null
+          status: Database["public"]["Enums"]["customer_account_status"]
+          subscription_started_at: string | null
+          suspended_at: string | null
+          trial_ends_on: string | null
+          trial_started_at: string | null
+          updated_at: string
+          updated_by_profile_id: string | null
+        }
+        Insert: {
+          billing_email?: string | null
+          billing_name?: string | null
+          cancel_at_period_end?: boolean
+          created_at?: string
+          current_period_ends_on?: string | null
+          id?: string
+          organisation_id: string
+          plan_key?: string | null
+          provider?: string
+          provider_customer_id?: string | null
+          provider_subscription_id?: string | null
+          status: Database["public"]["Enums"]["customer_account_status"]
+          subscription_started_at?: string | null
+          suspended_at?: string | null
+          trial_ends_on?: string | null
+          trial_started_at?: string | null
+          updated_at?: string
+          updated_by_profile_id?: string | null
+        }
+        Update: {
+          billing_email?: string | null
+          billing_name?: string | null
+          cancel_at_period_end?: boolean
+          created_at?: string
+          current_period_ends_on?: string | null
+          id?: string
+          organisation_id?: string
+          plan_key?: string | null
+          provider?: string
+          provider_customer_id?: string | null
+          provider_subscription_id?: string | null
+          status?: Database["public"]["Enums"]["customer_account_status"]
+          subscription_started_at?: string | null
+          suspended_at?: string | null
+          trial_ends_on?: string | null
+          trial_started_at?: string | null
+          updated_at?: string
+          updated_by_profile_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_accounts_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: true
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_accounts_plan_key_fkey"
+            columns: ["plan_key"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "customer_accounts_updated_by_profile_id_fkey"
+            columns: ["updated_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       disciplines: {
         Row: {
           is_active: boolean
@@ -6012,6 +6097,42 @@ export type Database = {
           },
         ]
       }
+      subscription_plans: {
+        Row: {
+          created_at: string
+          currency: string | null
+          included_facilities: number | null
+          included_seats: number | null
+          key: string
+          monthly_price_minor: number | null
+          name: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          currency?: string | null
+          included_facilities?: number | null
+          included_seats?: number | null
+          key: string
+          monthly_price_minor?: number | null
+          name: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          currency?: string | null
+          included_facilities?: number | null
+          included_seats?: number | null
+          key?: string
+          monthly_price_minor?: number | null
+          name?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       timesheet_approvals: {
         Row: {
           agency_organisation_id: string
@@ -8426,12 +8547,78 @@ export type Database = {
           organisation_id: string
         }[]
       }
+      platform_get_customer: {
+        Args: { p_organisation_id: string }
+        Returns: Json
+      }
+      platform_get_overview: { Args: never; Returns: Json }
+      platform_get_system_health: { Args: never; Returns: Json }
       platform_link_agency_facility: {
         Args: {
           p_agency_facility_id: string
           p_facility_organisation_id: string
         }
         Returns: undefined
+      }
+      platform_list_activity: {
+        Args: { p_before?: string; p_limit?: number }
+        Returns: {
+          action: string
+          actor_name: string
+          details: Json
+          event_id: string
+          occurred_at: string
+          organisation_id: string
+          organisation_name: string
+        }[]
+      }
+      platform_list_admins: {
+        Args: never
+        Returns: {
+          active: boolean
+          display_name: string
+          email: string
+          grant_id: string
+          granted_at: string
+          granted_by: string
+          profile_id: string
+          revoked_at: string
+          revoked_by: string
+        }[]
+      }
+      platform_list_agency_facility_records: {
+        Args: { p_agency_organisation_id: string }
+        Returns: {
+          agency_facility_id: string
+          linked_facility_organisation_id: string
+          linked_facility_organisation_name: string
+          name: string
+          status: Database["public"]["Enums"]["facility_status"]
+          timezone: string
+        }[]
+      }
+      platform_list_customers: {
+        Args: never
+        Returns: {
+          account_status: Database["public"]["Enums"]["customer_account_status"]
+          active_members: number
+          created_at: string
+          current_period_ends_on: string
+          default_currency: string
+          facility_records: number
+          linked_facilities: number
+          locale: string
+          name: string
+          organisation_id: string
+          organisation_type: Database["public"]["Enums"]["organisation_type"]
+          owner_invite_pending: boolean
+          plan_key: string
+          plan_name: string
+          slug: string
+          staff_seats: number
+          status: Database["public"]["Enums"]["organisation_status"]
+          trial_ends_on: string
+        }[]
       }
       platform_list_organisations: {
         Args: never
@@ -8444,6 +8631,53 @@ export type Database = {
           organisation_status: Database["public"]["Enums"]["organisation_status"]
           organisation_type: Database["public"]["Enums"]["organisation_type"]
         }[]
+      }
+      platform_list_plans: {
+        Args: never
+        Returns: {
+          accounts: number
+          currency: string
+          included_facilities: number
+          included_seats: number
+          key: string
+          monthly_price_minor: number
+          name: string
+          status: string
+        }[]
+      }
+      platform_save_customer_account: {
+        Args: {
+          p_billing_email?: string
+          p_billing_name?: string
+          p_cancel_at_period_end?: boolean
+          p_current_period_ends_on?: string
+          p_organisation_id: string
+          p_plan_key?: string
+          p_reason: string
+          p_status: Database["public"]["Enums"]["customer_account_status"]
+          p_trial_ends_on?: string
+        }
+        Returns: undefined
+      }
+      platform_save_plan: {
+        Args: {
+          p_currency?: string
+          p_included_facilities?: number
+          p_included_seats?: number
+          p_key: string
+          p_monthly_price_minor?: number
+          p_name: string
+          p_status?: string
+        }
+        Returns: undefined
+      }
+      platform_set_organisation_lifecycle: {
+        Args: {
+          p_organisation_id: string
+          p_reason: string
+          p_status: Database["public"]["Enums"]["organisation_status"]
+        }
+        Returns: undefined
       }
       platform_set_organisation_status: {
         Args: {
@@ -9030,6 +9264,12 @@ export type Database = {
       credential_share_status: "active" | "revoked"
       credential_status: "active" | "withdrawn"
       credential_version_status: "draft" | "submitted" | "withdrawn"
+      customer_account_status:
+        | "trial"
+        | "active"
+        | "past_due"
+        | "suspended"
+        | "cancelled"
       document_status:
         | "upload_pending"
         | "scanning"
@@ -9428,6 +9668,13 @@ export const Constants = {
       credential_share_status: ["active", "revoked"],
       credential_status: ["active", "withdrawn"],
       credential_version_status: ["draft", "submitted", "withdrawn"],
+      customer_account_status: [
+        "trial",
+        "active",
+        "past_due",
+        "suspended",
+        "cancelled",
+      ],
       document_status: [
         "upload_pending",
         "scanning",

@@ -20,6 +20,7 @@ import {
   workerOnlyAgencies,
 } from "@/features/organisations";
 import { getRequestTerminology, spell } from "@/features/localization";
+import { getPlatformAccess } from "@/features/platform";
 import { localizeTerms } from "@/lib/i18n/terminology";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -58,11 +59,21 @@ export default async function AppHomePage({ searchParams }: PageProps<"/app">) {
   const visible = memberships.filter((membership) => membership.organisation !== null);
   const noticeText = typeof notice === "string" ? NOTICES[notice] : undefined;
 
+  // Platform administration (P0-E9-4A) is a separate context, never a tenant:
+  // with no memberships, /app opens the control plane; with memberships, the
+  // chooser offers it explicitly beside the organisations (no tenant is ever
+  // entered automatically for a platform admin, and no authority is merged).
+  const platform = await getPlatformAccess();
+  const isPlatformAdmin = platform.kind !== "none";
+  if (isPlatformAdmin && visible.length === 0 && !pendingInvite && !noticeText) {
+    redirect("/platform");
+  }
+
   // Worker-first entry (P0-E9-3B): a Healthcare-Worker-only account opens its
   // shifts. One agency → straight to My Shifts (unless a pending invitation or
   // a notice must be seen first); several → a worker-only agency chooser.
   // Staff, facility, mixed and new users keep the general gateway below.
-  const workerAgencies = workerOnlyAgencies(visible);
+  const workerAgencies = isPlatformAdmin ? null : workerOnlyAgencies(visible);
   if (workerAgencies) {
     const [onlyAgency] = workerAgencies;
     if (workerAgencies.length === 1 && onlyAgency && !pendingInvite && !noticeText) {
@@ -81,7 +92,7 @@ export default async function AppHomePage({ searchParams }: PageProps<"/app">) {
   // Facility-first entry (P0-E9-3K): a facility-only account opens its
   // facility's Overview (one facility), or chooses among its facilities with
   // no agency-creation panel. Agency, mixed and new users keep the gateway.
-  const facilityOnly = facilityOnlyOrganisations(visible);
+  const facilityOnly = isPlatformAdmin ? null : facilityOnlyOrganisations(visible);
   const [onlyFacility] = facilityOnly ?? [];
   if (facilityOnly?.length === 1 && onlyFacility && !pendingInvite && !noticeText) {
     redirect(`/app/organisations/${onlyFacility.id}` as Route);
@@ -143,6 +154,29 @@ export default async function AppHomePage({ searchParams }: PageProps<"/app">) {
         )}
       >
         <div className="flex min-w-0 flex-col gap-7">
+          {isPlatformAdmin ? (
+            <section aria-labelledby="platform-heading" className="flex flex-col gap-3">
+              <h2
+                id="platform-heading"
+                className="font-display text-[20px] leading-[26px] font-semibold tracking-[-0.02em] text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)]"
+              >
+                Platform administration
+              </h2>
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-[rgba(18,107,103,0.10)] bg-white p-5 shadow-[0_10px_30px_rgba(13,47,66,0.07),0_1px_2px_rgba(13,47,66,0.05)] lg:max-w-[560px]">
+                <p className="text-[14px] leading-5 text-slate-700">
+                  {spell(
+                    "Chelth customers, provisioning and platform health. Separate from your organizations: it gives no access inside them.",
+                  )}
+                </p>
+                <Link
+                  href="/platform"
+                  className="inline-flex min-h-11 items-center rounded-[8px] bg-chelth-teal-dark px-4 text-[14px] font-semibold text-white hover:bg-chelth-teal"
+                >
+                  Open platform administration
+                </Link>
+              </div>
+            </section>
+          ) : null}
           <section aria-labelledby="organisations-heading" className="flex flex-col gap-3">
             <h2
               id="organisations-heading"

@@ -228,6 +228,8 @@ export type StaffingWorld = {
   betaAdmin: Person;
   /** API client of the agency owner (AAL2) for arranging state outside the UI under test. */
   admin: Person;
+  /** Platform admin (local operator grant, TOTP enrolled); a member of no organisation. */
+  operator: Person;
   facilityId: string;
   relationshipId: string;
   /** Extra ready workers (BLS + Mercy orientation), by key. */
@@ -365,6 +367,7 @@ export async function createStaffingWorld(
     facilityAdmin,
     betaAdmin,
     admin,
+    operator,
     facilityId,
     relationshipId,
     extra,
@@ -478,6 +481,20 @@ export async function agencyMember(
   await join(world.admin.client, world.agencyId, role, who);
   if (withAuthenticator) await stepUp(who);
   return who;
+}
+
+/**
+ * Local operator procedure: grant platform administration to an existing
+ * person (enrolling an authenticator first, as the control plane needs AAL2).
+ * Never used to test authorization paths that the grant itself decides.
+ */
+export async function grantPlatformAdmin(who: Person): Promise<void> {
+  assertLocal();
+  if (!who.totpSecret) await stepUp(who);
+  await owner(
+    (sql) =>
+      sql`select internal.grant_platform_admin(${who.userId}::uuid, 'E2E Operator', 'e2e fixture')`,
+  );
 }
 
 /** A new member of the world's facility organisation with one role (invited by the facility admin). */
