@@ -14,6 +14,7 @@ import {
   LifecycleForm,
   LinkFacilityForm,
   listAgencyFacilityRecords,
+  listPlatformConnectionInvites,
   listPlatformCustomers,
   listSubscriptionPlans,
   PlatformInviteActions,
@@ -84,7 +85,7 @@ export default async function PlatformOrganisationPage({
     !isAgency && typeof rawAgency === "string" && organisationIdSchema.safeParse(rawAgency).success
       ? rawAgency
       : null;
-  const [plans, agencies, records] = await Promise.all([
+  const [plans, agencies, records, connectionInvites] = await Promise.all([
     isAgency ? listSubscriptionPlans() : Promise.resolve([]),
     isAgency
       ? Promise.resolve([])
@@ -92,6 +93,7 @@ export default async function PlatformOrganisationPage({
           all.filter((candidate) => candidate.type === "agency" && candidate.status === "active"),
         ),
     chosenAgency ? listAgencyFacilityRecords(chosenAgency) : Promise.resolve([]),
+    listPlatformConnectionInvites(identity.id),
   ]);
   const chosenAgencyName = agencies.find((agency) => agency.id === chosenAgency)?.name ?? null;
   const unlinkedRecords = records.filter((record) => record.linkedOrganisationId === null);
@@ -338,6 +340,62 @@ export default async function PlatformOrganisationPage({
             ) : null}
           </div>
         ) : null}
+      </Panel>
+
+      <Panel
+        titleId="connection-invites-heading"
+        title={<>Facility connection invitations</>}
+        description={
+          <>
+            Agency-initiated invitations. The facility accepts by creating or connecting its own
+            organization; support only, nothing to approve here.
+          </>
+        }
+        variant="reference"
+      >
+        {connectionInvites.length === 0 ? (
+          <p className="text-sm text-slate-700">No connection invitations.</p>
+        ) : (
+          <ul
+            aria-label="Facility connection invitations"
+            className="flex flex-col divide-y divide-border text-sm"
+          >
+            {connectionInvites.map((invite) => (
+              <li
+                key={invite.id}
+                className="flex flex-wrap items-start justify-between gap-2 py-2.5"
+              >
+                <span className="flex flex-col">
+                  <span className="font-medium text-chelth-navy">
+                    {invite.agencyName} · {invite.facilityRecordName}
+                  </span>
+                  <span className="text-slate-600">
+                    {invite.maskedEmail} · sent {invite.sendCount}× ·{" "}
+                    {platformDate(invite.createdAt)}
+                    {invite.facilityOrganisationName ? ` · ${invite.facilityOrganisationName}` : ""}
+                  </span>
+                </span>
+                <StatusChip
+                  tone={
+                    invite.status === "accepted"
+                      ? "success"
+                      : invite.status === "revoked" || invite.expired
+                        ? "neutral"
+                        : "info"
+                  }
+                >
+                  {invite.status === "accepted"
+                    ? "Connected"
+                    : invite.status === "revoked"
+                      ? "Revoked"
+                      : invite.expired
+                        ? "Expired"
+                        : "Pending acceptance"}
+                </StatusChip>
+              </li>
+            ))}
+          </ul>
+        )}
       </Panel>
 
       <Panel

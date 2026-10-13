@@ -216,3 +216,95 @@ export async function listActiveRelationships(
     facilityName: row.facility?.name ?? "Facility",
   }));
 }
+
+/* P0-E9-4A.1: agency-initiated facility connection. */
+
+export type FacilityConnectionInvite = {
+  id: string;
+  maskedEmail: string | null;
+  contactName: string | null;
+  status: "pending" | "accepted" | "revoked";
+  expired: boolean;
+  sendCount: number;
+  lastSentAt: string;
+  expiresAt: string;
+  createdAt: string;
+  acceptedAt: string | null;
+  deliveryStatus: string;
+  facilityOrganisationName: string | null;
+};
+
+/** The agency's own invitations for one facility record (masked emails; never tokens). */
+export async function listFacilityConnectionInvites(
+  facilityId: string,
+): Promise<FacilityConnectionInvite[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("list_facility_connection_invites", {
+    p_facility_id: facilityId,
+  });
+  if (error) throw error;
+  return data.map((row) => ({
+    id: row.invite_id,
+    maskedEmail: row.masked_email ?? null,
+    contactName: row.contact_name ?? null,
+    status:
+      row.status === "accepted" ? "accepted" : row.status === "revoked" ? "revoked" : "pending",
+    expired: row.expired,
+    sendCount: row.send_count,
+    lastSentAt: row.last_sent_at,
+    expiresAt: row.expires_at,
+    createdAt: row.created_at,
+    acceptedAt: row.accepted_at ?? null,
+    deliveryStatus: row.delivery_status,
+    facilityOrganisationName: row.facility_organisation_name ?? null,
+  }));
+}
+
+export type FacilityConnectionPreview = {
+  agencyName: string;
+  facilityName: string;
+  contactName: string | null;
+  expiresAt: string;
+  /** Only facility organisations the signed-in person already belongs to. */
+  options: {
+    organisationId: string;
+    name: string;
+    canApprove: boolean;
+    alreadyConnected: boolean;
+  }[];
+};
+
+/** The invitation for the signed-in person's verified email, or null (no oracle). */
+export async function previewFacilityConnection(
+  token: string,
+): Promise<FacilityConnectionPreview | null> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("preview_facility_connection_invite", {
+    p_token: token,
+  });
+  if (error || !data) return null;
+  const value = data as {
+    agency_name: string;
+    facility_name: string;
+    contact_name: string | null;
+    expires_at: string;
+    options: {
+      organisation_id: string;
+      name: string;
+      can_approve: boolean;
+      already_connected: boolean;
+    }[];
+  };
+  return {
+    agencyName: value.agency_name,
+    facilityName: value.facility_name,
+    contactName: value.contact_name,
+    expiresAt: value.expires_at,
+    options: value.options.map((option) => ({
+      organisationId: option.organisation_id,
+      name: option.name,
+      canApprove: option.can_approve,
+      alreadyConnected: option.already_connected,
+    })),
+  };
+}

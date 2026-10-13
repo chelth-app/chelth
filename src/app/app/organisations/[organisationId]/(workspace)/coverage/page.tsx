@@ -43,7 +43,8 @@ export default async function FacilityCoveragePage({
   const { organisationId, organisation } = context;
   if (organisation.type !== "facility") notFound();
 
-  const raw = (await searchParams).view;
+  const query = await searchParams;
+  const raw = query.view;
   const view: View = raw === "upcoming" || raw === "recent" ? raw : "today";
   const window = VIEWS[view];
   const rows = await listFacilityCoverage(organisationId, isoDay(window.from), isoDay(window.to));
@@ -55,6 +56,12 @@ export default async function FacilityCoveragePage({
     return new Date(row.endAt) <= now;
   });
   if (view === "recent") shown.reverse();
+  // P0-E9-4A.1: several agencies ⇒ an agency filter over the same authorised rows.
+  const agencies = [...new Set(shown.map((row) => row.agencyName))].sort();
+  const agency = agencies.find((name) => name === query.agency) ?? null;
+  const filtered = agency ? shown.filter((row) => row.agencyName === agency) : shown;
+  const withAgency = (href: string, name: string | null) =>
+    (name ? `${href}${href.includes("?") ? "&" : "?"}agency=${encodeURIComponent(name)}` : href) as Route;
 
   const base = `/app/organisations/${organisationId}/coverage`;
   const empty = {
@@ -94,17 +101,27 @@ export default async function FacilityCoveragePage({
         label="Coverage period"
         tabs={(Object.keys(VIEWS) as View[]).map((key) => ({
           label: VIEWS[key].label,
-          href: (key === "today" ? base : `${base}?view=${key}`) as Route,
+          href: withAgency(key === "today" ? base : `${base}?view=${key}`, agency),
           current: key === view,
         }))}
       />
+      {agencies.length > 1 ? (
+        <SectionTabs
+          label="Filter by agency"
+          tabs={[null, ...agencies].map((name) => ({
+            label: name ?? "All agencies",
+            href: withAgency(view === "today" ? base : `${base}?view=${view}`, name),
+            current: name === agency,
+          }))}
+        />
+      ) : null}
       <RefPanel title={VIEWS[view].label} titleId="coverage-heading">
-        {shown.length === 0 ? (
+        {filtered.length === 0 ? (
           <LockedEmpty icon="workforce" title={empty.title} note={empty.note} />
         ) : (
           <FacilityCoverageTable
             organisationId={organisationId}
-            rows={shown}
+            rows={filtered}
             label={`Coverage: ${VIEWS[view].label}`}
             showReadiness={view !== "recent"}
           />

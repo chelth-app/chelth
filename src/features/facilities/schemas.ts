@@ -144,3 +144,50 @@ export const facilityImageCompleteSchema = z.object({
 });
 
 export const facilityImageRemoveSchema = z.object({ organisationId, facilityId });
+
+/* P0-E9-4A.1: facility connection invitations. */
+export const inviteFacilityConnectionSchema = z.object({
+  organisationId,
+  facilityId,
+  email: z.email({ error: "Enter the facility administrator's email address." }).max(320),
+  contactName: z
+    .string()
+    .trim()
+    .max(120, "Use at most 120 characters.")
+    .regex(/^[^\p{Cc}]*$/u, "Remove unsupported characters.")
+    .optional()
+    .transform((value) => (value ? value : undefined)),
+});
+
+export const facilityConnectionInviteSchema = z.object({
+  organisationId,
+  facilityId,
+  inviteId: z.uuid(),
+});
+
+export const acceptFacilityConnectionSchema = z
+  .object({
+    mode: z.enum(["create", "connect"], { error: "Choose how to connect." }),
+    facilityOrganisationId: z
+      .string()
+      .optional()
+      .transform((value) => (value ? value : undefined))
+      .pipe(z.uuid().optional()),
+    facilityName: z
+      .string()
+      .trim()
+      .max(200)
+      .regex(/^[^\p{Cc}]*$/u, "Remove unsupported characters.")
+      .optional()
+      .transform((value) => (value ? value : undefined)),
+    confirm: z.literal("on", { error: "Confirm to continue." }),
+  })
+  .superRefine((value, ctx) => {
+    if (value.mode === "connect" && !value.facilityOrganisationId) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["facilityOrganisationId"],
+        message: "Choose the facility to connect.",
+      });
+    }
+  });

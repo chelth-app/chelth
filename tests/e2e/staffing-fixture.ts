@@ -483,6 +483,11 @@ export async function agencyMember(
   return who;
 }
 
+/** Enrol an authenticator for a person (once) so their API client acts at AAL2. */
+export async function ensureStepUp(who: Person): Promise<void> {
+  if (!who.totpSecret) await stepUp(who);
+}
+
 /**
  * Local operator procedure: grant platform administration to an existing
  * person (enrolling an authenticator first, as the control plane needs AAL2).

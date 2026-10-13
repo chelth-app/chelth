@@ -260,3 +260,20 @@ select internal.revoke_platform_admin('<operator-profile-uuid>'::uuid, '<Operato
 
 Both are audited. Keep at least one active platform admin. Revoking takes
 effect on that person's next request.
+
+## 11. Facility connections and disputes
+
+Normal path: the agency invites from its facility record, and the facility's
+administrator accepts (creates the facility, or connects the one they already
+manage). No platform action is needed.
+
+| Situation                                               | What to check                                                                    | Action                                                                                                                                                      |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "The invitation never arrived"                          | `/platform` → the agency → Facility connection invitations (masked email, sends) | The agency resends (rotates the link) or revokes and re-invites with the right email                                                                        |
+| "It says the invitation is unavailable"                 | It is bound to the exact email and expires after 7 days                          | Sign in with the invited email; otherwise the agency resends                                                                                                |
+| A scheduler or supervisor was invited                   | They cannot approve for an existing facility                                     | The agency invites the facility's administrator                                                                                                             |
+| A duplicate facility was created ("Metro Health" twice) | `/platform/organisations` (both facility organizations, their links)             | Do not merge or delete. Decide with both parties which is canonical; suspend the unused one (`/platform` → Organization access, with a reason)              |
+| The wrong facility was connected                        | `/platform` → the facility → Facility links                                      | Links are written once (not re-pointable). The agency ends that relationship (its record keeps history), then creates a new client record and invites again |
+
+Never re-point a link with SQL, and never reassign records between
+organisations. Every recovery is additive and audited.
