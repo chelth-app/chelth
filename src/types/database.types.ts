@@ -1915,6 +1915,124 @@ export type Database = {
         }
         Relationships: []
       }
+      facility_connection_invites: {
+        Row: {
+          accepted_at: string | null
+          accepted_by_profile_id: string | null
+          agency_facility_id: string
+          agency_organisation_id: string
+          contact_name: string | null
+          created_at: string
+          delivery_attempted_at: string | null
+          delivery_error_code: string | null
+          delivery_provider: string | null
+          delivery_status: Database["public"]["Enums"]["invite_delivery_status"]
+          email: string
+          expires_at: string
+          facility_organisation_id: string | null
+          id: string
+          invited_by_profile_id: string | null
+          last_sent_at: string
+          relationship_id: string | null
+          revoked_at: string | null
+          revoked_by_profile_id: string | null
+          send_count: number
+          status: string
+          token_hash: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_by_profile_id?: string | null
+          agency_facility_id: string
+          agency_organisation_id: string
+          contact_name?: string | null
+          created_at?: string
+          delivery_attempted_at?: string | null
+          delivery_error_code?: string | null
+          delivery_provider?: string | null
+          delivery_status?: Database["public"]["Enums"]["invite_delivery_status"]
+          email: string
+          expires_at: string
+          facility_organisation_id?: string | null
+          id?: string
+          invited_by_profile_id?: string | null
+          last_sent_at?: string
+          relationship_id?: string | null
+          revoked_at?: string | null
+          revoked_by_profile_id?: string | null
+          send_count?: number
+          status?: string
+          token_hash: string
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_by_profile_id?: string | null
+          agency_facility_id?: string
+          agency_organisation_id?: string
+          contact_name?: string | null
+          created_at?: string
+          delivery_attempted_at?: string | null
+          delivery_error_code?: string | null
+          delivery_provider?: string | null
+          delivery_status?: Database["public"]["Enums"]["invite_delivery_status"]
+          email?: string
+          expires_at?: string
+          facility_organisation_id?: string | null
+          id?: string
+          invited_by_profile_id?: string | null
+          last_sent_at?: string
+          relationship_id?: string | null
+          revoked_at?: string | null
+          revoked_by_profile_id?: string | null
+          send_count?: number
+          status?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "facility_connection_invites_accepted_by_profile_id_fkey"
+            columns: ["accepted_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "facility_connection_invites_agency_facility_id_agency_orga_fkey"
+            columns: ["agency_facility_id", "agency_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "agency_facilities"
+            referencedColumns: ["id", "agency_organisation_id"]
+          },
+          {
+            foreignKeyName: "facility_connection_invites_facility_organisation_id_fkey"
+            columns: ["facility_organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "facility_connection_invites_invited_by_profile_id_fkey"
+            columns: ["invited_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "facility_connection_invites_relationship_id_fkey"
+            columns: ["relationship_id"]
+            isOneToOne: false
+            referencedRelation: "agency_facility_relationships"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "facility_connection_invites_revoked_by_profile_id_fkey"
+            columns: ["revoked_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       facility_locations: {
         Row: {
           address_line1: string | null
@@ -6686,6 +6804,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_facility_connection_invite: {
+        Args: {
+          p_facility_name?: string
+          p_facility_organisation_id?: string
+          p_mode: string
+          p_token: string
+        }
+        Returns: {
+          created: boolean
+          facility_organisation_id: string
+          relationship_id: string
+        }[]
+      }
       accept_organisation_invite: {
         Args: { p_token: string }
         Returns: {
@@ -7401,6 +7532,20 @@ export type Database = {
           worker_name: string
         }[]
       }
+      invite_facility_connection: {
+        Args: {
+          p_contact_name?: string
+          p_email: string
+          p_facility_id: string
+        }
+        Returns: {
+          agency_name: string
+          facility_name: string
+          invite_expires_at: string
+          invite_id: string
+          invite_token: string
+        }[]
+      }
       list_agency_attendance: {
         Args: {
           p_from?: string
@@ -7635,6 +7780,23 @@ export type Database = {
           requires_verification: boolean
           updated_at: string
           validity_months: number
+        }[]
+      }
+      list_facility_connection_invites: {
+        Args: { p_facility_id: string }
+        Returns: {
+          accepted_at: string
+          contact_name: string
+          created_at: string
+          delivery_status: Database["public"]["Enums"]["invite_delivery_status"]
+          expired: boolean
+          expires_at: string
+          facility_organisation_name: string
+          invite_id: string
+          last_sent_at: string
+          masked_email: string
+          send_count: number
+          status: string
         }[]
       }
       list_facility_coverage: {
@@ -8597,6 +8759,23 @@ export type Database = {
           timezone: string
         }[]
       }
+      platform_list_connection_invites: {
+        Args: { p_organisation_id?: string }
+        Returns: {
+          accepted_at: string
+          agency_name: string
+          agency_organisation_id: string
+          created_at: string
+          expired: boolean
+          facility_organisation_id: string
+          facility_organisation_name: string
+          facility_record_name: string
+          invite_id: string
+          masked_email: string
+          send_count: number
+          status: string
+        }[]
+      }
       platform_list_customers: {
         Args: never
         Returns: {
@@ -8693,6 +8872,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      preview_facility_connection_invite: {
+        Args: { p_token: string }
+        Returns: Json
+      }
       preview_organisation_invite: {
         Args: { p_token: string }
         Returns: {
@@ -8734,6 +8917,15 @@ export type Database = {
         }
         Returns: string
       }
+      record_facility_connection_delivery: {
+        Args: {
+          p_error_code?: string
+          p_invite_id: string
+          p_provider: string
+          p_status: Database["public"]["Enums"]["invite_delivery_status"]
+        }
+        Returns: undefined
+      }
       record_organisation_invite_delivery: {
         Args: {
           p_error_code?: string
@@ -8774,6 +8966,17 @@ export type Database = {
           p_segment?: number
         }
         Returns: string
+      }
+      resend_facility_connection_invite: {
+        Args: { p_invite_id: string }
+        Returns: {
+          agency_name: string
+          email: string
+          facility_name: string
+          invite_expires_at: string
+          invite_id: string
+          invite_token: string
+        }[]
       }
       resend_organisation_invite: {
         Args: { p_invite_id: string }
@@ -8819,6 +9022,10 @@ export type Database = {
       review_payroll_batch: { Args: { p_batch_id: string }; Returns: undefined }
       revoke_credential_share: {
         Args: { p_share_id: string }
+        Returns: undefined
+      }
+      revoke_facility_connection_invite: {
+        Args: { p_invite_id: string }
         Returns: undefined
       }
       revoke_membership_role: {

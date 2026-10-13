@@ -319,3 +319,41 @@ export async function listPlatformActivity(limit = 100): Promise<PlatformActivit
     details: (row.details ?? {}) as Record<string, unknown>,
   }));
 }
+
+export type PlatformConnectionInvite = {
+  id: string;
+  agencyName: string;
+  facilityRecordName: string;
+  maskedEmail: string | null;
+  status: "pending" | "accepted" | "revoked";
+  expired: boolean;
+  sendCount: number;
+  createdAt: string;
+  acceptedAt: string | null;
+  facilityOrganisationName: string | null;
+};
+
+/** P0-E9-4A.1: agency-initiated facility connection invitations (masked; support only). */
+export async function listPlatformConnectionInvites(
+  organisationId?: string,
+): Promise<PlatformConnectionInvite[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc(
+    "platform_list_connection_invites",
+    organisationId ? { p_organisation_id: organisationId } : {},
+  );
+  if (error) throw error;
+  return data.map((row) => ({
+    id: row.invite_id,
+    agencyName: row.agency_name,
+    facilityRecordName: row.facility_record_name,
+    maskedEmail: row.masked_email ?? null,
+    status:
+      row.status === "accepted" ? "accepted" : row.status === "revoked" ? "revoked" : "pending",
+    expired: row.expired,
+    sendCount: row.send_count,
+    createdAt: row.created_at,
+    acceptedAt: row.accepted_at ?? null,
+    facilityOrganisationName: row.facility_organisation_name ?? null,
+  }));
+}

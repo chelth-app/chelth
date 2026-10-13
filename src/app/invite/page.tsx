@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-state";
 import { KeyValueList } from "@/components/ui/key-value-list";
 import { stateActionClass, stateSecondaryActionClass } from "@/components/ui/system-state";
+import { AcceptFacilityConnectionForm, previewFacilityConnection } from "@/features/facilities";
 import { AuthCard } from "@/features/identity";
 import {
   AcceptInviteForm,
@@ -71,6 +72,47 @@ export default async function InvitePage() {
   }
 
   const preview = isInviteTokenFormat(token) ? await previewInvite(token) : null;
+  // P0-E9-4A.1: the same link may carry an agency's facility connection invitation.
+  const connection =
+    !preview && isInviteTokenFormat(token) ? await previewFacilityConnection(token) : null;
+
+  if (connection) {
+    return (
+      <AuthCard
+        title={`Connect with ${connection.agencyName}`}
+        icon="mail"
+        description={`${connection.agencyName} would like to connect with ${connection.facilityName} on Chelth.`}
+      >
+        <KeyValueList
+          aria-label="Invitation details"
+          className="rounded-[10px] border border-[rgba(18,107,103,0.08)] bg-[#f6fbfa] p-3"
+          items={[
+            { label: "Staffing agency", value: connection.agencyName },
+            { label: "Facility", value: connection.facilityName },
+            { label: "Invited email", value: <span className="break-all">{identity.email}</span> },
+            { label: "Expires", value: expiry.format(new Date(connection.expiresAt)) },
+          ]}
+        />
+        <p className="text-sm text-slate-600">
+          {localizeTerms(
+            "Connecting lets your facility request staff from this agency and follow coverage, attendance and compliance in your own workspace. Each agency you work with stays separate.",
+            deviceTerms,
+          )}
+        </p>
+        <AcceptFacilityConnectionForm
+          agencyName={connection.agencyName}
+          facilityName={connection.facilityName}
+          options={connection.options}
+          stepUpHref="/app/security/verify?next=%2Finvite"
+        />
+        <form action={dismissInviteAction}>
+          <button type="submit" className={`${stateSecondaryActionClass} w-full`}>
+            Not now
+          </button>
+        </form>
+      </AuthCard>
+    );
+  }
 
   if (!preview) {
     return (

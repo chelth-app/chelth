@@ -23,6 +23,7 @@ export { InviteNoticeProvider } from "./components/invite-notice";
 export { ResendInviteForm } from "./components/resend-invite-form";
 export {
   attachPendingInviteToken,
+  clearPendingInviteToken,
   pendingInviteTokenFrom,
   readActiveOrganisationPreference,
   readPendingInviteToken,

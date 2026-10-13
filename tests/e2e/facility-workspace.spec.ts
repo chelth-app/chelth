@@ -162,8 +162,8 @@ test.describe.serial("Facility workspace (P0-E9-3K)", () => {
     await page.getByRole("link", { name: "Request staff" }).click();
     await expect(page).toHaveURL(new RegExp(`${base}/staffing-requests#request-staff$`));
     await page
-      .getByRole("combobox", { name: "Agency and location" })
-      .selectOption({ label: `${world.agencyName} — Mercy Main (America/New_York)` });
+      .getByRole("combobox", { name: "Location" })
+      .selectOption({ label: "Mercy Main (America/New_York)" });
     await page
       .getByRole("combobox", { name: "Discipline" })
       .selectOption({ label: "Certified Nursing Assistant (CNA)" });

@@ -43,6 +43,19 @@ export async function FacilityAttendance({
   const count = (state: string) =>
     today.filter((row) => row.attendance?.clockState === state).length;
   const attention = today.filter((row) => coverageNeedsAttention(row, now)).length;
+  // P0-E9-4A.1: several supplying agencies ⇒ the same totals per agency.
+  const byAgency = [...new Set(today.map((row) => row.agencyName))].sort().map((agencyName) => {
+    const rowsFor = today.filter((row) => row.agencyName === agencyName);
+    return {
+      agencyName,
+      scheduled: rowsFor.length,
+      checkedIn: rowsFor.filter(
+        (row) =>
+          row.attendance?.clockState === "clocked_in" || row.attendance?.clockState === "on_break",
+      ).length,
+      attention: rowsFor.filter((row) => coverageNeedsAttention(row, now)).length,
+    };
+  });
 
   return (
     <div className="chelth-locked flex flex-col gap-[13px]">
@@ -100,6 +113,24 @@ export async function FacilityAttendance({
           tone={attention > 0 ? "warning" : "info"}
         />
       </section>
+      {byAgency.length > 1 ? (
+        <RefPanel title="By agency" titleId="facility-attendance-agencies-heading">
+          <ul
+            aria-label="Attendance by agency"
+            className="flex flex-col divide-y divide-border px-[5px] text-sm"
+          >
+            {byAgency.map((entry) => (
+              <li key={entry.agencyName} className="flex flex-wrap justify-between gap-2 py-2.5">
+                <span className="font-medium text-chelth-navy">{entry.agencyName}</span>
+                <span className="text-slate-700">
+                  {entry.scheduled} scheduled · {entry.checkedIn} checked in
+                  {entry.attention > 0 ? ` · ${entry.attention} need attention` : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </RefPanel>
+      ) : null}
       <RefPanel title="Today" titleId="facility-attendance-heading">
         {today.length === 0 ? (
           <LockedEmpty

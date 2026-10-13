@@ -130,8 +130,8 @@ test.describe.serial("shift requests & assignments", () => {
       facility.getByRole("heading", { level: 1, name: "Staffing requests" }),
     ).toBeVisible();
     await facility
-      .getByRole("combobox", { name: "Agency and location" })
-      .selectOption({ label: `${world.agencyName} — Mercy Main (America/New_York)` });
+      .getByRole("combobox", { name: "Location" })
+      .selectOption({ label: "Mercy Main (America/New_York)" });
     await facility
       .getByRole("combobox", { name: "Discipline" })
       .selectOption({ label: "Certified Nursing Assistant (CNA)" });

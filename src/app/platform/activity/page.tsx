@@ -26,6 +26,11 @@ const LABELS: Record<string, string> = {
   "platform.subscription_changed": "Subscription changed",
   "platform.billing_contact_changed": "Billing contact changed",
   "platform.plan_saved": "Plan saved",
+  "facility.connection_invited": "Agency invited a facility to connect",
+  "facility.connection_resent": "Facility connection invitation resent",
+  "facility.connection_revoked": "Facility connection invitation revoked",
+  "facility.connection_accepted": "Facility accepted an agency connection",
+  "facility.organisation_created_from_invite": "Facility organization created from an invitation",
 };
 
 function describe(details: Record<string, unknown>): string {

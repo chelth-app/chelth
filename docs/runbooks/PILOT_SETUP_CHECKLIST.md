@@ -11,7 +11,7 @@ Agency: ______________________ Operator: ______________ Date: __________
 - [ ] Production backup taken and recorded (`PILOT_OPERATIONS.md` §9); PITR decision made
 - [ ] All migrations applied: `supabase migration list --linked` shows no local-only or remote-only rows
 - [ ] `main` deployed to Production and smoke test passed (`PILOT_SMOKE_TEST.md`)
-- [ ] Platform administrator granted to a named operator with the authenticator app enrolled (`PILOT_OPERATIONS.md` §10)
+- [ ] Platform administrator granted to a named operator with the authenticator app enrolled (`PILOT_OPERATIONS.md` §10), for support and recovery
 - [ ] Scheduled jobs healthy (`PILOT_OPERATIONS.md` §2)
 - [ ] Email: Resend sender domain verified, and a test email received (§3)
 - [ ] Scanner: provider configured, and a test PDF scans clean (§4)
@@ -30,7 +30,9 @@ Agency: ______________________ Operator: ______________ Date: __________
 - [ ] Facility locations added (the check-in sites)
 - [ ] Facility photo uploaded and shown to workers on a shift
 - [ ] Arrival guidance and worker contact filled in (facility record → worker context)
-- [ ] Facility organisation created and linked by the platform administrator, if the facility will use Chelth
+- [ ] Facility invited from its record (Facilities → the facility → Chelth connection → Invite facility to Chelth), if it will use Chelth
+- [ ] The facility administrator accepted: created the facility, or connected the one they already manage (several agencies can serve one facility)
+- [ ] Only if self-service is not possible: platform fallback (`/platform` → create and link; PILOT_OPERATIONS.md §10)
 - [ ] Facility users invited (Facility Admin, Scheduler, Supervisor as needed); a Facility Admin lands on the facility Overview
 
 ## Attendance

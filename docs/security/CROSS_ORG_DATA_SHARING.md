@@ -97,3 +97,19 @@ facility member losing access each stop sharing immediately (tested).
 
 Details: [SHIFT_CROSS_ORG_ACCESS.md](SHIFT_CROSS_ORG_ACCESS.md). Cross-agency
 schedule conflicts reveal one generic bit to the assigning agency, nothing more.
+
+## 8. Facility connection and multi-agency facilities (P0-E9-4A.1)
+
+- A facility organisation is shared identity. Each agency's facility record is
+  private to that agency (RLS by agency), and each relationship is independent.
+- Connecting needs two-party consent: the agency's `relationship.manage`
+  (AAL2), then the facility's email-bound acceptance (plus `organisation.manage`
+  for an existing facility). The agency can never claim an existing facility on
+  its own, and never learns whether one exists.
+- Every shared projection still resolves through one relationship and one
+  capability (`authz.has_relationship_capability`). Matching a facility
+  organisation id is never authority.
+- Agency A never sees Agency B's records, relationships, invitations,
+  requests, shifts, workers, messages, compliance, attendance, timesheets,
+  rates or pricing (pgTAP 340, integration, E2E). A worker who serves two
+  agencies remains two separate agency worker records.

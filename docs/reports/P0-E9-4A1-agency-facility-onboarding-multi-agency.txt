@@ -1,0 +1,348 @@
+P0-E9-4A.1 — AGENCY-INITIATED FACILITY ONBOARDING & MULTI-AGENCY RELATIONSHIPS
+CHELTH — Healthcare Workforce Operations
+Date: 2026-10-13
+Branch: p0-e8-visual-implementation (uncommitted; not deployed)
+
+Summary
+-------
+Agencies now onboard facilities themselves:
+1. Facilities → the facility → "Invite facility to Chelth".
+2. The facility's administrator accepts, and either creates the facility
+   organisation or connects the one they already administer.
+3. The record is linked and the relationship becomes active, in one
+   transaction.
+A platform admin is no longer in the normal path, and stays as fallback and
+recovery.
+The audit confirmed the multi-agency model already existed and is correct:
+one facility organisation, many agencies, one private record and one
+relationship per agency, with every shared projection resolved per
+relationship. It was not redesigned. Request routing now asks for the
+agency when a facility works with several.
+
+====================================================
+1. OLD ONBOARDING PATH (AUDIT)
+====================================================
+
+Agency admin creates a private facility record → platform admin runs
+platform_create_organisation (facility org + owner invite) → the owner
+accepts → platform admin runs platform_link_agency_facility.
+Integrity, unchanged:
+- one record links to one facility organisation, written once
+  (agency_facilities_link_once trigger);
+- one link per (agency, facility organisation)
+  (agency_facilities_one_link_per_agency, partial unique index);
+- no global uniqueness on linked_facility_organisation_id, so many agencies
+  can link the same facility;
+- one open relationship per record (agency_facility_relationships_one_open);
+- facility access always flows through authz.has_relationship_capability
+  (the relationship must not be ended, plus the capability in the linked
+  facility organisation).
+Capabilities:
+- agency: relationship.manage (agency.admin; privileged ⇒ AAL2);
+- facility: organisation.manage (facility.admin; privileged ⇒ AAL2);
+- facility schedulers and supervisors hold neither.
+
+====================================================
+2–3. NEW AGENCY-INITIATED PATH · TWO-PARTY CONSENT
+====================================================
+
+Agency (relationship.manage, AAL2):
+- record → Chelth connection → administrator email (+ optional contact
+  name) → "Invite facility to Chelth";
+- the RPC resolves the agency from its own record; the browser never supplies
+  ownership IDs;
+- response: "Invitation sent." (or the one-time link when the email was not
+  sent), identical whether or not the person or facility exists.
+Facility (email-bound acceptance; plus organisation.manage, AAL2, for an
+existing facility): create or connect.
+The agency can never connect an existing facility on its own: consent comes
+from an administrator of that facility. Nothing is ever linked by name, email
+domain, address or phone.
+
+====================================================
+4. INVITATION SECURITY
+====================================================
+
+public.facility_connection_invites:
+- RLS on, no policies, no grants (RPC only);
+- sha256 token hash (raw token never stored; pgTAP);
+- bound to the email (the caller's VERIFIED email must match);
+- 7-day expiry, revocable, resend capped at 5 (token rotation);
+- rate limited: 50 per agency per day to create; 20 per 15 minutes per
+  person to preview or accept (shared with organisation invitations);
+- one pending invitation per record (partial unique index); an expired
+  pending one is retired automatically on re-invite;
+- delivery recorded (sent / skipped / failed) and audited.
+Refused (CH404, generic): wrong account, expired, revoked, used. Failed
+acceptance is audited without detail. Signed out, /invite looks the same for
+every token.
+
+====================================================
+5–6. NEW-FACILITY ACCEPTANCE · EXISTING-FACILITY ACCEPTANCE
+====================================================
+
+The email links to the shared /invite/<token> (httpOnly cookie), so a new
+user signs up, confirms their email and returns to the invitation. Existing
+users simply sign in.
+The /invite page resolves an organisation invitation, else a facility
+connection, only for the caller.
+Create:
+- "Create <name> as a new Chelth facility organization and connect <agency>",
+  with the name editable;
+- the organisation is created only now; the acceptor becomes facility.admin
+  (the same owner semantics as create_organisation);
+- link + relationship + invitation in one transaction; audited on both sides.
+Connect:
+- "Connect this staffing agency to:" lists ONLY the facility organisations
+  the caller belongs to, marked "You administer this facility", "You are not
+  an administrator here" (disabled) or "Already connected to <agency>"
+  (disabled);
+- approving needs organisation.manage at AAL2: the form offers "Verify now"
+  and returns to the invitation.
+Insufficient authority: "An administrator for your facility must approve
+this connection." Nothing is linked. No approval-routing engine was built
+(deferred).
+
+====================================================
+7–8. MULTI-AGENCY ARCHITECTURE · DUPLICATE PREVENTION
+====================================================
+
+Metro Health (one facility organisation) ↔ Alpha (Alpha's private record +
+relationship) ↔ Bravo (Bravo's record + relationship) …
+Proven in pgTAP 340, integration and E2E: two agencies link to the same
+facility organisation; each sees only its own record, relationship,
+invitations and shifts.
+Duplicate prevention:
+- an administrator of an existing facility is offered "Connect" first;
+- choosing "Create" while already administering a facility shows: "You
+  already manage a facility on Chelth. Create a separate facility only if
+  this is a different legal or operational organization.";
+- an agency cannot connect a second record to the same facility (CH409);
+- a connected record cannot be re-pointed (CHF09 / link_once).
+No global facility search is ever exposed to agencies.
+
+====================================================
+9–15. ROUTING · OVERVIEW · COVERAGE · ATTENDANCE · COMPLIANCE · MESSAGES · SIGN-OFF
+====================================================
+
+Request staff:
+- one agency: the location only ("Requests go to <agency>");
+- 2+ agencies: "Staffing agency" is required, then the locations of that
+  agency;
+- one request → one agency relationship, re-authorised by
+  submit_facility_shift_request (an injected relationship from another
+  facility or agency is refused; tested).
+Overview: the existing "Agency relationships" panel lists every relationship
+(name and status only). Today's totals stay facility-level, and the
+per-agency drill-down is on Attendance.
+Coverage: an agency filter ("All agencies" + each agency) when rows involve
+two or more agencies. Each row keeps its agency and assignment; a person who
+works for two agencies stays two assignments.
+Attendance: "By agency" totals (scheduled / checked in / need attention) when
+two or more agencies serve today. Derived states only.
+Compliance: already grouped "Shared by <agency>" per relationship (no
+change).
+Messages: already per relationship and labelled by agency (no change); no
+cross-agency thread.
+Sign-off: already per relationship (no change); pay, rates and invoices
+are never combined or shown.
+
+====================================================
+16–18. LOCATIONS · REQUIREMENTS · RATES / PRIVACY
+====================================================
+
+Locations (decision: unchanged, documented):
+- current: locations belong to each agency's record (Agency A's "Main
+  Campus" and Agency B's "Main Campus" are separate rows);
+- future: canonical facility-owned locations mapped per relationship. Not a
+  correctness blocker.
+Requirements: unchanged (agency-owned, facility-specific through the
+agency's record). Future: facility-owned canonical requirements plus agency
+additions.
+Rates: unchanged and agency-private; the facility never sees pay, and agencies
+never see each other's billing.
+
+====================================================
+19. PLATFORM FALLBACK
+====================================================
+
+platform_create_organisation and platform_link_agency_facility are unchanged
+(support and recovery). The control plane now also shows:
+- facility connection invitations per organisation (masked email, sends,
+  status, connected facility);
+- the pending count under Overview → Needs attention;
+- connection events in Activity.
+Disputes are recovered by an operator (PILOT_OPERATIONS.md §11): additive
+and audited, never re-pointing or reassigning records.
+
+====================================================
+20–21. AUDIT · RLS
+====================================================
+
+Events:
+- facility.connection_invited, facility.connection_resent,
+  facility.connection_revoked, facility.connection_accepted (both sides);
+- facility.connection_acceptance_failed;
+- facility.organisation_created_from_invite;
+- facility.linked (both sides, via "invite");
+- facility.relationship_connected (both sides);
+- plus organisation.created, membership.created and role.assigned for a new
+  facility.
+Metadata: IDs, the record and "created" only. Never the email, token or
+message (pgTAP P).
+RLS: the new table has RLS with no policies and no grants (direct SELECT →
+42501). Agencies read through list_facility_connection_invites
+(relationship.view, own record), with masked emails. Recipients read only
+through the token + verified-email path. The platform reads masked
+projections.
+Every function: security definer, pinned search_path, PUBLIC/anon revoked,
+authenticated EXECUTE, capability checks, AAL2 where privileged, audited.
+
+====================================================
+22. ADVERSARIAL ISOLATION
+====================================================
+
+pgTAP 340 / integration / E2E:
+- Alpha cannot read Bravo's record, relationship, invitations or
+  request/shift (and vice versa);
+- a request to Bravo never reaches Alpha;
+- another facility, or another agency, cannot route a request through a
+  relationship that is not theirs;
+- an unrelated account cannot preview or accept;
+- a supervisor cannot consent;
+- nobody can connect a facility they do not administer;
+- a worker is denied connection management (route 404, RPC CH403);
+- ending Bravo leaves Alpha active; the facility stops seeing Bravo's ended
+  relationship; history is kept.
+Platform-created and agency-initiated links produce the same rows, so the
+security boundary is the same.
+
+====================================================
+23. TESTS
+====================================================
+
+pgTAP 340_facility_connection_invites (45): I initiation · N new facility ·
+  R refusals · C connect existing · M multi-agency isolation and routing ·
+  L independent lifecycle · P privacy. The 000 baseline allowlists the 8 new
+  RPCs.
+Integration facility-connection (3): new person creates the facility;
+  stranger and replay refused; agency list masked + accepted. Second agency
+  connects the existing facility (AAL1 → CH402, then AAL2); both
+  relationships listed. Per-agency routing; cross-agency reads and hijack
+  refused.
+Unit facility-connection (5): invite and accept schemas; email (escaped, no
+  IDs, rates or worker data).
+E2E facility-connection.spec (desktop + mobile, axe):
+  - Agency A invites in the UI ("Pending acceptance", masked);
+  - a new person signs up through the link → creates the facility → lands in
+    its workspace → Agency A shows "Connected to Chelth facility: …";
+  - Agency B invites the existing admin → "Connect" with the facility
+    preselected → step-up → connected;
+  - Request staff requires "Staffing agency" → request to Agency B reaches B
+    only;
+  - Agency A gets a 404 on Agency B's record;
+  - a worker is denied.
+Updated: facility-workspace and shifts-assignments specs (single-agency
+  "Location").
+Defect found and fixed while testing: after "Invite facility to Chelth" the
+page re-rendered to "Pending" and dropped the outcome, including the one-time
+share link when the email was not sent. The form now keeps the outcome.
+
+Validation (local, clean database reset):
+  npm run format:check        PASS
+  npm run lint                PASS
+  npm run typecheck           PASS
+  npm test                    PASS  39 files / 510 tests
+  npm run build               PASS
+  npm run check:bundle        PASS  (78 browser files, no secrets)
+  npm run check:migrations    PASS  (76)
+  supabase db reset           PASS
+  supabase db lint --level warning --fail-on warning --schema public,authz,internal
+                              PASS  (exit 0, no findings; CLI telemetry disabled)
+  supabase test db            PASS  39 files / 1817 tests
+  npm run db:types            PASS  (no drift)
+  npm run test:integration    PASS  22 files / 145 tests
+  npx playwright test         PASS  376 passed / 14 skipped / 0 failed (13.2 min,
+                              TZ=UTC, desktop + mobile, one clean run)
+
+====================================================
+24. MIGRATIONS
+====================================================
+
+20261013100000_facility_connection_invites.sql (additive):
+- table facility_connection_invites;
+- internal mask_email and resolve_connection_invite_for_caller;
+- 7 public RPCs + platform_list_connection_invites;
+- platform_list_activity replaced (same signature) to allow-list the
+  connection events.
+No change to existing links, relationships, organisations or invitations. No
+auto-linking and no backfill. Existing platform-created links stay valid.
+
+====================================================
+25. DEPLOYMENT ORDER (manual; nothing deployed)
+====================================================
+
+1. Backup.
+2. supabase db push: 20261012100000 (4A) if not yet applied, then
+   20261013100000.
+3. Deploy the app.
+4. Smoke test: an agency admin invites a test facility email; the test
+   person accepts (create) → workspace; the agency record shows Connected.
+
+====================================================
+26. PILOT IMPACT
+====================================================
+
+Pilot agencies onboard their facilities without Chelth staff, and a facility
+already on Chelth can be served by several pilot agencies safely. The
+P0-E9-4 blocker "facility access not provisionable" no longer depends on a
+platform admin. One remains recommended for support.
+
+====================================================
+27. DEFERRED: MULTI-AGENCY REQUEST DISTRIBUTION
+====================================================
+
+Not built: sending one request to several agencies (broadcast, race-to-fill,
+bidding, VMS-style distribution). It needs:
+- duplicate-fulfilment control;
+- coordinated cancellation;
+- allocation policy;
+- agency-competition rules.
+Also deferred:
+- an approval queue routing a non-admin recipient's invitation to facility
+  admins;
+- canonical facility-owned locations and requirements;
+- agency self-service view of the facility organisation's name for
+  platform-created links.
+
+AGENCY-INITIATED FACILITY ONBOARDING:
+STATUS: COMPLETE
+
+TWO-PARTY CONSENT:
+STATUS: VERIFIED
+
+NEW FACILITY CREATION:
+STATUS: COMPLETE
+
+EXISTING FACILITY CONNECTION:
+STATUS: COMPLETE
+
+MULTI-AGENCY FACILITY SUPPORT:
+STATUS: COMPLETE
+
+AGENCY-TO-AGENCY ISOLATION:
+STATUS: VERIFIED
+
+MULTI-AGENCY REQUEST ROUTING:
+STATUS: COMPLETE
+
+PLATFORM ADMIN FALLBACK:
+STATUS: PRESERVED
+
+AUTO-LINKING BY NAME/EMAIL:
+STATUS: NOT IMPLEMENTED
+
+MULTI-AGENCY BROADCAST REQUESTS:
+STATUS: DEFERRED
+
+DO NOT DEPLOY AUTOMATICALLY.

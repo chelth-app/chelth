@@ -23,6 +23,9 @@ import { KeyValueList } from "@/components/ui/key-value-list";
 import { PageHeader } from "@/components/ui/page-header";
 import { SectionTabs } from "@/components/ui/section-tabs";
 import {
+  FacilityConnectionInviteActions,
+  InviteFacilityConnectionForm,
+  listFacilityConnectionInvites,
   CreateLocationForm,
   createRelationshipAction,
   facilityIdSchema,
@@ -120,6 +123,13 @@ export default async function FacilityPage({
     : [[], null, []];
   const geofencePolicy = attendanceRules?.geofencePolicy;
   const openRelationship = relationships.find((relationship) => relationship.status !== "ended");
+  // P0-E9-4A.1: the agency's own connection invitations for this record.
+  const connectionInvites =
+    can(CAPABILITIES.RELATIONSHIP_VIEW) === "granted"
+      ? await listFacilityConnectionInvites(facility.id)
+      : [];
+  const acceptedInvite = connectionInvites.find((invite) => invite.status === "accepted");
+  const pendingInvite = connectionInvites.find((invite) => invite.status === "pending");
   const typeName =
     facilityTypes.find((type) => type.key === facility.facilityTypeKey)?.name ??
     facility.facilityTypeKey;
@@ -392,6 +402,78 @@ export default async function FacilityPage({
               effectiveFromHint={`Defaults to today at ${facility.name} (${facility.timezone}).`}
             />
           ) : null}
+        </Panel>
+      ) : null}
+
+      {can(CAPABILITIES.RELATIONSHIP_VIEW) === "granted" ? (
+        <Panel
+          titleId="connection-heading"
+          title={<>Chelth connection</>}
+          description={
+            <>
+              Invite the facility to use its own Chelth workspace. Your client record stays private
+              to your agency.
+            </>
+          }
+        >
+          {facility.linked ? (
+            <div className="flex flex-col gap-1 text-sm">
+              <RecordStatusBlock>
+                <RefChip tone="success" className="h-7 px-3 text-[12.5px] font-semibold">
+                  Connected
+                </RefChip>
+                <span className="font-medium text-chelth-navy">
+                  {acceptedInvite?.facilityOrganisationName
+                    ? `Connected to Chelth facility: ${acceptedInvite.facilityOrganisationName}`
+                    : spell("Connected to a Chelth facility organization")}
+                </span>
+              </RecordStatusBlock>
+              <RecordNote>
+                Facility administrators manage their own Chelth workspace. You keep managing this
+                client record separately.
+              </RecordNote>
+            </div>
+          ) : pendingInvite && !pendingInvite.expired ? (
+            <div className="flex flex-col gap-3 text-sm">
+              <RecordStatusBlock>
+                <RefChip tone="info" className="h-7 px-3 text-[12.5px] font-semibold">
+                  Pending acceptance
+                </RefChip>
+                <span className="text-slate-700">
+                  Invited {pendingInvite.maskedEmail} · sent{" "}
+                  {date.format(new Date(pendingInvite.lastSentAt))} · expires{" "}
+                  {date.format(new Date(pendingInvite.expiresAt))}
+                </span>
+              </RecordStatusBlock>
+              {canManageRelationship ? (
+                <FacilityConnectionInviteActions
+                  organisationId={organisationId}
+                  facilityId={facility.id}
+                  inviteId={pendingInvite.id}
+                />
+              ) : null}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3 text-sm">
+              <RecordStatusBlock>
+                <RefChip tone="neutral" className="h-7 px-3 text-[12.5px] font-semibold">
+                  {pendingInvite?.expired
+                    ? "Invitation expired"
+                    : connectionInvites[0]?.status === "revoked"
+                      ? "Invitation revoked"
+                      : "Not connected"}
+                </RefChip>
+              </RecordStatusBlock>
+              {canManageRelationship && facility.status === "active" ? (
+                <InviteFacilityConnectionForm
+                  organisationId={organisationId}
+                  facilityId={facility.id}
+                />
+              ) : (
+                <RecordNote>An agency admin can invite this facility to Chelth.</RecordNote>
+              )}
+            </div>
+          )}
         </Panel>
       ) : null}
 

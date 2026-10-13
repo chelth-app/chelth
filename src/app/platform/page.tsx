@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
-import { getPlatformOverview } from "@/features/platform";
+import { getPlatformOverview, listPlatformConnectionInvites } from "@/features/platform";
 
 import { platformDateTime, PlatformStat } from "./_components/platform-ui";
 
@@ -15,7 +15,13 @@ export const metadata: Metadata = { title: "Overview" };
  * figure is a count from the audited platform projection; no tenant records.
  */
 export default async function PlatformOverviewPage() {
-  const overview = await getPlatformOverview();
+  const [overview, connectionInvites] = await Promise.all([
+    getPlatformOverview(),
+    listPlatformConnectionInvites(),
+  ]);
+  const pendingConnections = connectionInvites.filter(
+    (invite) => invite.status === "pending" && !invite.expired,
+  ).length;
   const { agencies, facilities, accounts, health, attention } = overview;
   const healthy =
     health.notifications_waiting === 0 &&
@@ -91,6 +97,10 @@ export default async function PlatformOverviewPage() {
           <li className="flex items-center justify-between gap-3 py-2.5">
             <span>Facility organizations waiting for their owner to accept</span>
             <span className="font-semibold tabular-nums">{attention.facility_owner_pending}</span>
+          </li>
+          <li className="flex items-center justify-between gap-3 py-2.5">
+            <span>Facility connection invitations awaiting acceptance</span>
+            <span className="font-semibold tabular-nums">{pendingConnections}</span>
           </li>
           <li className="flex items-center justify-between gap-3 py-2.5">
             <span>Facility organizations not linked to an agency facility</span>
