@@ -6,6 +6,7 @@ export {
 export { getPlatformAccess, type PlatformAccess } from "./access";
 export {
   type AccountFormValues,
+  BusinessRequestDecision,
   CreatePlatformOrganisationForm,
   CustomerAccountForm,
   LifecycleForm,

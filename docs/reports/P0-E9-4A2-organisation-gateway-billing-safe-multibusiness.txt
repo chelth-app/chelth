@@ -1,0 +1,297 @@
+P0-E9-4A.2 — ORGANISATION GATEWAY CLEANUP & BILLING-SAFE MULTI-BUSINESS CREATION
+CHELTH — Healthcare Workforce Operations
+Date: 2026-10-14
+Branch: p0-e8-visual-implementation (uncommitted; not deployed)
+
+Summary
+-------
+- /app is now an organisation switcher. Only someone with no organisation is
+  offered "Create your staffing agency".
+- An agency owner can no longer self-create a second agency. The database
+  refuses it (CHB01), so a direct RPC call, an old frontend or the console
+  cannot bypass it.
+- An additional business is a request (Account → Businesses → Add another
+  business). Chelth fulfils it in one transaction that creates the agency
+  AND its own commercial account. Nothing is inherited.
+- Being a member (worker, scheduler…) is not ownership, so those people can
+  still start their own first agency.
+- customer_accounts is now structurally one-per-agency and cannot share
+  provider IDs.
+
+====================================================
+AUDIT (§1)
+====================================================
+
+- Who could create an agency: any signed-in user with a verified email,
+  through public.create_organisation('agency'); facility types were refused
+  (platform only).
+- Unlimited? Effectively yes: the only limit was a rate limit of 5 per
+  identity per day. No ownership check existed, and hiding the UI would not
+  have stopped a direct RPC call.
+- Owner semantics: the creator gets an active membership + the owner role
+  (agency.admin, roles.is_owner_role). Platform-created agencies invite the
+  owner instead.
+- Commercial account: never created automatically (4A design: "Commercial
+  setup required").
+- Server-side constraints on the number owned: none.
+- Production: the read-only production query was refused (the linked
+  account now gets 403 "does not have the necessary privileges", so the
+  access token's permissions have changed). The last snapshot (P0-E9-4,
+  2026-10-11) had 5 agencies and 5 agency-admin memberships; whether one
+  person owns several is UNVERIFIED. Nothing in this phase changes existing
+  data, so any existing multi-agency owner is preserved as is (no suspension,
+  merge or charge).
+
+====================================================
+1–2. PREVIOUS GATEWAY · NEW GATEWAY
+====================================================
+
+Previous: "Your organizations" plus a large "Create a new agency" panel beside
+it for everyone except worker-only and facility-only accounts.
+New:
+- no organisations ⇒ "Create your staffing agency" ("Set up your staffing
+  business on Chelth. Your facilities, workers and team all live inside
+  it.");
+- any organisations ⇒ "Welcome, <name> · Choose an organization to continue ·
+  Your organizations", with no creation panel (single card ≤ 560 px on
+  desktop; the existing responsive grid for several);
+- worker-only and facility-only entry are unchanged (3B/3K);
+- platform admins are unchanged (4A section + organisations).
+No visual-language changes: the same header, cards, typography and colours.
+
+====================================================
+3–5. OWNERSHIP · FIRST AGENCY · ADDITIONAL BUSINESS
+====================================================
+
+Ownership (authoritative, internal.owned_agency_count): an active
+membership holding an active OWNER role in a non-archived agency.
+Membership without the owner role is not ownership. Facility ownership
+(facility.admin in a facility organisation) does not count.
+First agency: unchanged self-service (create_organisation) when the caller
+owns no agency. A worker, recruiter or scheduler elsewhere may create their
+own (tested).
+Additional business (owner):
+- Account → Businesses: "Add another business" (secondary; collapsed),
+  with: "Use this only if you operate a separate staffing business.
+  Additional businesses have separate Chelth subscriptions, teams and data.
+  Branches and new facilities belong inside your existing agency."
+- form: business name, billing contact email, optional note →
+  request_additional_business (owners only; CHB02 for non-owners; ≤ 3
+  pending; rate limited 5 per day) → "Waiting for Chelth"; the owner may
+  withdraw.
+- the platform fulfils (platform_fulfil_business_request: trial or active,
+  optional plan and trial end, reason) or declines with a reason.
+
+====================================================
+6. SERVER-SIDE BYPASS PREVENTION
+====================================================
+
+create_organisation (replaced, same signature) raises CHB01
+(ADDITIONAL_AGENCY_REQUIRES_COMMERCIAL_SETUP) when the caller owns an
+agency, before any write. Verified via pgTAP (as the authenticated role),
+the integration test (supabase-js API client) and E2E (the browser
+session's API client). The UI is presentation only.
+
+====================================================
+7–8. CUSTOMER-ACCOUNT RELATIONSHIP · FUTURE BILLING INVARIANT
+====================================================
+
+Reused public.customer_accounts (no new billing table):
+- unique organisation_id (one account per organisation, existing);
+- NEW organisation_type column (= 'agency') + FK (organisation_id,
+  organisation_type) → organisations(id, type): structurally agency-only;
+- NEW unique (provider, provider_customer_id) and (provider,
+  provider_subscription_id): one provider identity cannot be shared by two
+  agencies;
+- never attached to profiles.
+Invariant: every independent agency = one independent commercial account.
+Fulfilment creates the agency and its account in one transaction from
+explicit inputs; no plan, trial, seats or status is copied from the
+requester's other business (tested: the first agency's account is unchanged
+and separate). The approved request is the one-time commercial
+authorisation (pattern B): it cannot be fulfilled twice (CH409), and there is
+no other path to an additional active agency.
+Future provider (P0-E9-4B): request → plan selection → checkout →
+successful activation → fulfilment. Server-side only; an abandoned payment
+leaves only a request, never a usable agency.
+FIRST AGENCY COMMERCIAL ACTIVATION: provider integration / commercial
+policy deferred. The pilot keeps self-service first agencies ("Commercial
+setup required" until configured). Nothing hard-codes "first agency = free".
+ADDITIONAL AGENCY COMMERCIAL ACTIVATION: cannot bypass an independent
+commercial account.
+
+====================================================
+9. PLATFORM FALLBACK
+====================================================
+
+/platform/billing → Additional business requests:
+- each request shows the business, the requester (name, email), the agencies
+  they already own, the billing contact, the note and the date;
+- actions: Create business and account (status, plan, trial end, reason) or
+  Decline (reason);
+- decided requests show Created (with a link to the new business), Declined
+  or Withdrawn;
+- the pending count appears under Overview → Needs attention; the events
+  appear in Activity.
+platform_create_organisation (4A) is unchanged for initial provisioning;
+for an existing owner's second business, operators use the request path
+(PILOT_OPERATIONS.md §12).
+Platform-admin authority is unaffected by the first-agency rule.
+
+====================================================
+10–12. NON-OWNER MEMBERSHIP · FACILITIES VS BUSINESS · BRANCHES
+====================================================
+
+Non-owner members:
+- they see no creation panel on /app (their organisations are listed);
+- Account → Businesses offers "Create your staffing agency";
+- the RPC allows their first owned agency (tested: worker of two agencies,
+  scheduler).
+Facilities vs business: the Businesses panel says hospitals, nursing homes
+and clinics are Facilities inside the agency workspace, not separate
+businesses. Facility organisation creation is unchanged: agency-initiated
+connection (4A.1) and platform fallback; none from /app.
+Branches (P0-FUTURE, documented only): Agency → branches/business units
+(e.g. Lagos, Abuja), under one agency and one commercial account unless
+future pricing says otherwise. Extra agencies must never substitute for
+branches. Not built.
+
+====================================================
+13–14. PRIVACY / RLS · AUDIT
+====================================================
+
+additional_business_requests: RLS on, no policies, no grants (direct access
+⇒ 42501). Owners read only their own (list_my_additional_business_requests);
+the platform reads all through an audited projection. No global business
+search, no other organisations, billing contacts, accounts or users are
+exposed to tenants. Tenant RLS is unchanged.
+Audit:
+- additional_business.requested, .created, .declined, .withdrawn;
+- platform.customer_account_created (cause additional_business);
+- organisation.created (via platform, cause additional_business);
+- membership.created.
+Metadata: IDs, status, plan key and reason only. Never the email or any
+payment data (pgTAP P).
+
+====================================================
+15. TESTS
+====================================================
+
+pgTAP 350_additional_business (33):
+  O ownership vs membership (admin 1; worker, scheduler, facility admin 0)
+  B the owner's second agency is refused (CHB01) at the RPC; a worker's and a
+    scheduler's first agency is allowed, a second is refused; facility types
+    stay platform-only
+  R request validation, owner-only (CHB02), private to the requester, no
+    table access, no organisation created
+  F self-approval refused; AAL1 ⇒ CH402; trial/active only; the business is a
+    separate agency owned by the requester; its OWN account (status, plan,
+    billing contact); the first agency's account unchanged; distinct
+    accounts; fulfil once (CH409); self-service still blocked; decline
+  C a facility cannot have an account (23503); one account per agency
+    (23505); a provider customer ID cannot be reused (23505)
+  P no email in audit; the activity allow-list includes the events
+Updated:
+- 020: the old "5 agencies per day" test now asserts the CHB01 rule;
+- 090: a share test's throwaway agency is created by a separate new user;
+- 000 baseline: 7 new RPCs.
+Integration additional-business (2): first agency ok, second CHB01 through
+  the API; request → platform fulfil → separate Trial/Pilot account, the
+  first agency untouched, the owner is a member of both, self-service still
+  CHB01.
+E2E business-gateway.spec (desktop + mobile, axe):
+- a first-time user sees "Create your staffing agency";
+- an owner sees a clean chooser and no creation panel, and the browser
+  session's API client gets CHB01;
+- Account → Businesses → "Add another business" → request → "Waiting for
+  Chelth";
+- a worker (owns nothing) can start their own agency from Account;
+- the platform fulfils (Trial, Pilot) → the row shows Created, and the
+  directory shows the new business as Trial;
+- the owner then sees both businesses.
+Updated specs: workspace-shell (the gateway layout checks were replaced by
+"no creation panel" + card layout; account and security checks kept),
+worker-app-entry, facility-workspace.
+
+Validation (local, clean database reset):
+  npm run format:check        PASS  (after fixing error-codes.ts formatting, flagged by the first run)
+  npm run lint                PASS
+  npm run typecheck           PASS
+  npm test                    PASS  39 files / 510 tests
+  npm run build               PASS
+  npm run check:bundle        PASS  (80 browser files, no secrets)
+  npm run check:migrations    PASS  (77)
+  supabase db reset           PASS
+  supabase db lint --level warning --fail-on warning --schema public,authz,internal
+                              PASS  (exit 0, no findings)
+  supabase test db            PASS  40 files / 1850 tests
+  npm run db:types            PASS  (no drift)
+  npm run test:integration    PASS  23 files / 147 tests (clean re-run at normal load)
+  npx playwright test         PASS  384 passed / 14 skipped / 0 failed (14.1 min,
+                              TZ=UTC, desktop + mobile, fresh server, one clean run)
+  Environment note: the first full run happened while the machine was overloaded
+  (load ≈ 60, Docker VM ≈ 300% CPU). pgTAP took about 20 min, one integration file
+  timed out, and Playwright timed out widely. A second attempt reused a wedged test
+  server on :3100 left behind by the stopped run. Neither run was used: the server
+  was stopped, and integration and Playwright were re-run cleanly at normal load
+  (the results above). No product or test change was made because of those runs.
+
+====================================================
+16–18. MIGRATIONS · DEPLOYMENT ORDER · PILOT IMPACT
+====================================================
+
+20261014100000_additional_business.sql (additive):
+- internal.owned_agency_count;
+- my_business_ownership;
+- create_organisation replaced (same signature, plus the CHB01 check);
+- customer_accounts.organisation_type + FK + unique provider-ID indexes
+  (production has no customer accounts yet, so the constraint backfill is
+  trivial);
+- additional_business_requests + 6 RPCs;
+- platform_list_activity replaced (allow-list).
+No existing data changed.
+Deployment (manual):
+1. Backup.
+2. supabase db push: 20261012100000 (4A), 20261013100000 (4A.1),
+   20261014100000 (4A.2), in order, for whichever are pending.
+3. Deploy the app.
+4. Smoke test: an existing owner's /app shows no creation panel; Account →
+   Businesses shows "You own 1 staffing business".
+Production audit to redo once access is restored: list people holding the
+owner role in more than one agency, then decide case by case. No automatic
+action.
+Pilot impact: pilot agencies see a clean switcher and cannot create
+accidental "branch agencies"; additional businesses go through Chelth with
+their own account, ready for the future payment provider.
+
+ORGANISATION GATEWAY:
+STATUS: CLEANED UP
+
+CREATE-AGENCY CARD FOR EXISTING OWNER:
+STATUS: REMOVED
+
+FIRST SELF-SERVICE AGENCY:
+STATUS: PRESERVED
+
+ADDITIONAL AGENCY NORMAL SELF-SERVICE:
+STATUS: BLOCKED
+
+MULTI-ORGANISATION MEMBERSHIP:
+STATUS: PRESERVED
+
+ADDITIONAL BUSINESS COMMERCIAL PATH:
+STATUS: IMPLEMENTED / PREPARED
+
+ONE AGENCY → ONE COMMERCIAL ACCOUNT:
+STATUS: VERIFIED
+
+SUBSCRIPTION INHERITANCE:
+STATUS: NOT ALLOWED
+
+FACILITY CREATION MODEL:
+STATUS: UNCHANGED
+
+FUTURE BRANCH MODEL:
+STATUS: DOCUMENTED
+
+DO NOT DEPLOY AUTOMATICALLY.

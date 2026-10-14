@@ -9,6 +9,70 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      additional_business_requests: {
+        Row: {
+          billing_email: string
+          business_name: string
+          created_at: string
+          decided_at: string | null
+          decided_by_profile_id: string | null
+          decision_reason: string | null
+          id: string
+          note: string | null
+          organisation_id: string | null
+          requested_by_profile_id: string
+          status: string
+        }
+        Insert: {
+          billing_email: string
+          business_name: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by_profile_id?: string | null
+          decision_reason?: string | null
+          id?: string
+          note?: string | null
+          organisation_id?: string | null
+          requested_by_profile_id: string
+          status?: string
+        }
+        Update: {
+          billing_email?: string
+          business_name?: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by_profile_id?: string | null
+          decision_reason?: string | null
+          id?: string
+          note?: string | null
+          organisation_id?: string | null
+          requested_by_profile_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "additional_business_requests_decided_by_profile_id_fkey"
+            columns: ["decided_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "additional_business_requests_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: true
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "additional_business_requests_requested_by_profile_id_fkey"
+            columns: ["requested_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agency_attendance_settings: {
         Row: {
           agency_organisation_id: string
@@ -1818,6 +1882,7 @@ export type Database = {
           current_period_ends_on: string | null
           id: string
           organisation_id: string
+          organisation_type: Database["public"]["Enums"]["organisation_type"]
           plan_key: string | null
           provider: string
           provider_customer_id: string | null
@@ -1838,6 +1903,7 @@ export type Database = {
           current_period_ends_on?: string | null
           id?: string
           organisation_id: string
+          organisation_type?: Database["public"]["Enums"]["organisation_type"]
           plan_key?: string | null
           provider?: string
           provider_customer_id?: string | null
@@ -1858,6 +1924,7 @@ export type Database = {
           current_period_ends_on?: string | null
           id?: string
           organisation_id?: string
+          organisation_type?: Database["public"]["Enums"]["organisation_type"]
           plan_key?: string | null
           provider?: string
           provider_customer_id?: string | null
@@ -1871,6 +1938,13 @@ export type Database = {
           updated_by_profile_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "customer_accounts_agency_fkey"
+            columns: ["organisation_id", "organisation_type"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id", "type"]
+          },
           {
             foreignKeyName: "customer_accounts_organisation_id_fkey"
             columns: ["organisation_id"]
@@ -8125,6 +8199,16 @@ export type Database = {
           released_at: string
         }[]
       }
+      list_my_additional_business_requests: {
+        Args: never
+        Returns: {
+          business_name: string
+          created_at: string
+          decided_at: string
+          request_id: string
+          status: string
+        }[]
+      }
       list_my_attendance: {
         Args: { p_organisation_id: string }
         Returns: {
@@ -8661,6 +8745,12 @@ export type Database = {
       }
       lock_payroll_batch: { Args: { p_batch_id: string }; Returns: undefined }
       mark_thread_read: { Args: { p_thread_id: string }; Returns: undefined }
+      my_business_ownership: {
+        Args: never
+        Returns: {
+          owned_agencies: number
+        }[]
+      }
       my_capabilities: {
         Args: { p_organisation_id: string }
         Returns: {
@@ -8708,6 +8798,20 @@ export type Database = {
           invite_token: string
           organisation_id: string
         }[]
+      }
+      platform_decline_business_request: {
+        Args: { p_reason: string; p_request_id: string }
+        Returns: undefined
+      }
+      platform_fulfil_business_request: {
+        Args: {
+          p_plan_key?: string
+          p_reason: string
+          p_request_id: string
+          p_status: Database["public"]["Enums"]["customer_account_status"]
+          p_trial_ends_on?: string
+        }
+        Returns: string
       }
       platform_get_customer: {
         Args: { p_organisation_id: string }
@@ -8757,6 +8861,23 @@ export type Database = {
           name: string
           status: Database["public"]["Enums"]["facility_status"]
           timezone: string
+        }[]
+      }
+      platform_list_business_requests: {
+        Args: never
+        Returns: {
+          billing_email: string
+          business_name: string
+          created_at: string
+          decided_at: string
+          decision_reason: string
+          note: string
+          organisation_id: string
+          request_id: string
+          requester_email: string
+          requester_name: string
+          requester_owned_agencies: string
+          status: string
         }[]
       }
       platform_list_connection_invites: {
@@ -8955,6 +9076,14 @@ export type Database = {
           p_timesheet_id: string
         }
         Returns: undefined
+      }
+      request_additional_business: {
+        Args: {
+          p_billing_email: string
+          p_business_name: string
+          p_note?: string
+        }
+        Returns: string
       }
       request_attendance_correction: {
         Args: {
@@ -9321,6 +9450,10 @@ export type Database = {
       }
       void_invoice_draft: {
         Args: { p_draft_id: string; p_reason: string }
+        Returns: undefined
+      }
+      withdraw_additional_business_request: {
+        Args: { p_request_id: string }
         Returns: undefined
       }
       withdraw_credential: {

@@ -109,6 +109,8 @@ const SQLSTATE_TO_CODE: Readonly<Record<string, ErrorCode>> = {
   CHY22: "CURRENCY_IN_USE",
   CHC01: "CUSTOM_TYPE_EXISTS",
   CHC02: "CUSTOM_TYPE_IN_USE",
+  CHB01: "ADDITIONAL_AGENCY_REQUIRES_COMMERCIAL_SETUP",
+  CHB02: "FIRST_AGENCY_SELF_SERVICE",
 };
 
 /** Supabase Auth error codes (AuthError.code). */

@@ -8,6 +8,10 @@ export {
   setMembershipStatusAction,
 } from "./actions";
 export { deliverInvitation, type InvitationDelivery } from "./invitation-delivery";
+export {
+  AdditionalBusinessForm,
+  WithdrawBusinessRequestForm,
+} from "./components/additional-business-form";
 export { AcceptInviteForm } from "./components/accept-invite-form";
 export { AssignRoleForm } from "./components/assign-role-form";
 export { CreateOrganisationForm } from "./components/create-organisation-form";

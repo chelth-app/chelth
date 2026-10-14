@@ -284,3 +284,37 @@ export const listCurrencies = cache(async (): Promise<CurrencyOption[]> => {
   if (error) throw error;
   return data;
 });
+
+/* P0-E9-4A.2: one staffing business per self-service owner. */
+
+/** How many agencies the caller OWNS (owner role), not merely belongs to. */
+export async function getMyBusinessOwnership(): Promise<{ ownedAgencies: number }> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("my_business_ownership");
+  if (error) throw error;
+  return { ownedAgencies: data[0]?.owned_agencies ?? 0 };
+}
+
+export type AdditionalBusinessRequest = {
+  id: string;
+  businessName: string;
+  status: "pending" | "fulfilled" | "declined" | "withdrawn";
+  createdAt: string;
+  decidedAt: string | null;
+};
+
+export async function listMyAdditionalBusinessRequests(): Promise<AdditionalBusinessRequest[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("list_my_additional_business_requests");
+  if (error) throw error;
+  return data.map((row) => ({
+    id: row.request_id,
+    businessName: row.business_name,
+    status:
+      (["pending", "fulfilled", "declined", "withdrawn"] as const).find(
+        (status) => status === row.status,
+      ) ?? "pending",
+    createdAt: row.created_at,
+    decidedAt: row.decided_at ?? null,
+  }));
+}

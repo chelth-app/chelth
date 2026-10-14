@@ -132,13 +132,13 @@ test.describe.serial("Facility workspace (P0-E9-3K)", () => {
     browser,
   }, testInfo) => {
     const page = await signedIn(browser, world.facilityAdmin.email);
-    // A facility-only account opens its facility directly (no chooser, no "Create a new agency").
+    // A facility-only account opens its facility directly (no chooser, no agency creation).
     await page.goto("/app");
     await expect(page).toHaveURL(new RegExp(`${base}$`), AFTER_ACTION);
     await expect(
       page.getByRole("heading", { level: 1, name: world.facilityOrgName }),
     ).toBeVisible();
-    await expect(page.getByText("Create a new agency")).toHaveCount(0);
+    await expect(page.getByText("Create your staffing agency")).toHaveCount(0);
     await expect(page.getByRole("link", { name: "All organizations" })).toHaveCount(0);
     expect(await navLabels(page, testInfo)).toEqual([
       "Overview",

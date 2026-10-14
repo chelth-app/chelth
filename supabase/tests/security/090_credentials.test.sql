@@ -84,7 +84,7 @@ select throws_ok(
   'CH403', null, 'only the owner can share a credential');
 select throws_ok(
   format($$ select pg_temp.share_credential(%L, %L, %L) $$, (select wendy from ids), (select bls ->> 'credential_id' from c),
-    pg_temp.create_org_as((select alice from ids), 'Gamma Agency', 'gamma-agency')),
+    pg_temp.create_org_as(pg_temp.create_user('gina@example.test'), 'Gamma Agency', 'gamma-agency')),
   'CH403', null, 'credentials can only be shared with agencies the person works with');
 select throws_ok(
   format($$ select pg_temp.share_credential(%L, %L, %L) $$, (select wendy from ids), (select bls ->> 'credential_id' from c), (select alpha from orgs)),

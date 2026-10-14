@@ -120,3 +120,15 @@ export const planSchema = z
       });
     }
   });
+
+export const fulfilBusinessSchema = z.object({
+  requestId: uuid,
+  status: z.enum(["trial", "active"], { error: "Choose trial or active." }),
+  planKey: z
+    .string()
+    .optional()
+    .transform((value) => (value ? value : undefined)),
+  trialEndsOn: optionalDate,
+  reason,
+});
+export const declineBusinessSchema = z.object({ requestId: uuid, reason });

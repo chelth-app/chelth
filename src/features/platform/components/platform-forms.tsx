@@ -10,6 +10,8 @@ import { Select } from "@/components/ui/select";
 
 import {
   createPlatformOrganisationAction,
+  declineBusinessRequestAction,
+  fulfilBusinessRequestAction,
   linkFacilityAction,
   type PlatformInviteResult,
   resendPlatformInviteAction,
@@ -365,5 +367,76 @@ export function PlanForm() {
         </SubmitButton>
       </div>
     </form>
+  );
+}
+
+/** P0-E9-4A.2: decide an additional-business request (its own account; never inherited). */
+export function BusinessRequestDecision({
+  requestId,
+  businessName,
+  plans,
+}: {
+  requestId: string;
+  businessName: string;
+  plans: { key: string; name: string }[];
+}) {
+  const [fulfilState, fulfil] = useActionState(fulfilBusinessRequestAction, null);
+  const [declineState, decline] = useActionState(declineBusinessRequestAction, null);
+  const id = (field: string) => `business-${requestId}-${field}`;
+  return (
+    <div className="flex flex-col gap-4">
+      <form action={fulfil} className="grid gap-3 sm:grid-cols-3" noValidate>
+        <input type="hidden" name="requestId" value={requestId} />
+        <FormField
+          id={id("status")}
+          label="Start as"
+          required
+          errors={fieldErrorsFor(fulfilState, "status")}
+        >
+          <Select name="status" defaultValue="trial">
+            <option value="trial">Trial</option>
+            <option value="active">Active</option>
+          </Select>
+        </FormField>
+        <FormField id={id("plan")} label="Plan" errors={fieldErrorsFor(fulfilState, "planKey")}>
+          <Select name="planKey" defaultValue="">
+            <option value="">No plan yet</option>
+            {plans.map((plan) => (
+              <option key={plan.key} value={plan.key}>
+                {plan.name}
+              </option>
+            ))}
+          </Select>
+        </FormField>
+        <FormField
+          id={id("trial")}
+          label="Trial ends"
+          errors={fieldErrorsFor(fulfilState, "trialEndsOn")}
+        >
+          <Input name="trialEndsOn" type="date" />
+        </FormField>
+        <div className="sm:col-span-3">
+          <ReasonField id={id("reason")} state={fulfilState} />
+        </div>
+        <div className="flex flex-col gap-2 sm:col-span-3">
+          <FormAlert state={fulfilState} successMessage="Business created with its own account." />
+          <SubmitButton className="w-fit" aria-label={`Create ${businessName}`}>
+            Create business and account
+          </SubmitButton>
+        </div>
+      </form>
+      <form action={decline} className="flex flex-col gap-3 border-t border-border pt-3" noValidate>
+        <input type="hidden" name="requestId" value={requestId} />
+        <ReasonField id={id("decline-reason")} state={declineState} />
+        <FormAlert state={declineState} successMessage="Request declined." />
+        <SubmitButton
+          className="w-fit"
+          variant="outline"
+          aria-label={`Decline request for ${businessName}`}
+        >
+          Decline
+        </SubmitButton>
+      </form>
+    </div>
   );
 }

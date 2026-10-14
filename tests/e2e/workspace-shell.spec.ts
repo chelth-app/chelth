@@ -473,26 +473,15 @@ test.describe.serial("workspace shell", () => {
       list.getByRole("button", { name: new RegExp(`^Open workspace ${world.agencyName}$`) }),
     ).toBeVisible();
     expect(await page.getByText("Last used").count()).toBeLessThanOrEqual(1);
-    await expect(page.getByRole("region", { name: "Create a new agency" })).toBeVisible();
-    // P0-E8-A1.3 / A1.4: from lg the gateway puts workspaces (primary, ~64%) beside the create
-    // panel with a 24 px gap, tops aligned; below lg it stacks organisations above Create.
-    const orgsBox = await page.getByRole("region", { name: "Your organizations" }).boundingBox();
-    const createBox = await page.getByRole("region", { name: "Create a new agency" }).boundingBox();
+    // P0-E9-4A.2: /app is an organisation switcher. A member with organisations
+    // sees no business-creation panel beside them (it lives in Account → Businesses).
+    await expect(page.getByRole("region", { name: "Create your staffing agency" })).toHaveCount(0);
+    await expect(page.getByText("Create a new agency")).toHaveCount(0);
     const agencyBox = await agency.boundingBox();
     const facilityBox = await facility.boundingBox();
-    if (!orgsBox || !createBox || !agencyBox || !facilityBox) throw new Error("gateway missing");
-    if (isMobile(testInfo)) {
-      expect(createBox.y).toBeGreaterThanOrEqual(orgsBox.y + orgsBox.height);
-    } else {
-      const gap = createBox.x - (orgsBox.x + orgsBox.width);
-      expect(gap).toBeGreaterThanOrEqual(0);
-      expect(gap).toBeLessThanOrEqual(25);
-      expect(orgsBox.width).toBeGreaterThan(createBox.width * 1.4);
-      const share = orgsBox.width / (orgsBox.width + createBox.width);
-      expect(share).toBeGreaterThan(0.6);
-      expect(share).toBeLessThan(0.68);
-      expect(Math.abs(createBox.y - orgsBox.y)).toBeLessThan(8);
-      // The two-organisation fixture stays 2-up in the left column.
+    if (!agencyBox || !facilityBox) throw new Error("gateway missing");
+    if (!isMobile(testInfo)) {
+      // The two-organisation fixture stays 2-up.
       expect(Math.abs(agencyBox.y - facilityBox.y)).toBeLessThan(2);
       const [left, right] =
         agencyBox.x < facilityBox.x ? [agencyBox, facilityBox] : [facilityBox, agencyBox];
@@ -559,16 +548,16 @@ test.describe.serial("workspace shell", () => {
     await expect(singleList.getByRole("article")).toHaveCount(1);
     const card = await singleList.getByRole("article").boundingBox();
     const column = await single.getByRole("region", { name: "Your organizations" }).boundingBox();
-    const create = await single.getByRole("region", { name: "Create a new agency" }).boundingBox();
-    if (!card || !column || !create) throw new Error("single-organisation gateway missing");
+    if (!card || !column) throw new Error("single-organisation gateway missing");
+    // An agency owner: a clean chooser, no "create another agency" card (P0-E9-4A.2).
+    await expect(single.getByRole("region", { name: "Create your staffing agency" })).toHaveCount(
+      0,
+    );
     if (isMobile(testInfo)) {
-      expect(create.y).toBeGreaterThanOrEqual(column.y + column.height);
       expect(Math.abs(card.width - column.width)).toBeLessThan(2);
     } else {
-      expect(card.width).toBeGreaterThan((column.width - 16) / 2 + 60);
       expect(card.width).toBeLessThanOrEqual(561);
-      expect(create.x).toBeGreaterThanOrEqual(column.x + column.width);
-      expect(Math.abs(create.y - column.y)).toBeLessThan(8);
+      expect(card.width).toBeGreaterThan(300);
     }
     await expectNoPageOverflow(single);
     await screenshot(single, testInfo, "a14-single-organisation");
