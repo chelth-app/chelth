@@ -97,7 +97,11 @@ export default async function AppHomePage({ searchParams }: PageProps<"/app">) {
   if (facilityOnly?.length === 1 && onlyFacility && !pendingInvite && !noticeText) {
     redirect(`/app/organisations/${onlyFacility.id}` as Route);
   }
-  const offerCreateAgency = facilityOnly === null;
+  // P0-E9-4A.2: /app is an organisation switcher. Creating a business is
+  // offered here only to someone with no organisation yet (their first
+  // staffing agency). Members who own no agency start one from Account →
+  // Businesses; an owner's additional business is a commercial request there.
+  const offerCreateAgency = visible.length === 0;
 
   // The preference only reorders the list; nothing is selected automatically.
   const ordered = [...visible].sort(
@@ -194,7 +198,7 @@ export default async function AppHomePage({ searchParams }: PageProps<"/app">) {
                     {spell("You are not a member of any organization yet.")}
                   </h3>
                   <p className="text-[13.5px] leading-5 text-slate-600">
-                    Ask an administrator to invite you, or create an agency below.
+                    Ask an administrator to invite you, or create your staffing agency.
                   </p>
                 </div>
               </div>
@@ -281,10 +285,12 @@ export default async function AppHomePage({ searchParams }: PageProps<"/app">) {
                 id="create-heading"
                 className="font-display text-[18px] leading-6 font-semibold text-[color-mix(in_srgb,var(--chelth-navy)_72%,black)]"
               >
-                Create a new agency
+                Create your staffing agency
               </h2>
               <p className="text-[14px] leading-5 text-slate-600">
-                Use Chelth for a separate staffing organisation.
+                {spell(
+                  "Set up your staffing business on Chelth. Your facilities, workers and team all live inside it.",
+                )}
               </p>
             </div>
             <div className="chelth-locked">

@@ -47,3 +47,21 @@ export function isInviteTokenFormat(value: string | null | undefined): value is 
 export const inviteTokenSchema = z.string().regex(INVITE_TOKEN_PATTERN);
 
 export const selectOrganisationSchema = z.object({ organisationId: organisationIdSchema });
+
+/* P0-E9-4A.2: request an additional (separately billed) business. */
+export const additionalBusinessSchema = z.object({
+  businessName: z
+    .string()
+    .trim()
+    .min(2, "Enter the business name.")
+    .max(200, "Use at most 200 characters.")
+    .regex(/^[^\p{Cc}]*$/u, "Remove unsupported characters."),
+  billingEmail: z.email({ error: "Enter a valid billing email." }).max(254),
+  note: z
+    .string()
+    .trim()
+    .max(1000, "Use at most 1000 characters.")
+    .optional()
+    .transform((value) => (value ? value : undefined)),
+});
+export const additionalBusinessRequestIdSchema = z.object({ requestId: z.uuid() });

@@ -277,3 +277,24 @@ manage). No platform action is needed.
 
 Never re-point a link with SQL, and never reassign records between
 organisations. Every recovery is additive and audited.
+
+## 12. Additional business requests
+
+One staffing business = one agency organization. Branches, facilities and
+departments belong inside it. An owner cannot self-create a second agency
+(database-enforced, `CHB01`); they request one from Account → Businesses.
+
+1. `/platform/billing` → Additional business requests: check the requester,
+   the agencies they already own, the business name, the billing contact and
+   the note.
+2. Confirm with the requester that it is a separate business (separate legal
+   entity or operation), not a branch or a client facility.
+3. **Create business and account** (start as Trial or Active, a plan if one
+   applies, a reason). This creates the agency with the requester as owner
+   and its own commercial account in one step. Nothing is inherited from
+   their existing business.
+4. Otherwise, **Decline** with a reason (for example, "same business; use
+   facilities").
+
+Never create a second agency for an existing owner any other way. Every
+agency must have its own commercial account.

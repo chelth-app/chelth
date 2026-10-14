@@ -276,6 +276,18 @@ export const ERROR_CODES = {
     message:
       "Currency can't be changed because this workspace already has rates or financial records in another currency.",
   },
+  ADDITIONAL_AGENCY_REQUIRES_COMMERCIAL_SETUP: {
+    kind: "conflict",
+    status: 409,
+    message:
+      "You already have a staffing business on Chelth. An additional business needs its own subscription: use Account → Businesses → Add another business.",
+  },
+  FIRST_AGENCY_SELF_SERVICE: {
+    kind: "conflict",
+    status: 409,
+    message:
+      "You don't have a staffing business on Chelth yet. Create your staffing agency instead.",
+  },
   CUSTOM_TYPE_EXISTS: {
     kind: "conflict",
     status: 409,

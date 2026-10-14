@@ -30,6 +30,10 @@ const LABELS: Record<string, string> = {
   "facility.connection_resent": "Facility connection invitation resent",
   "facility.connection_revoked": "Facility connection invitation revoked",
   "facility.connection_accepted": "Facility accepted an agency connection",
+  "additional_business.requested": "Additional business requested",
+  "additional_business.created": "Additional business created with its own account",
+  "additional_business.declined": "Additional business request declined",
+  "additional_business.withdrawn": "Additional business request withdrawn",
   "facility.organisation_created_from_invite": "Facility organization created from an invitation",
 };
 

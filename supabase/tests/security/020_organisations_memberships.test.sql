@@ -60,15 +60,12 @@ select throws_ok(
   $$ select pg_temp.scalar_as(null, null, 'select public.create_organisation(''agency'', ''Anon Ltd'', ''anon-ltd'')') $$,
   '42501', null, 'anonymous users cannot create organisations');
 
--- Rate limit: 5 per identity per day.
+-- P0-E9-4A.2: one self-service business per owner (an additional business
+-- goes through the commercial path). The daily rate limit still applies first-time.
 select pg_temp.create_org_as((select dave from ids), 'Dave One', 'dave-one');
-select pg_temp.create_org_as((select dave from ids), 'Dave Two', 'dave-two');
-select pg_temp.create_org_as((select dave from ids), 'Dave Three', 'dave-three');
-select pg_temp.create_org_as((select dave from ids), 'Dave Four', 'dave-four');
-select pg_temp.create_org_as((select dave from ids), 'Dave Five', 'dave-five');
 select throws_ok(
-  format($$ select pg_temp.create_org_as(%L, 'Dave Six', 'dave-six') $$, (select dave from ids)),
-  'CH429', null, 'organisation creation is rate limited per identity');
+  format($$ select pg_temp.create_org_as(%L, 'Dave Two', 'dave-two') $$, (select dave from ids)),
+  'CHB01', null, 'an agency owner cannot self-create a second agency (database-enforced)');
 
 -- ---------------------------------------------------------------------------
 -- Multi-organisation identity

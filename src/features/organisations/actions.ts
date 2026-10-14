@@ -37,6 +37,8 @@ import { type InvitationDelivery, deliverInvitation } from "./invitation-deliver
 import { getMyCapabilities, getOrganisation } from "./queries";
 import { isWorkspaceStaff } from "./workspace-navigation";
 import {
+  additionalBusinessRequestIdSchema,
+  additionalBusinessSchema,
   createOrganisationSchema,
   inviteIdSchema,
   inviteMemberSchema,
@@ -420,6 +422,47 @@ export async function setOrganisationCurrencyAction(
     });
     if (error) throw error;
     revalidatePath(`/app/organisations/${input.organisationId}`, "layout");
+    return null;
+  });
+}
+
+// -----------------------------------------------------------------------------
+// Additional business (P0-E9-4A.2): a request, fulfilled by Chelth with its own
+// commercial account. Never a free self-service second agency.
+// -----------------------------------------------------------------------------
+
+export async function requestAdditionalBusinessAction(
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction("organisations.requestAdditionalBusiness", async () => {
+    const input = parseInput(additionalBusinessSchema, formDataToObject(formData));
+    await requireAuthIdentity();
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.rpc("request_additional_business", {
+      p_business_name: input.businessName,
+      p_billing_email: input.billingEmail.trim().toLowerCase(),
+      ...(input.note ? { p_note: input.note } : {}),
+    });
+    if (error) throw error;
+    revalidatePath("/app/account");
+    return null;
+  });
+}
+
+export async function withdrawAdditionalBusinessAction(
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction("organisations.withdrawAdditionalBusiness", async () => {
+    const input = parseInput(additionalBusinessRequestIdSchema, formDataToObject(formData));
+    await requireAuthIdentity();
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.rpc("withdraw_additional_business_request", {
+      p_request_id: input.requestId,
+    });
+    if (error) throw error;
+    revalidatePath("/app/account");
     return null;
   });
 }

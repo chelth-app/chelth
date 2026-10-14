@@ -15,6 +15,8 @@ import { formDataToObject, parseInput } from "@/lib/validation";
 import {
   createPlatformOrganisationSchema,
   customerAccountSchema,
+  declineBusinessSchema,
+  fulfilBusinessSchema,
   lifecycleSchema,
   linkFacilitySchema,
   planSchema,
@@ -275,6 +277,49 @@ export async function savePlanAction(
       ...(input.includedFacilities !== undefined
         ? { p_included_facilities: input.includedFacilities }
         : {}),
+    });
+    if (error) throw error;
+    revalidatePath(PLATFORM, "layout");
+    return null;
+  });
+}
+
+/**
+ * P0-E9-4A.2: fulfil an additional-business request: the business, its owner
+ * (the requester) and its OWN commercial account, in one database transaction.
+ */
+export async function fulfilBusinessRequestAction(
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction("platform.fulfilBusinessRequest", async () => {
+    const input = parseInput(fulfilBusinessSchema, formDataToObject(formData));
+    await requireAuthIdentity();
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.rpc("platform_fulfil_business_request", {
+      p_request_id: input.requestId,
+      p_status: input.status,
+      p_reason: input.reason,
+      ...(input.planKey ? { p_plan_key: input.planKey } : {}),
+      ...(input.trialEndsOn ? { p_trial_ends_on: input.trialEndsOn } : {}),
+    });
+    if (error) throw error;
+    revalidatePath(PLATFORM, "layout");
+    return null;
+  });
+}
+
+export async function declineBusinessRequestAction(
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction("platform.declineBusinessRequest", async () => {
+    const input = parseInput(declineBusinessSchema, formDataToObject(formData));
+    await requireAuthIdentity();
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.rpc("platform_decline_business_request", {
+      p_request_id: input.requestId,
+      p_reason: input.reason,
     });
     if (error) throw error;
     revalidatePath(PLATFORM, "layout");

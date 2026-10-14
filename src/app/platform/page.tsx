@@ -3,7 +3,11 @@ import Link from "next/link";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
-import { getPlatformOverview, listPlatformConnectionInvites } from "@/features/platform";
+import {
+  getPlatformOverview,
+  listBusinessRequests,
+  listPlatformConnectionInvites,
+} from "@/features/platform";
 
 import { platformDateTime, PlatformStat } from "./_components/platform-ui";
 
@@ -15,10 +19,14 @@ export const metadata: Metadata = { title: "Overview" };
  * figure is a count from the audited platform projection; no tenant records.
  */
 export default async function PlatformOverviewPage() {
-  const [overview, connectionInvites] = await Promise.all([
+  const [overview, connectionInvites, businessRequests] = await Promise.all([
     getPlatformOverview(),
     listPlatformConnectionInvites(),
+    listBusinessRequests(),
   ]);
+  const pendingBusinesses = businessRequests.filter(
+    (request) => request.status === "pending",
+  ).length;
   const pendingConnections = connectionInvites.filter(
     (invite) => invite.status === "pending" && !invite.expired,
   ).length;
@@ -97,6 +105,10 @@ export default async function PlatformOverviewPage() {
           <li className="flex items-center justify-between gap-3 py-2.5">
             <span>Facility organizations waiting for their owner to accept</span>
             <span className="font-semibold tabular-nums">{attention.facility_owner_pending}</span>
+          </li>
+          <li className="flex items-center justify-between gap-3 py-2.5">
+            <span>Additional business requests to review (Billing)</span>
+            <span className="font-semibold tabular-nums">{pendingBusinesses}</span>
           </li>
           <li className="flex items-center justify-between gap-3 py-2.5">
             <span>Facility connection invitations awaiting acceptance</span>

@@ -82,8 +82,8 @@ test.describe.serial("worker-first app entry", () => {
       await expect(card.getByRole("link", { name: `Open shifts with ${name}` })).toBeVisible();
     }
     // Worker-only: no agency creation and no staff workspace gateway.
-    await expect(page.getByRole("region", { name: "Create a new agency" })).toHaveCount(0);
-    await expect(page.getByText("Create a new agency")).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Create your staffing agency" })).toHaveCount(0);
+    await expect(page.getByText("Create your staffing agency")).toHaveCount(0);
     await expect(page.getByRole("list", { name: "Your organizations" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /^Open workspace/ })).toHaveCount(0);
     await qaScreenshot(page, "e9-3b-worker-agency-chooser");
@@ -107,7 +107,8 @@ test.describe.serial("worker-first app entry", () => {
         .getByRole("list", { name: "Your organizations" })
         .getByRole("button", { name: `Open workspace ${world.agencyName}` }),
     ).toBeVisible();
-    await expect(page.getByRole("region", { name: "Create a new agency" })).toBeVisible();
+    // P0-E9-4A.2: an owner's gateway is a switcher, not a business-creation page.
+    await expect(page.getByRole("region", { name: "Create your staffing agency" })).toHaveCount(0);
     await expect(page.getByRole("list", { name: "Your agencies" })).toHaveCount(0);
     await page.context().close();
   });
@@ -118,7 +119,7 @@ test.describe.serial("worker-first app entry", () => {
     await expect(owner).toHaveURL(/\/app$/, AFTER_ACTION);
     const ownerList = owner.getByRole("list", { name: "Your organizations" });
     await expect(ownerList.getByRole("article")).toHaveCount(2);
-    await expect(owner.getByRole("region", { name: "Create a new agency" })).toBeVisible();
+    await expect(owner.getByRole("region", { name: "Create your staffing agency" })).toHaveCount(0);
     await expect(owner.getByRole("list", { name: "Your agencies" })).toHaveCount(0);
     await owner.context().close();
 

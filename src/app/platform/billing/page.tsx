@@ -7,7 +7,13 @@ import { LockedNotice } from "@/components/reference/locked-notice";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
-import { listPlatformCustomers, listSubscriptionPlans, PlanForm } from "@/features/platform";
+import {
+  BusinessRequestDecision,
+  listBusinessRequests,
+  listPlatformCustomers,
+  listSubscriptionPlans,
+  PlanForm,
+} from "@/features/platform";
 
 import { AccountStatusChip, PLATFORM_TABLE, platformDate } from "../_components/platform-ui";
 
@@ -25,7 +31,12 @@ function money(minor: number | null, currency: string | null): string {
  * never shown here.
  */
 export default async function PlatformBillingPage() {
-  const [customers, plans] = await Promise.all([listPlatformCustomers(), listSubscriptionPlans()]);
+  const [customers, plans, requests] = await Promise.all([
+    listPlatformCustomers(),
+    listSubscriptionPlans(),
+    listBusinessRequests(),
+  ]);
+  const activePlans = plans.filter((plan) => plan.status === "active");
   const agencies = customers.filter((customer) => customer.type === "agency");
   const today = new Date().toISOString().slice(0, 10);
   const attention = (customer: (typeof agencies)[number]): string | null => {
@@ -109,6 +120,79 @@ export default async function PlatformBillingPage() {
           Seats count active staff memberships (not healthcare workers). Facilities count the
           agency&apos;s facility records. Counts are shown only; no plan limits are enforced.
         </p>
+      </Panel>
+      <Panel
+        titleId="business-requests-heading"
+        title={<>Additional business requests</>}
+        description={
+          <>
+            An agency owner asking for a separate staffing business. Creating it also creates its
+            own commercial account; nothing is inherited from their existing business.
+          </>
+        }
+        variant="reference"
+      >
+        {requests.length === 0 ? (
+          <p className="text-sm text-slate-700">No requests.</p>
+        ) : (
+          <ul
+            aria-label="Additional business requests"
+            className="flex flex-col divide-y divide-border text-sm"
+          >
+            {requests.map((request) => (
+              <li key={request.id} className="flex flex-col gap-3 py-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <span className="flex flex-col">
+                    <span className="font-medium text-chelth-navy">{request.businessName}</span>
+                    <span className="text-slate-600">
+                      Requested by {request.requesterName ?? "—"} ({request.requesterEmail ?? "—"})
+                      · owns {request.requesterOwns ?? "no agency"} ·{" "}
+                      {platformDate(request.createdAt)}
+                    </span>
+                    <span className="text-slate-600">Billing contact: {request.billingEmail}</span>
+                    {request.note ? (
+                      <span className="text-slate-600">Note: {request.note}</span>
+                    ) : null}
+                    {request.decisionReason ? (
+                      <span className="text-slate-600">Decision: {request.decisionReason}</span>
+                    ) : null}
+                  </span>
+                  <StatusChip
+                    tone={
+                      request.status === "pending"
+                        ? "info"
+                        : request.status === "fulfilled"
+                          ? "success"
+                          : "neutral"
+                    }
+                  >
+                    {request.status === "pending"
+                      ? "Pending"
+                      : request.status === "fulfilled"
+                        ? "Created"
+                        : request.status === "declined"
+                          ? "Declined"
+                          : "Withdrawn"}
+                  </StatusChip>
+                </div>
+                {request.status === "pending" ? (
+                  <BusinessRequestDecision
+                    requestId={request.id}
+                    businessName={request.businessName}
+                    plans={activePlans}
+                  />
+                ) : request.organisationId ? (
+                  <Link
+                    href={`/platform/organisations/${request.organisationId}` as Route}
+                    className="w-fit text-primary underline underline-offset-4"
+                  >
+                    Open the new business
+                  </Link>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
       </Panel>
       <Panel titleId="plans-heading" title={<>Plans</>} variant="reference">
         <ul className="mb-5 flex flex-col divide-y divide-border text-sm">

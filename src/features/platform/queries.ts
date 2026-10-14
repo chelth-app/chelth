@@ -357,3 +357,42 @@ export async function listPlatformConnectionInvites(
     facilityOrganisationName: row.facility_organisation_name ?? null,
   }));
 }
+
+export type BusinessRequest = {
+  id: string;
+  businessName: string;
+  billingEmail: string;
+  note: string | null;
+  status: "pending" | "fulfilled" | "declined" | "withdrawn";
+  createdAt: string;
+  decidedAt: string | null;
+  decisionReason: string | null;
+  requesterName: string | null;
+  requesterEmail: string | null;
+  requesterOwns: string | null;
+  organisationId: string | null;
+};
+
+/** P0-E9-4A.2: additional-business requests (an owner's separate, separately billed business). */
+export async function listBusinessRequests(): Promise<BusinessRequest[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("platform_list_business_requests");
+  if (error) throw error;
+  return data.map((row) => ({
+    id: row.request_id,
+    businessName: row.business_name,
+    billingEmail: row.billing_email,
+    note: row.note ?? null,
+    status:
+      (["pending", "fulfilled", "declined", "withdrawn"] as const).find(
+        (status) => status === row.status,
+      ) ?? "pending",
+    createdAt: row.created_at,
+    decidedAt: row.decided_at ?? null,
+    decisionReason: row.decision_reason ?? null,
+    requesterName: row.requester_name ?? null,
+    requesterEmail: row.requester_email ?? null,
+    requesterOwns: row.requester_owned_agencies ?? null,
+    organisationId: row.organisation_id ?? null,
+  }));
+}
